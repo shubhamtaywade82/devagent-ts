@@ -26,12 +26,18 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
+function skipDockerPreflight(tool: ShellTool): void {
+  (tool as any).dockerChecked = true;
+  (tool as any).dockerAvailable = true;
+}
+
 describe("ShellTool", () => {
   it("returns exitCode and output on successful execution", async () => {
     const proc = fakeProc();
     mockSpawn.mockReturnValue(proc);
 
     const tool = new ShellTool({ workspaceRoot: "/tmp/ws" });
+    skipDockerPreflight(tool);
     const promise = tool.call({ command: "echo hi" });
 
     proc.stdout.emit("data", Buffer.from("hi\n"));
@@ -46,6 +52,7 @@ describe("ShellTool", () => {
     mockSpawn.mockReturnValue(proc);
 
     const tool = new ShellTool({ workspaceRoot: "/tmp/ws" });
+    skipDockerPreflight(tool);
     const promise = tool.call({ command: "false" });
 
     proc.stderr.emit("data", Buffer.from("error"));
@@ -61,6 +68,7 @@ describe("ShellTool", () => {
     mockSpawn.mockReturnValue(proc);
 
     const tool = new ShellTool({ workspaceRoot: "/tmp/ws" });
+    skipDockerPreflight(tool);
     const promise = tool.call({ command: "echo" });
 
     proc.emit("error", new Error("ENOENT"));
@@ -78,6 +86,7 @@ describe("ShellTool", () => {
     mockSpawn.mockReturnValueOnce(proc).mockReturnValue(killProc);
 
     const tool = new ShellTool({ workspaceRoot: "/tmp/ws" });
+    skipDockerPreflight(tool);
     const promise = tool.call({ command: "yes" });
 
     proc.stdout.emit("data", Buffer.alloc(ShellTool.MAX_OUTPUT_BYTES, "a"));
@@ -91,6 +100,17 @@ describe("ShellTool", () => {
     const result = await promise;
     expect(result.error).toBe("BufferExceededError");
     expect(result.truncated).toBe(true);
+  });
+
+  it("returns a DockerUnavailableError instead of a raw spawn error when docker is missing", async () => {
+    const tool = new ShellTool({ workspaceRoot: "/tmp/ws", logger: { info: jest.fn(), warn: jest.fn() } });
+    (tool as any).dockerAvailable = false;
+    (tool as any).dockerChecked = true;
+
+    const result = await tool.call({ command: "echo hi" });
+
+    expect(result.error).toBe("DockerUnavailableError");
+    expect(result.exitCode).toBe(-1);
   });
 
   it("includes expected docker security flags", () => {

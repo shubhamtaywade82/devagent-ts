@@ -25,6 +25,8 @@ export class ShellTool extends Tool {
   private readonly memory: string;
   private readonly cpus: string;
   private readonly logger: Pick<Console, "info" | "warn">;
+  private dockerChecked = false;
+  private dockerAvailable = true;
 
   constructor(opts: ShellToolOptions) {
     super();
@@ -51,12 +53,37 @@ export class ShellTool extends Tool {
     };
   }
 
+  private async ensureDockerAvailable(): Promise<boolean> {
+    if (this.dockerChecked) return this.dockerAvailable;
+    this.dockerChecked = true;
+    this.dockerAvailable = await new Promise((resolveCheck) => {
+      const probe = spawn("docker", ["info"]);
+      probe.on("close", (code) => resolveCheck(code === 0));
+      probe.on("error", () => resolveCheck(false));
+    });
+    if (!this.dockerAvailable) {
+      this.logger.warn("[ShellTool] docker is not available — run_shell will fail until it is");
+    }
+    return this.dockerAvailable;
+  }
+
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const command = args.command as string;
     const timeoutSec = (args.timeoutSec as number | undefined) ?? this.timeoutSec;
 
     if ((command ?? "").trim().length === 0) {
       return { exitCode: -1, stdout: "", stderr: "empty command", truncated: false, error: "EmptyCommandError" };
+    }
+
+    const dockerAvailable = this.dockerChecked ? this.dockerAvailable : await this.ensureDockerAvailable();
+    if (!dockerAvailable) {
+      return {
+        exitCode: -1,
+        stdout: "",
+        stderr: "docker is not available: dockerd is not reachable (is Docker running?)",
+        truncated: false,
+        error: "DockerUnavailableError",
+      };
     }
 
     const container = `devagent-${randomBytes(4).toString("hex")}`;
