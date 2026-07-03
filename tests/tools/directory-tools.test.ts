@@ -27,13 +27,20 @@ describe("ListDirectoryTool", () => {
     );
   });
 
-  it("returns an ArgumentError when path is missing", async () => {
+  it("defaults to root when path is missing", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    await writeFile(join(dir, "a.txt"), "x");
     const tool = new ListDirectoryTool(dir);
 
     const result = await tool.call({});
 
-    expect(result.error).toBe("ArgumentError");
+    expect(result.path).toBe(".");
+    const entries = result.entries as { name: string; type: string }[];
+    expect(entries).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: "a.txt", type: "file" }),
+      ]),
+    );
   });
 });
 
