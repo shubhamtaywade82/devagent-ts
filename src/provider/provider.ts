@@ -49,7 +49,7 @@ export class Provider {
     this.model = opts.model;
     this.host =
       opts.host ??
-      (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_LOCAL_HOST ?? "http://localhost:11434");
+      (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
     this.apiKey = opts.apiKey ?? process.env.OLLAMA_API_KEY;
     this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 30_000);
   }

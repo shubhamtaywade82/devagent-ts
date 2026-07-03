@@ -44,6 +44,19 @@ const registry = new Registry()
 - Docker (for sandboxed shell execution)
 - Ollama running locally, or `OLLAMA_API_KEY` set for cloud tier
 
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL (local tier) |
+| `OLLAMA_API_KEY` | — | API key for cloud tier |
+| `DEVAGENT_MODEL` | `qwen3.5:4b` | Default model tag |
+| `DEVAGENT_WORKSPACE` | `process.cwd()` | Workspace root directory |
+| `DEVAGENT_TIMEOUT_MS` | `60000` | Request timeout in milliseconds |
+| `DEVAGENT_SYSTEM_PROMPT` | *(built-in)* | Custom system prompt |
+| `DEVAGENT_SHELL_IMAGE` | `devagent-sandbox:latest` | Docker image for sandbox |
+| `DEVAGENT_SHELL_TIMEOUT_SEC` | `30` | Shell command timeout in seconds |
+
 ## Development
 
 ```bash

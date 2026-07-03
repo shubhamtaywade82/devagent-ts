@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { startRepl } from "./src/cli/repl";
+const { startRepl } = require("../dist/cli/repl");
 
 startRepl().catch((e) => {
   console.error(`Fatal: ${e.message}`);

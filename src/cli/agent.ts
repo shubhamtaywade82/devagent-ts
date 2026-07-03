@@ -32,8 +32,8 @@ export class Agent {
       tier: "local",
       model: cfg.model,
       host: cfg.host,
-      apiKey: cfg.apiKey,
-      timeoutMs: cfg.timeoutMs,
+      apiKey: process.env.OLLAMA_API_KEY,
+      timeoutMs: typeof cfg.timeoutMs === "number" ? cfg.timeoutMs : Number(process.env.DEVAGENT_TIMEOUT_MS || "60000"),
     });
 
     this.events = opts.events ?? {};
@@ -100,7 +100,7 @@ export class Agent {
 
       for (const toolCall of toolCalls) {
         const name = toolCall.function.name;
-        const sanitizedArguments = (toolCall.function.arguments || "{}").replace(/\/\/[^\n]*/g, "").replace(/\*/\*/g, "");
+        const sanitizedArguments = (toolCall.function.arguments || "{}").trim();
         let args: Record<string, unknown> = {};
         try {
           args = JSON.parse(sanitizedArguments);
