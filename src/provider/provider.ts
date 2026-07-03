@@ -2,6 +2,15 @@ export class RateLimitError extends Error {}
 export class ProviderError extends Error {}
 export class TimeoutError extends Error {}
 
+const MAX_ERROR_BODY_CHARS = 500;
+
+function redactSecrets(text: string): string {
+  return text
+    .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]")
+    .replace(/sk-[A-Za-z0-9]{6,}/g, "[REDACTED]")
+    .slice(0, MAX_ERROR_BODY_CHARS);
+}
+
 export type Tier = "local" | "cloud";
 
 export interface ChatMessage {
@@ -122,7 +131,7 @@ export class Provider {
       throw new RateLimitError(`${this.model} (${this.tier}) rate limited`);
     }
     if (!resp.ok) {
-      throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${await resp.text()}`);
+      throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${redactSecrets(await resp.text())}`);
     }
 
     return opts.stream ? this.streamChunks(resp, opts.onChunk) : ((await resp.json()) as ChatResponse);
@@ -146,7 +155,7 @@ export class Provider {
       resp = await fetch(`${this.host}${path}`, { headers });
     }
 
-    if (!resp.ok) throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${await resp.text()}`);
+    if (!resp.ok) throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${redactSecrets(await resp.text())}`);
     return resp.json();
   }
 

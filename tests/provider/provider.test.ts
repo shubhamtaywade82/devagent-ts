@@ -14,3 +14,19 @@ describe("Provider cloud auth", () => {
     await expect(provider.chat([{ role: "user", content: "hi" }])).rejects.not.toThrow(/missing apiKey/);
   });
 });
+
+describe("Provider error redaction", () => {
+  it("redacts bearer tokens from upstream error bodies", async () => {
+    const fakeFetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 500,
+      text: async () => "upstream failed, saw header Authorization: Bearer sk-secret-abc123",
+    });
+    (globalThis as any).fetch = fakeFetch;
+
+    const provider = new Provider({ tier: "cloud", model: "m", apiKey: "sk-secret-abc123", host: "https://x" });
+
+    await expect(provider.chat([{ role: "user", content: "hi" }])).rejects.toThrow(/\[REDACTED\]/);
+    await expect(provider.chat([{ role: "user", content: "hi" }])).rejects.not.toThrow(/sk-secret-abc123/);
+  });
+});
