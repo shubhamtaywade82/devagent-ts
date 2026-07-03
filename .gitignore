@@ -3,3 +3,4 @@ node_modules/
 dist/
 .env
 .devagent_history
+.devagent
