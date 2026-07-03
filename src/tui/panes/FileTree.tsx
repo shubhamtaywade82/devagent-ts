@@ -14,9 +14,9 @@ export interface FileTreeProps {
   focused: boolean;
 }
 
-export function FileTree({ root, onSelect, focused }: FileTreeProps): JSX.Element {
+export function FileTree({ root, onSelect: _onSelect, focused }: FileTreeProps): JSX.Element {
   const [entries, setEntries] = useState<Entry[]>([]);
-  const [cursor, setCursor] = useState(0);
+  const [cursor] = useState(0);
 
   useEffect(() => {
     let cancelled = false;

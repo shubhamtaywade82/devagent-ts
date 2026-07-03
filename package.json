@@ -14,7 +14,7 @@
     "start": "node dist/cli/tui.js",
     "dev": "tsx src/cli/tui.ts",
     "dev:tui": "tsx src/tui/index.ts",
-    "lint": "eslint src tests --ext .ts",
+    "lint": "eslint src tests --ext .ts,.tsx",
     "format:check": "prettier --check src tests"
   },
   "devDependencies": {
