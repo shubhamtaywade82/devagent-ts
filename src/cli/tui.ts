@@ -10,6 +10,7 @@ import TerminalRenderer from "marked-terminal";
 
 import { Agent } from "./agent";
 import { CliConfig, loadConfig } from "./config";
+import { Provider } from "../provider/provider";
 
 // Setup marked terminal styling for premium aesthetics
 marked.setOptions({
@@ -49,6 +50,36 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
   // Per-run state for event handlers (one run at a time)
   let runState = { isStreaming: false, isThinking: false, lastToolName: "", lastToolArgs: {} as Record<string, any> };
+
+  // Model accessibility cache: true = free/accessible, false = requires subscription
+  const modelAccess = new Map<string, boolean>();
+
+  async function probeModels(models: string[]): Promise<void> {
+    const toProbe = models.filter((m) => !modelAccess.has(m));
+    if (!toProbe.length) return;
+    const tempProvider = new Provider({
+      tier: "cloud",
+      model: toProbe[0],
+      host: cfg.host,
+      apiKey: cfg.apiKey,
+      timeoutMs: 10_000,
+    });
+    const probe = async (m: string): Promise<[string, boolean]> => {
+      tempProvider.setModel(m);
+      try {
+        await tempProvider.chat(
+          [{ role: "user", content: "dot" }],
+          { stream: false },
+        );
+        return [m, true];
+      } catch (e) {
+        const msg = (e as Error).message ?? "";
+        return [m, !(msg.includes("403") && msg.includes("subscription"))];
+      }
+    };
+    const results = await Promise.all(toProbe.map(probe));
+    for (const [m, free] of results) modelAccess.set(m, free);
+  }
 
   agent
     .on("onStatus", (status: string) => {
@@ -240,7 +271,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
           chalk.bold.blue("💡 Available Commands:"),
           "",
           `${chalk.cyan("/model <name>")}  Switch Ollama model for this session`,
-          `${chalk.cyan("/models")}        List available models in Ollama`,
+          `${chalk.cyan("/models")}        List available models tagged Free/Subscription`,
           `${chalk.cyan("/clear")}         Clear the terminal screen`,
           `${chalk.cyan("/reset")}         Reset conversation history`,
           `${chalk.cyan("/exit")}          Exit DevAgent`,
@@ -287,8 +318,17 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         if (models.length === 0) {
           console.log(chalk.red("✖ No models found or Ollama is unreachable."));
         } else {
+          console.log(chalk.dim("Probing model accessibility..."));
+          await probeModels(models);
           console.log(chalk.bold("\nAvailable Ollama Models:"));
-          models.forEach((m) => console.log(` - ${chalk.cyan(m)}`));
+          for (const m of models) {
+            const tag = modelAccess.get(m);
+            if (tag === false) {
+              console.log(` - ${chalk.dim(m)} ${chalk.red("(Subscription)")}`);
+            } else {
+              console.log(` - ${chalk.cyan(m)} ${chalk.green("(Free)")}`);
+            }
+          }
           console.log();
         }
         rl.prompt();
@@ -302,7 +342,27 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
           rl.prompt();
           return;
         }
+        const cached = modelAccess.get(modelName);
+        if (cached === false) {
+          console.log(chalk.red(`✖ ${modelName} requires a subscription — upgrade at https://ollama.com/upgrade`));
+          updatePrompt();
+          rl.prompt();
+          return;
+        }
+        const prevModel = agent.currentModel;
         agent.setModel(modelName);
+        if (cached === undefined) {
+          console.log(chalk.dim(`Probing ${modelName}...`));
+          const status = await agent.validateModel();
+          modelAccess.set(modelName, status === true);
+          if (status !== true) {
+            agent.setModel(prevModel);
+            console.log(chalk.red(`✖ ${modelName} ${status}`));
+            updatePrompt();
+            rl.prompt();
+            return;
+          }
+        }
         console.log(chalk.green(`✔ Switched model to: ${chalk.bold(agent.currentModel)}`));
         updatePrompt();
         rl.prompt();

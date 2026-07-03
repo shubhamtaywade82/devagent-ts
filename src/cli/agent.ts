@@ -263,6 +263,22 @@ export class Agent {
     this.resetContext();
   }
 
+  async validateModel(): Promise<true | string> {
+    try {
+      await this.provider.chat(
+        [{ role: "user", content: "respond with just a single dot" }],
+        { stream: false },
+      );
+      return true;
+    } catch (e) {
+      const msg = (e as Error).message ?? "";
+      if (msg.includes("403") && msg.includes("subscription")) {
+        return "requires a subscription — upgrade at https://ollama.com/upgrade";
+      }
+      return `unreachable: ${msg}`;
+    }
+  }
+
   setTier(tier: string): void {
     this.provider.setTier(tier as any);
   }
