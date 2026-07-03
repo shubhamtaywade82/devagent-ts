@@ -8,7 +8,7 @@ import TerminalRenderer from "marked-terminal";
 import { Agent } from "./agent";
 import { CliConfig, loadConfig } from "./config";
 
-// Setup marked terminal styling
+// Setup marked terminal styling for premium aesthetics
 marked.setOptions({
   renderer: new TerminalRenderer({
     code: chalk.yellow,
@@ -20,7 +20,7 @@ marked.setOptions({
     href: chalk.blue.underline,
     listitem: (text: string) => ` • ${text}`,
     tab: 2,
-  }) as any
+  }) as any,
 });
 
 async function listModels(host: string | undefined): Promise<string[]> {
@@ -41,9 +41,12 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   const cfg = { ...loadConfig(), ...(opts?.config ?? {}) };
   const agent = new Agent({ config: cfg });
 
-  // Render a premium startup banner using boxen and chalk
+  // Pre-fetch models list for autocomplete support
+  const modelsList = await listModels(cfg.host);
+
+  // Render a high-fidelity startup banner
   const bannerText = [
-    chalk.bold.magenta("⚡ DevAgent TS Ecosystem CLI ⚡"),
+    chalk.bold.magenta("⚡ DevAgent TS Ecosytem CLI ⚡"),
     "",
     `${chalk.bold("Model:")}      ${chalk.cyan(agent.currentModel)}`,
     `${chalk.bold("Workspace:")}  ${chalk.gray(cfg.workspaceRoot)}`,
@@ -52,7 +55,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       [...agent.getRegistry().schemas()].map((s) => s.function.name).join(", ")
     )}`,
     "",
-    chalk.dim("Type a task below to start. For help, type /help. Ctrl-C to quit.")
+    chalk.dim("Press [Tab] for commands, type /help, or use Ctrl-C to quit.")
   ].join("\n");
 
   console.log(
@@ -66,9 +69,24 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     })
   );
 
+  // Tab completion implementation
+  const completer = (line: string) => {
+    const completions = ["/help", "/models", "/model ", "/clear", "/reset", "/exit", "/quit"];
+    
+    if (line.startsWith("/model ")) {
+      const partialModel = line.slice("/model ".length);
+      const modelHits = modelsList.filter((m) => m.startsWith(partialModel));
+      return [modelHits.map((m) => `/model ${m}`), line];
+    }
+
+    const hits = completions.filter((c) => c.startsWith(line));
+    return [hits.length ? hits : completions, line];
+  };
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
+    completer,
   });
 
   const updatePrompt = () => {
@@ -172,17 +190,30 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       return;
     }
 
-    // Message execution
+    // Pause readline input to avoid overlapping prompts/keypresses during agent run
+    rl.pause();
+
     let isStreaming = false;
     let accumulatedText = "";
+    let lastPrintedLineCount = 0;
+
+    let lastToolName = "";
+    let lastToolArgs: Record<string, any> = {};
 
     // Register temporary event handlers for this specific run
     const events = (agent as any).events;
+
     events.onStatus = (status: string) => {
+      // Clear current assistant stream draft before updating status
       if (isStreaming) {
-        process.stdout.write("\n");
+        if (lastPrintedLineCount > 0) {
+          readline.moveCursor(process.stdout, 0, -lastPrintedLineCount);
+          readline.clearScreenDown(process.stdout);
+        }
         isStreaming = false;
+        lastPrintedLineCount = 0;
       }
+
       spinner.text = chalk.cyan(`Agent status: ${status}...`);
       if (!spinner.isSpinning) {
         spinner.start();
@@ -193,40 +224,55 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       if (spinner.isSpinning) {
         spinner.stop();
       }
-      if (!isStreaming) {
-        isStreaming = true;
-        process.stdout.write(chalk.magenta.bold("🤖 DevAgent: "));
+
+      // Clear the previously printed draft lines
+      if (lastPrintedLineCount > 0) {
+        readline.moveCursor(process.stdout, 0, -lastPrintedLineCount);
+        readline.clearScreenDown(process.stdout);
       }
-      process.stdout.write(chunk);
+
+      isStreaming = true;
       accumulatedText += chunk;
+
+      const draftText = chalk.magenta.bold("🤖 DevAgent: ") + chalk.dim(accumulatedText);
+      process.stdout.write(draftText);
+
+      // Compute visual line height of draftText (accounting for terminal wrapping)
+      const cols = process.stdout.columns || 80;
+      const lines = draftText.split("\n");
+      let lineCount = 0;
+      for (const line of lines) {
+        const clean = line.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
+        lineCount += Math.max(1, Math.ceil(clean.length / cols));
+      }
+      lastPrintedLineCount = lineCount - 1;
     };
 
     events.onToolCall = (name: string, args: Record<string, unknown>) => {
+      lastToolName = name;
+      lastToolArgs = args;
+
+      // Clear current assistant stream draft
       if (isStreaming) {
-        process.stdout.write("\n");
+        if (lastPrintedLineCount > 0) {
+          readline.moveCursor(process.stdout, 0, -lastPrintedLineCount);
+          readline.clearScreenDown(process.stdout);
+        }
         isStreaming = false;
+        lastPrintedLineCount = 0;
       }
+
       if (spinner.isSpinning) {
         spinner.stop();
       }
 
-      const argsStr = JSON.stringify(args, null, 2);
-      const toolCallText = [
-        chalk.yellow.bold(`⚙  Tool Call: ${name}`),
-        chalk.gray(argsStr.length > 300 ? argsStr.substring(0, 300) + "\n... (args truncated)" : argsStr),
-      ].join("\n");
+      // Single-line elegant spinner for the active tool run
+      let desc = "";
+      if (name === "read_file") desc = args.path as string;
+      else if (name === "write_file") desc = args.path as string;
+      else if (name === "run_shell") desc = `"${args.command}"`;
 
-      console.log(
-        boxen(toolCallText, {
-          padding: 0,
-          margin: { top: 0, bottom: 0, left: 0, right: 0 },
-          borderColor: "yellow",
-          borderStyle: "round",
-          dimBorder: true,
-        })
-      );
-
-      spinner.start(`Executing tool ${name}...`);
+      spinner.start(chalk.yellow(`⚙  Executing [${name}] ${desc}...`));
     };
 
     events.onToolResult = (name: string, result: Record<string, unknown> | string) => {
@@ -234,85 +280,96 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         spinner.stop();
       }
 
-      let preview = "";
+      let desc = "";
+      if (name === "read_file") desc = lastToolArgs.path as string;
+      else if (name === "write_file") desc = lastToolArgs.path as string;
+      else if (name === "run_shell") desc = `"${lastToolArgs.command}"`;
+
+      let outcome = "";
       let isError = false;
 
-      if (typeof result === "string") {
-        preview = result.length > 300 ? result.substring(0, 300) + "\n... (truncated)" : result;
-        isError = result.includes("PathEscapeError") || result.includes("Error");
-      } else if (result && typeof result === "object") {
-        if ("exitCode" in result) {
-          const code = result.exitCode as number;
-          preview = `Exit Code: ${code}\n`;
-          if (result.stdout) {
-            preview += `Stdout:\n${chalk.gray((result.stdout as string).substring(0, 300))}\n`;
-          }
-          if (result.stderr) {
-            preview += `Stderr:\n${chalk.red((result.stderr as string).substring(0, 300))}\n`;
-          }
-          isError = code !== 0;
-        } else {
-          const str = JSON.stringify(result, null, 2);
-          preview = str.length > 300 ? str.substring(0, 300) + "\n... (truncated)" : str;
+      if (name === "read_file") {
+        if (typeof result === "string") {
+          outcome = `${result.split("\n").length} lines read`;
+        } else if (result && result.error) {
+          outcome = String(result.error);
+          isError = true;
         }
+      } else if (name === "write_file") {
+        const resObj = result as any;
+        if (resObj && resObj.error) {
+          outcome = String(resObj.error);
+          isError = true;
+        } else {
+          outcome = `written successfully`;
+        }
+      } else if (name === "run_shell") {
+        if (result && typeof result === "object") {
+          const code = result.exitCode as number;
+          isError = code !== 0;
+          outcome = `exit code ${code}`;
+          if (isError && result.stderr) {
+            outcome += ` - ${String(result.stderr).substring(0, 100).trim()}`;
+          }
+        } else {
+          outcome = String(result);
+        }
+      } else {
+        outcome = typeof result === "string" ? result : JSON.stringify(result);
       }
 
-      const resultText = [
-        isError ? chalk.red.bold(`✖  Tool Result: ${name}`) : chalk.green.bold(`✔  Tool Result: ${name}`),
-        preview.trim(),
-      ].join("\n");
-
-      console.log(
-        boxen(resultText, {
-          padding: 0,
-          margin: { top: 0, bottom: 0, left: 0, right: 0 },
-          borderColor: isError ? "red" : "green",
-          borderStyle: "round",
-          dimBorder: true,
-        })
-      );
+      // Elegantly log completion on the terminal
+      if (isError) {
+        spinner.fail(chalk.red(`✖  [${name}] ${desc} (${outcome})`));
+      } else {
+        spinner.succeed(chalk.green(`✔  [${name}] ${desc} (${outcome})`));
+      }
     };
 
     events.onError = (error: Error) => {
       if (spinner.isSpinning) {
         spinner.stop();
       }
-      console.log(
-        boxen(chalk.red.bold(`✖  Agent Error: ${error.message}`), {
-          padding: 0,
-          margin: { top: 0, bottom: 0, left: 0, right: 0 },
-          borderColor: "red",
-          borderStyle: "round",
-        })
-      );
+      console.log(chalk.red.bold(`✖  Agent Error: ${error.message}`));
     };
 
     spinner.start("Initializing task execution...");
     try {
       const answer = await agent.runUserMessage(text);
+      
       if (spinner.isSpinning) {
         spinner.stop();
       }
+
+      // Clear the final stream draft completely to replace it with polished markdown
       if (isStreaming) {
-        process.stdout.write("\n");
+        if (lastPrintedLineCount > 0) {
+          readline.moveCursor(process.stdout, 0, -lastPrintedLineCount);
+          readline.clearScreenDown(process.stdout);
+        }
         isStreaming = false;
+        lastPrintedLineCount = 0;
       }
 
-      // Final markdown format of the answer for a clean readable render
+      // Print final markdown response
       if (answer && answer !== "(tool budget exceeded)") {
-        console.log(chalk.bold("\n📝 Polished Response:"));
-        console.log(marked.parse(answer));
+        console.log(chalk.magenta.bold("🤖 DevAgent:"));
+        console.log(marked.parse(answer).trim());
+        console.log();
       } else {
-        console.log(chalk.red("\n✖ Tool execution budget exceeded or empty response."));
+        console.log(chalk.red("\n✖ Tool execution budget exceeded or empty response.\n"));
       }
     } catch (e) {
       if (spinner.isSpinning) {
         spinner.stop();
       }
-      console.error(chalk.red(`\n✖ Execution aborted: ${(e as Error).message}`));
+      console.error(chalk.red(`\n✖ Execution aborted: ${(e as Error).message}\n`));
+    } finally {
+      // Resume user input
+      rl.resume();
+      updatePrompt();
+      rl.prompt();
     }
-
-    rl.prompt();
   });
 
   rl.on("close", () => {
