@@ -1,18 +1,9 @@
 import { readFile, writeFile, rename, unlink, mkdir, stat } from "node:fs/promises";
-import { dirname, resolve, join, relative } from "node:path";
-import { Tool, ToolError } from "./tool";
+import { dirname } from "node:path";
+import { Tool } from "./tool";
+import { resolveWorkspacePath, PathEscapeError } from "./path-utils";
 
-export class PathEscapeError extends ToolError {}
-
-function resolveWorkspacePath(root: string, relativePath: string): string {
-  const absoluteRoot = resolve(root);
-  const full = resolve(join(absoluteRoot, relativePath));
-  const rel = relative(absoluteRoot, full);
-  if (rel.startsWith("..")) {
-    throw new PathEscapeError(`${relativePath} escapes workspace root`);
-  }
-  return full;
-}
+export { PathEscapeError };
 
 export class ReadFileTool extends Tool {
   constructor(private readonly root: string) {
