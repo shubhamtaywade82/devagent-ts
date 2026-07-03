@@ -1,34 +1,212 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { App } from "../../src/tui/App";
+import { App, ShellAgent } from "../../src/tui/App";
+import { EventBus } from "../../src/runtime/events";
+import { initialRuntimeState, Store } from "../../src/runtime/store";
 
-function fakeAgent() {
-  const handlers = new Map<string, ((...args: any[]) => void)[]>();
-  const agent = {
-    on: (event: string, handler: (...args: any[]) => void) => {
-      const list = handlers.get(event) ?? [];
-      list.push(handler);
-      handlers.set(event, list);
-      return agent;
+const NOW = new Date(2026, 0, 1, 10, 42, 11).getTime();
+
+// eslint-disable-next-line no-control-regex
+const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+
+function makeWorld() {
+  const bus = new EventBus();
+  const store = new Store(initialRuntimeState({ workspace: "ollama-agent", branch: "main", model: "qwen3:30b" }));
+  store.attach(bus);
+  const agent: ShellAgent & { calls: string[]; models: string[] } = {
+    calls: [],
+    models: [],
+    runUserMessage: jest.fn(async (m: string) => {
+      agent.calls.push(m);
+      return "ok";
+    }),
+    setModel: (m: string) => {
+      agent.models.push(m);
     },
-    runUserMessage: jest.fn().mockResolvedValue("ok"),
-    getRegistry: () => ({ schemas: () => [] }),
   };
-  return agent;
+  return { bus, store, agent };
 }
 
-describe("App", () => {
-  it("renders all panes on mount", () => {
-    const { lastFrame, unmount } = render(
-      <App agent={fakeAgent() as any} workspaceRoot="/tmp" model="llama3.1:70b" />,
-    );
+function renderApp(columns = 100, rows = 30, seed?: (world: ReturnType<typeof makeWorld>) => void) {
+  const world = makeWorld();
+  seed?.(world);
+  const r = render(
+    <App bus={world.bus} store={world.store} agent={world.agent} columns={columns} rows={rows} now={NOW} />,
+  );
+  return { ...world, ...r };
+}
 
-    const frame = lastFrame() ?? "";
-    expect(frame).toContain("PROJECT");
-    expect(frame).toContain("CHAT / PLAN");
-    expect(frame).toContain("TERMINAL");
-    expect(frame).toContain("TOOLS");
-    expect(frame).toContain("MEMORY");
+const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+describe("App shell", () => {
+  it("renders all five permanent zones", () => {
+    const { lastFrame, unmount } = renderApp();
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("DevAgent"); // header
+    expect(frame).toContain("1 Conversation"); // active view title
+    expect(frame).toContain("Chat"); // activity strip
+    expect(frame).toContain("❯"); // prompt
+    expect(frame).toContain("Mode:NORMAL"); // context strip
+    unmount();
+  });
+
+  it("keys 1-8 focus views; Tab cycles", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    stdin.write("4");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("4 Git");
+    stdin.write("\t");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("5 Logs");
+    unmount();
+  });
+
+  it("Ctrl+P opens the palette and Esc closes it", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    stdin.write("");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("Command Palette");
+    stdin.write("");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).not.toContain("Command Palette");
+    unmount();
+  });
+
+  it("? opens help; Ctrl+B opens actors overlay", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    stdin.write("?");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("Help — Keys");
+    stdin.write("");
+    await tick();
+    stdin.write("");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("Actors — all alive");
+    unmount();
+  });
+
+  it("typed text lands in the prompt and Enter submits to the agent", async () => {
+    const { stdin, lastFrame, agent, store, unmount } = renderApp();
+    await tick();
+    stdin.write("fix the bug");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("fix the bug");
+    stdin.write("\r");
+    await tick();
+    expect(agent.calls).toEqual(["fix the bug"]);
+    expect(store.getState().conversation[0]).toMatchObject({ role: "user", text: "fix the bug" });
+    unmount();
+  });
+
+  it("digits type into a non-empty prompt instead of switching views", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    stdin.write("add ");
+    stdin.write("2");
+    await tick();
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("1 Conversation");
+    expect(frame).toContain("add 2");
+    unmount();
+  });
+
+  it("slash commands execute: /model sets the model", async () => {
+    const { stdin, agent, store, unmount } = renderApp();
+    await tick();
+    stdin.write("/model qwen3:8b");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(agent.models).toEqual(["qwen3:8b"]);
+    expect(store.getState().model.name).toBe("qwen3:8b");
+    expect(agent.calls).toEqual([]); // never sent to the model as chat
+    unmount();
+  });
+
+  it("slash typing shows completion hints in the context strip", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    stdin.write("/mo");
+    await tick();
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("/model");
+    expect(frame).toContain("/models");
+    unmount();
+  });
+
+  it("approval flow: overlay appears and 'a' approves", async () => {
+    const { stdin, lastFrame, store, unmount } = renderApp(100, 30, ({ bus }) => {
+      bus.publish({
+        type: "approval.requested",
+        request: {
+          id: "ap1",
+          title: "Apply patch",
+          summary: "Edit fs.ts",
+          filesChanged: 3,
+          additions: 128,
+          deletions: 4,
+        },
+      });
+    });
+    await tick();
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("Approval Required");
+    expect(frame).toContain("Waiting for approval");
+    stdin.write("a");
+    await tick();
+    expect(store.getState().approval).toBeNull();
+    expect(store.getState().mode).toBe("idle");
+    unmount();
+  });
+
+  it("streaming state reaches conversation and strips", () => {
+    const { lastFrame, unmount } = renderApp(120, 30, ({ bus }) => {
+      bus.publish({ type: "conversation.message", role: "user", text: "implement login" });
+      bus.publish({ type: "conversation.chunk", role: "assistant", chunk: "Working on it" });
+      bus.publish({ type: "mode.changed", mode: "streaming" });
+      bus.publish({ type: "model.streaming", streaming: true, tokensPerSecond: 81 });
+    });
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("implement login");
+    expect(frame).toContain("Working on it");
+    expect(frame).toContain("Generating...");
+    expect(frame).toContain("81 tok/s");
+    unmount();
+  });
+});
+
+describe("resize safety (regression)", () => {
+  const sizes: [number, number][] = [
+    [80, 24],
+    [100, 30],
+    [120, 30],
+    [160, 45],
+    [220, 60],
+  ];
+
+  it.each(sizes)("no overflow and no lost zones at %dx%d", (columns, rows) => {
+    const { lastFrame, unmount } = renderApp(columns, rows, ({ bus }) => {
+      bus.publish({ type: "conversation.message", role: "user", text: "create filesystem tool ".repeat(10) });
+      bus.publish({ type: "conversation.chunk", role: "assistant", chunk: "Reading package.json\n".repeat(30) });
+      for (let i = 0; i < 40; i++) {
+        bus.publish({ type: "logs.appended", level: "info", source: "tool", message: `log line ${i}` });
+      }
+      bus.publish({ type: "context.changed", used: 48000, limit: 71000 });
+    });
+    const frame = stripAnsi(lastFrame() ?? "");
+    const lines = frame.split("\n");
+    expect(lines.length).toBeLessThanOrEqual(rows);
+    for (const line of lines) {
+      expect(line.length).toBeLessThanOrEqual(columns);
+    }
+    // Every zone still present.
+    expect(frame).toContain("DevAgent");
+    expect(frame).toContain("Conversation");
+    expect(frame).toContain("Chat");
+    expect(frame).toContain("❯");
     unmount();
   });
 });

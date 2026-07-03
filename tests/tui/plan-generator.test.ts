@@ -2,7 +2,9 @@ import { generatePlan, PlanGenerationError } from "../../src/tui/plan-generator"
 import { Provider } from "../../src/provider/provider";
 
 function fakeProvider(content: string) {
-  return { chat: jest.fn().mockResolvedValue({ message: { role: "assistant", content }, done: true }) } as unknown as Provider;
+  return {
+    chat: jest.fn().mockResolvedValue({ message: { role: "assistant", content }, done: true }),
+  } as unknown as Provider;
 }
 
 describe("generatePlan", () => {
@@ -43,11 +45,7 @@ describe("generatePlan", () => {
   });
 
   it("throws PlanGenerationError when a step has non-string elements in dependencies", async () => {
-    const provider = fakeProvider(
-      JSON.stringify([
-        { id: "s1", description: "step one", dependencies: [1, 2, null] },
-      ]),
-    );
+    const provider = fakeProvider(JSON.stringify([{ id: "s1", description: "step one", dependencies: [1, 2, null] }]));
 
     await expect(generatePlan("do it", provider)).rejects.toThrow(PlanGenerationError);
   });
