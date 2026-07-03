@@ -83,7 +83,7 @@ export class Agent {
 
       const assistantMessage = chatResponse.message as {
         content?: string;
-        tool_calls?: Array<{ function: { name: string; arguments: string } }>;
+        tool_calls?: Array<{ function: { name: string; arguments: any } }>;
       };
       this.messages.push({
         role: "assistant",
@@ -97,12 +97,17 @@ export class Agent {
 
       for (const toolCall of toolCalls) {
         const name = toolCall.function.name;
-        const rawArguments = toolCall.function.arguments || "{}";
+        const rawArguments = toolCall.function.arguments;
         let args: Record<string, unknown> = {};
-        try {
-          args = JSON.parse(rawArguments);
-        } catch {
-          // Leave args empty on malformed JSON.
+
+        if (typeof rawArguments === "object" && rawArguments !== null) {
+          args = rawArguments as Record<string, unknown>;
+        } else if (typeof rawArguments === "string" && rawArguments) {
+          try {
+            args = JSON.parse(rawArguments);
+          } catch {
+            // Leave args empty on malformed JSON.
+          }
         }
 
         this.events.onToolCall?.(name, args);

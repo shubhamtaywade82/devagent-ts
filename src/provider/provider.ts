@@ -103,6 +103,9 @@ export class Provider {
     const decoder = new TextDecoder();
     let buffer = "";
     let final: ChatResponse | null = null;
+    let accumulatedContent = "";
+    let accumulatedThinking = "";
+    const accumulatedToolCalls: any[] = [];
 
     for (;;) {
       const { value, done } = await reader.read();
@@ -117,11 +120,39 @@ export class Provider {
 
         const chunk = JSON.parse(line) as ChatResponse;
         onChunk?.(chunk);
-        if (chunk.done) final = chunk;
+
+        if (chunk.message) {
+          if (chunk.message.content) {
+            accumulatedContent += chunk.message.content;
+          }
+          if ((chunk.message as any).thinking) {
+            accumulatedThinking += (chunk.message as any).thinking;
+          }
+          if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
+            accumulatedToolCalls.push(...chunk.message.tool_calls);
+          }
+        }
+
+        if (chunk.done) {
+          final = chunk;
+        }
       }
     }
 
     if (!final) throw new ProviderError("stream ended without a done:true chunk");
+
+    // Overwrite the final message with the fully accumulated values
+    final.message = {
+      role: final.message?.role || "assistant",
+      content: accumulatedContent,
+    };
+    if (accumulatedThinking) {
+      (final.message as any).thinking = accumulatedThinking;
+    }
+    if (accumulatedToolCalls.length > 0) {
+      final.message.tool_calls = accumulatedToolCalls;
+    }
+
     return final;
   }
 }
