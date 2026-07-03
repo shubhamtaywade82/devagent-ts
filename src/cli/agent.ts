@@ -15,6 +15,7 @@ import { SnapshotBackupTool } from "../tools/backup-tools";
 import { WatchTool } from "../tools/watch-tool";
 import { SearchCodeTool } from "../tools/search-tools";
 import { GitTool } from "../tools/git-tools";
+import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
 import { LoopDetector } from "../orchestrator/loop-detector";
 
 export interface AgentEvents {
@@ -76,7 +77,11 @@ export class Agent {
       .register(new SnapshotBackupTool(cfg.workspaceRoot))
       .register(new WatchTool(cfg.workspaceRoot))
       .register(new SearchCodeTool(cfg.workspaceRoot))
-      .register(new GitTool(cfg.workspaceRoot));
+      .register(new GitTool(cfg.workspaceRoot))
+      .register(new RunTestsTool(cfg.workspaceRoot))
+      .register(new RunLintTool(cfg.workspaceRoot))
+      .register(new RunFormatTool(cfg.workspaceRoot))
+      .register(new RunBuildTool(cfg.workspaceRoot));
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
