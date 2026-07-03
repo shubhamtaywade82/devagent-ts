@@ -47,7 +47,7 @@ describe("Orchestrator", () => {
       },
     };
     let replanCalled = false;
-    const planner = new StubPlanner((remaining) => {
+    const planner = new StubPlanner((_remaining) => {
       replanCalled = true;
       return [];
     });
