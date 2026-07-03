@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, writeFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ReadFileTool, WriteFileTool, PathEscapeError } from "./filesystem";
+import { ReadFileTool, WriteFileTool, PathEscapeError } from "../../src/tools/filesystem";
 
 describe("ReadFileTool", () => {
   it("reads a file inside the workspace", async () => {

@@ -13,7 +13,7 @@ export interface ShellToolOptions {
 }
 
 export class ShellTool extends Tool {
-  static readonly MAX_OUTPUT_BYTES = 2 * 1024 * 1024; // 2MB ceiling — exceeding this kills the process, it does not silently truncate
+  static readonly MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
   static readonly DEFAULT_TIMEOUT_SEC = 30;
   static readonly DEFAULT_IMAGE = "devagent-sandbox:latest";
   static readonly KILL_POLL_INTERVAL_MS = 300;
@@ -85,9 +85,6 @@ export class ShellTool extends Tool {
         checkOverflow();
       });
 
-      // Two layers of timeout enforcement: `timeout` inside the container
-      // bounds the command itself; this outer timer guards against
-      // docker/the daemon hanging, and drives kill+escalation if hit.
       const hardTimeout = setTimeout(() => {
         if (settled) return;
         this.logger.warn(`[ShellTool] hard timeout on ${container}`);
@@ -117,17 +114,12 @@ export class ShellTool extends Tool {
         });
       });
 
-      // Fires if the `docker` binary itself is missing/unreachable —
-      // this is the fail-closed path, not a fallback to unsandboxed exec.
       child.on("error", (err) => {
         finish({ exitCode: -1, stdout: "", stderr: `failed to spawn docker: ${err.message}`, truncated: false });
       });
     });
   }
 
-  // docker kill, then poll container state; escalate to `docker rm -f`
-  // if it's still alive after KILL_ESCALATION_MS. Guarantees resource
-  // recovery even if the container ignores the initial kill signal.
   private async escalateKill(container: string): Promise<void> {
     await this.runDocker(["kill", container]);
 
@@ -147,7 +139,7 @@ export class ShellTool extends Tool {
     return new Promise((resolveRun) => {
       const proc = spawn("docker", args);
       proc.on("close", () => resolveRun());
-      proc.on("error", () => resolveRun()); // best-effort — never let cleanup itself hang or throw
+      proc.on("error", () => resolveRun());
     });
   }
 

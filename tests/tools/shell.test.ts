@@ -3,7 +3,7 @@ import { EventEmitter } from "node:events";
 jest.mock("node:child_process");
 
 import { spawn } from "node:child_process";
-import { ShellTool } from "./shell";
+import { ShellTool } from "../../src/tools/shell";
 
 const mockSpawn = spawn as jest.Mock;
 

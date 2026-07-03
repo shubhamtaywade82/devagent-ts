@@ -1,5 +1,5 @@
-import { Orchestrator, OrchestratorError } from "./orchestrator";
-import { PlanStep, StepRunner, Planner, StepOutcome } from "./types";
+import { Orchestrator, OrchestratorError } from "../../src/orchestrator/orchestrator";
+import { PlanStep, StepRunner, Planner, StepOutcome } from "../../src/orchestrator/types";
 
 const noopLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
@@ -55,7 +55,7 @@ describe("Orchestrator", () => {
     const orchestrator = new Orchestrator({ steps, runner, planner, runRollback: async () => {}, logger: noopLogger });
     await orchestrator.run();
 
-    expect(attempts).toBe(4); // 1 initial attempt + 3 retries
+    expect(attempts).toBe(4);
     expect(replanCalled).toBe(true);
   });
 
@@ -125,7 +125,7 @@ describe("Orchestrator", () => {
     const runner: StepRunner = { async run(): Promise<StepOutcome> { return { kind: "blocking", error: "stuck" }; } };
     const planner = new StubPlanner(() => {
       counter += 1;
-      return [makeStep(`a${counter}`)]; // planner keeps inventing a new doomed step
+      return [makeStep(`a${counter}`)];
     });
 
     const orchestrator = new Orchestrator({

@@ -7,10 +7,6 @@ export interface RouterOptions {
   logger?: Pick<Console, "warn">;
 }
 
-// Routes by task complexity, falls back to local on rate-limit or
-// timeout/network failure. Cloud usage limits are a normal operating
-// condition, not an edge case — treat a 429 like a stale feed: fail
-// open, don't block the loop waiting on it.
 export class Router {
   private readonly fastLocal: Provider;
   private readonly deepCloud: Provider;
@@ -40,8 +36,8 @@ export class Router {
 
   private isRecoverable(e: unknown): boolean {
     if (e instanceof RateLimitError) return true;
-    if (e instanceof DOMException && e.name === "TimeoutError") return true; // AbortSignal.timeout
-    if (e instanceof TypeError) return true; // native fetch's network-failure error type
+    if (e instanceof DOMException && e.name === "TimeoutError") return true;
+    if (e instanceof TypeError) return true;
     return false;
   }
 }

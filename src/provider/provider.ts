@@ -37,8 +37,6 @@ export interface ProviderOptions {
   timeoutMs?: number;
 }
 
-// Thin client over Ollama's REST API. Local and cloud use the same
-// request shape — only host, auth header, and model tag differ.
 export class Provider {
   private readonly tier: Tier;
   private readonly model: string;
@@ -80,9 +78,6 @@ export class Provider {
     return opts.stream ? this.streamChunks(resp, opts.onChunk) : ((await resp.json()) as ChatResponse);
   }
 
-  // Resolves the live model catalog instead of trusting a hardcoded
-  // list — cloud model tags drift faster than a static table tracks.
-  // Cache this at the call site with a TTL; don't hit it per request.
   async availableModels(): Promise<unknown> {
     const path = this.tier === "cloud" ? "/v1/models" : "/api/tags";
     const headers: Record<string, string> = {};

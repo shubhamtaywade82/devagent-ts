@@ -1,5 +1,5 @@
 import { Tool, ToolError } from "./tool";
-import { OllamaToolSchema } from "./provider";
+import { OllamaToolSchema } from "../provider/provider";
 
 export class Registry {
   private readonly tools = new Map<string, Tool>();
@@ -13,9 +13,6 @@ export class Registry {
     return [...this.tools.values()].map((t) => t.schema);
   }
 
-  // Tool failures are converted into a data payload, never thrown.
-  // The model needs to see the failure to recover from it — an
-  // exception here would kill the whole agent loop over one bad call.
   async invoke(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
       const tool = this.tools.get(name);

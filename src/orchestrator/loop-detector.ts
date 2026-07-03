@@ -1,7 +1,3 @@
-// Flags when a (tool, args, error) signature repeats twice
-// consecutively — the documented trigger for RE_PLAN over a straight
-// retry ("model issues a tool-call with the exact same argument
-// signature 2 times consecutively and receives the same error").
 export class LoopDetector {
   private lastSignature: string | null = null;
   private lastError: string | null = null;

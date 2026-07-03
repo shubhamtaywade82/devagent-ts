@@ -4,20 +4,16 @@ export interface PlanStep {
   id: string;
   description: string;
   status: StepStatus;
-  dependencies: string[]; // parent step IDs that must succeed first
+  dependencies: string[];
   rollbackCommand?: string;
   retryCount: number;
 }
 
 export type StepOutcome =
   | { kind: "success"; output: Record<string, unknown> }
-  | { kind: "retryable"; error: string } // syntax/test failures, patch mismatches, transient network blips
-  | { kind: "blocking"; error: string }; // missing files, API errors, detected tool-call loops
+  | { kind: "retryable"; error: string }
+  | { kind: "blocking"; error: string };
 
-// Injected, not implemented here: this is the boundary where a step
-// actually turns into model turns / tool calls. That integration
-// (how a PlanStep maps to Provider/Router + Registry.invoke calls)
-// isn't specified yet — see the note at the end of this response.
 export interface StepRunner {
   run(step: PlanStep): Promise<StepOutcome>;
 }

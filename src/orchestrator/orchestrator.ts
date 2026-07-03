@@ -9,7 +9,7 @@ export interface OrchestratorOptions {
   steps: PlanStep[];
   runner: StepRunner;
   planner: Planner;
-  runRollback: (command: string) => Promise<void>; // must route through the sandboxed ShellTool, not raw exec
+  runRollback: (command: string) => Promise<void>;
   maxRetries?: number;
   maxReplans?: number;
   logger?: Pick<Console, "info" | "warn" | "error">;
@@ -69,7 +69,6 @@ export class Orchestrator {
     return step.dependencies.every((depId) => this.steps.get(depId)?.status === "completed");
   }
 
-  // Returns true if this outcome should trigger RE_PLAN.
   private async runStep(step: PlanStep): Promise<boolean> {
     step.status = "running";
     const outcome = await this.runner.run(step);
@@ -83,13 +82,11 @@ export class Orchestrator {
 
     if (outcome.kind === "retryable" && step.retryCount < this.maxRetries) {
       step.retryCount += 1;
-      step.status = "pending"; // same step, same dependencies, try again
+      step.status = "pending";
       this.logger.warn(`[Orchestrator] ${step.id} retry ${step.retryCount}/${this.maxRetries}: ${outcome.error}`);
       return false;
     }
 
-    // Exhausted retries, or a blocking outcome — either way this step
-    // is done, and downstream work needs a new plan, not another attempt.
     step.status = "failed";
     this.cascadeFailure(step.id);
     this.logger.warn(`[Orchestrator] ${step.id} failed — triggering RE_PLAN: ${outcome.error}`);
@@ -100,7 +97,7 @@ export class Orchestrator {
     for (const step of this.steps.values()) {
       if (step.status === "pending" && step.dependencies.includes(failedId)) {
         step.status = "skipped";
-        this.cascadeFailure(step.id); // propagate transitively
+        this.cascadeFailure(step.id);
       }
     }
   }
@@ -134,9 +131,6 @@ export class Orchestrator {
     return order;
   }
 
-  // Reverse-chronological rollback of everything actually executed.
-  // runRollback must route through the sandboxed shell tool — a
-  // rollback command is still model-originated executable content.
   private async rollbackAll(): Promise<void> {
     for (const step of [...this.executedOrder].reverse()) {
       if (!step.rollbackCommand) continue;
