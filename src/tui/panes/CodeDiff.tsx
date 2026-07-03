@@ -18,6 +18,18 @@ function safeHighlight(code: string): string {
   }
 }
 
+/**
+ * Splits a DiffLine's `text` into individual source lines. A trailing "\n"
+ * is treated as a line terminator (not a line of its own), so "a\nb\n"
+ * yields ["a", "b"]. Text with no trailing newline still yields its final
+ * line, so "onlyline" yields ["onlyline"]. Interior blank lines are
+ * preserved, so "a\n\nb\n" yields ["a", "", "b"].
+ */
+function splitDiffTextIntoLines(text: string): string[] {
+  const trimmed = text.endsWith("\n") ? text.slice(0, -1) : text;
+  return trimmed.split("\n");
+}
+
 export function CodeDiff({ path, content, diffLines, focused }: CodeDiffProps): JSX.Element {
   if (!path) {
     return (
@@ -38,8 +50,12 @@ export function CodeDiff({ path, content, diffLines, focused }: CodeDiffProps): 
     );
   }
 
-  const added = diffLines.filter((l) => l.type === "add").reduce((n, l) => n + l.text.split("\n").length - 1, 0);
-  const removed = diffLines.filter((l) => l.type === "remove").reduce((n, l) => n + l.text.split("\n").length - 1, 0);
+  const added = diffLines
+    .filter((l) => l.type === "add")
+    .reduce((n, l) => n + splitDiffTextIntoLines(l.text).length, 0);
+  const removed = diffLines
+    .filter((l) => l.type === "remove")
+    .reduce((n, l) => n + splitDiffTextIntoLines(l.text).length, 0);
 
   return (
     <Box flexDirection="column" borderStyle={focused ? "double" : "single"}>
@@ -51,14 +67,14 @@ export function CodeDiff({ path, content, diffLines, focused }: CodeDiffProps): 
           <Text color="green">+{added}</Text> <Text color="red">-{removed}</Text>
         </Text>
       </Box>
-      {diffLines.map((line, i) => {
+      {diffLines.flatMap((line, i) => {
         const prefix = line.type === "add" ? "+" : line.type === "remove" ? "-" : " ";
         const color = line.type === "add" ? "green" : line.type === "remove" ? "red" : undefined;
-        return (
-          <Text key={i} color={color}>
-            {prefix} {safeHighlight(line.text.replace(/\n$/, ""))}
+        return splitDiffTextIntoLines(line.text).map((sourceLine, j) => (
+          <Text key={`${i}-${j}`} color={color}>
+            {prefix} {safeHighlight(sourceLine)}
           </Text>
-        );
+        ));
       })}
     </Box>
   );

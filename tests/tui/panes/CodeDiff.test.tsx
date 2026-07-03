@@ -37,4 +37,40 @@ describe("CodeDiff", () => {
 
     expect(lastFrame()).toContain("No file selected");
   });
+
+  it("prefixes every source line of a multi-line diff part", () => {
+    const { lastFrame } = render(
+      <CodeDiff
+        path="a.ts"
+        content=""
+        diffLines={[
+          { type: "remove", text: "old1\nold2\n" },
+          { type: "add", text: "line1\nline2\n" },
+        ]}
+        focused
+      />,
+    );
+
+    const frame = lastFrame() ?? "";
+    const lines = frame.split("\n");
+
+    expect(lines.some((l) => /-\s*old1\b/.test(l))).toBe(true);
+    expect(lines.some((l) => /-\s*old2\b/.test(l))).toBe(true);
+    expect(lines.some((l) => /\+\s*line1\b/.test(l))).toBe(true);
+    expect(lines.some((l) => /\+\s*line2\b/.test(l))).toBe(true);
+  });
+
+  it("counts a trailing-newline-less line as 1 in the +N -M header", () => {
+    const { lastFrame } = render(
+      <CodeDiff
+        path="a.ts"
+        content=""
+        diffLines={[{ type: "add", text: "lastline" }]}
+        focused
+      />,
+    );
+
+    expect(lastFrame()).toContain("+1");
+    expect(lastFrame()).toContain("-0");
+  });
 });
