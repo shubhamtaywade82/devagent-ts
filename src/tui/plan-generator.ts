@@ -37,6 +37,11 @@ function validateSteps(parsed: unknown): PlanStep[] {
     if (typeof raw.id !== "string" || typeof raw.description !== "string" || !Array.isArray(raw.dependencies)) {
       throw new PlanGenerationError(`step at index ${i} is missing required fields (id, description, dependencies)`);
     }
+    if (!raw.dependencies.every((dep) => typeof dep === "string")) {
+      throw new PlanGenerationError(
+        `step at index ${i} has invalid dependencies: all elements must be strings`,
+      );
+    }
     return {
       id: raw.id,
       description: raw.description,

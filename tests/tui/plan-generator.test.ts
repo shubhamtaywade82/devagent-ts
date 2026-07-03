@@ -41,4 +41,14 @@ describe("generatePlan", () => {
 
     await expect(generatePlan("do it", provider)).rejects.toThrow(PlanGenerationError);
   });
+
+  it("throws PlanGenerationError when a step has non-string elements in dependencies", async () => {
+    const provider = fakeProvider(
+      JSON.stringify([
+        { id: "s1", description: "step one", dependencies: [1, 2, null] },
+      ]),
+    );
+
+    await expect(generatePlan("do it", provider)).rejects.toThrow(PlanGenerationError);
+  });
 });
