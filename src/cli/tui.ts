@@ -51,7 +51,30 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   let runState = { isStreaming: false, isThinking: false, lastToolName: "", lastToolArgs: {} as Record<string, any> };
 
   // Model accessibility cache: true = free/accessible, false = requires subscription
+  const modelCachePath = path.join(cfg.workspaceRoot, ".devagent", "models.json");
   const modelAccess = new Map<string, boolean>();
+
+  function loadModelCache(): void {
+    try {
+      const raw = fs.readFileSync(modelCachePath, "utf-8");
+      const data = JSON.parse(raw) as Record<string, boolean>;
+      for (const [m, free] of Object.entries(data)) modelAccess.set(m, free);
+    } catch {
+      // no cache yet
+    }
+  }
+
+  function saveModelCache(): void {
+    try {
+      const data: Record<string, boolean> = {};
+      for (const [m, free] of modelAccess) data[m] = free;
+      fs.writeFileSync(modelCachePath, JSON.stringify(data, null, 2), "utf-8");
+    } catch {
+      // ignore write errors
+    }
+  }
+
+  loadModelCache();
 
   async function probeModels(models: string[]): Promise<void> {
     const toProbe = models.filter((m) => !modelAccess.has(m));
@@ -85,6 +108,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     for (const r of results) {
       if (r.status === "fulfilled") modelAccess.set(r.value[0], r.value[1]);
     }
+    saveModelCache();
   }
 
   agent
@@ -361,6 +385,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         console.log(chalk.dim(`Probing ${modelName}...`));
         const status = await agent.validateModel();
         modelAccess.set(modelName, status === true);
+        saveModelCache();
         if (status !== true) {
           agent.setModel(prevModel);
           console.log(chalk.red(`✖ ${modelName} ${status}`));
