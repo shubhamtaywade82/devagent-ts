@@ -27,7 +27,7 @@ marked.setOptions({
 });
 
 async function listModels(host: string | undefined, tier: string): Promise<string[]> {
-  const base = host ?? process.env.OLLAMA_HOST ?? "http://localhost:11434";
+  const base = host ?? (tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
   const path = tier === "cloud" ? "/v1/models" : "/api/tags";
   try {
     const resp = await fetch(`${base}${path}`);
@@ -277,9 +277,13 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       }
 
       if (text === "/models") {
-        spinner.start("Fetching available models...");
-        const models = await listModels(cfg.host, cfg.tier);
-        spinner.stop();
+        console.log(chalk.dim("Fetching available models..."));
+        let models: string[];
+        try {
+          models = await listModels(cfg.host, cfg.tier);
+        } catch {
+          models = [];
+        }
         if (models.length === 0) {
           console.log(chalk.red("✖ No models found or Ollama is unreachable."));
         } else {
