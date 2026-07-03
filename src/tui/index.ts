@@ -1,3 +1,4 @@
+import "dotenv/config";
 import path from "node:path";
 import { execSync } from "node:child_process";
 import React from "react";

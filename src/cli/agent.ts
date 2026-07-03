@@ -156,7 +156,8 @@ export class Agent {
       this.messages.push({
         role: "assistant",
         content: assistantMessage.content ?? "",
-      });
+        tool_calls: assistantMessage.tool_calls,
+      } as ChatMessage);
 
       const toolCalls = assistantMessage.tool_calls ?? [];
       const hasContent = (assistantMessage.content ?? "").trim().length > 0;
@@ -260,6 +261,22 @@ export class Agent {
   setModel(model: string): void {
     this.provider.setModel(model);
     this.resetContext();
+  }
+
+  async validateModel(): Promise<true | string> {
+    try {
+      await this.provider.chat(
+        [{ role: "user", content: "respond with just a single dot" }],
+        { stream: false },
+      );
+      return true;
+    } catch (e) {
+      const msg = (e as Error).message ?? "";
+      if (msg.includes("403") && msg.includes("subscription")) {
+        return "requires a subscription — upgrade at https://ollama.com/upgrade";
+      }
+      return `unreachable: ${msg}`;
+    }
   }
 
   setTier(tier: string): void {

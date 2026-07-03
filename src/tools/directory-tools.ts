@@ -6,13 +6,12 @@ import { resolveWorkspacePath } from "./path-utils";
 export class ListDirectoryTool extends Tool {
   constructor(private readonly root: string) { super(); }
   get name(): string { return "list_directory"; }
-  get description(): string { return "List files and directories at a path relative to the workspace root."; }
+  get description(): string { return "List files and directories at a path relative to the workspace root. Defaults to workspace root if no path given."; }
   get parameters(): Record<string, unknown> {
-    return { type: "object", properties: { path: { type: "string" } }, required: ["path"] };
+    return { type: "object", properties: { path: { type: "string", description: "Directory path relative to workspace root (defaults to root)" } } };
   }
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const path = args.path as string;
-    if (!path) return { error: "ArgumentError", message: "missing path" };
+    const path = (args.path as string) || ".";
     const target = resolveWorkspacePath(this.root, path);
     const entries: { name: string; path: string; type: "file" | "directory" }[] = [];
     try {

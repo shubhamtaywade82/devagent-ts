@@ -1,3 +1,4 @@
+import "dotenv/config";
 import * as readline from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
@@ -26,7 +27,7 @@ marked.setOptions({
 });
 
 async function listModels(host: string | undefined, tier: string): Promise<string[]> {
-  const base = host ?? process.env.OLLAMA_HOST ?? "http://localhost:11434";
+  const base = host ?? (tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
   const path = tier === "cloud" ? "/v1/models" : "/api/tags";
   try {
     const resp = await fetch(`${base}${path}`);
@@ -48,6 +49,67 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
   // Per-run state for event handlers (one run at a time)
   let runState = { isStreaming: false, isThinking: false, lastToolName: "", lastToolArgs: {} as Record<string, any> };
+
+  // Model accessibility cache: true = free/accessible, false = requires subscription
+  const modelCachePath = path.join(cfg.workspaceRoot, ".devagent", "models.json");
+  const modelAccess = new Map<string, boolean>();
+
+  function loadModelCache(): void {
+    try {
+      const raw = fs.readFileSync(modelCachePath, "utf-8");
+      const data = JSON.parse(raw) as Record<string, boolean>;
+      for (const [m, free] of Object.entries(data)) modelAccess.set(m, free);
+    } catch {
+      // no cache yet
+    }
+  }
+
+  function saveModelCache(): void {
+    try {
+      const data: Record<string, boolean> = {};
+      for (const [m, free] of modelAccess) data[m] = free;
+      fs.writeFileSync(modelCachePath, JSON.stringify(data, null, 2), "utf-8");
+    } catch {
+      // ignore write errors
+    }
+  }
+
+  loadModelCache();
+
+  async function probeModels(models: string[]): Promise<void> {
+    const toProbe = models.filter((m) => !modelAccess.has(m));
+    if (!toProbe.length) return;
+    const base = cfg.host ?? "https://ollama.com";
+    const url = `${base}/api/chat`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
+    const probeOne = async (m: string): Promise<[string, boolean]> => {
+      try {
+        const resp = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ model: m, messages: [{ role: "user", content: "." }], stream: false }),
+          signal: AbortSignal.timeout(25_000),
+        });
+        if (resp.status === 429) return [m, true];
+        if (resp.status === 200) {
+          const body = await resp.json() as any;
+          const errMsg = typeof body?.error === "string" ? body.error : "";
+          if (errMsg.includes("subscription") || errMsg.includes("upgrade")) return [m, false];
+          return [m, true];
+        }
+        const text = await resp.text();
+        return [m, !(text.includes("subscription") || text.includes("upgrade"))];
+      } catch {
+        return [m, true];
+      }
+    };
+    const results = await Promise.allSettled(toProbe.map(probeOne));
+    for (const r of results) {
+      if (r.status === "fulfilled") modelAccess.set(r.value[0], r.value[1]);
+    }
+    saveModelCache();
+  }
 
   agent
     .on("onStatus", (status: string) => {
@@ -239,7 +301,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
           chalk.bold.blue("💡 Available Commands:"),
           "",
           `${chalk.cyan("/model <name>")}  Switch Ollama model for this session`,
-          `${chalk.cyan("/models")}        List available models in Ollama`,
+          `${chalk.cyan("/models")}        List available models tagged Free/Subscription`,
           `${chalk.cyan("/clear")}         Clear the terminal screen`,
           `${chalk.cyan("/reset")}         Reset conversation history`,
           `${chalk.cyan("/exit")}          Exit DevAgent`,
@@ -276,14 +338,29 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       }
 
       if (text === "/models") {
-        spinner.start("Fetching available models...");
-        const models = await listModels(cfg.host, cfg.tier);
-        spinner.stop();
+        console.log(chalk.dim("Fetching available models..."));
+        let models: string[];
+        try {
+          models = await listModels(cfg.host, cfg.tier);
+        } catch {
+          models = [];
+        }
         if (models.length === 0) {
           console.log(chalk.red("✖ No models found or Ollama is unreachable."));
         } else {
+          console.log(chalk.dim("Probing model accessibility..."));
+          await probeModels(models);
           console.log(chalk.bold("\nAvailable Ollama Models:"));
-          models.forEach((m) => console.log(` - ${chalk.cyan(m)}`));
+          for (const m of models) {
+            const tag = modelAccess.get(m);
+            if (tag === false) {
+              console.log(` - ${chalk.dim(m)} ${chalk.red("(Subscription)")}`);
+            } else if (tag === true) {
+              console.log(` - ${chalk.cyan(m)} ${chalk.green("(Free)")}`);
+            } else {
+              console.log(` - ${chalk.cyan(m)} ${chalk.dim("(Untested)")}`);
+            }
+          }
           console.log();
         }
         rl.prompt();
@@ -297,7 +374,25 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
           rl.prompt();
           return;
         }
+        if (modelAccess.get(modelName) === false) {
+          console.log(chalk.red(`✖ ${modelName} requires a subscription — upgrade at https://ollama.com/upgrade`));
+          updatePrompt();
+          rl.prompt();
+          return;
+        }
+        const prevModel = agent.currentModel;
         agent.setModel(modelName);
+        console.log(chalk.dim(`Probing ${modelName}...`));
+        const status = await agent.validateModel();
+        modelAccess.set(modelName, status === true);
+        saveModelCache();
+        if (status !== true) {
+          agent.setModel(prevModel);
+          console.log(chalk.red(`✖ ${modelName} ${status}`));
+          updatePrompt();
+          rl.prompt();
+          return;
+        }
         console.log(chalk.green(`✔ Switched model to: ${chalk.bold(agent.currentModel)}`));
         updatePrompt();
         rl.prompt();
