@@ -139,4 +139,23 @@ describe("Orchestrator", () => {
 
     await expect(orchestrator.run()).rejects.toThrow(/re-plans/);
   });
+
+  it("invokes onStepChange with each status transition a step goes through", async () => {
+    const transitions: string[] = [];
+    const steps = [makeStep("s1")];
+    const runner: StepRunner = {
+      run: async () => ({ kind: "success", output: {} }),
+    };
+    const orchestrator = new Orchestrator({
+      steps,
+      runner,
+      planner: new StubPlanner(() => []),
+      runRollback: async () => {},
+      onStepChange: (step) => transitions.push(`${step.id}:${step.status}`),
+    });
+
+    await orchestrator.run();
+
+    expect(transitions).toEqual(["s1:running", "s1:completed"]);
+  });
 });

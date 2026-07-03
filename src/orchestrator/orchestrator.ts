@@ -13,6 +13,7 @@ export interface OrchestratorOptions {
   maxRetries?: number;
   maxReplans?: number;
   logger?: Pick<Console, "info" | "warn" | "error">;
+  onStepChange?: (step: PlanStep) => void;
 }
 
 export class Orchestrator {
@@ -26,6 +27,7 @@ export class Orchestrator {
   private readonly executedOrder: PlanStep[] = [];
   private readonly history: HistoryEntry[] = [];
   private replanCount = 0;
+  private readonly onStepChange?: (step: PlanStep) => void;
 
   constructor(opts: OrchestratorOptions) {
     this.steps = new Map(opts.steps.map((s) => [s.id, s]));
@@ -35,6 +37,7 @@ export class Orchestrator {
     this.maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.maxReplans = opts.maxReplans ?? DEFAULT_MAX_REPLANS;
     this.logger = opts.logger ?? console;
+    this.onStepChange = opts.onStepChange;
   }
 
   async run(): Promise<PlanStep[]> {
@@ -71,11 +74,13 @@ export class Orchestrator {
 
   private async runStep(step: PlanStep): Promise<boolean> {
     step.status = "running";
+    this.onStepChange?.(step);
     const outcome = await this.runner.run(step);
     this.history.push({ stepId: step.id, outcome, at: Date.now() });
 
     if (outcome.kind === "success") {
       step.status = "completed";
+      this.onStepChange?.(step);
       this.executedOrder.push(step);
       return false;
     }
@@ -83,11 +88,13 @@ export class Orchestrator {
     if (outcome.kind === "retryable" && step.retryCount < this.maxRetries) {
       step.retryCount += 1;
       step.status = "pending";
+      this.onStepChange?.(step);
       this.logger.warn(`[Orchestrator] ${step.id} retry ${step.retryCount}/${this.maxRetries}: ${outcome.error}`);
       return false;
     }
 
     step.status = "failed";
+    this.onStepChange?.(step);
     this.cascadeFailure(step.id);
     this.logger.warn(`[Orchestrator] ${step.id} failed — triggering RE_PLAN: ${outcome.error}`);
     return true;
