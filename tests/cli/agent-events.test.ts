@@ -1,7 +1,34 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { EventEmitter } from "node:events";
+
+jest.mock("node:child_process");
+
+import { spawn } from "node:child_process";
 import { Agent } from "../../src/cli/agent";
+import { ShellTool } from "../../src/tools/shell";
+
+const mockSpawn = spawn as jest.Mock;
+
+interface FakeProc extends EventEmitter {
+  stdout: EventEmitter;
+  stderr: EventEmitter;
+  kill: jest.Mock;
+}
+
+function fakeProc(): FakeProc {
+  const proc = new EventEmitter() as FakeProc;
+  proc.stdout = new EventEmitter();
+  proc.stderr = new EventEmitter();
+  proc.kill = jest.fn();
+  return proc;
+}
+
+function skipDockerPreflight(tool: ShellTool): void {
+  (tool as any).dockerChecked = true;
+  (tool as any).dockerAvailable = true;
+}
 
 // Agent.runUserMessage always calls provider.chat with { stream: true }, which drives
 // Provider.streamChunks and reads resp.body via getReader(). A plain `json()`-only mock
@@ -30,29 +57,44 @@ function mockChatOnce(content: string) {
 }
 
 describe("Agent onShellOutput event", () => {
-  it(
-    "forwards ShellTool output chunks through the onShellOutput event",
-    async () => {
-      const dir = await mkdtemp(join(tmpdir(), "ws-"));
-      const onShellOutput = jest.fn();
-      const agent = new Agent({
-        config: { workspaceRoot: dir, tier: "local", model: "test-model" },
-        events: { onShellOutput },
-      });
+  afterEach(() => {
+    mockSpawn.mockReset();
+  });
 
-      const registry = agent.getRegistry();
-      // Actually invoke run_shell through the registry (real Docker sandbox) and assert
-      // Agent's onShellOutput event fires with the real stdout produced by the command.
-      // This proves the wiring end-to-end: Agent constructs ShellTool with an onOutput
-      // callback that calls this.emit("onShellOutput", ...), and that callback actually
-      // fires when ShellTool streams output — not just that run_shell is registered.
-      const result = await registry.invoke("run_shell", { command: "echo hi" });
+  it("forwards ShellTool output chunks through the onShellOutput event", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    const onShellOutput = jest.fn();
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "test-model" },
+      events: { onShellOutput },
+    });
 
-      expect(result.exitCode).toBe(0);
-      expect(onShellOutput).toHaveBeenCalledWith("stdout", expect.stringContaining("hi"));
-    },
-    30_000,
-  );
+    const registry = agent.getRegistry();
+
+    // Invoke run_shell through the real registry/Agent wiring, but with node:child_process
+    // mocked (same pattern as tests/tools/shell.test.ts) so no real Docker daemon or
+    // pre-built image is required. This still proves the wiring end-to-end: Agent
+    // constructs a real ShellTool with an onOutput callback that calls
+    // this.emit("onShellOutput", ...), and that callback actually fires when ShellTool
+    // streams output — not just that run_shell is registered.
+    const proc = fakeProc();
+    mockSpawn.mockReturnValue(proc);
+
+    // Reach into the registry to bypass ShellTool's docker preflight check, the same way
+    // tests/tools/shell.test.ts does for standalone ShellTool instances.
+    const shellTool = (registry as any).tools.get("run_shell") as ShellTool;
+    skipDockerPreflight(shellTool);
+
+    const resultPromise = registry.invoke("run_shell", { command: "echo hi" });
+
+    proc.stdout.emit("data", Buffer.from("hi\n"));
+    proc.emit("close", 0);
+
+    const result = await resultPromise;
+
+    expect(result.exitCode).toBe(0);
+    expect(onShellOutput).toHaveBeenCalledWith("stdout", "hi\n");
+  });
 });
 
 describe("Agent memory summarization trigger", () => {
