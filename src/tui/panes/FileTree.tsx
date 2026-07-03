@@ -19,10 +19,14 @@ export function FileTree({ root, onSelect, focused }: FileTreeProps): JSX.Elemen
   const [cursor, setCursor] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
     const tool = new ListDirectoryTool(root);
     tool.call({ path: "." }).then((result) => {
-      setEntries((result.entries as Entry[]) ?? []);
+      if (!cancelled) setEntries((result.entries as Entry[]) ?? []);
     });
+    return () => {
+      cancelled = true;
+    };
   }, [root]);
 
   return (
