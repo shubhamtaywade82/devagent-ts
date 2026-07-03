@@ -1,0 +1,89 @@
+import { readFile, writeFile, rename, unlink, mkdir, stat } from "node:fs/promises";
+import { dirname, resolve, join } from "node:path";
+import { Tool, ToolError } from "./tool";
+
+export class PathEscapeError extends ToolError {}
+
+function resolveWorkspacePath(root: string, relativePath: string): string {
+  const absoluteRoot = resolve(root);
+  const full = resolve(join(absoluteRoot, relativePath));
+
+  if (full !== absoluteRoot && !full.startsWith(`${absoluteRoot}/`)) {
+    throw new PathEscapeError(`${relativePath} escapes workspace root`);
+  }
+  return full;
+}
+
+export class ReadFileTool extends Tool {
+  static MAX_BYTES = 200_000;
+
+  constructor(private readonly root: string) {
+    super();
+  }
+
+  get name(): string {
+    return "read_file";
+  }
+
+  get description(): string {
+    return "Read a UTF-8 text file relative to the workspace root.";
+  }
+
+  get parameters(): Record<string, unknown> {
+    return { type: "object", properties: { path: { type: "string" } }, required: ["path"] };
+  }
+
+  async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const relPath = args.path as string;
+    const path = resolveWorkspacePath(this.root, relPath);
+
+    const raw = await readFile(path); // Buffer — byte-accurate truncation below
+    const truncated = raw.byteLength > ReadFileTool.MAX_BYTES;
+    const content = raw.subarray(0, ReadFileTool.MAX_BYTES).toString("utf-8");
+
+    return { path: relPath, content, truncated };
+  }
+}
+
+export class WriteFileTool extends Tool {
+  constructor(private readonly root: string) {
+    super();
+  }
+
+  get name(): string {
+    return "write_file";
+  }
+
+  get description(): string {
+    return "Write a UTF-8 text file relative to the workspace root. Overwrites atomically.";
+  }
+
+  get parameters(): Record<string, unknown> {
+    return {
+      type: "object",
+      properties: { path: { type: "string" }, content: { type: "string" } },
+      required: ["path", "content"],
+    };
+  }
+
+  async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const relPath = args.path as string;
+    const content = args.content as string;
+    const path = resolveWorkspacePath(this.root, relPath);
+    await mkdir(dirname(path), { recursive: true });
+
+    const tmp = `${path}.tmp.${process.pid}.${Date.now()}`;
+    try {
+      await writeFile(tmp, content, "utf-8");
+      await rename(tmp, path); // same-filesystem rename is atomic — safe against a mid-write crash/retry
+      return { path: relPath, bytesWritten: Buffer.byteLength(content, "utf-8") };
+    } finally {
+      try {
+        await stat(tmp);
+        await unlink(tmp); // only reached if rename failed and left tmp behind
+      } catch {
+        // tmp already gone (rename succeeded) — nothing to clean up
+      }
+    }
+  }
+}
