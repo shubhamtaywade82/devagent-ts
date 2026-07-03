@@ -51,7 +51,8 @@ export class Provider {
       opts.host ??
       (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
     this.apiKey = opts.apiKey ?? process.env.OLLAMA_API_KEY;
-    this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 30_000);
+    // Cloud has a 60s connect timeout; local has no timeout — never kill a running generation.
+    this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 0);
   }
 
   get currentModel(): string {
@@ -66,15 +67,43 @@ export class Provider {
     const body: Record<string, unknown> = { model: this.model, messages, stream: opts.stream ?? false };
     if (opts.tools) body.tools = opts.tools;
 
+    // For local models: pass num_ctx: 0 so Ollama uses the model's full native context window
+    // and never silently truncates the conversation.
+    if (this.tier === "local") {
+      body.options = { num_ctx: 0 };
+    }
+
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (this.tier === "cloud") headers.Authorization = `Bearer ${this.apiKey}`;
 
-    const resp = await fetch(`${this.host}/api/chat`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(this.timeoutMs),
-    });
+    let resp: Response;
+    if (this.tier === "local" || this.timeoutMs === 0) {
+      // Local: no timeout at all — let the model take as long as it needs.
+      resp = await fetch(`${this.host}/api/chat`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
+      });
+    } else {
+      // Cloud: use a connect timeout only for the initial HTTP response headers.
+      // Once headers arrive the stream is open; we cancel the abort so the body
+      // reads freely without a hard deadline.
+      const connectAbort = new AbortController();
+      const connectTimer = setTimeout(
+        () => connectAbort.abort(new Error(`connect timeout after ${this.timeoutMs}ms`)),
+        this.timeoutMs,
+      );
+      try {
+        resp = await fetch(`${this.host}/api/chat`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: connectAbort.signal,
+        });
+      } finally {
+        clearTimeout(connectTimer);
+      }
+    }
 
     if (resp.status === 429) {
       throw new RateLimitError(`${this.model} (${this.tier}) rate limited`);

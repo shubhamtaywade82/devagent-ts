@@ -15,8 +15,6 @@ function resolveWorkspacePath(root: string, relativePath: string): string {
 }
 
 export class ReadFileTool extends Tool {
-  static MAX_BYTES = 200_000;
-
   constructor(private readonly root: string) {
     super();
   }
@@ -37,11 +35,8 @@ export class ReadFileTool extends Tool {
     const relPath = args.path as string;
     const path = resolveWorkspacePath(this.root, relPath);
 
-    const raw = await readFile(path);
-    const truncated = raw.byteLength > ReadFileTool.MAX_BYTES;
-    const content = raw.subarray(0, ReadFileTool.MAX_BYTES).toString("utf-8");
-
-    return { path: relPath, content, truncated };
+    const content = await readFile(path, "utf-8");
+    return { path: relPath, content, truncated: false };
   }
 }
 

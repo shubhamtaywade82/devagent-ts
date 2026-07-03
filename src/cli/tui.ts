@@ -264,7 +264,13 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         isStreaming = false;
       }
 
-      spinner.text = chalk.cyan(`Agent status: ${status}...`);
+      // Parse turn index for a cleaner label
+      const turnMatch = status.match(/^turn (\d+)$/);
+      const label = turnMatch
+        ? `Thinking (turn ${turnMatch[1]})...`
+        : status;
+
+      spinner.text = chalk.cyan(label);
       if (!spinner.isSpinning) {
         spinner.start();
       }
@@ -398,7 +404,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         process.stdout.write("\n");
         isStreaming = false;
       }
-      console.log(); // Print a trailing newline for spacing
+      console.log(); // trailing newline for spacing
     } catch (e) {
       if (spinner.isSpinning) {
         spinner.stop();

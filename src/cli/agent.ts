@@ -23,7 +23,7 @@ export class Agent {
   private readonly provider: Provider;
   private readonly registry: Registry;
   private readonly loopDetector = new LoopDetector();
-  private readonly maxToolTurns = 16;
+  private readonly maxToolTurns = 128;
   private readonly events: AgentEvents;
   private messages: ChatMessage[] = [];
 
@@ -34,7 +34,9 @@ export class Agent {
       tier: "local",
       model: cfg.model,
       host: cfg.host,
-      timeoutMs: typeof cfg.timeoutMs === "number" ? cfg.timeoutMs : Number(process.env.DEVAGENT_TIMEOUT_MS || "60000"),
+      // Pass explicit timeoutMs only when the user set it; otherwise Provider
+      // picks the tier default (0 = no timeout for local).
+      ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
     });
 
     this.events = opts.events ?? {};
@@ -96,7 +98,22 @@ export class Agent {
       });
 
       const toolCalls = assistantMessage.tool_calls ?? [];
+      const hasContent = (assistantMessage.content ?? "").trim().length > 0;
+
       if (!toolCalls.length) {
+        if (hasContent) {
+          // Model produced a final text answer — done.
+          return lastAssistantText;
+        }
+        // Model emitted only thinking with no content or tool call.
+        // This is a stall: nudge it to continue.
+        if (toolTurn < this.maxToolTurns - 1) {
+          this.messages.push({
+            role: "user",
+            content: "[system] You were thinking but produced no action or response. Please continue toward the goal: call a tool or provide your final answer now.",
+          });
+          continue;
+        }
         return lastAssistantText || "(no response)";
       }
 

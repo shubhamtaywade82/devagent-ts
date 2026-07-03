@@ -19,9 +19,10 @@ export function loadConfig(): CliConfig {
     workspaceRoot: process.env.DEVAGENT_WORKSPACE || process.cwd(),
     host: process.env.OLLAMA_HOST,
     apiKey: undefined,
-    timeoutMs: Number(process.env.DEVAGENT_TIMEOUT_MS || "60000"),
+    // Explicit overrides only — local defaults to no restrictions
+    timeoutMs: process.env.DEVAGENT_TIMEOUT_MS ? Number(process.env.DEVAGENT_TIMEOUT_MS) : undefined,
     systemPrompt: process.env.DEVAGENT_SYSTEM_PROMPT || DEFAULT_SYSTEM_PROMPT,
     shellImage: process.env.DEVAGENT_SHELL_IMAGE,
-    shellTimeoutSec: Number(process.env.DEVAGENT_SHELL_TIMEOUT_SEC || "30"),
+    shellTimeoutSec: process.env.DEVAGENT_SHELL_TIMEOUT_SEC ? Number(process.env.DEVAGENT_SHELL_TIMEOUT_SEC) : undefined,
   };
 }
