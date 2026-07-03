@@ -16,6 +16,7 @@ export type Tier = "local" | "cloud";
 export interface ChatMessage {
   role: "system" | "user" | "assistant" | "tool";
   content: string;
+  tool_calls?: Array<{ function: { name: string; arguments: unknown } }>;
 }
 
 export interface OllamaToolSchema {
@@ -60,7 +61,7 @@ export class Provider {
     this.host =
       opts.host ??
       (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
-    this.apiKey = opts.apiKey ?? process.env.OLLAMA_API_KEY;
+    this.apiKey = opts.apiKey;
     // Cloud has a 60s connect timeout; local has no timeout — never kill a running generation.
     this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 0);
   }

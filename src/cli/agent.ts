@@ -156,7 +156,8 @@ export class Agent {
       this.messages.push({
         role: "assistant",
         content: assistantMessage.content ?? "",
-      });
+        tool_calls: assistantMessage.tool_calls,
+      } as ChatMessage);
 
       const toolCalls = assistantMessage.tool_calls ?? [];
       const hasContent = (assistantMessage.content ?? "").trim().length > 0;
