@@ -20,6 +20,7 @@ import { GitTool } from "../tools/git-tools";
 import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
 import { LoopDetector } from "../orchestrator/loop-detector";
 import { MemoryStore } from "../memory/store";
+import { generateSummary } from "../memory/summarizer";
 import { Orchestrator } from "../orchestrator/orchestrator";
 import { AgentStepRunner } from "../orchestrator/agent-planner";
 import { PlanStep, Planner } from "../orchestrator/types";
@@ -32,6 +33,7 @@ export interface AgentEvents {
   onToolResult?: (name: string, result: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
   onStatus?: (status: string) => void;
+  onShellOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
 }
 
 type AgentEventName = keyof AgentEvents;
@@ -48,6 +50,7 @@ export class Agent {
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
   private readonly memory: MemoryStore;
+  private isSummarizing = false;
   readonly events: AgentEvents;
   private messages: ChatMessage[] = [];
   private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
@@ -70,6 +73,7 @@ export class Agent {
     };
     if (cfg.shellImage) shellOpts.image = cfg.shellImage;
     if (cfg.shellTimeoutSec) shellOpts.timeoutSec = cfg.shellTimeoutSec;
+    shellOpts.onOutput = (stream, chunk) => this.emit("onShellOutput", stream, chunk);
 
     this.registry = new Registry()
       .register(new ReadFileTool(cfg.workspaceRoot))
@@ -159,6 +163,7 @@ export class Agent {
       if (!toolCalls.length) {
         if (hasContent) {
           this.memory.appendMessage("assistant", lastAssistantText);
+          this.triggerSummarization();
           return lastAssistantText;
         }
         if (toolTurn < this.maxToolTurns - 1) {
@@ -270,6 +275,16 @@ export class Agent {
 
   resetContext(): void {
     this.messages = [];
+  }
+
+  private triggerSummarization(): void {
+    if (this.isSummarizing) return;
+    this.isSummarizing = true;
+    generateSummary(this.memory, this.provider)
+      .catch((e) => this.emit("onError", e instanceof Error ? e : new Error(String(e))))
+      .finally(() => {
+        this.isSummarizing = false;
+      });
   }
 
   getRegistry(): Registry {
