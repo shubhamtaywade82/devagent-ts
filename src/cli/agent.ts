@@ -1,3 +1,5 @@
+import { join } from "node:path";
+import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig } from "./config";
 import { Provider, ChatMessage } from "../provider/provider";
 import { Registry } from "../tools/registry";
@@ -17,6 +19,7 @@ import { SearchCodeTool } from "../tools/search-tools";
 import { GitTool } from "../tools/git-tools";
 import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
 import { LoopDetector } from "../orchestrator/loop-detector";
+import { MemoryStore } from "../memory/store";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -40,6 +43,7 @@ export class Agent {
   private readonly registry: Registry;
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
+  private readonly memory: MemoryStore;
   readonly events: AgentEvents;
   private messages: ChatMessage[] = [];
   private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
@@ -82,6 +86,10 @@ export class Agent {
       .register(new RunLintTool(cfg.workspaceRoot))
       .register(new RunFormatTool(cfg.workspaceRoot))
       .register(new RunBuildTool(cfg.workspaceRoot));
+
+    const devagentDir = join(cfg.workspaceRoot, ".devagent");
+    mkdirSync(devagentDir, { recursive: true });
+    this.memory = new MemoryStore(join(devagentDir, "memory.db"));
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
@@ -109,6 +117,7 @@ export class Agent {
     }
 
     this.messages.push({ role: "user", content: userMessage });
+    this.memory.appendMessage("user", userMessage);
 
     let lastAssistantText = "";
 
@@ -145,6 +154,7 @@ export class Agent {
 
       if (!toolCalls.length) {
         if (hasContent) {
+          this.memory.appendMessage("assistant", lastAssistantText);
           return lastAssistantText;
         }
         if (toolTurn < this.maxToolTurns - 1) {

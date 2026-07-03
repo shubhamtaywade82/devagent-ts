@@ -17,6 +17,7 @@
     "format:check": "prettier --check src tests"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/jest": "^29.5.0",
     "@types/marked": "^4.3.2",
     "@types/marked-terminal": "^6.1.1",
@@ -31,6 +32,7 @@
     "typescript": "^5.5.0"
   },
   "dependencies": {
+    "better-sqlite3": "^12.11.1",
     "boxen": "^5.1.2",
     "chalk": "^4.1.2",
     "marked": "^4.3.0",
