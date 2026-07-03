@@ -7,6 +7,7 @@ import { LoopDetector } from "../orchestrator/loop-detector";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
+  onThinking?: (text: string) => void;
   onToolCall?: (name: string, args: Record<string, unknown>) => void;
   onToolResult?: (name: string, result: Record<string, unknown>) => void;
   onError?: (error: Error) => void;
@@ -77,6 +78,10 @@ export class Agent {
           if (typeof delta === "string" && delta) {
             lastAssistantText += delta;
             this.events.onAssistantText?.(delta);
+          }
+          const thinking = (chunk.message as any)?.thinking;
+          if (typeof thinking === "string" && thinking) {
+            this.events.onThinking?.(thinking);
           }
         },
       });

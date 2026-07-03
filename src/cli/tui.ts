@@ -1,4 +1,6 @@
 import * as readline from "node:readline";
+import * as fs from "node:fs";
+import * as path from "node:path";
 import chalk from "chalk";
 import ora from "ora";
 import boxen from "boxen";
@@ -46,7 +48,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
   // Render a high-fidelity startup banner
   const bannerText = [
-    chalk.bold.magenta("⚡ DevAgent TS Ecosytem CLI ⚡"),
+    chalk.bold.magenta("⚡ DevAgent TS Ecosystem CLI ⚡"),
     "",
     `${chalk.bold("Model:")}      ${chalk.cyan(agent.currentModel)}`,
     `${chalk.bold("Workspace:")}  ${chalk.gray(cfg.workspaceRoot)}`,
@@ -83,11 +85,50 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     return [hits.length ? hits : completions, line];
   };
 
+  const historyPath = path.join(cfg.workspaceRoot, ".devagent_history");
+  let initialHistory: string[] = [];
+  try {
+    if (fs.existsSync(historyPath)) {
+      const content = fs.readFileSync(historyPath, "utf-8");
+      initialHistory = content
+        .split("\n")
+        .map((line) => line.trim())
+        .filter(Boolean);
+    }
+  } catch {
+    // Ignore history load errors
+  }
+
   const rl = readline.createInterface({
     input: process.stdin,
     output: process.stdout,
     completer,
   });
+
+  // Assign history and ensure uniqueness
+  const seenHistory = new Set<string>();
+  (rl as any).history = initialHistory.filter((item) => {
+    if (seenHistory.has(item)) return false;
+    seenHistory.add(item);
+    return true;
+  });
+
+  const saveHistory = () => {
+    try {
+      const seen = new Set<string>();
+      const uniqueHistory = ((rl as any).history as string[]).filter((item) => {
+        const trimmed = item.trim();
+        if (!trimmed || trimmed.startsWith("/") || seen.has(trimmed)) {
+          return false;
+        }
+        seen.add(trimmed);
+        return true;
+      });
+      fs.writeFileSync(historyPath, uniqueHistory.join("\n"), "utf-8");
+    } catch {
+      // Ignore history save errors
+    }
+  };
 
   const updatePrompt = () => {
     rl.setPrompt(
@@ -107,6 +148,18 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   });
 
   rl.on("line", async (raw) => {
+    // Clean and deduplicate history, removing commands
+    const seen = new Set<string>();
+    (rl as any).history = ((rl as any).history as string[]).filter((item) => {
+      const trimmed = item.trim();
+      if (!trimmed || trimmed.startsWith("/") || seen.has(trimmed)) {
+        return false;
+      }
+      seen.add(trimmed);
+      return true;
+    });
+    saveHistory();
+
     const text = raw.trim();
     if (!text) {
       rl.prompt();
@@ -194,9 +247,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     rl.pause();
 
     let isStreaming = false;
-    let accumulatedText = "";
-    let lastPrintedLineCount = 0;
-
+    let isThinking = false;
     let lastToolName = "";
     let lastToolArgs: Record<string, any> = {};
 
@@ -204,14 +255,13 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     const events = (agent as any).events;
 
     events.onStatus = (status: string) => {
-      // Clear current assistant stream draft before updating status
+      if (isThinking) {
+        process.stdout.write("\n");
+        isThinking = false;
+      }
       if (isStreaming) {
-        if (lastPrintedLineCount > 0) {
-          readline.moveCursor(process.stdout, 0, -lastPrintedLineCount);
-          readline.clearScreenDown(process.stdout);
-        }
+        process.stdout.write("\n");
         isStreaming = false;
-        lastPrintedLineCount = 0;
       }
 
       spinner.text = chalk.cyan(`Agent status: ${status}...`);
@@ -220,48 +270,48 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       }
     };
 
+    events.onThinking = (thinkingChunk: string) => {
+      if (spinner.isSpinning) {
+        spinner.stop();
+      }
+      if (isStreaming) {
+        process.stdout.write("\n");
+        isStreaming = false;
+      }
+      if (!isThinking) {
+        isThinking = true;
+        process.stdout.write(chalk.gray.italic("🧠 Thinking: "));
+      }
+      process.stdout.write(chalk.gray.italic(thinkingChunk));
+    };
+
     events.onAssistantText = (chunk: string) => {
       if (spinner.isSpinning) {
         spinner.stop();
       }
-
-      // Clear the previously printed draft lines
-      if (lastPrintedLineCount > 0) {
-        readline.moveCursor(process.stdout, 0, -lastPrintedLineCount);
-        readline.clearScreenDown(process.stdout);
+      if (isThinking) {
+        process.stdout.write("\n");
+        isThinking = false;
       }
-
-      isStreaming = true;
-      accumulatedText += chunk;
-
-      const draftText = chalk.magenta.bold("🤖 DevAgent: ") + chalk.dim(accumulatedText);
-      process.stdout.write(draftText);
-
-      // Compute visual line height of draftText (accounting for terminal wrapping)
-      const cols = process.stdout.columns || 80;
-      const lines = draftText.split("\n");
-      let lineCount = 0;
-      for (const line of lines) {
-        const clean = line.replace(/[\u001b\u009b][[()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g, "");
-        lineCount += Math.max(1, Math.ceil(clean.length / cols));
+      if (!isStreaming) {
+        isStreaming = true;
+        process.stdout.write(chalk.magenta.bold("🤖 DevAgent: "));
       }
-      lastPrintedLineCount = lineCount - 1;
+      process.stdout.write(chunk);
     };
 
     events.onToolCall = (name: string, args: Record<string, unknown>) => {
       lastToolName = name;
       lastToolArgs = args;
 
-      // Clear current assistant stream draft
-      if (isStreaming) {
-        if (lastPrintedLineCount > 0) {
-          readline.moveCursor(process.stdout, 0, -lastPrintedLineCount);
-          readline.clearScreenDown(process.stdout);
-        }
-        isStreaming = false;
-        lastPrintedLineCount = 0;
+      if (isThinking) {
+        process.stdout.write("\n");
+        isThinking = false;
       }
-
+      if (isStreaming) {
+        process.stdout.write("\n");
+        isStreaming = false;
+      }
       if (spinner.isSpinning) {
         spinner.stop();
       }
@@ -318,11 +368,11 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         outcome = typeof result === "string" ? result : JSON.stringify(result);
       }
 
-      // Elegantly log completion on the terminal
+      // Elegantly log completion using spinner status (do not duplicate checkmarks/crosses)
       if (isError) {
-        spinner.fail(chalk.red(`✖  [${name}] ${desc} (${outcome})`));
+        spinner.fail(chalk.red(`[${name}] ${desc} (${outcome})`));
       } else {
-        spinner.succeed(chalk.green(`✔  [${name}] ${desc} (${outcome})`));
+        spinner.succeed(chalk.green(`[${name}] ${desc} (${outcome})`));
       }
     };
 
@@ -335,30 +385,20 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
     spinner.start("Initializing task execution...");
     try {
-      const answer = await agent.runUserMessage(text);
+      await agent.runUserMessage(text);
       
       if (spinner.isSpinning) {
         spinner.stop();
       }
-
-      // Clear the final stream draft completely to replace it with polished markdown
+      if (isThinking) {
+        process.stdout.write("\n");
+        isThinking = false;
+      }
       if (isStreaming) {
-        if (lastPrintedLineCount > 0) {
-          readline.moveCursor(process.stdout, 0, -lastPrintedLineCount);
-          readline.clearScreenDown(process.stdout);
-        }
+        process.stdout.write("\n");
         isStreaming = false;
-        lastPrintedLineCount = 0;
       }
-
-      // Print final markdown response
-      if (answer && answer !== "(tool budget exceeded)") {
-        console.log(chalk.magenta.bold("🤖 DevAgent:"));
-        console.log(marked.parse(answer).trim());
-        console.log();
-      } else {
-        console.log(chalk.red("\n✖ Tool execution budget exceeded or empty response.\n"));
-      }
+      console.log(); // Print a trailing newline for spacing
     } catch (e) {
       if (spinner.isSpinning) {
         spinner.stop();
