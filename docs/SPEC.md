@@ -41,13 +41,13 @@ Rules (all zones, all sizes, no exceptions):
 
 Zone semantics:
 
-| Zone | Contents |
-| --- | --- |
-| Header | product, workspace, model, branch, context usage, agent state, clock |
-| Active View | exactly one focused actor view (see §6) |
-| Activity Strip | live health of **all** actors; never navigation |
-| Prompt | the single command input |
-| Context Strip | dynamic live status for the current runtime mode |
+| Zone           | Contents                                                             |
+| -------------- | -------------------------------------------------------------------- |
+| Header         | product, workspace, model, branch, context usage, agent state, clock |
+| Active View    | exactly one focused actor view (see §6)                              |
+| Activity Strip | live health of **all** actors; never navigation                      |
+| Prompt         | the single command input                                             |
+| Context Strip  | dynamic live status for the current runtime mode                     |
 
 Implementation: `src/tui/App.tsx`, zones in `src/tui/zones/`.
 
@@ -97,11 +97,11 @@ The layout never restructures with width. Width only selects density
 (`src/layout/density.ts`):
 
 | Columns | Density | Widget detail |
-| --- | --- | --- |
-| ≥ 160 | high | full |
-| 120–159 | normal | expanded |
-| 90–119 | compact | normal |
-| < 90 | minimal | compact |
+| ------- | ------- | ------------- |
+| ≥ 160   | high    | full          |
+| 120–159 | normal  | expanded      |
+| 90–119  | compact | normal        |
+| < 90    | minimal | compact       |
 
 What changes with density: detail level, wrapping, omitted secondary
 status items, truncation, compact labels. What never changes: the zones.
@@ -141,25 +141,37 @@ Models, MCP — mapped to keys 1–8 in that order.
 
 ## 8. Keyboard contract
 
-| Key | Action |
-| --- | --- |
-| 1–8 | focus a view |
-| Tab / Shift+Tab | next / previous view (prompt empty) |
-| Ctrl+P | command palette |
-| Ctrl+B | actors overlay |
-| z | zoom active view (detail → full; zones unchanged) |
-| Esc | close overlay / cancel |
-| ? | help |
-| q | quit (prompt empty) |
+| Key             | Action                                            |
+| --------------- | ------------------------------------------------- |
+| 1–8             | focus a view                                      |
+| Tab / Shift+Tab | next / previous view (prompt empty)               |
+| Ctrl+P          | command palette                                   |
+| Ctrl+B          | actors overlay                                    |
+| Ctrl+F          | search everywhere                                 |
+| z               | zoom active view (detail → full; zones unchanged) |
+| Esc             | close overlay / cancel                            |
+| ?               | help                                              |
+| q               | quit (prompt empty)                               |
 
 While the prompt has text, bare keys type into the prompt; Ctrl chords
 stay global. Changing focus must not stop background actors.
 
+Note: Ctrl+M is bound to the model switcher in the resolver, but real
+terminals send CR for Ctrl+M (indistinguishable from Enter), so the
+reachable paths are `/model` with no args and the palette action.
+
 ## 9. Overlay system
 
 Overlays (`src/tui/overlays/`): command palette, actors, help, diff
-preview, approval dialog. Rules: ephemeral, never replace runtime state,
-always closable with Esc, must work at small terminal sizes.
+preview, approval dialog, model switcher, search everywhere. Rules:
+ephemeral, never replace runtime state, always closable with Esc, must
+work at small terminal sizes.
+
+Every searchable list reuses one component — `UniversalPicker`
+(`src/tui/overlays/UniversalPicker.tsx`, pure logic in
+`src/interaction/picker.ts`): type to filter, ↑/↓ navigate, Enter
+select; multi-select mode toggles with Space and confirms with Enter.
+New pickers must build on it, not reimplement list UIs.
 
 ## 10. Interaction layer
 
@@ -174,6 +186,13 @@ runtime and of Ink:
   reverse search.
 - `completion.ts` — ghost text (Tab accepts all, Right Arrow one word)
   and slash-command autocomplete rendered in the Context Strip.
+- `templates.ts` — `@` prompt templates (`@review`, `@tests`,
+  `@refactor`, `@docs`, `@security`); selecting inserts the template
+  body into the prompt.
+- `picker.ts` — universal filter/window logic shared by all pickers.
+- `search.ts` — the Ctrl+F index over conversation, logs, memory,
+  tasks, tool calls, git files, and commands; results focus the owning
+  view.
 
 Input modes are implicit today (NORMAL typing, COMMAND via `/` and the
 palette, APPROVAL while an approval is pending); new modes must be added

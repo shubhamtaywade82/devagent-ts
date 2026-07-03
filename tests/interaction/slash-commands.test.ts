@@ -42,7 +42,7 @@ describe("SlashCommandRegistry", () => {
     const registry = builtinCommands();
     expect(registry.find("clear")!.execute("")).toEqual({ kind: "clear-conversation" });
     expect(registry.find("model")!.execute("qwen3:8b")).toEqual({ kind: "set-model", model: "qwen3:8b" });
-    expect(registry.find("model")!.execute("")).toMatchObject({ kind: "error" });
+    expect(registry.find("model")!.execute("")).toEqual({ kind: "open-overlay", overlay: "model" });
     expect(registry.find("git")!.execute("")).toEqual({ kind: "focus-view", view: "git" });
     expect(registry.find("quit")!.execute("")).toEqual({ kind: "quit" });
   });

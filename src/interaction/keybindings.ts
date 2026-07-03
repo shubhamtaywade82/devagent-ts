@@ -5,6 +5,7 @@
  * Core contract:
  *   1–8       focus a view          Tab/Shift+Tab   next/previous view
  *   Ctrl+P    command palette       Ctrl+B          actors overlay
+ *   Ctrl+M    model switcher        Ctrl+F          search everywhere
  *   z         zoom active view      Esc             close overlay / cancel
  *   ?         help                  q               quit
  *
@@ -52,6 +53,8 @@ export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiComm
   // Global chords work regardless of prompt content.
   if (key.ctrl && input === "p") return { type: "open-overlay", overlay: "palette" };
   if (key.ctrl && input === "b") return { type: "open-overlay", overlay: "actors" };
+  if (key.ctrl && input === "m") return { type: "open-overlay", overlay: "model" };
+  if (key.ctrl && input === "f") return { type: "open-overlay", overlay: "search" };
 
   // Tab cycles views only when the prompt is empty — while typing it
   // belongs to the prompt (ghost-text / completion accept).

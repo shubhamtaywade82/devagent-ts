@@ -23,6 +23,7 @@ function makeWorld() {
     setModel: (m: string) => {
       agent.models.push(m);
     },
+    listModels: jest.fn(async () => ["qwen3:30b", "qwen3:8b", "deepseek"]),
   };
   return { bus, store, agent };
 }
@@ -159,6 +160,60 @@ describe("App shell", () => {
     await tick();
     expect(store.getState().approval).toBeNull();
     expect(store.getState().mode).toBe("idle");
+    unmount();
+  });
+
+  it("/model with no args opens the switcher; selecting sets the model", async () => {
+    const { stdin, lastFrame, agent, store, unmount } = renderApp();
+    await tick();
+    stdin.write("/model");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    await tick(); // listModels resolves
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("Switch Model");
+    expect(frame).toContain("deepseek");
+    stdin.write("\u001B[B"); // down to qwen3:8b
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(agent.models).toEqual(["qwen3:8b"]);
+    expect(store.getState().model.name).toBe("qwen3:8b");
+    expect(stripAnsi(lastFrame() ?? "")).not.toContain("Switch Model");
+    unmount();
+  });
+
+  it("Ctrl+F opens search everywhere; selecting a log result focuses Logs", async () => {
+    const { stdin, lastFrame, unmount } = renderApp(100, 30, ({ bus }) => {
+      bus.publish({ type: "logs.appended", level: "error", source: "shell", message: "exit code 1" });
+    });
+    await tick();
+    stdin.write("\u0006");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("Search Everywhere");
+    stdin.write("exit code");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).not.toContain("Search Everywhere");
+    expect(frame).toContain("5 Logs");
+    unmount();
+  });
+
+  it("@ templates complete and Tab inserts the template body", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    stdin.write("@re");
+    await tick();
+    let frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("@review");
+    expect(frame).toContain("@refactor");
+    stdin.write("\t");
+    await tick();
+    frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("Review the following");
     unmount();
   });
 

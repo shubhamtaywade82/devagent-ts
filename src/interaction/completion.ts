@@ -6,6 +6,7 @@
  */
 
 import { SlashCommandRegistry } from "./slash-commands";
+import { BUILTIN_TEMPLATES, PromptTemplate, templateCompletions } from "./templates";
 
 /**
  * Ghost suffix for the current input, from the newest history entry that
@@ -36,10 +37,15 @@ export interface CompletionItem {
 }
 
 /**
- * Autocomplete candidates for the prompt. Currently: slash commands when
- * the input starts with "/".
+ * Autocomplete candidates for the prompt: slash commands when the input
+ * starts with "/", prompt templates when it starts with "@".
  */
-export function completions(input: string, registry: SlashCommandRegistry): CompletionItem[] {
+export function completions(
+  input: string,
+  registry: SlashCommandRegistry,
+  templates: PromptTemplate[] = BUILTIN_TEMPLATES,
+): CompletionItem[] {
+  if (input.startsWith("@")) return templateCompletions(input, templates);
   if (!input.startsWith("/") || input.includes(" ")) return [];
   const prefix = input.slice(1);
   return registry.complete(prefix).map((c) => ({

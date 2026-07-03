@@ -85,8 +85,8 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register({
     name: "model",
     aliases: [],
-    description: "Switch model: /model <name>",
-    execute: (args) => (args ? { kind: "set-model", model: args } : { kind: "error", text: "Usage: /model <name>" }),
+    description: "Switch model: /model [name]",
+    execute: (args) => (args ? { kind: "set-model", model: args } : { kind: "open-overlay", overlay: "model" }),
   });
   registry.register({
     name: "quit",

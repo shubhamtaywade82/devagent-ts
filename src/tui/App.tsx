@@ -26,11 +26,14 @@ import { CommandPalette } from "./overlays/CommandPalette";
 import { HelpOverlay } from "./overlays/HelpOverlay";
 import { ActorsOverlay } from "./overlays/ActorsOverlay";
 import { ApprovalOverlay } from "./overlays/ApprovalOverlay";
+import { ModelSwitcher } from "./overlays/ModelSwitcher";
+import { SearchEverywhere } from "./overlays/SearchEverywhere";
 
 export interface ShellAgent {
   runUserMessage(message: string): Promise<unknown>;
   setModel?(model: string): void;
   resetContext?(): void;
+  listModels?(): Promise<string[]>;
 }
 
 export interface AppProps {
@@ -105,7 +108,29 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
   const [busy, setBusy] = useState(false);
   const [completionIndex, setCompletionIndex] = useState(0);
   const [history] = useState(() => new HistoryManager());
+  const [models, setModels] = useState<string[] | null>(null);
   const commandRegistry = useMemo(() => registry ?? builtinCommands(), [registry]);
+
+  // Load the model list lazily when the switcher opens; cache afterwards.
+  useEffect(() => {
+    if (ui.overlay !== "model" || models !== null) return;
+    let cancelled = false;
+    if (!agent?.listModels) {
+      setModels([]);
+      return;
+    }
+    agent
+      .listModels()
+      .then((list) => {
+        if (!cancelled) setModels(list);
+      })
+      .catch(() => {
+        if (!cancelled) setModels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ui.overlay, models, agent]);
 
   const density = densityForWidth(width);
   const detail = ui.zoom ? "full" : detailForDensity(density);
@@ -304,6 +329,30 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
             <HelpOverlay width={width} rows={contentRows} />
           ) : ui.overlay === "actors" ? (
             <ActorsOverlay state={state} width={width} rows={contentRows} />
+          ) : ui.overlay === "model" ? (
+            <ModelSwitcher
+              current={state.model.name}
+              models={models}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(model) => {
+                uiDispatch({ type: "close-overlay" });
+                applyEffect({ kind: "set-model", model });
+              }}
+            />
+          ) : ui.overlay === "search" ? (
+            <SearchEverywhere
+              state={state}
+              registry={commandRegistry}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(view) => {
+                uiDispatch({ type: "close-overlay" });
+                uiDispatch({ type: "focus-view", view });
+              }}
+            />
           ) : (
             <ActiveView state={state} width={width} rows={contentRows} detail={detail} />
           )}

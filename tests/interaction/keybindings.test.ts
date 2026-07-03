@@ -28,6 +28,14 @@ describe("resolveKey", () => {
     expect(resolveKey("b", { ctrl: true }, base)).toEqual({ type: "open-overlay", overlay: "actors" });
   });
 
+  it("Ctrl+M opens the model switcher, Ctrl+F opens search", () => {
+    expect(resolveKey("m", { ctrl: true }, base)).toEqual({ type: "open-overlay", overlay: "model" });
+    expect(resolveKey("f", { ctrl: true }, { ...base, promptHasText: true })).toEqual({
+      type: "open-overlay",
+      overlay: "search",
+    });
+  });
+
   it("Esc closes an open overlay, otherwise cancels", () => {
     expect(resolveKey("", { escape: true }, { ...base, overlay: "help" })).toEqual({ type: "close-overlay" });
     expect(resolveKey("", { escape: true }, base)).toEqual({ type: "cancel" });
