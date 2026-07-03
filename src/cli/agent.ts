@@ -4,6 +4,16 @@ import { Registry } from "../tools/registry";
 import { ReadFileTool, WriteFileTool, PathEscapeError } from "../tools/filesystem";
 import { ShellTool } from "../tools/shell";
 import { LoopDetector } from "../orchestrator/loop-detector";
+import {
+  ListDirectoryTool,
+  DeleteFileTool,
+  MoveFileTool,
+  CopyFileTool,
+  MakeDirectoryTool,
+  SearchFilesTool,
+  GrepFilesTool,
+  FileMetadataTool,
+} from "../tools/filesystem-extended";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -50,7 +60,15 @@ export class Agent {
     this.registry = new Registry()
       .register(new ReadFileTool(cfg.workspaceRoot))
       .register(new WriteFileTool(cfg.workspaceRoot))
-      .register(new ShellTool(shellOpts));
+      .register(new ShellTool(shellOpts))
+      .register(new ListDirectoryTool(cfg.workspaceRoot))
+      .register(new DeleteFileTool(cfg.workspaceRoot))
+      .register(new MoveFileTool(cfg.workspaceRoot))
+      .register(new CopyFileTool(cfg.workspaceRoot))
+      .register(new MakeDirectoryTool(cfg.workspaceRoot))
+      .register(new SearchFilesTool(cfg.workspaceRoot))
+      .register(new GrepFilesTool(cfg.workspaceRoot))
+      .register(new FileMetadataTool(cfg.workspaceRoot));
   }
 
   async runUserMessage(userMessage: string): Promise<string> {

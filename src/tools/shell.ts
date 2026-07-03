@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
-import { Tool } from "./tool";
+import { Tool, ToolError } from "./tool";
 
 export interface ShellToolOptions {
   workspaceRoot: string;
@@ -36,24 +36,33 @@ export class ShellTool extends Tool {
     this.logger = opts.logger ?? console;
   }
 
-  get name(): string {
-    return "run_shell";
-  }
+  get name(): string { return "run_shell"; }
 
-  get description(): string {
-    return "Run a shell command inside an isolated, network-disabled sandbox rooted at the workspace.";
-  }
+  get description(): string { return "Run a shell command inside an isolated Docker sandbox rooted at the workspace."; }
 
   get parameters(): Record<string, unknown> {
-    return { type: "object", properties: { command: { type: "string" } }, required: ["command"] };
+    return {
+      type: "object",
+      properties: {
+        command: { type: "string" },
+        timeoutSec: { type: "number" },
+      },
+      required: ["command"],
+    };
   }
 
-  call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const command = args.command as string;
+    const timeoutSec = (args.timeoutSec as number | undefined) ?? this.timeoutSec;
+
+    if ((command ?? "").trim().length === 0) {
+      return { exitCode: -1, stdout: "", stderr: "empty command", truncated: false, error: "EmptyCommandError" };
+    }
+
     const container = `devagent-${randomBytes(4).toString("hex")}`;
 
     return new Promise((resolvePromise) => {
-      const child = spawn("docker", this.dockerArgs(container, command));
+      const child = spawn("docker", this.dockerArgs(container, command, timeoutSec));
       let stdout = Buffer.alloc(0);
       let stderr = Buffer.alloc(0);
       let settled = false;
@@ -89,9 +98,9 @@ export class ShellTool extends Tool {
         if (settled) return;
         this.logger.warn(`[ShellTool] hard timeout on ${container}`);
         void this.escalateKill(container).then(() => {
-          finish({ exitCode: -1, stdout: "", stderr: "sandbox exceeded outer timeout", truncated: false });
+          finish({ exitCode: -1, stdout: "", stderr: "sandbox exceeded hard timeout", truncated: false });
         });
-      }, (this.timeoutSec + 10) * 1000);
+      }, (timeoutSec + 15) * 1000);
 
       child.on("close", (exitCode) => {
         if (killedForOverflow) {
@@ -111,6 +120,7 @@ export class ShellTool extends Tool {
           stdout: stdout.subarray(0, ShellTool.MAX_OUTPUT_BYTES).toString("utf-8"),
           stderr: stderr.subarray(0, ShellTool.MAX_OUTPUT_BYTES).toString("utf-8"),
           truncated: stdout.byteLength > ShellTool.MAX_OUTPUT_BYTES || stderr.byteLength > ShellTool.MAX_OUTPUT_BYTES,
+          timeoutSec,
         });
       });
 
@@ -153,7 +163,8 @@ export class ShellTool extends Tool {
     });
   }
 
-  private dockerArgs(container: string, command: string): string[] {
+  private dockerArgs(container: string, command: string, timeoutSec?: number): string[] {
+    const effective = timeoutSec ?? this.timeoutSec;
     return [
       "run",
       "--rm",
@@ -169,7 +180,7 @@ export class ShellTool extends Tool {
       "/workspace",
       this.image,
       "timeout",
-      String(this.timeoutSec),
+      String(effective),
       "sh",
       "-c",
       command,
