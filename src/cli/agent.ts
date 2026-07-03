@@ -23,6 +23,7 @@ import { MemoryStore } from "../memory/store";
 import { Orchestrator } from "../orchestrator/orchestrator";
 import { AgentStepRunner } from "../orchestrator/agent-planner";
 import { PlanStep, Planner } from "../orchestrator/types";
+import { connectMcpServer } from "../mcp/client";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -273,5 +274,10 @@ export class Agent {
 
   getRegistry(): Registry {
     return this.registry;
+  }
+
+  async registerMcpServer(command: string, args: string[] = []): Promise<void> {
+    const tools = await connectMcpServer(command, args);
+    for (const tool of tools) this.registry.register(tool);
   }
 }
