@@ -73,6 +73,10 @@ export class Provider {
   }
 
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {
+    if (this.tier === "cloud" && !this.apiKey) {
+      throw new ProviderError("missing apiKey for cloud chat");
+    }
+
     const body: Record<string, unknown> = { model: this.model, messages, stream: opts.stream ?? false };
     if (opts.tools) body.tools = opts.tools;
 
