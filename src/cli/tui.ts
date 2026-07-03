@@ -60,21 +60,20 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     const url = `${base}/api/chat`;
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 25_000);
     const probeOne = async (m: string): Promise<[string, boolean]> => {
       try {
         const resp = await fetch(url, {
           method: "POST",
           headers,
           body: JSON.stringify({ model: m, messages: [{ role: "user", content: "." }], stream: false }),
-          signal: controller.signal,
+          signal: AbortSignal.timeout(25_000),
         });
-        if (resp.status === 429 || resp.status === 200) {
+        if (resp.status === 429) return [m, true];
+        if (resp.status === 200) {
           const body = await resp.json() as any;
           const errMsg = typeof body?.error === "string" ? body.error : "";
           if (errMsg.includes("subscription") || errMsg.includes("upgrade")) return [m, false];
-          return [m, resp.ok];
+          return [m, true];
         }
         const text = await resp.text();
         return [m, !(text.includes("subscription") || text.includes("upgrade"))];
@@ -82,9 +81,10 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         return [m, true];
       }
     };
-    const results = await Promise.all(toProbe.map(probeOne));
-    clearTimeout(timer);
-    for (const [m, free] of results) modelAccess.set(m, free);
+    const results = await Promise.allSettled(toProbe.map(probeOne));
+    for (const r of results) {
+      if (r.status === "fulfilled") modelAccess.set(r.value[0], r.value[1]);
+    }
   }
 
   agent
