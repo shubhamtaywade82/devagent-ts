@@ -20,6 +20,9 @@ import { GitTool } from "../tools/git-tools";
 import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
 import { LoopDetector } from "../orchestrator/loop-detector";
 import { MemoryStore } from "../memory/store";
+import { Orchestrator } from "../orchestrator/orchestrator";
+import { AgentStepRunner } from "../orchestrator/agent-planner";
+import { PlanStep, Planner } from "../orchestrator/types";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -233,6 +236,18 @@ export class Agent {
     }
 
     return lastAssistantText || "(tool budget exceeded)";
+  }
+
+  async runPlannedTask(steps: PlanStep[], planner: Planner): Promise<PlanStep[]> {
+    const orchestrator = new Orchestrator({
+      steps,
+      runner: new AgentStepRunner(this),
+      planner,
+      runRollback: async (command: string) => {
+        await this.runUserMessage(`Roll back by running exactly this: ${command}`);
+      },
+    });
+    return orchestrator.run();
   }
 
   setModel(model: string): void {
