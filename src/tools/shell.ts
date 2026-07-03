@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
-import { Tool, ToolError } from "./tool";
+import { Tool } from "./tool";
 
 export interface ShellToolOptions {
   workspaceRoot: string;
@@ -165,6 +165,9 @@ export class ShellTool extends Tool {
 
   private dockerArgs(container: string, command: string, timeoutSec?: number): string[] {
     const effective = timeoutSec ?? this.timeoutSec;
+    const uid = process.getuid?.() ?? 0;
+    const gid = process.getgid?.() ?? 0;
+    const wrappedCommand = `chown -R ${uid}:${gid} /workspace >/dev/null 2>&1 || true; ${command}`;
     return [
       "run",
       "--rm",
@@ -183,7 +186,7 @@ export class ShellTool extends Tool {
       String(effective),
       "sh",
       "-c",
-      command,
+      wrappedCommand,
     ];
   }
 }

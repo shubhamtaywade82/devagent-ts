@@ -135,7 +135,11 @@ export class Orchestrator {
     for (const step of [...this.executedOrder].reverse()) {
       if (!step.rollbackCommand) continue;
       this.logger.info(`[Orchestrator] rolling back ${step.id}: ${step.rollbackCommand}`);
-      await this.runRollback(step.rollbackCommand);
+      try {
+        await this.runRollback(step.rollbackCommand);
+      } catch (e) {
+        this.logger.error(`[Orchestrator] rollback for ${step.id} failed: ${e instanceof Error ? e.message : e}`);
+      }
     }
   }
 }

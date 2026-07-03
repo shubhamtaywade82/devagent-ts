@@ -25,12 +25,15 @@ marked.setOptions({
   }) as any,
 });
 
-async function listModels(host: string | undefined): Promise<string[]> {
+async function listModels(host: string | undefined, tier: string): Promise<string[]> {
   const base = host ?? process.env.OLLAMA_HOST ?? "http://localhost:11434";
+  const path = tier === "cloud" ? "/v1/models" : "/api/tags";
   try {
-    const resp = await fetch(`${base}/api/tags`);
-    if (!resp.ok) {
-      return [];
+    const resp = await fetch(`${base}${path}`);
+    if (!resp.ok) return [];
+    if (tier === "cloud") {
+      const data = (await resp.json()) as { data?: Array<{ id: string }> };
+      return (data.data ?? []).map((m) => m.id);
     }
     const data = (await resp.json()) as { models?: Array<{ name: string }> };
     return (data.models ?? []).map((m) => m.name);
@@ -43,8 +46,80 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   const cfg = { ...loadConfig(), ...(opts?.config ?? {}) };
   const agent = new Agent({ config: cfg });
 
+  // Per-run state for event handlers (one run at a time)
+  let runState = { isStreaming: false, isThinking: false, lastToolName: "", lastToolArgs: {} as Record<string, any> };
+
+  agent
+    .on("onStatus", (status: string) => {
+      const s = runState;
+      if (s.isThinking) { process.stdout.write("\n"); s.isThinking = false; }
+      if (s.isStreaming) { process.stdout.write("\n"); s.isStreaming = false; }
+      const turnMatch = status.match(/^turn (\d+)$/);
+      const label = turnMatch ? `Thinking (turn ${turnMatch[1]})...` : status;
+      spinner.text = chalk.cyan(label);
+      if (!spinner.isSpinning) spinner.start();
+    })
+    .on("onThinking", (thinkingChunk: string) => {
+      const s = runState;
+      if (spinner.isSpinning) spinner.stop();
+      if (s.isStreaming) { process.stdout.write("\n"); s.isStreaming = false; }
+      if (!s.isThinking) { s.isThinking = true; process.stdout.write(chalk.gray.italic(" Thinking: ")); }
+      process.stdout.write(chalk.gray.italic(thinkingChunk));
+    })
+    .on("onAssistantText", (chunk: string) => {
+      const s = runState;
+      if (spinner.isSpinning) spinner.stop();
+      if (s.isThinking) { process.stdout.write("\n"); s.isThinking = false; }
+      if (!s.isStreaming) { s.isStreaming = true; process.stdout.write(chalk.magenta.bold(" DevAgent: ")); }
+      process.stdout.write(chunk);
+    })
+    .on("onToolCall", (name: string, args: Record<string, unknown>) => {
+      const s = runState;
+      s.lastToolName = name;
+      s.lastToolArgs = args;
+      if (s.isThinking) { process.stdout.write("\n"); s.isThinking = false; }
+      if (s.isStreaming) { process.stdout.write("\n"); s.isStreaming = false; }
+      if (spinner.isSpinning) spinner.stop();
+      let desc = "";
+      if (name === "read_file") desc = args.path as string;
+      else if (name === "write_file") desc = args.path as string;
+      else if (name === "run_shell") desc = `"${args.command}"`;
+      spinner.start(chalk.yellow(` Executing [${name}] ${desc}...`));
+    })
+    .on("onToolResult", (name: string, result: Record<string, unknown> | string) => {
+      const s = runState;
+      if (spinner.isSpinning) spinner.stop();
+      let desc = "";
+      if (name === "read_file") desc = s.lastToolArgs.path as string;
+      else if (name === "write_file") desc = s.lastToolArgs.path as string;
+      else if (name === "run_shell") desc = `"${s.lastToolArgs.command}"`;
+      let outcome = "";
+      let isError = false;
+      if (name === "read_file") {
+        if (typeof result === "string") outcome = `${result.split("\n").length} lines read`;
+        else if (result && result.error) { outcome = String(result.error); isError = true; }
+      } else if (name === "write_file") {
+        const resObj = result as any;
+        if (resObj && resObj.error) { outcome = String(resObj.error); isError = true; }
+        else outcome = "written successfully";
+      } else if (name === "run_shell") {
+        if (result && typeof result === "object") {
+          const code = result.exitCode as number;
+          isError = code !== 0;
+          outcome = `exit code ${code}`;
+          if (isError && result.stderr) outcome += ` - ${String(result.stderr).substring(0, 100).trim()}`;
+        } else outcome = String(result);
+      } else outcome = typeof result === "string" ? result : JSON.stringify(result);
+      if (isError) spinner.fail(chalk.red(`[${name}] ${desc} (${outcome})`));
+      else spinner.succeed(chalk.green(`[${name}] ${desc} (${outcome})`));
+    })
+    .on("onError", (error: Error) => {
+      if (spinner.isSpinning) spinner.stop();
+      console.log(chalk.red.bold(` Agent Error: ${error.message}`));
+    });
+
   // Pre-fetch models list for autocomplete support
-  const modelsList = await listModels(cfg.host);
+  const modelsList = await listModels(cfg.host, cfg.tier);
 
   // Render a high-fidelity startup banner
   const bannerText = [
@@ -108,8 +183,9 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   // Assign history and ensure uniqueness
   const seenHistory = new Set<string>();
   (rl as any).history = initialHistory.filter((item) => {
-    if (seenHistory.has(item)) return false;
-    seenHistory.add(item);
+    const trimmed = item.trim();
+    if (seenHistory.has(trimmed)) return false;
+    seenHistory.add(trimmed);
     return true;
   });
 
@@ -148,16 +224,6 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   });
 
   rl.on("line", async (raw) => {
-    // Clean and deduplicate history, removing commands
-    const seen = new Set<string>();
-    (rl as any).history = ((rl as any).history as string[]).filter((item) => {
-      const trimmed = item.trim();
-      if (!trimmed || trimmed.startsWith("/") || seen.has(trimmed)) {
-        return false;
-      }
-      seen.add(trimmed);
-      return true;
-    });
     saveHistory();
 
     const text = raw.trim();
@@ -211,7 +277,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
       if (text === "/models") {
         spinner.start("Fetching available models...");
-        const models = await listModels(cfg.host);
+        const models = await listModels(cfg.host, cfg.tier);
         spinner.stop();
         if (models.length === 0) {
           console.log(chalk.red("✖ No models found or Ollama is unreachable."));
@@ -238,6 +304,34 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         return;
       }
 
+      if (text.startsWith("/tier ")) {
+        const tierValue = text.slice("/tier ".length).trim();
+        if (!["local", "cloud"].includes(tierValue)) {
+          console.log(chalk.red("✖ Usage: /tier local|cloud"));
+          rl.prompt();
+          return;
+        }
+        (agent as any).provider.setTier?.(tierValue);
+        console.log(chalk.green(`✔ Switched tier to: ${chalk.bold(tierValue)}`));
+        updatePrompt();
+        rl.prompt();
+        return;
+      }
+
+      if (text.startsWith("/host ")) {
+        const hostValue = text.slice("/host ".length).trim();
+        if (!hostValue) {
+          console.log(chalk.red("✖ Usage: /host <url>"));
+          rl.prompt();
+          return;
+        }
+        (agent as any).provider.setRuntimeHost?.(hostValue);
+        console.log(chalk.green(`✔ Switched host to: ${chalk.bold(hostValue)}`));
+        updatePrompt();
+        rl.prompt();
+        return;
+      }
+
       console.log(chalk.red(`✖ Unknown command: ${text}. Type /help for available commands.`));
       rl.prompt();
       return;
@@ -246,149 +340,8 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     // Pause readline input to avoid overlapping prompts/keypresses during agent run
     rl.pause();
 
-    let isStreaming = false;
-    let isThinking = false;
-    let lastToolName = "";
-    let lastToolArgs: Record<string, any> = {};
-
-    // Register temporary event handlers for this specific run
-    const events = (agent as any).events;
-
-    events.onStatus = (status: string) => {
-      if (isThinking) {
-        process.stdout.write("\n");
-        isThinking = false;
-      }
-      if (isStreaming) {
-        process.stdout.write("\n");
-        isStreaming = false;
-      }
-
-      // Parse turn index for a cleaner label
-      const turnMatch = status.match(/^turn (\d+)$/);
-      const label = turnMatch
-        ? `Thinking (turn ${turnMatch[1]})...`
-        : status;
-
-      spinner.text = chalk.cyan(label);
-      if (!spinner.isSpinning) {
-        spinner.start();
-      }
-    };
-
-    events.onThinking = (thinkingChunk: string) => {
-      if (spinner.isSpinning) {
-        spinner.stop();
-      }
-      if (isStreaming) {
-        process.stdout.write("\n");
-        isStreaming = false;
-      }
-      if (!isThinking) {
-        isThinking = true;
-        process.stdout.write(chalk.gray.italic("🧠 Thinking: "));
-      }
-      process.stdout.write(chalk.gray.italic(thinkingChunk));
-    };
-
-    events.onAssistantText = (chunk: string) => {
-      if (spinner.isSpinning) {
-        spinner.stop();
-      }
-      if (isThinking) {
-        process.stdout.write("\n");
-        isThinking = false;
-      }
-      if (!isStreaming) {
-        isStreaming = true;
-        process.stdout.write(chalk.magenta.bold("🤖 DevAgent: "));
-      }
-      process.stdout.write(chunk);
-    };
-
-    events.onToolCall = (name: string, args: Record<string, unknown>) => {
-      lastToolName = name;
-      lastToolArgs = args;
-
-      if (isThinking) {
-        process.stdout.write("\n");
-        isThinking = false;
-      }
-      if (isStreaming) {
-        process.stdout.write("\n");
-        isStreaming = false;
-      }
-      if (spinner.isSpinning) {
-        spinner.stop();
-      }
-
-      // Single-line elegant spinner for the active tool run
-      let desc = "";
-      if (name === "read_file") desc = args.path as string;
-      else if (name === "write_file") desc = args.path as string;
-      else if (name === "run_shell") desc = `"${args.command}"`;
-
-      spinner.start(chalk.yellow(`⚙  Executing [${name}] ${desc}...`));
-    };
-
-    events.onToolResult = (name: string, result: Record<string, unknown> | string) => {
-      if (spinner.isSpinning) {
-        spinner.stop();
-      }
-
-      let desc = "";
-      if (name === "read_file") desc = lastToolArgs.path as string;
-      else if (name === "write_file") desc = lastToolArgs.path as string;
-      else if (name === "run_shell") desc = `"${lastToolArgs.command}"`;
-
-      let outcome = "";
-      let isError = false;
-
-      if (name === "read_file") {
-        if (typeof result === "string") {
-          outcome = `${result.split("\n").length} lines read`;
-        } else if (result && result.error) {
-          outcome = String(result.error);
-          isError = true;
-        }
-      } else if (name === "write_file") {
-        const resObj = result as any;
-        if (resObj && resObj.error) {
-          outcome = String(resObj.error);
-          isError = true;
-        } else {
-          outcome = `written successfully`;
-        }
-      } else if (name === "run_shell") {
-        if (result && typeof result === "object") {
-          const code = result.exitCode as number;
-          isError = code !== 0;
-          outcome = `exit code ${code}`;
-          if (isError && result.stderr) {
-            outcome += ` - ${String(result.stderr).substring(0, 100).trim()}`;
-          }
-        } else {
-          outcome = String(result);
-        }
-      } else {
-        outcome = typeof result === "string" ? result : JSON.stringify(result);
-      }
-
-      // Elegantly log completion using spinner status (do not duplicate checkmarks/crosses)
-      if (isError) {
-        spinner.fail(chalk.red(`[${name}] ${desc} (${outcome})`));
-      } else {
-        spinner.succeed(chalk.green(`[${name}] ${desc} (${outcome})`));
-      }
-    };
-
-    events.onError = (error: Error) => {
-      if (spinner.isSpinning) {
-        spinner.stop();
-      }
-      console.log(chalk.red.bold(`✖  Agent Error: ${error.message}`));
-    };
-
+    // Reset per-run state and execute
+    runState = { isStreaming: false, isThinking: false, lastToolName: "", lastToolArgs: {} };
     spinner.start("Initializing task execution...");
     try {
       await agent.runUserMessage(text);
@@ -396,13 +349,13 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       if (spinner.isSpinning) {
         spinner.stop();
       }
-      if (isThinking) {
+      if (runState.isThinking) {
         process.stdout.write("\n");
-        isThinking = false;
+        runState.isThinking = false;
       }
-      if (isStreaming) {
+      if (runState.isStreaming) {
         process.stdout.write("\n");
-        isStreaming = false;
+        runState.isStreaming = false;
       }
       console.log(); // trailing newline for spacing
     } catch (e) {

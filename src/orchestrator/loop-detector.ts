@@ -9,12 +9,12 @@ export class LoopDetector {
     if (signature === this.lastSignature && error === this.lastError) {
       this.repeatCount += 1;
     } else {
-      this.repeatCount = 1;
+      this.repeatCount = 0;
       this.lastSignature = signature;
       this.lastError = error;
     }
 
-    return this.repeatCount >= 2;
+    return this.repeatCount >= 1;
   }
 
   reset(): void {

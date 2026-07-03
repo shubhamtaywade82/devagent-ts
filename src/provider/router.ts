@@ -1,4 +1,4 @@
-import { Provider, ChatMessage, ChatResponse, ChatOptions, RateLimitError } from "./provider";
+import { Provider, ChatMessage, ChatResponse, ChatOptions, RateLimitError, TimeoutError } from "./provider";
 
 export interface RouterOptions {
   fastLocal: Provider;
@@ -36,7 +36,7 @@ export class Router {
 
   private isRecoverable(e: unknown): boolean {
     if (e instanceof RateLimitError) return true;
-    if (e instanceof DOMException && e.name === "TimeoutError") return true;
+    if (e instanceof TimeoutError) return true;
     if (e instanceof TypeError) return true;
     return false;
   }

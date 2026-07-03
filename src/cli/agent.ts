@@ -1,19 +1,19 @@
 import { CliConfig, loadConfig } from "./config";
 import { Provider, ChatMessage } from "../provider/provider";
 import { Registry } from "../tools/registry";
-import { ReadFileTool, WriteFileTool, PathEscapeError } from "../tools/filesystem";
+import { ReadFileTool, WriteFileTool } from "../tools/filesystem";
 import { ShellTool } from "../tools/shell";
-import { LoopDetector } from "../orchestrator/loop-detector";
 import {
   ListDirectoryTool,
   DeleteFileTool,
-  MoveFileTool,
-  CopyFileTool,
   MakeDirectoryTool,
-  SearchFilesTool,
-  GrepFilesTool,
-  FileMetadataTool,
-} from "../tools/filesystem-extended";
+  CopyFileTool,
+  MoveFileTool,
+} from "../tools/directory-tools";
+import { PatchTool, AppendTool } from "../tools/edit-tools";
+import { SnapshotBackupTool } from "../tools/backup-tools";
+import { WatchTool } from "../tools/watch-tool";
+import { LoopDetector } from "../orchestrator/loop-detector";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -23,6 +23,9 @@ export interface AgentEvents {
   onError?: (error: Error) => void;
   onStatus?: (status: string) => void;
 }
+
+type AgentEventName = keyof AgentEvents;
+type AgentEventHandler<E extends AgentEventName> = NonNullable<AgentEvents[E]>;
 
 export interface AgentOptions {
   config?: Partial<CliConfig>;
@@ -34,18 +37,18 @@ export class Agent {
   private readonly registry: Registry;
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
-  private readonly events: AgentEvents;
+  readonly events: AgentEvents;
   private messages: ChatMessage[] = [];
+  private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
 
     this.provider = new Provider({
-      tier: "local",
+      tier: cfg.tier,
       model: cfg.model,
       host: cfg.host,
-      // Pass explicit timeoutMs only when the user set it; otherwise Provider
-      // picks the tier default (0 = no timeout for local).
+      apiKey: cfg.apiKey,
       ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
     });
 
@@ -63,12 +66,25 @@ export class Agent {
       .register(new ShellTool(shellOpts))
       .register(new ListDirectoryTool(cfg.workspaceRoot))
       .register(new DeleteFileTool(cfg.workspaceRoot))
-      .register(new MoveFileTool(cfg.workspaceRoot))
-      .register(new CopyFileTool(cfg.workspaceRoot))
       .register(new MakeDirectoryTool(cfg.workspaceRoot))
-      .register(new SearchFilesTool(cfg.workspaceRoot))
-      .register(new GrepFilesTool(cfg.workspaceRoot))
-      .register(new FileMetadataTool(cfg.workspaceRoot));
+      .register(new CopyFileTool(cfg.workspaceRoot))
+      .register(new MoveFileTool(cfg.workspaceRoot))
+      .register(new PatchTool(cfg.workspaceRoot))
+      .register(new AppendTool(cfg.workspaceRoot))
+      .register(new SnapshotBackupTool(cfg.workspaceRoot))
+      .register(new WatchTool(cfg.workspaceRoot));
+  }
+
+  on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
+    const set = this.listeners.get(event) ?? new Set();
+    set.add(handler as (...args: unknown[]) => void);
+    this.listeners.set(event, set);
+    return this;
+  }
+
+  private emit<E extends AgentEventName>(event: E, ...args: Parameters<AgentEventHandler<E>>): void {
+    (this.events[event] as ((...a: typeof args) => void) | undefined)?.(...args);
+    this.listeners.get(event)?.forEach((h) => h(...args));
   }
 
   async runUserMessage(userMessage: string): Promise<string> {
@@ -88,7 +104,7 @@ export class Agent {
     let lastAssistantText = "";
 
     for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
-      this.events.onStatus?.(`turn ${toolTurn + 1}`);
+      this.emit("onStatus", `turn ${toolTurn + 1}`);
 
       const chatResponse = await this.provider.chat(this.messages, {
         stream: true,
@@ -97,11 +113,11 @@ export class Agent {
           const delta = chunk.message?.content;
           if (typeof delta === "string" && delta) {
             lastAssistantText += delta;
-            this.events.onAssistantText?.(delta);
+            this.emit("onAssistantText", delta);
           }
           const thinking = (chunk.message as any)?.thinking;
           if (typeof thinking === "string" && thinking) {
-            this.events.onThinking?.(thinking);
+            this.emit("onThinking", thinking);
           }
         },
       });
@@ -120,11 +136,8 @@ export class Agent {
 
       if (!toolCalls.length) {
         if (hasContent) {
-          // Model produced a final text answer — done.
           return lastAssistantText;
         }
-        // Model emitted only thinking with no content or tool call.
-        // This is a stall: nudge it to continue.
         if (toolTurn < this.maxToolTurns - 1) {
           this.messages.push({
             role: "user",
@@ -146,54 +159,52 @@ export class Agent {
           try {
             args = JSON.parse(rawArguments);
           } catch {
-            // Leave args empty on malformed JSON.
+            // leave args empty on malformed JSON
           }
         }
 
-        this.events.onToolCall?.(name, args);
+        this.emit("onToolCall", name, args);
 
         try {
           const result = await this.registry.invoke(name, args);
 
-          if (result.error === "PathEscapeError") {
-            const guidance =
-              "The previous tool call escaped the workspace root. Retry with a path under the current workspace root.";
-            this.messages.push({
-              role: "user",
-              content: `[system] ${guidance}`,
-            });
-            continue;
-          }
-
-          this.events.onToolResult?.(name, result);
-          this.messages.push({
-            role: "tool",
-            content:
-              typeof result === "string"
-                ? result
-                : JSON.stringify(result, null, 2),
-          });
-
-          const signature = `${name}:${JSON.stringify(args)}`;
-          const errorForLoop =
+          const errorLabel =
             typeof result.error === "string"
               ? result.error
               : typeof result.message === "string"
                 ? result.message
                 : String(result);
-          if (this.loopDetector.record(signature, args, errorForLoop)) {
-            return (
-              lastAssistantText +
-              "\n[aborted] tool loop detected after repeated: " +
-              signature
-            );
+
+          if (result.error === "PathEscapeError") {
+            this.messages.push({
+              role: "tool",
+              content: JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
+            });
+            const guidance =
+              "The previous tool call escaped the workspace root. Retry with a path under the current workspace root.";
+            this.messages.push({ role: "user", content: `[system] ${guidance}` });
+
+            if (this.loopDetector.record(name, args, errorLabel)) {
+              return lastAssistantText + "\n[aborted] tool loop detected after repeated escapes.";
+            }
+            continue;
+          }
+
+          this.emit("onToolResult", name, result);
+          this.messages.push({
+            role: "tool",
+            content: typeof result === "string" ? result : JSON.stringify(result, null, 2),
+          });
+
+          if (this.loopDetector.record(name, args, errorLabel)) {
+            return lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name;
           }
           if (toolTurn === this.maxToolTurns - 1) {
             return lastAssistantText || "(no response)";
           }
         } catch (e) {
           const err = e as Error;
-          this.events.onError?.(err);
+          this.emit("onError", err);
           this.messages.push({
             role: "tool",
             content: JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
@@ -208,6 +219,14 @@ export class Agent {
   setModel(model: string): void {
     this.provider.setModel(model);
     this.resetContext();
+  }
+
+  setTier(tier: string): void {
+    this.provider.setTier(tier as any);
+  }
+
+  setRuntimeHost(host: string): void {
+    this.provider.setRuntimeHost(host);
   }
 
   get currentModel(): string {

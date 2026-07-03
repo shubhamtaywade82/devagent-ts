@@ -1,5 +1,6 @@
 export class RateLimitError extends Error {}
 export class ProviderError extends Error {}
+export class TimeoutError extends Error {}
 
 export type Tier = "local" | "cloud";
 
@@ -38,9 +39,9 @@ export interface ProviderOptions {
 }
 
 export class Provider {
-  private readonly tier: Tier;
+  private tier: Tier;
   private model: string;
-  private readonly host: string;
+  private host: string;
   private readonly apiKey?: string;
   private readonly timeoutMs: number;
 
@@ -61,6 +62,14 @@ export class Provider {
 
   setModel(model: string): void {
     this.model = model;
+  }
+
+  setTier(tier: Tier): void {
+    this.tier = tier;
+  }
+
+  setRuntimeHost(host: string): void {
+    this.host = host;
   }
 
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {
@@ -90,7 +99,7 @@ export class Provider {
       // reads freely without a hard deadline.
       const connectAbort = new AbortController();
       const connectTimer = setTimeout(
-        () => connectAbort.abort(new Error(`connect timeout after ${this.timeoutMs}ms`)),
+        () => connectAbort.abort(new TimeoutError(`connect timeout after ${this.timeoutMs}ms`)),
         this.timeoutMs,
       );
       try {
@@ -118,9 +127,21 @@ export class Provider {
   async availableModels(): Promise<unknown> {
     const path = this.tier === "cloud" ? "/v1/models" : "/api/tags";
     const headers: Record<string, string> = {};
-    if (this.tier === "cloud") headers.Authorization = `Bearer ${this.apiKey}`;
+    if (this.tier === "cloud") {
+      if (!this.apiKey) throw new ProviderError("missing apiKey for cloud availableModels");
+      headers.Authorization = `Bearer ${this.apiKey}`;
+    }
 
-    const resp = await fetch(`${this.host}${path}`, { headers, signal: AbortSignal.timeout(this.timeoutMs) });
+    let resp: Response;
+    if (this.timeoutMs > 0) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(new TimeoutError(`availableModels timeout after ${this.timeoutMs}ms`)), this.timeoutMs);
+      try { resp = await fetch(`${this.host}${path}`, { headers, signal: controller.signal }); }
+      finally { clearTimeout(timer); }
+    } else {
+      resp = await fetch(`${this.host}${path}`, { headers });
+    }
+
     if (!resp.ok) throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${await resp.text()}`);
     return resp.json();
   }
