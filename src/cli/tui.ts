@@ -10,7 +10,6 @@ import TerminalRenderer from "marked-terminal";
 
 import { Agent } from "./agent";
 import { CliConfig, loadConfig } from "./config";
-import { Provider } from "../provider/provider";
 
 // Setup marked terminal styling for premium aesthetics
 marked.setOptions({
@@ -57,27 +56,34 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   async function probeModels(models: string[]): Promise<void> {
     const toProbe = models.filter((m) => !modelAccess.has(m));
     if (!toProbe.length) return;
-    const tempProvider = new Provider({
-      tier: "cloud",
-      model: toProbe[0],
-      host: cfg.host,
-      apiKey: cfg.apiKey,
-      timeoutMs: 10_000,
-    });
-    const probe = async (m: string): Promise<[string, boolean]> => {
-      tempProvider.setModel(m);
+    const base = cfg.host ?? "https://ollama.com";
+    const url = `${base}/api/chat`;
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25_000);
+    const probeOne = async (m: string): Promise<[string, boolean]> => {
       try {
-        await tempProvider.chat(
-          [{ role: "user", content: "dot" }],
-          { stream: false },
-        );
+        const resp = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ model: m, messages: [{ role: "user", content: "." }], stream: false }),
+          signal: controller.signal,
+        });
+        if (resp.status === 429 || resp.status === 200) {
+          const body = await resp.json() as any;
+          const errMsg = typeof body?.error === "string" ? body.error : "";
+          if (errMsg.includes("subscription") || errMsg.includes("upgrade")) return [m, false];
+          return [m, resp.ok];
+        }
+        const text = await resp.text();
+        return [m, !(text.includes("subscription") || text.includes("upgrade"))];
+      } catch {
         return [m, true];
-      } catch (e) {
-        const msg = (e as Error).message ?? "";
-        return [m, !(msg.includes("403") && msg.includes("subscription"))];
       }
     };
-    const results = await Promise.all(toProbe.map(probe));
+    const results = await Promise.all(toProbe.map(probeOne));
+    clearTimeout(timer);
     for (const [m, free] of results) modelAccess.set(m, free);
   }
 
@@ -325,8 +331,10 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
             const tag = modelAccess.get(m);
             if (tag === false) {
               console.log(` - ${chalk.dim(m)} ${chalk.red("(Subscription)")}`);
-            } else {
+            } else if (tag === true) {
               console.log(` - ${chalk.cyan(m)} ${chalk.green("(Free)")}`);
+            } else {
+              console.log(` - ${chalk.cyan(m)} ${chalk.dim("(Untested)")}`);
             }
           }
           console.log();
@@ -342,8 +350,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
           rl.prompt();
           return;
         }
-        const cached = modelAccess.get(modelName);
-        if (cached === false) {
+        if (modelAccess.get(modelName) === false) {
           console.log(chalk.red(`✖ ${modelName} requires a subscription — upgrade at https://ollama.com/upgrade`));
           updatePrompt();
           rl.prompt();
@@ -351,17 +358,15 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         }
         const prevModel = agent.currentModel;
         agent.setModel(modelName);
-        if (cached === undefined) {
-          console.log(chalk.dim(`Probing ${modelName}...`));
-          const status = await agent.validateModel();
-          modelAccess.set(modelName, status === true);
-          if (status !== true) {
-            agent.setModel(prevModel);
-            console.log(chalk.red(`✖ ${modelName} ${status}`));
-            updatePrompt();
-            rl.prompt();
-            return;
-          }
+        console.log(chalk.dim(`Probing ${modelName}...`));
+        const status = await agent.validateModel();
+        modelAccess.set(modelName, status === true);
+        if (status !== true) {
+          agent.setModel(prevModel);
+          console.log(chalk.red(`✖ ${modelName} ${status}`));
+          updatePrompt();
+          rl.prompt();
+          return;
         }
         console.log(chalk.green(`✔ Switched model to: ${chalk.bold(agent.currentModel)}`));
         updatePrompt();
