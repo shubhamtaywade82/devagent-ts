@@ -10,6 +10,7 @@ export interface ShellToolOptions {
   memory?: string;
   cpus?: string;
   logger?: Pick<Console, "info" | "warn">;
+  onOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
 }
 
 export class ShellTool extends Tool {
@@ -25,6 +26,7 @@ export class ShellTool extends Tool {
   private readonly memory: string;
   private readonly cpus: string;
   private readonly logger: Pick<Console, "info" | "warn">;
+  private readonly onOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
   private dockerChecked = false;
   private dockerAvailable = true;
 
@@ -36,6 +38,7 @@ export class ShellTool extends Tool {
     this.memory = opts.memory ?? "512m";
     this.cpus = opts.cpus ?? "1";
     this.logger = opts.logger ?? console;
+    this.onOutput = opts.onOutput;
   }
 
   get name(): string { return "run_shell"; }
@@ -114,10 +117,12 @@ export class ShellTool extends Tool {
 
       child.stdout.on("data", (chunk: Buffer) => {
         stdout = Buffer.concat([stdout, chunk]);
+        this.onOutput?.("stdout", chunk.toString("utf-8"));
         checkOverflow();
       });
       child.stderr.on("data", (chunk: Buffer) => {
         stderr = Buffer.concat([stderr, chunk]);
+        this.onOutput?.("stderr", chunk.toString("utf-8"));
         checkOverflow();
       });
 

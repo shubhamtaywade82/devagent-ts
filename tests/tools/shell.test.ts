@@ -122,4 +122,23 @@ describe("ShellTool", () => {
     expect(args).toContain("timeout");
     expect(args).toContain("15");
   });
+
+  it("forwards stdout/stderr chunks to onOutput as they arrive, without changing the buffered result", async () => {
+    const proc = fakeProc();
+    mockSpawn.mockReturnValue(proc);
+    const onOutput = jest.fn();
+
+    const tool = new ShellTool({ workspaceRoot: "/tmp/ws", onOutput });
+    skipDockerPreflight(tool);
+    const promise = tool.call({ command: "echo hi" });
+
+    proc.stdout.emit("data", Buffer.from("hi\n"));
+    proc.stderr.emit("data", Buffer.from("warn\n"));
+    proc.emit("close", 0);
+
+    const result = await promise;
+    expect(onOutput).toHaveBeenCalledWith("stdout", "hi\n");
+    expect(onOutput).toHaveBeenCalledWith("stderr", "warn\n");
+    expect(result).toMatchObject({ exitCode: 0, stdout: "hi\n", stderr: "warn\n" });
+  });
 });
