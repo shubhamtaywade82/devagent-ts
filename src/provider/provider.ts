@@ -139,7 +139,47 @@ export class Provider {
       }
     }
 
-    if (!final) throw new ProviderError("stream ended without a done:true chunk");
+    // Parse any remaining content in the buffer (if it didn't end with a newline)
+    const remaining = buffer.trim();
+    if (remaining) {
+      try {
+        const chunk = JSON.parse(remaining) as ChatResponse;
+        onChunk?.(chunk);
+
+        if (chunk.message) {
+          if (chunk.message.content) {
+            accumulatedContent += chunk.message.content;
+          }
+          if ((chunk.message as any).thinking) {
+            accumulatedThinking += (chunk.message as any).thinking;
+          }
+          if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
+            accumulatedToolCalls.push(...chunk.message.tool_calls);
+          }
+        }
+
+        if (chunk.done) {
+          final = chunk;
+        }
+      } catch {
+        // Ignore parse error for incomplete trailing chunks
+      }
+    }
+
+    if (!final) {
+      if (accumulatedContent || accumulatedThinking || accumulatedToolCalls.length > 0) {
+        final = {
+          message: {
+            role: "assistant",
+            content: accumulatedContent,
+          },
+          done: true,
+          done_reason: "stop",
+        };
+      } else {
+        throw new ProviderError("stream ended without a done:true chunk");
+      }
+    }
 
     // Overwrite the final message with the fully accumulated values
     final.message = {
