@@ -109,4 +109,22 @@ describe("Agent memory summarization trigger", () => {
     // Summarization is fire-and-forget; give pending microtasks/timers a tick to run.
     await new Promise((r) => setTimeout(r, 0));
   });
+
+  it("emits onMemorySummary with the generated summary text after a successful turn", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    // First chat() call answers runUserMessage's turn; second answers generateSummary's
+    // non-streaming call kicked off by triggerSummarization.
+    mockChatOnce("Hello there");
+    const onMemorySummary = jest.fn();
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "test-model" },
+      events: { onMemorySummary },
+    });
+
+    await agent.runUserMessage("hi");
+    // Summarization is fire-and-forget; give pending microtasks/timers a tick to run.
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(onMemorySummary).toHaveBeenCalledWith("Hello there");
+  });
 });

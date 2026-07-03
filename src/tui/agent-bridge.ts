@@ -18,4 +18,5 @@ export function wireAgentBridge(agent: BridgeableAgent, dispatch: (action: TuiAc
   agent.on("onShellOutput", (stream: "stdout" | "stderr", chunk: string) =>
     dispatch({ type: "SHELL_OUTPUT_CHUNK", stream, chunk }),
   );
+  agent.on("onMemorySummary", (summary: string) => dispatch({ type: "MEMORY_SUMMARY_UPDATED", summary }));
 }

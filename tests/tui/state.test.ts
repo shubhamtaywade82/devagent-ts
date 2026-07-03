@@ -64,6 +64,17 @@ describe("reducer", () => {
     ]);
   });
 
+  it("strips ANSI/control escape sequences from shell output chunks while preserving printable text", () => {
+    let state = initialState();
+    state = reducer(state, {
+      type: "SHELL_OUTPUT_CHUNK",
+      stream: "stdout",
+      chunk: "\x1b[2J\x1b[Hnormal output\n",
+    });
+
+    expect(state.shellOutput).toEqual([{ stream: "stdout", chunk: "normal output\n" }]);
+  });
+
   it("updates memory summary and focused pane", () => {
     let state = initialState();
     state = reducer(state, { type: "MEMORY_SUMMARY_UPDATED", summary: "- did X" });

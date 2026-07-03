@@ -34,6 +34,7 @@ export interface AgentEvents {
   onError?: (error: Error) => void;
   onStatus?: (status: string) => void;
   onShellOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
+  onMemorySummary?: (summary: string) => void;
 }
 
 type AgentEventName = keyof AgentEvents;
@@ -281,6 +282,7 @@ export class Agent {
     if (this.isSummarizing) return;
     this.isSummarizing = true;
     generateSummary(this.memory, this.provider)
+      .then((summary) => this.emit("onMemorySummary", summary))
       .catch((e) => this.emit("onError", e instanceof Error ? e : new Error(String(e))))
       .finally(() => {
         this.isSummarizing = false;

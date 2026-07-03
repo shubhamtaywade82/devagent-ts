@@ -3,6 +3,7 @@ import { Box, useInput } from "ink";
 import { reducer, initialState, TuiState } from "./state";
 import { wireAgentBridge, BridgeableAgent } from "./agent-bridge";
 import { EditTracker } from "./edit-tracker";
+import { ErrorBoundary } from "./ErrorBoundary";
 import { FileTree } from "./panes/FileTree";
 import { ChatPlan } from "./panes/ChatPlan";
 import { CodeDiff } from "./panes/CodeDiff";
@@ -49,20 +50,22 @@ export function App({ agent, workspaceRoot, model }: AppProps): JSX.Element {
 
   return (
     <Box flexDirection="column">
-      <Box flexDirection="row">
-        <Box flexDirection="column" width={30}>
-          <FileTree root={workspaceRoot} onSelect={(path) => dispatch({ type: "FILE_SELECTED", path })} focused={state.focusedPane === "fileTree"} />
+      <ErrorBoundary>
+        <Box flexDirection="row">
+          <Box flexDirection="column" width={30}>
+            <FileTree root={workspaceRoot} onSelect={(path) => dispatch({ type: "FILE_SELECTED", path })} focused={state.focusedPane === "fileTree"} />
+          </Box>
+          <Box flexDirection="column" flexGrow={1}>
+            <ChatPlan chat={state.chat} planSteps={state.planSteps} focused={state.focusedPane === "chat"} />
+            <Terminal output={state.shellOutput} focused={state.focusedPane === "terminal"} />
+          </Box>
+          <Box flexDirection="column" flexGrow={1}>
+            <CodeDiff path={state.selectedFile} content={selectedFileContent} diffLines={diffLines} focused={state.focusedPane === "codeDiff"} />
+            <ToolsLog entries={state.toolLog} focused={state.focusedPane === "toolsLog"} />
+            <Memory summary={state.memorySummary} filesTouched={state.filesTouched} />
+          </Box>
         </Box>
-        <Box flexDirection="column" flexGrow={1}>
-          <ChatPlan chat={state.chat} planSteps={state.planSteps} focused={state.focusedPane === "chat"} />
-          <Terminal output={state.shellOutput} focused={state.focusedPane === "terminal"} />
-        </Box>
-        <Box flexDirection="column" flexGrow={1}>
-          <CodeDiff path={state.selectedFile} content={selectedFileContent} diffLines={diffLines} focused={state.focusedPane === "codeDiff"} />
-          <ToolsLog entries={state.toolLog} focused={state.focusedPane === "toolsLog"} />
-          <Memory summary={state.memorySummary} filesTouched={state.filesTouched} />
-        </Box>
-      </Box>
+      </ErrorBoundary>
       <StatusBar focusedPane={state.focusedPane} model={model} filesTouchedCount={state.filesTouched.length} status={state.status} />
     </Box>
   );

@@ -64,6 +64,16 @@ describe("wireAgentBridge", () => {
     expect(dispatched).toEqual([{ type: "ERROR", message: "boom" }]);
   });
 
+  it("dispatches MEMORY_SUMMARY_UPDATED on onMemorySummary", () => {
+    const { agent, fire } = fakeAgent();
+    const dispatched: TuiAction[] = [];
+    wireAgentBridge(agent, (a) => dispatched.push(a));
+
+    fire("onMemorySummary", "- did X");
+
+    expect(dispatched).toEqual([{ type: "MEMORY_SUMMARY_UPDATED", summary: "- did X" }]);
+  });
+
   it("dispatches STATUS_CHANGED and THINKING_CHUNK", () => {
     const { agent, fire } = fakeAgent();
     const dispatched: TuiAction[] = [];

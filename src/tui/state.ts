@@ -42,6 +42,28 @@ export type TuiAction =
 
 const FILE_MUTATING_TOOLS = new Set(["write_file", "patch_file", "delete_file", "move_file"]);
 
+// Strips ANSI/C0/C1 control sequences from raw shell output before it lands in
+// state.shellOutput, so a command emitting screen-clear/cursor-addressing/title-set
+// (or hostile) escape sequences can't corrupt the multi-pane layout. Preserves
+// printable characters, newlines, and tabs; \r is stripped too since carriage
+// returns are used for cursor-return/overwrite tricks in terminals and Ink's
+// <Text> has no concept of "rewind the line" — keeping it would just leave a
+// stray character in the rendered chunk.
+/* eslint-disable no-control-regex -- intentionally matching C0/C1 control chars to strip them */
+function sanitizeTerminalChunk(chunk: string): string {
+  return (
+    chunk
+      // CSI sequences: ESC [ ... final-byte
+      .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
+      // OSC sequences: ESC ] ... (BEL | ESC \)
+      .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "")
+      // Any other C0 control chars except \n (\x0a) and \t (\x09); \r (\x0d) is
+      // stripped too, per the reasoning above.
+      .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "")
+  );
+}
+/* eslint-enable no-control-regex */
+
 export function initialState(): TuiState {
   return {
     chat: [],
@@ -100,7 +122,13 @@ export function reducer(state: TuiState, action: TuiAction): TuiState {
     case "ERROR":
       return { ...state, lastError: action.message };
     case "SHELL_OUTPUT_CHUNK":
-      return { ...state, shellOutput: [...state.shellOutput, { stream: action.stream, chunk: action.chunk }] };
+      return {
+        ...state,
+        shellOutput: [
+          ...state.shellOutput,
+          { stream: action.stream, chunk: sanitizeTerminalChunk(action.chunk) },
+        ],
+      };
     case "PLAN_STARTED":
       return { ...state, planSteps: action.steps };
     case "PLAN_STEP_CHANGED": {
