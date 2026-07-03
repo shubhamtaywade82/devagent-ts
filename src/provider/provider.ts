@@ -39,7 +39,7 @@ export interface ProviderOptions {
 
 export class Provider {
   private readonly tier: Tier;
-  private readonly model: string;
+  private model: string;
   private readonly host: string;
   private readonly apiKey?: string;
   private readonly timeoutMs: number;
@@ -52,6 +52,14 @@ export class Provider {
       (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
     this.apiKey = opts.apiKey ?? process.env.OLLAMA_API_KEY;
     this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 30_000);
+  }
+
+  get currentModel(): string {
+    return this.model;
+  }
+
+  setModel(model: string): void {
+    this.model = model;
   }
 
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {

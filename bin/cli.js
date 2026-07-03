@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-const { startRepl } = require("../dist/cli/repl");
+const { startTui } = require("../dist/cli/tui");
 
-startRepl().catch((e) => {
+startTui().catch((e) => {
   console.error(`Fatal: ${e.message}`);
   process.exit(1);
 });

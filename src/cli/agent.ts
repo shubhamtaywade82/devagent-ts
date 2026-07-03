@@ -24,6 +24,7 @@ export class Agent {
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 16;
   private readonly events: AgentEvents;
+  private messages: ChatMessage[] = [];
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
@@ -32,7 +33,6 @@ export class Agent {
       tier: "local",
       model: cfg.model,
       host: cfg.host,
-      apiKey: process.env.OLLAMA_API_KEY,
       timeoutMs: typeof cfg.timeoutMs === "number" ? cfg.timeoutMs : Number(process.env.DEVAGENT_TIMEOUT_MS || "60000"),
     });
 
@@ -51,26 +51,25 @@ export class Agent {
   }
 
   async runUserMessage(userMessage: string): Promise<string> {
-    const messages: ChatMessage[] = [
-      {
-        role: "system",
-        content:
-          (loadConfig().systemPrompt ?? "") +
-          "\n\nTool contract:\n" +
-          "1) Call exactly one tool per assistant turn when appropriate.\n" +
-          "2) If read_file returns `truncated`, that is a content ceiling, not an instruction to stop.\n" +
-          "3) `PathEscapeError` means the path escaped the workspace root; fix the path and retry.\n" +
-          "4) After tool results, continue toward the user's stated goal with minimal next steps.",
-      },
-      { role: "user", content: userMessage },
-    ];
+    const header = (loadConfig().systemPrompt ?? "") +
+      "\n\nTool contract:\n" +
+      "1) Call exactly one tool per assistant turn when appropriate.\n" +
+      "2) If read_file returns `truncated`, that is a content ceiling, not an instruction to stop.\n" +
+      "3) `PathEscapeError` means the path escaped the workspace root; fix the path and retry.\n" +
+      "4) After tool results, continue toward the user's stated goal with minimal next steps.";
+
+    if (!this.messages.length) {
+      this.messages = [{ role: "system", content: header }];
+    }
+
+    this.messages.push({ role: "user", content: userMessage });
 
     let lastAssistantText = "";
 
     for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
       this.events.onStatus?.(`turn ${toolTurn + 1}`);
 
-      const chatResponse = await this.provider.chat(messages, {
+      const chatResponse = await this.provider.chat(this.messages, {
         stream: true,
         tools: this.registry.schemas(),
         onChunk: (chunk) => {
@@ -84,11 +83,9 @@ export class Agent {
 
       const assistantMessage = chatResponse.message as {
         content?: string;
-        tool_calls?: Array<{
-          function: { name: string; arguments: string };
-        }>;
+        tool_calls?: Array<{ function: { name: string; arguments: string } }>;
       };
-      messages.push({
+      this.messages.push({
         role: "assistant",
         content: assistantMessage.content ?? "",
       });
@@ -100,10 +97,10 @@ export class Agent {
 
       for (const toolCall of toolCalls) {
         const name = toolCall.function.name;
-        const sanitizedArguments = (toolCall.function.arguments || "{}").trim();
+        const rawArguments = toolCall.function.arguments || "{}";
         let args: Record<string, unknown> = {};
         try {
-          args = JSON.parse(sanitizedArguments);
+          args = JSON.parse(rawArguments);
         } catch {
           // Leave args empty on malformed JSON.
         }
@@ -116,7 +113,7 @@ export class Agent {
           if (result.error === "PathEscapeError") {
             const guidance =
               "The previous tool call escaped the workspace root. Retry with a path under the current workspace root.";
-            messages.push({
+            this.messages.push({
               role: "user",
               content: `[system] ${guidance}`,
             });
@@ -124,7 +121,7 @@ export class Agent {
           }
 
           this.events.onToolResult?.(name, result);
-          messages.push({
+          this.messages.push({
             role: "tool",
             content:
               typeof result === "string"
@@ -152,7 +149,7 @@ export class Agent {
         } catch (e) {
           const err = e as Error;
           this.events.onError?.(err);
-          messages.push({
+          this.messages.push({
             role: "tool",
             content: JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
           });
@@ -161,5 +158,22 @@ export class Agent {
     }
 
     return lastAssistantText || "(tool budget exceeded)";
+  }
+
+  setModel(model: string): void {
+    this.provider.setModel(model);
+    this.resetContext();
+  }
+
+  get currentModel(): string {
+    return this.provider.currentModel;
+  }
+
+  resetContext(): void {
+    this.messages = [];
+  }
+
+  getRegistry(): Registry {
+    return this.registry;
   }
 }
