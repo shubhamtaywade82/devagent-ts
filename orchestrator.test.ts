@@ -1,5 +1,5 @@
-import { Orchestrator, OrchestratorError } from "../src/orchestrator/orchestrator";
-import { PlanStep, StepRunner, Planner, StepOutcome } from "../src/orchestrator/types";
+import { Orchestrator, OrchestratorError } from "./orchestrator";
+import { PlanStep, StepRunner, Planner, StepOutcome } from "./types";
 
 const noopLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 

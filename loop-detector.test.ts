@@ -1,4 +1,4 @@
-import { LoopDetector } from "../src/orchestrator/loop-detector";
+import { LoopDetector } from "./loop-detector";
 
 describe("LoopDetector", () => {
   it("does not flag the first occurrence of a signature", () => {

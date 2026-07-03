@@ -7,9 +7,9 @@
     "strict": true,
     "esModuleInterop": true,
     "outDir": "dist",
-    "rootDir": "src",
     "declaration": true,
     "skipLibCheck": true
   },
-  "include": ["src"]
+  "include": ["**/*.ts"],
+  "exclude": ["dist", "node_modules", "**/*.test.ts"]
 }

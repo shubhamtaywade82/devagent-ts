@@ -1,5 +1,5 @@
 import { Tool, ToolError } from "./tool";
-import { OllamaToolSchema } from "../ollama/provider";
+import { OllamaToolSchema } from "./provider";
 
 export class Registry {
   private readonly tools = new Map<string, Tool>();
