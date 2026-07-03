@@ -30,20 +30,29 @@ function mockChatOnce(content: string) {
 }
 
 describe("Agent onShellOutput event", () => {
-  it("forwards ShellTool output chunks through the onShellOutput event", async () => {
-    const dir = await mkdtemp(join(tmpdir(), "ws-"));
-    const onShellOutput = jest.fn();
-    const agent = new Agent({
-      config: { workspaceRoot: dir, tier: "local", model: "test-model" },
-      events: { onShellOutput },
-    });
+  it(
+    "forwards ShellTool output chunks through the onShellOutput event",
+    async () => {
+      const dir = await mkdtemp(join(tmpdir(), "ws-"));
+      const onShellOutput = jest.fn();
+      const agent = new Agent({
+        config: { workspaceRoot: dir, tier: "local", model: "test-model" },
+        events: { onShellOutput },
+      });
 
-    const registry = agent.getRegistry();
-    // The registered run_shell tool exposes the same onOutput contract as ShellTool directly —
-    // invoke it through the registry to prove Agent wired its own onOutput callback through, not
-    // just that ShellTool's constructor accepts the option (already covered in Task 3's test).
-    expect(registry.schemas().some((s) => s.function.name === "run_shell")).toBe(true);
-  });
+      const registry = agent.getRegistry();
+      // Actually invoke run_shell through the registry (real Docker sandbox) and assert
+      // Agent's onShellOutput event fires with the real stdout produced by the command.
+      // This proves the wiring end-to-end: Agent constructs ShellTool with an onOutput
+      // callback that calls this.emit("onShellOutput", ...), and that callback actually
+      // fires when ShellTool streams output — not just that run_shell is registered.
+      const result = await registry.invoke("run_shell", { command: "echo hi" });
+
+      expect(result.exitCode).toBe(0);
+      expect(onShellOutput).toHaveBeenCalledWith("stdout", expect.stringContaining("hi"));
+    },
+    30_000,
+  );
 });
 
 describe("Agent memory summarization trigger", () => {
