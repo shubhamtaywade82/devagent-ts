@@ -66,6 +66,7 @@ const shellAgent = {
   setModel: (model: string) => agent.setModel(model),
   resetContext: () => agent.resetContext(),
   listModels,
+  validateModel: () => agent.validateModel(),
 };
 
 render(React.createElement(App, { bus, store, agent: shellAgent }));

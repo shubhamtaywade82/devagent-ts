@@ -184,6 +184,40 @@ describe("App shell", () => {
     unmount();
   });
 
+  it("reverts and reports an error when the new model fails validation", async () => {
+    const bus = new EventBus();
+    const store = new Store(initialRuntimeState({ workspace: "ollama-agent", branch: "main", model: "qwen3:30b" }));
+    store.attach(bus);
+    const agent: ShellAgent & { calls: string[]; models: string[] } = {
+      calls: [],
+      models: [],
+      runUserMessage: jest.fn(async () => "ok"),
+      setModel: (m: string) => {
+        agent.models.push(m);
+      },
+      listModels: jest.fn(async () => ["qwen3:30b", "nomic-embed-text:latest"]),
+      validateModel: jest.fn(async () => "unreachable: 404 model not found"),
+    };
+    const { stdin, lastFrame, unmount } = render(
+      <App bus={bus} store={store} agent={agent} columns={100} rows={30} now={NOW} />,
+    );
+    await tick();
+    stdin.write("/model");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    await tick(); // listModels resolves
+    stdin.write("[B"); // down to nomic-embed-text:latest
+    await tick();
+    stdin.write("\r");
+    await tick(); // validateModel resolves and reverts
+    await tick();
+    expect(agent.models).toEqual(["nomic-embed-text:latest", "qwen3:30b"]); // set, then reverted
+    expect(store.getState().model.name).toBe("qwen3:30b");
+    expect(stripAnsi(lastFrame() ?? "")).toContain("nomic-embed-text:latest unreachable: 404 model not found");
+    unmount();
+  });
+
   it("Ctrl+F opens search everywhere; selecting a log result focuses Logs", async () => {
     const { stdin, lastFrame, unmount } = renderApp(100, 30, ({ bus }) => {
       bus.publish({ type: "logs.appended", level: "error", source: "shell", message: "exit code 1" });

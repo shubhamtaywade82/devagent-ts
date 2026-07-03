@@ -34,6 +34,8 @@ export interface ShellAgent {
   setModel?(model: string): void;
   resetContext?(): void;
   listModels?(): Promise<string[]>;
+  /** Round-trips a real request through the new model; true, or an error string. */
+  validateModel?(): Promise<true | string>;
 }
 
 export interface AppProps {
@@ -142,7 +144,7 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
   const ghost = activeCompletion ? "" : ghostSuffix(prompt, history.all());
 
   const applyEffect = useCallback(
-    (effect: CommandEffect): void => {
+    async (effect: CommandEffect): Promise<void> => {
       switch (effect.kind) {
         case "message":
           bus.publish({ type: "conversation.message", role: "system", text: effect.text });
@@ -156,11 +158,26 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
         case "clear-conversation":
           bus.publish({ type: "conversation.clear" });
           break;
-        case "set-model":
+        case "set-model": {
+          const previous = store.getState().model.name;
+          if (effect.model === previous) break;
           agent?.setModel?.(effect.model);
           bus.publish({ type: "model.changed", name: effect.model });
-          bus.publish({ type: "notification", kind: "success", text: `Model: ${effect.model}` });
+          if (!agent?.validateModel) {
+            bus.publish({ type: "notification", kind: "success", text: `Model: ${effect.model}` });
+            break;
+          }
+          bus.publish({ type: "notification", kind: "info", text: `Validating ${effect.model}…` });
+          const result = await agent.validateModel();
+          if (result === true) {
+            bus.publish({ type: "notification", kind: "success", text: `Model: ${effect.model}` });
+          } else {
+            agent?.setModel?.(previous);
+            bus.publish({ type: "model.changed", name: previous });
+            bus.publish({ type: "notification", kind: "error", text: `${effect.model} ${result}` });
+          }
           break;
+        }
         case "reset-context":
           agent?.resetContext?.();
           bus.publish({ type: "notification", kind: "info", text: "Context reset" });
@@ -173,7 +190,7 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
           break;
       }
     },
-    [agent, bus, exit],
+    [agent, bus, exit, store],
   );
 
   const submitPrompt = useCallback(
