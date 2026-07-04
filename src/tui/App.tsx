@@ -28,6 +28,8 @@ import { ActorsOverlay } from "./overlays/ActorsOverlay";
 import { ApprovalOverlay } from "./overlays/ApprovalOverlay";
 import { ModelSwitcher } from "./overlays/ModelSwitcher";
 import { SearchEverywhere } from "./overlays/SearchEverywhere";
+import { SkillsOverlay } from "./overlays/SkillsOverlay";
+import { SkillsRegistry } from "../skills/registry";
 
 export interface ShellAgent {
   runUserMessage(message: string): Promise<unknown>;
@@ -37,6 +39,8 @@ export interface ShellAgent {
   listModels?(): Promise<string[]>;
   /** Round-trips a real request through the new model; true, or an error string. */
   validateModel?(): Promise<true | string>;
+  getSkillsRegistry?(): SkillsRegistry;
+  pinSkill?(id: string | null): void;
 }
 
 export interface AppProps {
@@ -186,6 +190,17 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
           setModels(null); // invalidate the Ctrl+M cache — it belongs to the old tier
           bus.publish({ type: "model.changed", name: store.getState().model.name, provider: effect.tier });
           bus.publish({ type: "notification", kind: "success", text: `Tier: ${effect.tier}` });
+          break;
+        }
+        case "activate-skill": {
+          const registry = agent?.getSkillsRegistry?.();
+          const meta = registry?.get(effect.id);
+          if (!meta) {
+            bus.publish({ type: "notification", kind: "error", text: `Unknown skill: ${effect.id}` });
+            break;
+          }
+          agent?.pinSkill?.(effect.id);
+          bus.publish({ type: "notification", kind: "success", text: `Skill pinned: ${meta.name}` });
           break;
         }
         case "reset-context":
@@ -378,6 +393,17 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
               onSelect={(view) => {
                 uiDispatch({ type: "close-overlay" });
                 uiDispatch({ type: "focus-view", view });
+              }}
+            />
+          ) : ui.overlay === "skills" ? (
+            <SkillsOverlay
+              skills={agent?.getSkillsRegistry?.().list() ?? []}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(id) => {
+                uiDispatch({ type: "close-overlay" });
+                applyEffect({ kind: "activate-skill", id });
               }}
             />
           ) : (

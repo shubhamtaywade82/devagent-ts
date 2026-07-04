@@ -1,4 +1,5 @@
 import { mkdtemp } from "node:fs/promises";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
@@ -126,5 +127,92 @@ describe("Agent memory summarization trigger", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     expect(onMemorySummary).toHaveBeenCalledWith("Hello there");
+  });
+});
+
+function writeSkill(workspaceRoot: string, id: string, frontmatter: string, body: string): void {
+  const dir = join(workspaceRoot, ".devagent", "skills", id);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "SKILL.md"), `---\n${frontmatter}\n---\n\n${body}`);
+}
+
+// The main chat turn is always the FIRST fetch call — triggerSummarization fires a
+// second, synchronous fetch (its own chat call) before runUserMessage returns, so the
+// last call is unreliable for asserting what the primary turn sent.
+function firstRequestMessages(): Array<{ role: string; content: string }> {
+  const calls = (globalThis.fetch as jest.Mock).mock.calls;
+  const [, init] = calls[0];
+  return JSON.parse(init.body as string).messages;
+}
+
+describe("Agent skills activation", () => {
+  it("injects a matching skill's body as a system message before the user message", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
+    mockChatOnce("ok");
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+
+    await agent.runUserMessage("help me build a rails endpoint");
+
+    const messages = firstRequestMessages();
+    const skillMessage = messages.find((m) => m.role === "system" && m.content.includes("Rails skill body"));
+    expect(skillMessage).toBeDefined();
+    expect(messages.at(-1)).toMatchObject({ role: "user", content: "help me build a rails endpoint" });
+    // the skill message must precede the user message
+    expect(messages.indexOf(skillMessage!)).toBeLessThan(messages.length - 1);
+  });
+
+  it("emits onSkillsActivated when a skill is injected", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
+    mockChatOnce("ok");
+    const onSkillsActivated = jest.fn();
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "test-model" },
+      events: { onSkillsActivated },
+    });
+
+    await agent.runUserMessage("help me build a rails endpoint");
+
+    expect(onSkillsActivated).toHaveBeenCalledWith([expect.objectContaining({ id: "rails-api" })]);
+  });
+
+  it("does not inject anything when no skill matches the prompt", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
+    mockChatOnce("ok");
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+
+    await agent.runUserMessage("completely unrelated request");
+
+    const messages = firstRequestMessages();
+    expect(messages.some((m) => m.content.includes("Rails skill body"))).toBe(false);
+  });
+
+  it("pinSkill bypasses scoring on the next call", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
+    mockChatOnce("ok");
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+
+    agent.pinSkill("rails-api");
+    await agent.runUserMessage("completely unrelated request");
+
+    const messages = firstRequestMessages();
+    expect(messages.some((m) => m.content.includes("Rails skill body"))).toBe(true);
+  });
+
+  it("records a skill_usage entry via MemoryStore after an activated turn", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
+    mockChatOnce("ok");
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+
+    await agent.runUserMessage("help me build a rails endpoint");
+
+    const { MemoryStore } = await import("../../src/memory/store");
+    const store = new MemoryStore(join(dir, ".devagent", "memory.db"));
+    expect(store.getSkillUsage("rails-api")).toMatchObject({ useCount: 1, successCount: 1 });
+    store.close();
   });
 });

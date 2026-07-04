@@ -18,6 +18,7 @@ const ACTOR_LABELS: Record<ActorId, string> = {
   memory: "Mem",
   models: "Mdl",
   mcp: "MCP",
+  skills: "Skl",
 };
 
 /** Priority order for actor tokens when width shrinks. */
@@ -31,6 +32,7 @@ const ACTOR_PRIORITY: Record<ActorId, number> = {
   logs: 7,
   memory: 8,
   mcp: 9,
+  skills: 10,
 };
 
 export function activityStripTokens(state: RuntimeState): StatusToken[] {

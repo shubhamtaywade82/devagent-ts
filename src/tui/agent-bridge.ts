@@ -5,9 +5,11 @@
  */
 
 import { EventBus } from "../runtime/events";
+import { SkillMeta } from "../skills/types";
 
 export interface BridgeableAgent {
   on<E extends string>(event: E, handler: (...args: any[]) => void): unknown;
+  getSkillsRegistry?(): { list(): SkillMeta[] };
 }
 
 export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
@@ -60,5 +62,13 @@ export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   });
   agent.on("onMemorySummary", (summary: string) => {
     bus.publish({ type: "memory.updated", summary });
+  });
+  agent.on("onSkillsActivated", (activated: SkillMeta[]) => {
+    const allSkills = agent.getSkillsRegistry?.().list() ?? activated;
+    const activeIds = new Set(activated.map((s) => s.id));
+    bus.publish({
+      type: "skills.changed",
+      skills: allSkills.map((s) => ({ id: s.id, name: s.name, tags: s.tags, active: activeIds.has(s.id) })),
+    });
   });
 }

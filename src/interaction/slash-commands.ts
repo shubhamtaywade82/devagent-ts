@@ -14,6 +14,7 @@ export type CommandEffect =
   | { kind: "clear-conversation" }
   | { kind: "set-model"; model: string }
   | { kind: "set-tier"; tier: "local" | "cloud" }
+  | { kind: "activate-skill"; id: string }
   | { kind: "reset-context" }
   | { kind: "quit" }
   | { kind: "error"; text: string };
@@ -100,6 +101,13 @@ export function builtinCommands(): SlashCommandRegistry {
       }
       return { kind: "set-tier", tier };
     },
+  });
+  registry.register({
+    name: "skills",
+    aliases: [],
+    description: "Browse skills, or activate one: /skills [id]",
+    execute: (args) =>
+      args.trim() ? { kind: "activate-skill", id: args.trim() } : { kind: "open-overlay", overlay: "skills" },
   });
   registry.register({
     name: "quit",

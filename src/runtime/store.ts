@@ -78,6 +78,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
       contextLimit: opts.contextLimit ?? 0,
     },
     mcpServers: [],
+    skills: [],
     approval: null,
     notifications: [],
     lastError: null,
@@ -221,6 +222,13 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       return withActor({ ...state, mcpServers: event.servers }, "mcp", {
         health: event.servers.length === 0 ? "muted" : anyDown ? "error" : "healthy",
         detail: anyDown ? "✗" : "✓",
+      });
+    }
+    case "skills.changed": {
+      const anyActive = event.skills.some((s) => s.active);
+      return withActor({ ...state, skills: event.skills }, "skills", {
+        health: event.skills.length === 0 ? "muted" : anyActive ? "active" : "healthy",
+        detail: anyActive ? String(event.skills.filter((s) => s.active).length) : "✓",
       });
     }
     case "approval.requested":

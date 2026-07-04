@@ -25,6 +25,8 @@ import { Orchestrator } from "../orchestrator/orchestrator";
 import { AgentStepRunner } from "../orchestrator/agent-planner";
 import { PlanStep, Planner } from "../orchestrator/types";
 import { connectMcpServer } from "../mcp/client";
+import { SkillsRegistry } from "../skills/registry";
+import { SkillContent, SkillMeta } from "../skills/types";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -35,6 +37,7 @@ export interface AgentEvents {
   onStatus?: (status: string) => void;
   onShellOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
   onMemorySummary?: (summary: string) => void;
+  onSkillsActivated?: (skills: SkillMeta[]) => void;
 }
 
 type AgentEventName = keyof AgentEvents;
@@ -51,6 +54,8 @@ export class Agent {
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
   private readonly memory: MemoryStore;
+  private readonly skills: SkillsRegistry;
+  private pinnedSkillId: string | null = null;
   private isSummarizing = false;
   readonly events: AgentEvents;
   private messages: ChatMessage[] = [];
@@ -99,6 +104,7 @@ export class Agent {
     const devagentDir = join(cfg.workspaceRoot, ".devagent");
     mkdirSync(devagentDir, { recursive: true });
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
+    this.skills = SkillsRegistry.discover({ workspaceRoot: cfg.workspaceRoot });
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
@@ -114,7 +120,8 @@ export class Agent {
   }
 
   async runUserMessage(userMessage: string): Promise<string> {
-    const header = (loadConfig().systemPrompt ?? "") +
+    const header =
+      (loadConfig().systemPrompt ?? "") +
       "\n\nTool contract:\n" +
       "1) Call exactly one tool per assistant turn when appropriate.\n" +
       "2) If read_file returns `truncated`, that is a content ceiling, not an instruction to stop.\n" +
@@ -125,125 +132,151 @@ export class Agent {
       this.messages = [{ role: "system", content: header }];
     }
 
+    const activatedSkills: SkillContent[] = this.pinnedSkillId
+      ? [this.skills.activate(this.pinnedSkillId)].filter((s): s is SkillContent => s != null)
+      : this.skills.resolveForPrompt(userMessage);
+    for (const skill of activatedSkills) {
+      this.messages.push({ role: "system", content: `Skill: ${skill.name}\n\n${skill.body}` });
+    }
+    if (activatedSkills.length) this.emit("onSkillsActivated", activatedSkills);
+
     this.messages.push({ role: "user", content: userMessage });
     this.memory.appendMessage("user", userMessage);
 
     let lastAssistantText = "";
+    let success = true;
 
-    for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
-      this.emit("onStatus", `turn ${toolTurn + 1}`);
+    try {
+      for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
+        this.emit("onStatus", `turn ${toolTurn + 1}`);
 
-      const chatResponse = await this.provider.chat(this.messages, {
-        stream: true,
-        tools: this.registry.schemas(),
-        onChunk: (chunk) => {
-          const delta = chunk.message?.content;
-          if (typeof delta === "string" && delta) {
-            lastAssistantText += delta;
-            this.emit("onAssistantText", delta);
-          }
-          const thinking = (chunk.message as any)?.thinking;
-          if (typeof thinking === "string" && thinking) {
-            this.emit("onThinking", thinking);
-          }
-        },
-      });
-
-      const assistantMessage = chatResponse.message as {
-        content?: string;
-        tool_calls?: Array<{ function: { name: string; arguments: any } }>;
-      };
-      this.messages.push({
-        role: "assistant",
-        content: assistantMessage.content ?? "",
-        tool_calls: assistantMessage.tool_calls,
-      } as ChatMessage);
-
-      const toolCalls = assistantMessage.tool_calls ?? [];
-      const hasContent = (assistantMessage.content ?? "").trim().length > 0;
-
-      if (!toolCalls.length) {
-        if (hasContent) {
-          this.memory.appendMessage("assistant", lastAssistantText);
-          this.triggerSummarization();
-          return lastAssistantText;
-        }
-        if (toolTurn < this.maxToolTurns - 1) {
-          this.messages.push({
-            role: "user",
-            content: "[system] You were thinking but produced no action or response. Please continue toward the goal: call a tool or provide your final answer now.",
-          });
-          continue;
-        }
-        return lastAssistantText || "(no response)";
-      }
-
-      for (const toolCall of toolCalls) {
-        const name = toolCall.function.name;
-        const rawArguments = toolCall.function.arguments;
-        let args: Record<string, unknown> = {};
-
-        if (typeof rawArguments === "object" && rawArguments !== null) {
-          args = rawArguments as Record<string, unknown>;
-        } else if (typeof rawArguments === "string" && rawArguments) {
-          try {
-            args = JSON.parse(rawArguments);
-          } catch {
-            // leave args empty on malformed JSON
-          }
-        }
-
-        this.emit("onToolCall", name, args);
-
-        try {
-          const result = await this.registry.invoke(name, args);
-
-          const errorLabel =
-            typeof result.error === "string"
-              ? result.error
-              : typeof result.message === "string"
-                ? result.message
-                : String(result);
-
-          if (result.error === "PathEscapeError") {
-            this.messages.push({
-              role: "tool",
-              content: JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
-            });
-            const guidance =
-              "The previous tool call escaped the workspace root. Retry with a path under the current workspace root.";
-            this.messages.push({ role: "user", content: `[system] ${guidance}` });
-
-            if (this.loopDetector.record(name, args, errorLabel)) {
-              return lastAssistantText + "\n[aborted] tool loop detected after repeated escapes.";
+        const chatResponse = await this.provider.chat(this.messages, {
+          stream: true,
+          tools: this.registry.schemas(),
+          onChunk: (chunk) => {
+            const delta = chunk.message?.content;
+            if (typeof delta === "string" && delta) {
+              lastAssistantText += delta;
+              this.emit("onAssistantText", delta);
             }
+            const thinking = (chunk.message as any)?.thinking;
+            if (typeof thinking === "string" && thinking) {
+              this.emit("onThinking", thinking);
+            }
+          },
+        });
+
+        const assistantMessage = chatResponse.message as {
+          content?: string;
+          tool_calls?: Array<{ function: { name: string; arguments: any } }>;
+        };
+        this.messages.push({
+          role: "assistant",
+          content: assistantMessage.content ?? "",
+          tool_calls: assistantMessage.tool_calls,
+        } as ChatMessage);
+
+        const toolCalls = assistantMessage.tool_calls ?? [];
+        const hasContent = (assistantMessage.content ?? "").trim().length > 0;
+
+        if (!toolCalls.length) {
+          if (hasContent) {
+            this.memory.appendMessage("assistant", lastAssistantText);
+            this.triggerSummarization();
+            return lastAssistantText;
+          }
+          if (toolTurn < this.maxToolTurns - 1) {
+            this.messages.push({
+              role: "user",
+              content:
+                "[system] You were thinking but produced no action or response. Please continue toward the goal: call a tool or provide your final answer now.",
+            });
             continue;
           }
+          return lastAssistantText || "(no response)";
+        }
 
-          this.emit("onToolResult", name, result);
-          this.messages.push({
-            role: "tool",
-            content: typeof result === "string" ? result : JSON.stringify(result, null, 2),
-          });
+        for (const toolCall of toolCalls) {
+          const name = toolCall.function.name;
+          const rawArguments = toolCall.function.arguments;
+          let args: Record<string, unknown> = {};
 
-          if (this.loopDetector.record(name, args, errorLabel)) {
-            return lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name;
+          if (typeof rawArguments === "object" && rawArguments !== null) {
+            args = rawArguments as Record<string, unknown>;
+          } else if (typeof rawArguments === "string" && rawArguments) {
+            try {
+              args = JSON.parse(rawArguments);
+            } catch {
+              // leave args empty on malformed JSON
+            }
           }
-          if (toolTurn === this.maxToolTurns - 1) {
-            return lastAssistantText || "(no response)";
+
+          this.emit("onToolCall", name, args);
+
+          try {
+            const result = await this.registry.invoke(name, args);
+
+            const errorLabel =
+              typeof result.error === "string"
+                ? result.error
+                : typeof result.message === "string"
+                  ? result.message
+                  : String(result);
+
+            if (result.error === "PathEscapeError") {
+              this.messages.push({
+                role: "tool",
+                content: JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
+              });
+              const guidance =
+                "The previous tool call escaped the workspace root. Retry with a path under the current workspace root.";
+              this.messages.push({ role: "user", content: `[system] ${guidance}` });
+
+              if (this.loopDetector.record(name, args, errorLabel)) {
+                return lastAssistantText + "\n[aborted] tool loop detected after repeated escapes.";
+              }
+              continue;
+            }
+
+            this.emit("onToolResult", name, result);
+            this.messages.push({
+              role: "tool",
+              content: typeof result === "string" ? result : JSON.stringify(result, null, 2),
+            });
+
+            if (this.loopDetector.record(name, args, errorLabel)) {
+              return lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name;
+            }
+            if (toolTurn === this.maxToolTurns - 1) {
+              return lastAssistantText || "(no response)";
+            }
+          } catch (e) {
+            const err = e as Error;
+            this.emit("onError", err);
+            this.messages.push({
+              role: "tool",
+              content: JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
+            });
           }
-        } catch (e) {
-          const err = e as Error;
-          this.emit("onError", err);
-          this.messages.push({
-            role: "tool",
-            content: JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
-          });
         }
       }
-    }
 
-    return lastAssistantText || "(tool budget exceeded)";
+      return lastAssistantText || "(tool budget exceeded)";
+    } catch (e) {
+      success = false;
+      throw e;
+    } finally {
+      for (const skill of activatedSkills) this.memory.recordSkillUse(skill.id, success);
+    }
+  }
+
+  /** Pin a skill by id so it's always injected (bypassing scoring) until unpinned with null. */
+  pinSkill(id: string | null): void {
+    this.pinnedSkillId = id;
+  }
+
+  getSkillsRegistry(): SkillsRegistry {
+    return this.skills;
   }
 
   async runPlannedTask(steps: PlanStep[], planner: Planner): Promise<PlanStep[]> {
@@ -265,10 +298,7 @@ export class Agent {
 
   async validateModel(): Promise<true | string> {
     try {
-      await this.provider.chat(
-        [{ role: "user", content: "respond with just a single dot" }],
-        { stream: false },
-      );
+      await this.provider.chat([{ role: "user", content: "respond with just a single dot" }], { stream: false });
       return true;
     } catch (e) {
       const msg = (e as Error).message ?? "";

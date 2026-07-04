@@ -35,4 +35,11 @@ describe("uiReduce", () => {
   it("view-diff opens the diff overlay", () => {
     expect(uiReduce(initialUiState(), { type: "view-diff" }).overlay).toBe("diff");
   });
+
+  it("open-overlay accepts skills and close-overlay clears it", () => {
+    let s = uiReduce(initialUiState(), { type: "open-overlay", overlay: "skills" });
+    expect(s.overlay).toBe("skills");
+    s = uiReduce(s, { type: "close-overlay" });
+    expect(s.overlay).toBeNull();
+  });
 });

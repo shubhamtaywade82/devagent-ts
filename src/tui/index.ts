@@ -51,6 +51,8 @@ const shellAgent = {
   resetContext: () => agent.resetContext(),
   listModels: () => agent.listModels(),
   validateModel: () => agent.validateModel(),
+  getSkillsRegistry: () => agent.getSkillsRegistry(),
+  pinSkill: (id: string | null) => agent.pinSkill(id),
 };
 
 render(React.createElement(App, { bus, store, agent: shellAgent }));

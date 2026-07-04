@@ -46,4 +46,20 @@ describe("SlashCommandRegistry", () => {
     expect(registry.find("git")!.execute("")).toEqual({ kind: "focus-view", view: "git" });
     expect(registry.find("quit")!.execute("")).toEqual({ kind: "quit" });
   });
+
+  it("/skills with no args opens the skills overlay", () => {
+    const registry = builtinCommands();
+    expect(registry.find("skills")!.execute("")).toEqual({ kind: "open-overlay", overlay: "skills" });
+  });
+
+  it("/skills <id> activates that skill", () => {
+    const registry = builtinCommands();
+    expect(registry.find("skills")!.execute("rails-api")).toEqual({ kind: "activate-skill", id: "rails-api" });
+    expect(registry.find("skills")!.execute("  rails-api  ")).toEqual({ kind: "activate-skill", id: "rails-api" });
+  });
+
+  it("registry.complete includes skills", () => {
+    const registry = builtinCommands();
+    expect(registry.complete("sk").map((c) => c.name)).toContain("skills");
+  });
 });
