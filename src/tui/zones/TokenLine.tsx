@@ -12,14 +12,18 @@ export interface TokenLineProps {
 export function TokenLine({ tokens, width }: TokenLineProps): JSX.Element {
   const packed = packTokens(tokens, width);
   return (
-    <Box height={1}>
+    <Box height={1} minHeight={1}>
       <Text wrap="truncate">
-        {packed.map((token, i) => (
-          <React.Fragment key={`${token.text}-${i}`}>
-            {i > 0 && <Text color="gray">{TOKEN_SEPARATOR}</Text>}
-            <Text color={token.color}>{token.text}</Text>
-          </React.Fragment>
-        ))}
+        {packed.length > 0 ? (
+          packed.map((token, i) => (
+            <React.Fragment key={`${token.text}-${i}`}>
+              {i > 0 && <Text color="gray">{TOKEN_SEPARATOR}</Text>}
+              <Text color={token.color}>{token.text}</Text>
+            </React.Fragment>
+          ))
+        ) : (
+          <Text> </Text>
+        )}
       </Text>
     </Box>
   );

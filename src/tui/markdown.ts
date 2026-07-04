@@ -34,17 +34,13 @@ export function parseInline(text: string): Span[] {
   return spans;
 }
 
-export function renderMarkdown(
-  text: string,
-  role: RichLine["role"],
-  bodyWidth: number,
-): RichLine[] {
+export function renderMarkdown(text: string, role: RichLine["role"], bodyWidth: number): RichLine[] {
   const rawLines = text.split("\n");
   const result: RichLine[] = [];
   let inCodeBlock = false;
   let codeLines: string[] = [];
 
-  for (let raw of rawLines) {
+  for (const raw of rawLines) {
     const trimmed = raw.trim();
     if (trimmed.startsWith("```")) {
       if (inCodeBlock) {
@@ -71,7 +67,6 @@ export function renderMarkdown(
     }
 
     if (raw.startsWith("#")) {
-      const level = raw.match(/^#+/)?.[0].length ?? 1;
       const content = raw.replace(/^#+\s*/, "");
       const wrapped = wrapText(content, bodyWidth);
       wrapped.forEach((line, i) => {
@@ -104,10 +99,7 @@ export function renderMarkdown(
       wrapped.forEach((line, i) => {
         result.push({
           role,
-          spans: [
-            { text: "• " },
-            ...parseInline(line),
-          ],
+          spans: [{ text: "• " }, ...parseInline(line)],
           first: result.length === 0 && i === 0,
           indent: i === 0 ? 0 : 2,
         });

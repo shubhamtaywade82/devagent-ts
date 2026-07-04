@@ -46,6 +46,8 @@ type AgentEventHandler<E extends AgentEventName> = NonNullable<AgentEvents[E]>;
 export interface AgentOptions {
   config?: Partial<CliConfig>;
   events?: AgentEvents;
+  /** Override for the global skills directory's parent; defaults to the real home dir. Test-only escape hatch. */
+  skillsHomeDir?: string;
 }
 
 export class Agent {
@@ -104,7 +106,7 @@ export class Agent {
     const devagentDir = join(cfg.workspaceRoot, ".devagent");
     mkdirSync(devagentDir, { recursive: true });
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
-    this.skills = SkillsRegistry.discover({ workspaceRoot: cfg.workspaceRoot });
+    this.skills = SkillsRegistry.discover({ workspaceRoot: cfg.workspaceRoot, homeDir: opts.skillsHomeDir });
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {

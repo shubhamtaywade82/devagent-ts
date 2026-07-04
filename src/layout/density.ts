@@ -31,10 +31,13 @@ export function detailForDensity(density: Density): DetailLevel {
 
 /**
  * Rows available to the Active View given total terminal rows.
- * Header(1) + ActivityStrip(1) + Prompt(1) + ContextStrip(1) are fixed;
- * the Active View gets everything else, never less than 3 rows.
+ * Fixed chrome: Header(1) + divider(1) + ActivityStrip(1) + divider(1) +
+ * Prompt(1 baseline) + ContextStrip(1) = 6. Pass promptRows=2 when
+ * PromptBar is showing its multiline indicator row (see
+ * zones/PromptBar.tsx's promptBarRows) so the Active View shrinks by the
+ * extra row instead of overflowing the terminal. Never less than 3 rows.
  */
-export function activeViewRows(totalRows: number): number {
-  const fixed = 4;
+export function activeViewRows(totalRows: number, promptRows: 1 | 2 = 1): number {
+  const fixed = 6 + (promptRows - 1);
   return Math.max(3, totalRows - fixed);
 }

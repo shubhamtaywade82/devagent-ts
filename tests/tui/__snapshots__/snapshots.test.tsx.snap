@@ -5,8 +5,8 @@ exports[`layout snapshots same structure, density-only changes at 80x24 1`] = `
 ─ 1 Conversation ──────────────────────────────────────────────────────────────
 create filesystem tool
 Analyzing project structure and existing patterns...
-- Reading package.json
-- Found TypeScript project
+• Reading package.json
+• Found TypeScript project
 
 
 
@@ -20,9 +20,9 @@ Analyzing project structure and existing patterns...
 
 
 
-
-
+───────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl·
+─ ─ ─ ─ ─ ─ ─ ─
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;
@@ -32,8 +32,8 @@ exports[`layout snapshots same structure, density-only changes at 100x30 1`] = `
 ─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────
 you ▸   create filesystem tool
 agent ▸ Analyzing project structure and existing patterns...
-        - Reading package.json
-        - Found TypeScript project
+        • Reading package.json
+        • Found TypeScript project
 
 
 
@@ -53,9 +53,9 @@ agent ▸ Analyzing project structure and existing patterns...
 
 
 
-
-
+───────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ Tok48k/71k
+─ ─ ─ ─ ─ ─ ─ ─
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;
@@ -65,8 +65,8 @@ exports[`layout snapshots same structure, density-only changes at 120x30 1`] = `
 ─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────
 you ▸   create filesystem tool
 agent ▸ Analyzing project structure and existing patterns...
-        - Reading package.json
-        - Found TypeScript project
+        • Reading package.json
+        • Found TypeScript project
 
 
 
@@ -86,9 +86,9 @@ agent ▸ Analyzing project structure and existing patterns...
 
 
 
-
-
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ Tok48k/71k
+─ ─ ─ ─ ─ ─ ─ ─
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;
@@ -98,8 +98,8 @@ exports[`layout snapshots same structure, density-only changes at 160x45 1`] = `
 ─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 you ▸   create filesystem tool
 agent ▸ Analyzing project structure and existing patterns...
-        - Reading package.json
-        - Found TypeScript project
+        • Reading package.json
+        • Found TypeScript project
 
 
 
@@ -134,9 +134,9 @@ agent ▸ Analyzing project structure and existing patterns...
 
 
 
-
-
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ Tok48k/71k
+─ ─ ─ ─ ─ ─ ─ ─
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;
@@ -146,8 +146,8 @@ exports[`layout snapshots same structure, density-only changes at 220x60 1`] = `
 ─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 you ▸   create filesystem tool
 agent ▸ Analyzing project structure and existing patterns...
-        - Reading package.json
-        - Found TypeScript project
+        • Reading package.json
+        • Found TypeScript project
 
 
 
@@ -197,9 +197,9 @@ agent ▸ Analyzing project structure and existing patterns...
 
 
 
-
-
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ Tok48k/71k
+─ ─ ─ ─ ─ ─ ─ ─
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;

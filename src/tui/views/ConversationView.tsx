@@ -54,7 +54,10 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
   }
   const maxOffset = Math.max(0, lines.length - rows);
   const clampedOffset = Math.min(scrollOffset, maxOffset);
-  const visible = clampedOffset === 0 ? tail(lines, rows) : lines.slice(lines.length - rows - clampedOffset, lines.length - clampedOffset);
+  const visible =
+    clampedOffset === 0
+      ? tail(lines, rows)
+      : lines.slice(lines.length - rows - clampedOffset, lines.length - clampedOffset);
 
   useInput((_input, key) => {
     if (key.pageUp) {
@@ -71,6 +74,7 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
     if (!process.stdin.isTTY) return;
     const handler = (data: Buffer) => {
       const str = data.toString();
+      // eslint-disable-next-line no-control-regex -- matching an SGR mouse-tracking escape sequence
       const match = str.match(/^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/);
       if (!match) return;
       const btn = parseInt(match[1], 10);

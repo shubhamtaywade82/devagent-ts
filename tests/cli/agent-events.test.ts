@@ -146,11 +146,20 @@ function firstRequestMessages(): Array<{ role: string; content: string }> {
 }
 
 describe("Agent skills activation", () => {
+  // Isolate from the real ~/.devagent/skills global dir, which may contain
+  // unrelated real skills on a developer machine and would otherwise leak
+  // into resolution alongside the fixture skill below.
+  let skillsHomeDir: string;
+
+  beforeEach(async () => {
+    skillsHomeDir = await mkdtemp(join(tmpdir(), "home-"));
+  });
+
   it("injects a matching skill's body as a system message before the user message", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
     mockChatOnce("ok");
-    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" }, skillsHomeDir });
 
     await agent.runUserMessage("help me build a rails endpoint");
 
@@ -170,6 +179,7 @@ describe("Agent skills activation", () => {
     const agent = new Agent({
       config: { workspaceRoot: dir, tier: "local", model: "test-model" },
       events: { onSkillsActivated },
+      skillsHomeDir,
     });
 
     await agent.runUserMessage("help me build a rails endpoint");
@@ -181,7 +191,7 @@ describe("Agent skills activation", () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
     mockChatOnce("ok");
-    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" }, skillsHomeDir });
 
     await agent.runUserMessage("completely unrelated request");
 
@@ -193,7 +203,7 @@ describe("Agent skills activation", () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
     mockChatOnce("ok");
-    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" }, skillsHomeDir });
 
     agent.pinSkill("rails-api");
     await agent.runUserMessage("completely unrelated request");
@@ -206,7 +216,7 @@ describe("Agent skills activation", () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     writeSkill(dir, "rails-api", "name: Rails API\ndescription: REST APIs\ntags: [rails]", "Rails skill body");
     mockChatOnce("ok");
-    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" }, skillsHomeDir });
 
     await agent.runUserMessage("help me build a rails endpoint");
 

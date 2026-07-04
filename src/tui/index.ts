@@ -10,11 +10,11 @@ import { initialRuntimeState, Store } from "../runtime/store";
 import { wireAgentBridge, BridgeableAgent } from "./agent-bridge";
 import { App } from "./App";
 
-function enableMouseTracking(): () => void {
+function enableTerminalFeatures(): () => void {
   if (!process.stdin.isTTY) return () => {};
-  process.stdout.write("\x1b[?1000h\x1b[?1002h\x1b[?1006h");
+  process.stdout.write("\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h");
   return () => {
-    process.stdout.write("\x1b[?1006l\x1b[?1002l\x1b[?1000l");
+    process.stdout.write("\x1b[?2004l\x1b[?1006l\x1b[?1002l\x1b[?1000l");
   };
 }
 
@@ -63,6 +63,8 @@ const shellAgent = {
   pinSkill: (id: string | null) => agent.pinSkill(id),
 };
 
-const disableMouse = enableMouseTracking();
-const { waitUntilExit } = render(React.createElement(App, { bus, store, agent: shellAgent, workspaceRoot: cfg.workspaceRoot }));
-waitUntilExit().then(disableMouse);
+const disableFeatures = enableTerminalFeatures();
+const { waitUntilExit } = render(
+  React.createElement(App, { bus, store, agent: shellAgent, workspaceRoot: cfg.workspaceRoot }),
+);
+waitUntilExit().then(disableFeatures);

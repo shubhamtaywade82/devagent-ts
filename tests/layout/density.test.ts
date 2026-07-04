@@ -19,9 +19,14 @@ describe("density tiers", () => {
     expect(detailForDensity("minimal")).toBe("compact");
   });
 
-  it("gives the active view all rows minus the four fixed zones", () => {
-    expect(activeViewRows(24)).toBe(20);
-    expect(activeViewRows(30)).toBe(26);
+  it("gives the active view all rows minus the fixed chrome (6 rows: header, 2 dividers, activity strip, prompt, context strip)", () => {
+    expect(activeViewRows(24)).toBe(18);
+    expect(activeViewRows(30)).toBe(24);
     expect(activeViewRows(5)).toBe(3); // never less than 3
+  });
+
+  it("shrinks by one more row when the prompt bar is showing its multiline indicator", () => {
+    expect(activeViewRows(24, 2)).toBe(17);
+    expect(activeViewRows(30, 1)).toBe(24);
   });
 });

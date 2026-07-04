@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -15,7 +15,7 @@ import { ErrorBoundary } from "./ErrorBoundary";
 import { Header } from "./zones/Header";
 import { ActivityStrip } from "./zones/ActivityStrip";
 import { ContextStrip } from "./zones/ContextStrip";
-import { PromptBar } from "./zones/PromptBar";
+import { PromptBar, promptBarRows } from "./zones/PromptBar";
 import { ConversationView, ViewProps } from "./views/ConversationView";
 import { ExecutionView } from "./views/ExecutionView";
 import { TasksView } from "./views/TasksView";
@@ -120,6 +120,60 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const [history] = useState(() => new HistoryManager());
   const [models, setModels] = useState<string[] | null>(null);
   const commandRegistry = useMemo(() => registry ?? builtinCommands(), [registry]);
+  const pastingRef = useRef(false);
+  const pasteBufRef = useRef("");
+  const pasteCountRef = useRef(0);
+
+  // Detect bracketed paste markers on stdin.
+  // Uses prependListener so our handler runs BEFORE Ink's — once pastingRef
+  // is true, useInput bails out and lets this handler set the prompt directly.
+  useEffect(() => {
+    if (!process.stdin.isTTY) return;
+    let buf = "";
+    const handler = (data: Buffer) => {
+      buf += data.toString();
+
+      if (buf.includes("\x1b[200~")) {
+        pastingRef.current = true;
+        pasteBufRef.current = "";
+        buf = buf.replace("\x1b[200~", "");
+      }
+
+      if (pastingRef.current) {
+        if (buf.includes("\x1b[201~")) {
+          const parts = buf.split("\x1b[201~");
+          pasteBufRef.current += parts[0] ?? "";
+          const pasted = pasteBufRef.current;
+          pasteBufRef.current = "";
+          const lines = pasted.split("\n").length;
+          if (lines > 1) {
+            pasteCountRef.current += 1;
+            setPrompt((p) => {
+              const prefix = p ? p + "\n" : "";
+              return `${prefix}[Pasted text #${pasteCountRef.current} +${lines} lines]\n${pasted}`;
+            });
+          } else {
+            setPrompt((p) => p + pasted);
+          }
+          buf = parts.slice(1).join("\x1b[201~");
+          // Defer turning off pastingRef so any useInput callbacks queued
+          // from INK's buffer see pastingRef.current = true and bail out.
+          setTimeout(() => {
+            pastingRef.current = false;
+          }, 0);
+        } else {
+          pasteBufRef.current += buf;
+          buf = "";
+        }
+      }
+
+      if (!pastingRef.current) buf = "";
+    };
+    process.stdin.prependListener("data", handler);
+    return () => {
+      process.stdin.off("data", handler);
+    };
+  }, []);
 
   // Load the model list lazily when the switcher opens; cache afterwards.
   useEffect(() => {
@@ -144,7 +198,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
 
   const density = densityForWidth(width);
   const detail = ui.zoom ? "full" : detailForDensity(density);
-  const viewRows = activeViewRows(height);
+  const viewRows = activeViewRows(height, promptBarRows(prompt));
   const contentRows = Math.max(2, viewRows - 1);
 
   const completionItems = completions(prompt, commandRegistry);
@@ -230,7 +284,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
               `I just initialized DevAgent in \`${root}\`. Create \`AGENTS.md\` at the project root — this file tells future DevAgent sessions how to work with this codebase.`,
               "",
               "First explore the project (read key configs, understand the structure, check the tech stack, testing setup, linting rules, build system, etc).",
-              "Then write \`AGENTS.md\` using the write_file tool. Cover:",
+              "Then write `AGENTS.md` using the write_file tool. Cover:",
               "- Project purpose (brief)",
               "- Tech stack (language, framework, runtime)",
               "- Testing framework and how to run tests",
@@ -244,11 +298,14 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             bus.publish({ type: "conversation.message", role: "user", text: initPrompt });
             setBusy(true);
             bus.publish({ type: "mode.changed", mode: "streaming" });
-            agent.runUserMessage(initPrompt).catch(() => {}).finally(() => {
-              setBusy(false);
-              bus.publish({ type: "model.streaming", streaming: false });
-              bus.publish({ type: "mode.changed", mode: "idle" });
-            });
+            agent
+              .runUserMessage(initPrompt)
+              .catch(() => {})
+              .finally(() => {
+                setBusy(false);
+                bus.publish({ type: "model.streaming", streaming: false });
+                bus.publish({ type: "mode.changed", mode: "idle" });
+              });
           }
           break;
         }
@@ -334,6 +391,8 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   );
 
   useInput((input, key) => {
+    if (pastingRef.current) return; // let the data handler manage paste content
+
     const ctx = { overlay: ui.overlay, promptHasText: prompt.length > 0, mode: state.mode };
     const command = resolveKey(input, key, ctx);
     if (command) {
@@ -343,6 +402,10 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     if (ui.overlay) return; // remaining keys belong to the overlay's own handler
 
     // Prompt editing.
+    if (key.return && key.shift) {
+      setPrompt((p) => p + "\n");
+      return;
+    }
     if (key.return) {
       submitPrompt(prompt);
       return;
@@ -378,7 +441,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       return;
     }
     if (input && !key.ctrl && !key.meta) {
-      setPrompt((p) => p + input.replace(/[\r\n]/g, ""));
+      setPrompt((p) => p + input.replace(/\r/g, ""));
       setCompletionIndex(0);
     }
   });
@@ -466,13 +529,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           </Text>
         </Box>
         <ActivityStrip state={state} width={width} now={now} />
-        <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
         <Box height={1}>
           <Text color="gray" dimColor>
-            {"─".repeat(Math.max(0, width - 1))}
+            {"─ ─ ─ ─ ─ ─ ─ ─"}
           </Text>
         </Box>
-        <Box height={1} />
+        <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
         <ContextStrip
           state={state}
           width={width}
