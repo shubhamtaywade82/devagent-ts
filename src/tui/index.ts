@@ -1,6 +1,7 @@
 import "dotenv/config";
 import path from "node:path";
 import { execSync } from "node:child_process";
+import { appendFileSync, mkdirSync } from "node:fs";
 import React from "react";
 import { render } from "ink";
 import { Agent } from "../cli/agent";
@@ -29,6 +30,19 @@ function currentBranch(workspaceRoot: string): string {
   } catch {
     return "";
   }
+}
+
+// Debug-only: dump every raw stdin chunk (as JSON-escaped text) to
+// .devagent/paste-debug.log when DEVAGENT_DEBUG_STDIN=1, registered before
+// anything else touches stdin so it sees genuinely raw terminal bytes.
+// Temporary — remove once paste behavior is confirmed across terminals.
+if (process.env.DEVAGENT_DEBUG_STDIN === "1" && process.stdin.isTTY) {
+  const debugDir = path.join(process.cwd(), ".devagent");
+  mkdirSync(debugDir, { recursive: true });
+  const logPath = path.join(debugDir, "paste-debug.log");
+  process.stdin.prependListener("data", (data: Buffer) => {
+    appendFileSync(logPath, `${new Date().toISOString()} len=${data.length} ${JSON.stringify(data.toString())}\n`);
+  });
 }
 
 const cfg = loadConfig();
