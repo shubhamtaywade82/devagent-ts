@@ -1,72 +1,389 @@
-import React, { useEffect, useReducer, useState } from "react";
-import { Box, useInput } from "ink";
-import { reducer, initialState, TuiState } from "./state";
-import { wireAgentBridge, BridgeableAgent } from "./agent-bridge";
-import { EditTracker } from "./edit-tracker";
+import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
+import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { EventBus } from "../runtime/events";
+import { Store } from "../runtime/store";
+import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types";
+import { activeViewRows, densityForWidth, detailForDensity } from "../layout/density";
+import { resolveKey, UiCommand } from "../interaction/keybindings";
+import { initialUiState, uiReduce } from "../interaction/ui-state";
+import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands";
+import { HistoryManager } from "../interaction/history";
+import { acceptWord, completions, ghostSuffix } from "../interaction/completion";
 import { ErrorBoundary } from "./ErrorBoundary";
-import { FileTree } from "./panes/FileTree";
-import { ChatPlan } from "./panes/ChatPlan";
-import { CodeDiff } from "./panes/CodeDiff";
-import { Terminal } from "./panes/Terminal";
-import { ToolsLog } from "./panes/ToolsLog";
-import { Memory } from "./panes/Memory";
-import { StatusBar } from "./panes/StatusBar";
+import { Header } from "./zones/Header";
+import { ActivityStrip } from "./zones/ActivityStrip";
+import { ContextStrip } from "./zones/ContextStrip";
+import { PromptBar } from "./zones/PromptBar";
+import { ConversationView, ViewProps } from "./views/ConversationView";
+import { ExecutionView } from "./views/ExecutionView";
+import { TasksView } from "./views/TasksView";
+import { GitView } from "./views/GitView";
+import { LogsView } from "./views/LogsView";
+import { MemoryView } from "./views/MemoryView";
+import { ModelsView } from "./views/ModelsView";
+import { McpView } from "./views/McpView";
+import { CommandPalette } from "./overlays/CommandPalette";
+import { HelpOverlay } from "./overlays/HelpOverlay";
+import { ActorsOverlay } from "./overlays/ActorsOverlay";
+import { ApprovalOverlay } from "./overlays/ApprovalOverlay";
+import { ModelSwitcher } from "./overlays/ModelSwitcher";
+import { SearchEverywhere } from "./overlays/SearchEverywhere";
 
-export type AppAgent = BridgeableAgent & {
-  runUserMessage(message: string): Promise<string>;
-  getRegistry(): unknown;
-};
-
-export interface AppProps {
-  agent: AppAgent;
-  workspaceRoot: string;
-  model: string;
+export interface ShellAgent {
+  runUserMessage(message: string): Promise<unknown>;
+  setModel?(model: string): void;
+  resetContext?(): void;
+  listModels?(): Promise<string[]>;
+  /** Round-trips a real request through the new model; true, or an error string. */
+  validateModel?(): Promise<true | string>;
 }
 
-const FOCUS_ORDER: TuiState["focusedPane"][] = ["fileTree", "chat", "codeDiff", "terminal", "toolsLog", "memory"];
+export interface AppProps {
+  bus: EventBus;
+  store: Store;
+  agent?: ShellAgent;
+  registry?: SlashCommandRegistry;
+  /** Explicit size for tests; defaults to the live terminal size. */
+  columns?: number;
+  rows?: number;
+  now?: number;
+}
 
-export function App({ agent, workspaceRoot, model }: AppProps): JSX.Element {
-  const [state, dispatch] = useReducer(reducer, undefined, initialState);
-  const [selectedFileContent] = useState("");
-  const [editTracker] = useState(() => new EditTracker());
+const VIEWS: Record<ViewId, (props: ViewProps) => JSX.Element> = {
+  conversation: ConversationView,
+  execution: ExecutionView,
+  tasks: TasksView,
+  git: GitView,
+  logs: LogsView,
+  memory: MemoryView,
+  models: ModelsView,
+  mcp: McpView,
+};
 
+const VIEW_LABELS: Record<ViewId, string> = {
+  conversation: "Conversation",
+  execution: "Execution",
+  tasks: "Tasks",
+  git: "Git",
+  logs: "Logs",
+  memory: "Memory",
+  models: "Models",
+  mcp: "MCP",
+};
+
+function useTerminalSize(columns?: number, rows?: number): { width: number; height: number } {
+  const { stdout } = useStdout();
+  const [size, setSize] = useState({
+    width: columns ?? stdout?.columns ?? 100,
+    height: rows ?? stdout?.rows ?? 30,
+  });
   useEffect(() => {
-    wireAgentBridge(agent, dispatch);
-  }, [agent]);
+    if (columns != null && rows != null) return;
+    if (!stdout) return;
+    const onResize = () => setSize({ width: columns ?? stdout.columns ?? 100, height: rows ?? stdout.rows ?? 30 });
+    stdout.on("resize", onResize);
+    return () => {
+      stdout.off("resize", onResize);
+    };
+  }, [stdout, columns, rows]);
+  return columns != null && rows != null ? { width: columns, height: rows } : size;
+}
 
-  useInput((_input, key) => {
-    if (key.tab) {
-      const idx = FOCUS_ORDER.indexOf(state.focusedPane);
-      const next = FOCUS_ORDER[(idx + (key.shift ? FOCUS_ORDER.length - 1 : 1)) % FOCUS_ORDER.length];
-      dispatch({ type: "FOCUS_PANE", pane: next });
+// Ink 3 bundles a React 17-era reconciler without useSyncExternalStore,
+// so subscribe the classic way. The re-sync inside the effect catches any
+// events published between first render and subscription.
+function useRuntimeState(store: Store): RuntimeState {
+  const [state, setState] = useState<RuntimeState>(() => store.getState());
+  useEffect(() => {
+    setState(store.getState());
+    return store.subscribe(setState);
+  }, [store]);
+  return state;
+}
+
+export function App({ bus, store, agent, registry, columns, rows, now }: AppProps): JSX.Element {
+  const { exit } = useApp();
+  const state = useRuntimeState(store);
+  const { width, height } = useTerminalSize(columns, rows);
+  const [ui, uiDispatch] = useReducer(uiReduce, undefined, initialUiState);
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [completionIndex, setCompletionIndex] = useState(0);
+  const [history] = useState(() => new HistoryManager());
+  const [models, setModels] = useState<string[] | null>(null);
+  const commandRegistry = useMemo(() => registry ?? builtinCommands(), [registry]);
+
+  // Load the model list lazily when the switcher opens; cache afterwards.
+  useEffect(() => {
+    if (ui.overlay !== "model" || models !== null) return;
+    let cancelled = false;
+    if (!agent?.listModels) {
+      setModels([]);
+      return;
     }
-    // Ctrl+Enter send is handled inside ChatPlan's own input box in a future iteration;
-    // v1 focus-cycling and pane selection is delivered here per this task's scope.
+    agent
+      .listModels()
+      .then((list) => {
+        if (!cancelled) setModels(list);
+      })
+      .catch(() => {
+        if (!cancelled) setModels([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ui.overlay, models, agent]);
+
+  const density = densityForWidth(width);
+  const detail = ui.zoom ? "full" : detailForDensity(density);
+  const viewRows = activeViewRows(height);
+  const contentRows = Math.max(2, viewRows - 1);
+
+  const completionItems = completions(prompt, commandRegistry);
+  const activeCompletion = completionItems.length > 0;
+  const ghost = activeCompletion ? "" : ghostSuffix(prompt, history.all());
+
+  const applyEffect = useCallback(
+    async (effect: CommandEffect): Promise<void> => {
+      switch (effect.kind) {
+        case "message":
+          bus.publish({ type: "conversation.message", role: "system", text: effect.text });
+          break;
+        case "open-overlay":
+          uiDispatch({ type: "open-overlay", overlay: effect.overlay });
+          break;
+        case "focus-view":
+          uiDispatch({ type: "focus-view", view: effect.view });
+          break;
+        case "clear-conversation":
+          bus.publish({ type: "conversation.clear" });
+          break;
+        case "set-model": {
+          const previous = store.getState().model.name;
+          if (effect.model === previous) break;
+          agent?.setModel?.(effect.model);
+          bus.publish({ type: "model.changed", name: effect.model });
+          if (!agent?.validateModel) {
+            bus.publish({ type: "notification", kind: "success", text: `Model: ${effect.model}` });
+            break;
+          }
+          bus.publish({ type: "notification", kind: "info", text: `Validating ${effect.model}…` });
+          const result = await agent.validateModel();
+          if (result === true) {
+            bus.publish({ type: "notification", kind: "success", text: `Model: ${effect.model}` });
+          } else {
+            agent?.setModel?.(previous);
+            bus.publish({ type: "model.changed", name: previous });
+            bus.publish({ type: "notification", kind: "error", text: `${effect.model} ${result}` });
+          }
+          break;
+        }
+        case "reset-context":
+          agent?.resetContext?.();
+          bus.publish({ type: "notification", kind: "info", text: "Context reset" });
+          break;
+        case "quit":
+          exit();
+          break;
+        case "error":
+          bus.publish({ type: "notification", kind: "error", text: effect.text });
+          break;
+      }
+    },
+    [agent, bus, exit, store],
+  );
+
+  const submitPrompt = useCallback(
+    (text: string): void => {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+      history.add(trimmed);
+      setPrompt("");
+      setCompletionIndex(0);
+
+      const slash = parseSlashInput(trimmed);
+      if (slash) {
+        const command = commandRegistry.find(slash.name);
+        applyEffect(command ? command.execute(slash.args) : { kind: "error", text: `Unknown command: /${slash.name}` });
+        return;
+      }
+
+      bus.publish({ type: "conversation.message", role: "user", text: trimmed });
+      if (!agent) return;
+      setBusy(true);
+      bus.publish({ type: "mode.changed", mode: "streaming" });
+      agent
+        .runUserMessage(trimmed)
+        .catch((e: unknown) => {
+          bus.publish({ type: "error", message: e instanceof Error ? e.message : String(e) });
+        })
+        .finally(() => {
+          setBusy(false);
+          bus.publish({ type: "model.streaming", streaming: false });
+          bus.publish({ type: "mode.changed", mode: "idle" });
+        });
+    },
+    [agent, applyEffect, bus, commandRegistry, history],
+  );
+
+  const handleCommand = useCallback(
+    (command: UiCommand): void => {
+      switch (command.type) {
+        case "quit":
+          exit();
+          return;
+        case "approve":
+        case "reject": {
+          const approval = store.getState().approval;
+          if (approval) {
+            bus.publish({ type: "approval.resolved", id: approval.id, approved: command.type === "approve" });
+            bus.publish({
+              type: "notification",
+              kind: command.type === "approve" ? "success" : "warning",
+              text: command.type === "approve" ? "Approved" : "Rejected",
+            });
+          }
+          if (ui.overlay === "diff") uiDispatch({ type: "close-overlay" });
+          return;
+        }
+        case "cancel":
+          setPrompt("");
+          setCompletionIndex(0);
+          history.stopBrowsing();
+          return;
+        default:
+          uiDispatch(command);
+      }
+    },
+    [bus, exit, history, store, ui.overlay],
+  );
+
+  useInput((input, key) => {
+    const ctx = { overlay: ui.overlay, promptHasText: prompt.length > 0, mode: state.mode };
+    const command = resolveKey(input, key, ctx);
+    if (command) {
+      handleCommand(command);
+      return;
+    }
+    if (ui.overlay) return; // remaining keys belong to the overlay's own handler
+
+    // Prompt editing.
+    if (key.return) {
+      submitPrompt(prompt);
+      return;
+    }
+    if (key.backspace || key.delete) {
+      setPrompt((p) => p.slice(0, -1));
+      setCompletionIndex(0);
+      history.stopBrowsing();
+      return;
+    }
+    if (key.tab) {
+      if (activeCompletion) {
+        const item = completionItems[Math.min(completionIndex, completionItems.length - 1)];
+        setPrompt(item.insert);
+        setCompletionIndex(0);
+      } else if (ghost) {
+        setPrompt(prompt + ghost);
+      }
+      return;
+    }
+    if (key.rightArrow && ghost) {
+      setPrompt(prompt + acceptWord(ghost).accepted);
+      return;
+    }
+    if (key.upArrow) {
+      if (activeCompletion) setCompletionIndex((i) => Math.max(0, i - 1));
+      else setPrompt(history.up(prompt));
+      return;
+    }
+    if (key.downArrow) {
+      if (activeCompletion) setCompletionIndex((i) => Math.min(completionItems.length - 1, i + 1));
+      else setPrompt(history.down(prompt));
+      return;
+    }
+    if (input && !key.ctrl && !key.meta) {
+      setPrompt((p) => p + input.replace(/[\r\n]/g, ""));
+      setCompletionIndex(0);
+    }
   });
 
-  const diffLines = state.selectedFile && editTracker.hasSnapshot(state.selectedFile)
-    ? editTracker.diff(state.selectedFile, selectedFileContent)
-    : null;
+  const ActiveView = VIEWS[ui.activeView];
+  const approval = state.approval;
+  const showApproval = approval != null && (ui.overlay === null || ui.overlay === "diff");
+  const viewIndex = VIEW_ORDER.indexOf(ui.activeView) + 1;
+  const title = ` ${viewIndex} ${VIEW_LABELS[ui.activeView]} `;
+  const rule = "─".repeat(Math.max(0, width - title.length - 2));
 
   return (
-    <Box flexDirection="column">
+    <Box flexDirection="column" width={width} height={height}>
       <ErrorBoundary>
-        <Box flexDirection="row">
-          <Box flexDirection="column" width={30}>
-            <FileTree root={workspaceRoot} onSelect={(path) => dispatch({ type: "FILE_SELECTED", path })} focused={state.focusedPane === "fileTree"} />
+        <Header state={state} width={width} now={now} />
+        <Box flexDirection="column" height={viewRows}>
+          <Box height={1}>
+            <Text color="gray">{"─"}</Text>
+            <Text color="blue" bold>
+              {title}
+            </Text>
+            <Text color="gray" wrap="truncate">
+              {rule}
+            </Text>
           </Box>
-          <Box flexDirection="column" flexGrow={1}>
-            <ChatPlan chat={state.chat} planSteps={state.planSteps} focused={state.focusedPane === "chat"} />
-            <Terminal output={state.shellOutput} focused={state.focusedPane === "terminal"} />
-          </Box>
-          <Box flexDirection="column" flexGrow={1}>
-            <CodeDiff path={state.selectedFile} content={selectedFileContent} diffLines={diffLines} focused={state.focusedPane === "codeDiff"} />
-            <ToolsLog entries={state.toolLog} focused={state.focusedPane === "toolsLog"} />
-            <Memory summary={state.memorySummary} filesTouched={state.filesTouched} />
-          </Box>
+          {showApproval ? (
+            <ApprovalOverlay request={approval} width={width} rows={contentRows} showDiff={ui.overlay === "diff"} />
+          ) : ui.overlay === "palette" ? (
+            <CommandPalette
+              registry={commandRegistry}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onAction={(effect) => {
+                uiDispatch({ type: "close-overlay" });
+                applyEffect(effect);
+              }}
+            />
+          ) : ui.overlay === "help" ? (
+            <HelpOverlay width={width} rows={contentRows} />
+          ) : ui.overlay === "actors" ? (
+            <ActorsOverlay state={state} width={width} rows={contentRows} />
+          ) : ui.overlay === "model" ? (
+            <ModelSwitcher
+              current={state.model.name}
+              models={models}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(model) => {
+                uiDispatch({ type: "close-overlay" });
+                applyEffect({ kind: "set-model", model });
+              }}
+            />
+          ) : ui.overlay === "search" ? (
+            <SearchEverywhere
+              state={state}
+              registry={commandRegistry}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(view) => {
+                uiDispatch({ type: "close-overlay" });
+                uiDispatch({ type: "focus-view", view });
+              }}
+            />
+          ) : (
+            <ActiveView state={state} width={width} rows={contentRows} detail={detail} />
+          )}
         </Box>
+        <ActivityStrip state={state} width={width} now={now} />
+        <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
+        <ContextStrip
+          state={state}
+          width={width}
+          activeView={ui.activeView}
+          completionItems={activeCompletion ? completionItems : undefined}
+          completionIndex={completionIndex}
+        />
       </ErrorBoundary>
-      <StatusBar focusedPane={state.focusedPane} model={model} filesTouchedCount={state.filesTouched.length} status={state.status} />
     </Box>
   );
 }

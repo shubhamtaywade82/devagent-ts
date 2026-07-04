@@ -11,9 +11,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "jest",
-    "start": "node dist/cli/tui.js",
-    "dev": "tsx src/cli/tui.ts",
-    "dev:tui": "tsx src/tui/index.ts",
+    "start": "node dist/tui/index.js",
+    "dev": "tsx src/tui/index.ts",
+    "dev:legacy": "tsx src/cli/tui.ts",
     "lint": "eslint src tests --ext .ts,.tsx",
     "format:check": "prettier --check src tests"
   },
