@@ -13,6 +13,7 @@ export type CommandEffect =
   | { kind: "focus-view"; view: ViewId }
   | { kind: "clear-conversation" }
   | { kind: "set-model"; model: string }
+  | { kind: "set-tier"; tier: "local" | "cloud" }
   | { kind: "reset-context" }
   | { kind: "quit" }
   | { kind: "error"; text: string };
@@ -87,6 +88,18 @@ export function builtinCommands(): SlashCommandRegistry {
     aliases: [],
     description: "Switch model: /model [name]",
     execute: (args) => (args ? { kind: "set-model", model: args } : { kind: "open-overlay", overlay: "model" }),
+  });
+  registry.register({
+    name: "tier",
+    aliases: [],
+    description: "Switch provider tier: /tier local|cloud",
+    execute: (args) => {
+      const tier = args.trim().toLowerCase();
+      if (tier !== "local" && tier !== "cloud") {
+        return { kind: "error", text: "Usage: /tier local|cloud" };
+      }
+      return { kind: "set-tier", tier };
+    },
   });
   registry.register({
     name: "quit",

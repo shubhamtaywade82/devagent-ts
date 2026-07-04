@@ -291,6 +291,21 @@ export class Agent {
     return this.provider.currentModel;
   }
 
+  get currentTier(): string {
+    return this.provider.currentTier;
+  }
+
+  /** Models available on the provider's *current* tier — never stale. */
+  async listModels(): Promise<string[]> {
+    const data = await this.provider.availableModels();
+    if (this.provider.currentTier === "cloud") {
+      const cloud = data as { data?: Array<{ id: string }> };
+      return (cloud.data ?? []).map((m) => m.id);
+    }
+    const local = data as { models?: Array<{ name: string }> };
+    return (local.models ?? []).map((m) => m.name);
+  }
+
   resetContext(): void {
     this.messages = [];
   }

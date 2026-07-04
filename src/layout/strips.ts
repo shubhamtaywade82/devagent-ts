@@ -162,6 +162,9 @@ export function headerTokens(state: RuntimeState, now: number = Date.now()): Sta
   const tokens: StatusToken[] = [{ text: "DevAgent", priority: 1, color: semanticColor("thinking") }];
   if (state.session.workspace) tokens.push({ text: state.session.workspace, priority: 3 });
   if (state.model.name) tokens.push({ text: state.model.name, priority: 2, color: semanticColor("active") });
+  if (state.model.provider === "cloud") {
+    tokens.push({ text: "☁ cloud", priority: 2, color: semanticColor("thinking") });
+  }
   const branch = state.git.branch || state.session.branch;
   if (branch) tokens.push({ text: `⎇ ${branch}`, priority: 4 });
   const ctx = contextPercent(state);

@@ -69,7 +69,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
     memorySummary: "",
     git: { branch: opts.branch ?? "", ahead: 0, behind: 0, files: [] },
     model: {
-      provider: opts.provider ?? "ollama",
+      provider: opts.provider ?? "local",
       name: opts.model ?? "",
       streaming: false,
       tokensPerSecond: 0,

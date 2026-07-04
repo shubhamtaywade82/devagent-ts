@@ -70,6 +70,10 @@ export class Provider {
     return this.model;
   }
 
+  get currentTier(): Tier {
+    return this.tier;
+  }
+
   setModel(model: string): void {
     this.model = model;
   }
