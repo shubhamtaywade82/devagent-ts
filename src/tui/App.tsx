@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { EventBus } from "../runtime/events";
 import { Store } from "../runtime/store";
 import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types";
@@ -52,6 +54,7 @@ export interface AppProps {
   columns?: number;
   rows?: number;
   now?: number;
+  workspaceRoot?: string;
 }
 
 const VIEWS: Record<ViewId, (props: ViewProps) => JSX.Element> = {
@@ -106,7 +109,7 @@ function useRuntimeState(store: Store): RuntimeState {
   return state;
 }
 
-export function App({ bus, store, agent, registry, columns, rows, now }: AppProps): JSX.Element {
+export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): JSX.Element {
   const { exit } = useApp();
   const state = useRuntimeState(store);
   const { width, height } = useTerminalSize(columns, rows);
@@ -203,6 +206,52 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
           bus.publish({ type: "notification", kind: "success", text: `Skill pinned: ${meta.name}` });
           break;
         }
+        case "init-workspace": {
+          const root = workspaceRoot ?? process.cwd();
+          const dir = join(root, ".devagent");
+          mkdirSync(join(dir, "skills"), { recursive: true });
+          writeFileSync(
+            join(dir, "config.json"),
+            JSON.stringify(
+              {
+                model: store.getState().model.name,
+                tier: store.getState().model.provider,
+                host: process.env.OLLAMA_HOST || null,
+              },
+              null,
+              2,
+            ),
+          );
+          bus.publish({ type: "notification", kind: "success", text: `.devagent/ created in ${dir}` });
+
+          const agentsPath = join(root, "AGENTS.md");
+          if (!existsSync(agentsPath) && agent) {
+            const initPrompt = [
+              `I just initialized DevAgent in \`${root}\`. Create \`AGENTS.md\` at the project root — this file tells future DevAgent sessions how to work with this codebase.`,
+              "",
+              "First explore the project (read key configs, understand the structure, check the tech stack, testing setup, linting rules, build system, etc).",
+              "Then write \`AGENTS.md\` using the write_file tool. Cover:",
+              "- Project purpose (brief)",
+              "- Tech stack (language, framework, runtime)",
+              "- Testing framework and how to run tests",
+              "- Linting/formatting conventions",
+              "- Build system and commands",
+              "- Key directory structure",
+              "- Any notable architecture decisions or conventions you observe",
+              "",
+              "Only create the file if you can successfully explore the project first. Be thorough.",
+            ].join("\n");
+            bus.publish({ type: "conversation.message", role: "user", text: initPrompt });
+            setBusy(true);
+            bus.publish({ type: "mode.changed", mode: "streaming" });
+            agent.runUserMessage(initPrompt).catch(() => {}).finally(() => {
+              setBusy(false);
+              bus.publish({ type: "model.streaming", streaming: false });
+              bus.publish({ type: "mode.changed", mode: "idle" });
+            });
+          }
+          break;
+        }
         case "reset-context":
           agent?.resetContext?.();
           bus.publish({ type: "notification", kind: "info", text: "Context reset" });
@@ -215,7 +264,7 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
           break;
       }
     },
-    [agent, bus, exit, store],
+    [agent, bus, exit, setBusy, store],
   );
 
   const submitPrompt = useCallback(

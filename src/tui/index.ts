@@ -64,5 +64,5 @@ const shellAgent = {
 };
 
 const disableMouse = enableMouseTracking();
-const { waitUntilExit } = render(React.createElement(App, { bus, store, agent: shellAgent }));
+const { waitUntilExit } = render(React.createElement(App, { bus, store, agent: shellAgent, workspaceRoot: cfg.workspaceRoot }));
 waitUntilExit().then(disableMouse);

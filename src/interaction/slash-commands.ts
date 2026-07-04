@@ -16,6 +16,7 @@ export type CommandEffect =
   | { kind: "set-tier"; tier: "local" | "cloud" }
   | { kind: "activate-skill"; id: string }
   | { kind: "reset-context" }
+  | { kind: "init-workspace" }
   | { kind: "quit" }
   | { kind: "error"; text: string };
 
@@ -108,6 +109,12 @@ export function builtinCommands(): SlashCommandRegistry {
     description: "Browse skills, or activate one: /skills [id]",
     execute: (args) =>
       args.trim() ? { kind: "activate-skill", id: args.trim() } : { kind: "open-overlay", overlay: "skills" },
+  });
+  registry.register({
+    name: "init",
+    aliases: ["setup"],
+    description: "Create .devagent/ workspace config with defaults",
+    execute: () => ({ kind: "init-workspace" }),
   });
   registry.register({
     name: "quit",
