@@ -124,6 +124,19 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const pasteBufRef = useRef("");
   const pasteCountRef = useRef(0);
 
+  // Shared by both paste paths (bracketed-paste markers, and the plain
+  // useInput fallback below for terminals that don't emit them): collapse
+  // multi-line content into a "[Pasted text #N +K lines]" placeholder, but
+  // keep the real content right after it so submitPrompt still sends it in
+  // full. Single-line "pastes" are just appended — no placeholder needed.
+  const appendPasted = useCallback((prev: string, pasted: string): string => {
+    const lineCount = pasted.split("\n").length;
+    if (lineCount <= 1) return prev + pasted;
+    pasteCountRef.current += 1;
+    const prefix = prev ? prev + "\n" : "";
+    return `${prefix}[Pasted text #${pasteCountRef.current} +${lineCount} lines]\n${pasted}`;
+  }, []);
+
   // Detect bracketed paste markers on stdin.
   // Uses prependListener so our handler runs BEFORE Ink's — once pastingRef
   // is true, useInput bails out and lets this handler set the prompt directly.
@@ -145,16 +158,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           pasteBufRef.current += parts[0] ?? "";
           const pasted = pasteBufRef.current;
           pasteBufRef.current = "";
-          const lines = pasted.split("\n").length;
-          if (lines > 1) {
-            pasteCountRef.current += 1;
-            setPrompt((p) => {
-              const prefix = p ? p + "\n" : "";
-              return `${prefix}[Pasted text #${pasteCountRef.current} +${lines} lines]\n${pasted}`;
-            });
-          } else {
-            setPrompt((p) => p + pasted);
-          }
+          setPrompt((p) => appendPasted(p, pasted));
           buf = parts.slice(1).join("\x1b[201~");
           // Defer turning off pastingRef so any useInput callbacks queued
           // from INK's buffer see pastingRef.current = true and bail out.
@@ -441,7 +445,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       return;
     }
     if (input && !key.ctrl && !key.meta) {
-      setPrompt((p) => p + input.replace(/\r/g, ""));
+      // Real keystrokes arrive one character at a time; a chunk containing
+      // an embedded newline can only be a paste the terminal delivered
+      // without bracketed-paste markers (not all terminals emit them).
+      // Route it through the same placeholder-collapse as bracketed paste.
+      const cleaned = input.replace(/\r/g, "");
+      setPrompt((p) => (cleaned.includes("\n") ? appendPasted(p, cleaned) : p + cleaned));
       setCompletionIndex(0);
     }
   });

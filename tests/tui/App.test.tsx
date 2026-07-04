@@ -251,6 +251,20 @@ describe("App shell", () => {
     unmount();
   });
 
+  it("collapses a multi-line paste into a placeholder even without bracketed-paste markers", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    // Terminals that don't support/emit \x1b[200~..\x1b[201~ still deliver a
+    // paste as one chunk with embedded newlines through Ink's normal stdin —
+    // this must collapse the same way bracketed paste does.
+    stdin.write("line one\nline two\nline three");
+    await tick();
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("⏎ 3 lines");
+    expect(frame).toContain("[Pasted text #1 +3 lines]");
+    unmount();
+  });
+
   it("streaming state reaches conversation and strips", () => {
     const { lastFrame, unmount } = renderApp(120, 30, ({ bus }) => {
       bus.publish({ type: "conversation.message", role: "user", text: "implement login" });
