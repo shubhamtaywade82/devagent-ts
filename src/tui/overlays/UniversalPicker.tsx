@@ -101,12 +101,12 @@ export function UniversalPicker({
               {glyph}
               {item.label}
             </Text>
-            {item.detail && (
+            {item.detail ? (
               <Text color="gray" wrap="truncate">
                 {"  "}
                 {item.detail}
               </Text>
-            )}
+            ) : null}
           </Box>
         );
       })}

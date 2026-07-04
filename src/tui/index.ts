@@ -10,6 +10,14 @@ import { initialRuntimeState, Store } from "../runtime/store";
 import { wireAgentBridge, BridgeableAgent } from "./agent-bridge";
 import { App } from "./App";
 
+function enableMouseTracking(): () => void {
+  if (!process.stdin.isTTY) return () => {};
+  process.stdout.write("\x1b[?1000h\x1b[?1002h\x1b[?1006h");
+  return () => {
+    process.stdout.write("\x1b[?1006l\x1b[?1002l\x1b[?1000l");
+  };
+}
+
 function currentBranch(workspaceRoot: string): string {
   try {
     return execSync("git rev-parse --abbrev-ref HEAD", {
@@ -55,4 +63,6 @@ const shellAgent = {
   pinSkill: (id: string | null) => agent.pinSkill(id),
 };
 
-render(React.createElement(App, { bus, store, agent: shellAgent }));
+const disableMouse = enableMouseTracking();
+const { waitUntilExit } = render(React.createElement(App, { bus, store, agent: shellAgent }));
+waitUntilExit().then(disableMouse);
