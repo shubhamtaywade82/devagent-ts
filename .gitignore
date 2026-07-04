@@ -5,3 +5,4 @@ dist/
 .devagent_history
 .devagent
 !.devagent/skills/
+__pycache__

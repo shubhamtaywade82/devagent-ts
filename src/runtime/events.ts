@@ -10,6 +10,7 @@ import {
   ExecutionStep,
   GitState,
   LogLevel,
+  LspServerState,
   McpServerState,
   MemoryItem,
   RuntimeMode,
@@ -33,6 +34,8 @@ export type RuntimeEvent =
   | { type: "logs.appended"; level: LogLevel; source: string; message: string }
   | { type: "memory.updated"; items?: MemoryItem[]; summary?: string }
   | { type: "mcp.changed"; servers: McpServerState[] }
+  | { type: "lsp.changed"; servers: LspServerState[] }
+  | { type: "lsp.diagnostics"; path: string; count: number }
   | { type: "skills.changed"; skills: SkillState[] }
   | { type: "approval.requested"; request: ApprovalRequest }
   | { type: "approval.resolved"; id: string; approved: boolean }

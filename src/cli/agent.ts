@@ -27,6 +27,23 @@ import { PlanStep, Planner } from "../orchestrator/types";
 import { connectMcpServer } from "../mcp/client";
 import { SkillsRegistry } from "../skills/registry";
 import { SkillContent, SkillMeta } from "../skills/types";
+import { LspManager } from "../lsp/manager";
+import { LanguageRegistry } from "../lsp/registry";
+import type { LspServerState } from "../lsp/protocol";
+import {
+  GetDefinitionTool,
+  FindReferencesTool,
+  RenameSymbolTool,
+  WorkspaceSymbolsTool,
+  DocumentSymbolsTool,
+  HoverTool,
+  DiagnosticsTool,
+  CodeActionsTool,
+  FormatDocumentTool,
+  SignatureHelpTool,
+  CompletionTool,
+  SemanticTokensTool,
+} from "../tools/lsp-tools";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -38,6 +55,7 @@ export interface AgentEvents {
   onShellOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
   onMemorySummary?: (summary: string) => void;
   onSkillsActivated?: (skills: SkillMeta[]) => void;
+  onLspStateChange?: (servers: LspServerState[]) => void;
 }
 
 type AgentEventName = keyof AgentEvents;
@@ -62,6 +80,7 @@ export class Agent {
   readonly events: AgentEvents;
   private messages: ChatMessage[] = [];
   private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
+  readonly lspManager: LspManager;
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
@@ -103,6 +122,43 @@ export class Agent {
       .register(new RunFormatTool(cfg.workspaceRoot))
       .register(new RunBuildTool(cfg.workspaceRoot));
 
+    const langRegistry = new LanguageRegistry(
+      cfg.languages as Record<string, Partial<import("../lsp/registry").LanguageProviderConfig>> | undefined,
+    );
+    const lspConfig = cfg.lsp ?? {};
+    this.lspManager = new LspManager({
+      workspaceRoot: cfg.workspaceRoot,
+      registry: langRegistry,
+      lspConfig: lspConfig,
+      events: {
+        onDiagnostics: (filePath, diagnostics) => {
+          this.emit("onStatus", `diagnostics: ${filePath} (${diagnostics.length})`);
+        },
+        onServerStateChange: (servers) => {
+          this.emit("onLspStateChange", servers);
+        },
+      },
+    });
+
+    this.registry
+      .register(new GetDefinitionTool(this.lspManager))
+      .register(new FindReferencesTool(this.lspManager))
+      .register(new RenameSymbolTool(this.lspManager))
+      .register(new WorkspaceSymbolsTool(this.lspManager))
+      .register(new DocumentSymbolsTool(this.lspManager))
+      .register(new HoverTool(this.lspManager))
+      .register(new DiagnosticsTool(this.lspManager))
+      .register(new CodeActionsTool(this.lspManager))
+      .register(new FormatDocumentTool(this.lspManager))
+      .register(new SignatureHelpTool(this.lspManager))
+      .register(new CompletionTool(this.lspManager))
+      .register(new SemanticTokensTool(this.lspManager));
+
+    const prewarm = lspConfig.prewarm;
+    if (prewarm && prewarm.length > 0) {
+      this.lspManager.prewarm(prewarm).catch(() => {});
+    }
+
     const devagentDir = join(cfg.workspaceRoot, ".devagent");
     mkdirSync(devagentDir, { recursive: true });
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
@@ -128,7 +184,9 @@ export class Agent {
       "1) Call exactly one tool per assistant turn when appropriate.\n" +
       "2) If read_file returns `truncated`, that is a content ceiling, not an instruction to stop.\n" +
       "3) `PathEscapeError` means the path escaped the workspace root; fix the path and retry.\n" +
-      "4) After tool results, continue toward the user's stated goal with minimal next steps.";
+      "4) After tool results, continue toward the user's stated goal with minimal next steps.\n" +
+      "5) Semantic tools (get_definition, find_references, workspace_symbols, document_symbols, hover, diagnostics) provide structured code intelligence for supported file types. Prefer these over raw text search for code understanding.\n" +
+      "6) Use search_code / read_file as fallback when semantic tools are unavailable for a file type.";
 
     if (!this.messages.length) {
       this.messages = [{ role: "system", content: header }];

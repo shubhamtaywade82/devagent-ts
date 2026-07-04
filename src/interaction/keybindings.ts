@@ -3,7 +3,7 @@
  * context to a UiCommand — no Ink types, so it is fully unit-testable.
  *
  * Core contract:
- *   1–8       focus a view          Tab/Shift+Tab   next/previous view
+ *   1–9       focus a view          Tab/Shift+Tab   next/previous view
  *   Ctrl+P    command palette       Ctrl+B          actors overlay
  *   Ctrl+M    model switcher        Ctrl+F          search everywhere
  *   z         zoom active view      Esc             close overlay / cancel
@@ -75,7 +75,7 @@ export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiComm
   // Bare keys are global only when the user is not mid-typing.
   if (ctx.promptHasText || key.ctrl || key.meta) return null;
 
-  if (input >= "1" && input <= "8") {
+  if (input >= "1" && input <= "9") {
     const view = VIEW_ORDER[Number(input) - 1];
     return { type: "focus-view", view };
   }

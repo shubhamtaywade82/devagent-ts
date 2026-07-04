@@ -3,11 +3,11 @@ import { KeyContext, resolveKey } from "../../src/interaction/keybindings";
 const base: KeyContext = { overlay: null, promptHasText: false, mode: "idle" };
 
 describe("resolveKey", () => {
-  it("digits 1-8 focus views when the prompt is empty", () => {
+  it("digits 1-9 focus views when the prompt is empty", () => {
     expect(resolveKey("1", {}, base)).toEqual({ type: "focus-view", view: "conversation" });
     expect(resolveKey("2", {}, base)).toEqual({ type: "focus-view", view: "execution" });
     expect(resolveKey("8", {}, base)).toEqual({ type: "focus-view", view: "mcp" });
-    expect(resolveKey("9", {}, base)).toBeNull();
+    expect(resolveKey("9", {}, base)).toEqual({ type: "focus-view", view: "lsp" });
   });
 
   it("digits type into a non-empty prompt instead", () => {

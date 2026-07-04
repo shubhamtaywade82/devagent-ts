@@ -7,7 +7,7 @@
 
 /** The always-alive actors. Every subsystem is one of these. */
 export type ActorId =
-  "conversation" | "planner" | "executor" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "skills";
+  "conversation" | "planner" | "executor" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "skills" | "lsp";
 
 export const ACTOR_IDS: readonly ActorId[] = [
   "conversation",
@@ -20,6 +20,7 @@ export const ACTOR_IDS: readonly ActorId[] = [
   "models",
   "mcp",
   "skills",
+  "lsp",
 ];
 
 /** Semantic health of an actor, mapped 1:1 to theme colors. */
@@ -33,7 +34,7 @@ export interface ActorState {
 }
 
 /** The focusable views of the Active View zone. Focus never stops actors. */
-export type ViewId = "conversation" | "execution" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp";
+export type ViewId = "conversation" | "execution" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "lsp";
 
 export const VIEW_ORDER: readonly ViewId[] = [
   "conversation",
@@ -44,6 +45,7 @@ export const VIEW_ORDER: readonly ViewId[] = [
   "memory",
   "models",
   "mcp",
+  "lsp",
 ];
 
 /** Runtime mode drives the Context Strip contents. */
@@ -126,8 +128,14 @@ export interface SkillState {
   id: string;
   name: string;
   tags: string[];
-  /** True if this skill was injected into the most recent turn. */
   active: boolean;
+}
+
+export interface LspServerState {
+  language: string;
+  status: "starting" | "running" | "idle" | "stopped" | "error";
+  documentsCount: number;
+  errorCount: number;
 }
 
 export interface ApprovalRequest {
@@ -204,6 +212,7 @@ export interface RuntimeState {
   git: GitState;
   model: ModelState;
   mcpServers: McpServerState[];
+  lspServers: LspServerState[];
   skills: SkillState[];
   approval: ApprovalRequest | null;
   notifications: Notification[];
