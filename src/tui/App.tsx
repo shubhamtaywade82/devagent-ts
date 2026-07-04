@@ -531,7 +531,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         <ActivityStrip state={state} width={width} now={now} />
         <Box height={1}>
           <Text color="gray" dimColor>
-            {"─ ─ ─ ─ ─ ─ ─ ─"}
+            {"─".repeat(Math.max(0, width - 1))}
           </Text>
         </Box>
         <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
