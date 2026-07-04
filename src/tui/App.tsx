@@ -124,6 +124,34 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const pasteBufRef = useRef("");
   const pasteCountRef = useRef(0);
 
+  // Burst detection: some terminals split a multi-line paste into one
+  // "data" event PER LINE, each ending in a lone \r that Ink reads as a
+  // real Enter keypress — without this, every pasted line gets individually
+  // submitted as its own message before the user ever sees the full paste.
+  // No human presses Enter faster than FAST_INPUT_MS after the previous
+  // keystroke; anything faster is the terminal dumping a paste, so a fast
+  // Enter becomes a newline within the prompt instead of a submit.
+  const FAST_INPUT_MS = 20;
+  const BURST_IDLE_MS = 60;
+  const lastInputAtRef = useRef(0);
+  const burstActiveRef = useRef(false);
+  const burstStartPromptRef = useRef("");
+  const burstTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Snapshot of prompt right before the current "typing session" (any run of
+  // input with no long idle gap) began. A burst is only detected on its 2nd
+  // event (the first fast Enter), by which point the first line's plain
+  // characters already landed in `prompt` — anchoring to this instead of the
+  // live prompt at burst-detection time reaches back to include that first
+  // line in the eventual collapse too.
+  const sessionStartPromptRef = useRef("");
+
+  useEffect(
+    () => () => {
+      if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+    },
+    [],
+  );
+
   // Shared by both paste paths (bracketed-paste markers, and the plain
   // useInput fallback below for terminals that don't emit them): collapse
   // multi-line content into a "[Pasted text #N +K lines]" placeholder, but
@@ -136,6 +164,21 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     const prefix = prev ? prev + "\n" : "";
     return `${prefix}[Pasted text #${pasteCountRef.current} +${lineCount} lines]\n${pasted}`;
   }, []);
+
+  // Collapses whatever raw text a rapid-Enter burst added to the prompt
+  // (see FAST_INPUT_MS above) into the same placeholder as other paste
+  // paths, once the burst goes idle.
+  const finalizeBurst = useCallback(() => {
+    burstActiveRef.current = false;
+    burstTimerRef.current = null;
+    setPrompt((current) => {
+      const start = burstStartPromptRef.current;
+      if (!current.startsWith(start)) return current; // state diverged; leave it alone
+      const added = current.slice(start.length).replace(/^\n/, "");
+      if (added.split("\n").length <= 1) return current;
+      return appendPasted(start, added);
+    });
+  }, [appendPasted]);
 
   // Detect bracketed paste markers on stdin.
   // Uses prependListener so our handler runs BEFORE Ink's — once pastingRef
@@ -397,6 +440,11 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   useInput((input, key) => {
     if (pastingRef.current) return; // let the data handler manage paste content
 
+    const now = Date.now();
+    const gapSincePrev = now - lastInputAtRef.current;
+    lastInputAtRef.current = now;
+    if (gapSincePrev >= FAST_INPUT_MS) sessionStartPromptRef.current = prompt;
+
     const ctx = { overlay: ui.overlay, promptHasText: prompt.length > 0, mode: state.mode };
     const command = resolveKey(input, key, ctx);
     if (command) {
@@ -409,6 +457,25 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     if (key.return && key.shift) {
       setPrompt((p) => p + "\n");
       return;
+    }
+    if (key.return && gapSincePrev < FAST_INPUT_MS) {
+      // Too fast to be a deliberate keypress — the terminal is dumping a
+      // multi-line paste one line at a time. Treat as a newline within the
+      // paste, not a submit; collapse into a placeholder once it goes idle.
+      if (!burstActiveRef.current) {
+        burstActiveRef.current = true;
+        burstStartPromptRef.current = sessionStartPromptRef.current;
+      }
+      if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+      burstTimerRef.current = setTimeout(finalizeBurst, BURST_IDLE_MS);
+      setPrompt((p) => p + "\n");
+      return;
+    }
+    if (key.return && burstActiveRef.current) {
+      // A deliberate Enter arrived before the idle debounce fired — cancel
+      // the pending collapse and submit the raw (still fully correct) text.
+      if (burstTimerRef.current) clearTimeout(burstTimerRef.current);
+      burstActiveRef.current = false;
     }
     if (key.return) {
       submitPrompt(prompt);

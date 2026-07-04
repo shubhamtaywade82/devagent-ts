@@ -37,7 +37,10 @@ function renderApp(columns = 100, rows = 30, seed?: (world: ReturnType<typeof ma
   return { ...world, ...r };
 }
 
-const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
+// Above App's FAST_INPUT_MS (20ms) burst-paste-detection threshold — a real
+// human never sends two keystrokes within 20ms, but a same-tick 0ms test
+// helper would, and App would (correctly) mistake that for a paste burst.
+const tick = () => new Promise((resolve) => setTimeout(resolve, 25));
 
 describe("App shell", () => {
   it("renders all five permanent zones", () => {
@@ -262,6 +265,29 @@ describe("App shell", () => {
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("⏎ 3 lines");
     expect(frame).toContain("[Pasted text #1 +3 lines]");
+    unmount();
+  });
+
+  it("does not submit each line as its own message when a terminal splits a paste into per-line Enter events", async () => {
+    const { stdin, lastFrame, agent, unmount } = renderApp();
+    await tick();
+    // Some terminals deliver a multi-line paste as one "data" event PER
+    // LINE, each ending in a lone \r that Ink reads as a real Enter keypress
+    // — without burst detection every line would get submitted individually.
+    const lines = ["# DevAgent TS", "", "second line", "third line"];
+    for (const line of lines) {
+      stdin.write(line);
+      stdin.write("\r");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100)); // let the burst-idle debounce fire
+    expect(agent.calls).toEqual([]); // nothing submitted prematurely
+    const frame = stripAnsi(lastFrame() ?? "");
+    // each line's trailing \r appends its own newline, including the last
+    // one, so 4 pasted lines produce a 5th trailing empty segment
+    expect(frame).toContain("[Pasted text #1 +5 lines]");
+    stdin.write("\r"); // now submit for real
+    await tick();
+    expect(agent.calls).toEqual(["[Pasted text #1 +5 lines]\n# DevAgent TS\n\nsecond line\nthird line"]);
     unmount();
   });
 
