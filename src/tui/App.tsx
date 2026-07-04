@@ -460,8 +460,19 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             <ActiveView state={state} width={width} rows={contentRows} detail={detail} />
           )}
         </Box>
+        <Box height={1}>
+          <Text color="gray" dimColor>
+            {"─".repeat(Math.max(0, width - 1))}
+          </Text>
+        </Box>
         <ActivityStrip state={state} width={width} now={now} />
         <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
+        <Box height={1}>
+          <Text color="gray" dimColor>
+            {"─".repeat(Math.max(0, width - 1))}
+          </Text>
+        </Box>
+        <Box height={1} />
         <ContextStrip
           state={state}
           width={width}
