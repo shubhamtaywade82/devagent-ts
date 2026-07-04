@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { ChatEntry, RuntimeState } from "../../runtime/types";
 import { DetailLevel } from "../../layout/density";
-import { tail, wrapText } from "../../layout/truncate";
+import { tail } from "../../layout/truncate";
+import { renderMarkdown, RichLine, Span } from "../markdown";
 
 export interface ViewProps {
   state: RuntimeState;
@@ -19,18 +20,37 @@ const ROLE_STYLE: Record<ChatEntry["role"], { label: string; color: string }> = 
   system: { label: "sys", color: "gray" },
 };
 
+function RichText({ spans, role }: { spans: Span[]; role: ChatEntry["role"] }): JSX.Element {
+  return (
+    <Text wrap="truncate" color={role === "thinking" ? "gray" : undefined}>
+      {spans.map((s, j) => {
+        if (s.code) {
+          return <Text key={j} inverse>{` ${s.text} `}</Text>;
+        }
+        return (
+          <Text key={j} bold={s.bold} italic={s.italic}>
+            {s.text}
+          </Text>
+        );
+      })}
+    </Text>
+  );
+}
+
 /** Conversation: prompts, replies, tool summaries, approval requests. */
 export function ConversationView({ state, width, rows, detail }: ViewProps): JSX.Element {
   const [scrollOffset, setScrollOffset] = useState(0);
   const gutter = detail === "compact" ? 0 : 8;
   const bodyWidth = Math.max(10, width - gutter);
-  const lines: { role: ChatEntry["role"]; text: string; first: boolean }[] = [];
+  const lines: RichLine[] = [];
   for (const entry of state.conversation) {
     const body = detail === "compact" && entry.role === "thinking" ? "" : entry.text;
     if (!body) continue;
-    wrapText(body, bodyWidth).forEach((line, i) => {
-      lines.push({ role: entry.role, text: line, first: i === 0 });
-    });
+    const entryLines = renderMarkdown(body, entry.role, bodyWidth);
+    for (const rl of entryLines) {
+      if (lines.length === 0) rl.first = true;
+      lines.push(rl);
+    }
   }
   const maxOffset = Math.max(0, lines.length - rows);
   const clampedOffset = Math.min(scrollOffset, maxOffset);
@@ -71,7 +91,7 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
         <Text color="gray">No conversation yet — type below to begin.</Text>
       ) : (
         visible.map((line, i) => {
-          const style = ROLE_STYLE[line.role];
+          const style = ROLE_STYLE[line.role] ?? { label: "?", color: "gray" };
           return (
             <Box key={i} height={1}>
               {gutter > 0 && (
@@ -81,13 +101,8 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
                   </Text>
                 </Box>
               )}
-              <Text
-                wrap="truncate"
-                color={line.role === "thinking" ? "gray" : undefined}
-                italic={line.role === "thinking"}
-              >
-                {line.text}
-              </Text>
+              {line.indent ? <Box width={line.indent} /> : null}
+              <RichText spans={line.spans} role={line.role} />
             </Box>
           );
         })

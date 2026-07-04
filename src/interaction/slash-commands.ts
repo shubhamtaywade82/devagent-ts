@@ -115,12 +115,15 @@ export function builtinCommands(): SlashCommandRegistry {
     description: "Quit DevAgent",
     execute: () => ({ kind: "quit" }),
   });
+  registry.register(viewCommand("conversation", "conversation", "Focus the Conversation view"));
+  registry.register(viewCommand("chat", "conversation", "Focus the Conversation view"));
+  registry.register(viewCommand("execution", "execution", "Focus the Execution view"));
+  registry.register(viewCommand("status", "execution", "Focus the Execution view"));
   registry.register(viewCommand("logs", "logs", "Focus the Logs view"));
   registry.register(viewCommand("git", "git", "Focus the Git view"));
   registry.register(viewCommand("tasks", "tasks", "Focus the Tasks view"));
   registry.register(viewCommand("memory", "memory", "Focus the Memory view"));
   registry.register(viewCommand("models", "models", "Focus the Models view"));
   registry.register(viewCommand("mcp", "mcp", "Focus the MCP view"));
-  registry.register(viewCommand("status", "execution", "Focus the Execution view"));
   return registry;
 }

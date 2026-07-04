@@ -233,6 +233,7 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
         return;
       }
 
+      uiDispatch({ type: "focus-view", view: "conversation" });
       bus.publish({ type: "conversation.message", role: "user", text: trimmed });
       if (!agent) return;
       setBusy(true);
@@ -248,7 +249,7 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
           bus.publish({ type: "mode.changed", mode: "idle" });
         });
     },
-    [agent, applyEffect, bus, commandRegistry, history],
+    [agent, applyEffect, bus, commandRegistry, history, uiDispatch],
   );
 
   const handleCommand = useCallback(
