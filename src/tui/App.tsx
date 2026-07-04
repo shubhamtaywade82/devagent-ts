@@ -199,7 +199,13 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         if (buf.includes("\x1b[201~")) {
           const parts = buf.split("\x1b[201~");
           pasteBufRef.current += parts[0] ?? "";
-          const pasted = pasteBufRef.current;
+          // Some terminals encode pasted line breaks as bare \r (confirmed
+          // via DEVAGENT_DEBUG_STDIN capture) rather than \n. Normalize both
+          // \r\n and lone \r to \n so line counting/collapsing sees them —
+          // otherwise the raw \r survives into the prompt and, once actually
+          // written to a real terminal, repeatedly carriage-returns the
+          // cursor, leaving only the last segment visible on screen.
+          const pasted = pasteBufRef.current.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
           pasteBufRef.current = "";
           setPrompt((p) => appendPasted(p, pasted));
           buf = parts.slice(1).join("\x1b[201~");
@@ -513,10 +519,11 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     }
     if (input && !key.ctrl && !key.meta) {
       // Real keystrokes arrive one character at a time; a chunk containing
-      // an embedded newline can only be a paste the terminal delivered
-      // without bracketed-paste markers (not all terminals emit them).
-      // Route it through the same placeholder-collapse as bracketed paste.
-      const cleaned = input.replace(/\r/g, "");
+      // an embedded line break can only be a paste the terminal delivered
+      // without bracketed-paste markers (not all terminals emit them), and
+      // some encode that break as bare \r rather than \n — normalize (not
+      // strip) so it's still detected and collapses the same way.
+      const cleaned = input.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
       setPrompt((p) => (cleaned.includes("\n") ? appendPasted(p, cleaned) : p + cleaned));
       setCompletionIndex(0);
     }

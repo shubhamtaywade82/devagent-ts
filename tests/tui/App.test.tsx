@@ -291,6 +291,34 @@ describe("App shell", () => {
     unmount();
   });
 
+  it("collapses a real bracketed paste that uses \\r (not \\n) as its line separator", async () => {
+    // Exact byte sequence captured via DEVAGENT_DEBUG_STDIN from a real
+    // terminal session: bracketed-paste markers are present and correct,
+    // but the terminal encodes pasted line breaks as bare \r. Bracketed
+    // paste binds to the real process.stdin (not ink-testing-library's
+    // fake stdin), so this test drives that path directly.
+    const wasTTY = process.stdin.isTTY;
+    Object.defineProperty(process.stdin, "isTTY", { value: true, configurable: true });
+    const world = makeWorld();
+    const r = render(<App bus={world.bus} store={world.store} agent={world.agent} columns={100} rows={24} now={NOW} />);
+    await tick();
+
+    const raw = "# DevAgent TS\r\rA TypeScript developer agent framework...\r\r## Architecture\r\r```\rsrc/\r```\r";
+    process.stdin.emit("data", Buffer.from(`\x1b[200~${raw}\x1b[201~`));
+    await tick();
+
+    const frame = stripAnsi(r.lastFrame() ?? "");
+    expect(frame).toContain("[Pasted text #1 +10 lines]");
+
+    r.stdin.write("\r");
+    await tick();
+    expect(world.agent.calls[0]).toContain("# DevAgent TS");
+    expect(world.agent.calls[0]).toContain("## Architecture");
+
+    r.unmount();
+    Object.defineProperty(process.stdin, "isTTY", { value: wasTTY, configurable: true });
+  });
+
   it("streaming state reaches conversation and strips", () => {
     const { lastFrame, unmount } = renderApp(120, 30, ({ bus }) => {
       bus.publish({ type: "conversation.message", role: "user", text: "implement login" });

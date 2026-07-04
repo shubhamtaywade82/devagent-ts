@@ -35,7 +35,9 @@ function currentBranch(workspaceRoot: string): string {
 // Debug-only: dump every raw stdin chunk (as JSON-escaped text) to
 // .devagent/paste-debug.log when DEVAGENT_DEBUG_STDIN=1, registered before
 // anything else touches stdin so it sees genuinely raw terminal bytes.
-// Temporary — remove once paste behavior is confirmed across terminals.
+// Kept as a standing diagnostic — terminals disagree wildly on how they
+// encode paste/line-break bytes (see App.tsx's \r-vs-\n handling), and this
+// is the fastest way to root-cause the next one.
 if (process.env.DEVAGENT_DEBUG_STDIN === "1" && process.stdin.isTTY) {
   const debugDir = path.join(process.cwd(), ".devagent");
   mkdirSync(debugDir, { recursive: true });
