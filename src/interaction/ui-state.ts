@@ -7,7 +7,7 @@
 import { VIEW_ORDER, ViewId } from "../runtime/types";
 import { UiCommand } from "./keybindings";
 
-export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search";
+export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills";
 
 export interface UiState {
   activeView: ViewId;

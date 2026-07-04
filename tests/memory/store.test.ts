@@ -52,4 +52,33 @@ describe("MemoryStore", () => {
     expect(store2.recentMessages(10).map((m) => m.content)).toEqual(["persisted"]);
     store2.close();
   });
+
+  it("recordSkillUse inserts then increments use/success counts", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "mem-"));
+    const store = new MemoryStore(join(dir, "devagent.db"));
+
+    store.recordSkillUse("rails-api", true);
+    expect(store.getSkillUsage("rails-api")).toMatchObject({ skillId: "rails-api", useCount: 1, successCount: 1 });
+
+    store.recordSkillUse("rails-api", false);
+    expect(store.getSkillUsage("rails-api")).toMatchObject({ useCount: 2, successCount: 1 });
+
+    expect(store.getSkillUsage("never-used")).toBeUndefined();
+    store.close();
+  });
+
+  it("allSkillUsage round-trips every recorded skill", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "mem-"));
+    const store = new MemoryStore(join(dir, "devagent.db"));
+
+    store.recordSkillUse("a", true);
+    store.recordSkillUse("b", false);
+
+    const all = store.allSkillUsage().sort((x, y) => x.skillId.localeCompare(y.skillId));
+    expect(all).toMatchObject([
+      { skillId: "a", useCount: 1, successCount: 1 },
+      { skillId: "b", useCount: 1, successCount: 0 },
+    ]);
+    store.close();
+  });
 });

@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { SkillUsageStats } from "../skills/types";
 
 export interface StoredMessage {
   role: string;
@@ -22,6 +23,12 @@ export class MemoryStore {
       CREATE TABLE IF NOT EXISTS project_notes (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS skill_usage (
+        skill_id TEXT PRIMARY KEY,
+        use_count INTEGER NOT NULL DEFAULT 0,
+        success_count INTEGER NOT NULL DEFAULT 0,
+        last_used_at INTEGER
       );
     `);
   }
@@ -47,9 +54,49 @@ export class MemoryStore {
 
   getProjectNote(key: string): string | undefined {
     const row = this.db.prepare("SELECT value FROM project_notes WHERE key = ?").get(key) as
-      | { value: string }
-      | undefined;
+      { value: string } | undefined;
     return row?.value;
+  }
+
+  recordSkillUse(skillId: string, success: boolean): void {
+    this.db
+      .prepare(
+        `INSERT INTO skill_usage (skill_id, use_count, success_count, last_used_at)
+         VALUES (?, 1, ?, ?)
+         ON CONFLICT(skill_id) DO UPDATE SET
+           use_count = use_count + 1,
+           success_count = success_count + excluded.success_count,
+           last_used_at = excluded.last_used_at`,
+      )
+      .run(skillId, success ? 1 : 0, Date.now());
+  }
+
+  getSkillUsage(skillId: string): SkillUsageStats | undefined {
+    const row = this.db.prepare("SELECT * FROM skill_usage WHERE skill_id = ?").get(skillId) as
+      { skill_id: string; use_count: number; success_count: number; last_used_at: number | null } | undefined;
+    return row
+      ? {
+          skillId: row.skill_id,
+          useCount: row.use_count,
+          successCount: row.success_count,
+          lastUsedAt: row.last_used_at,
+        }
+      : undefined;
+  }
+
+  allSkillUsage(): SkillUsageStats[] {
+    const rows = this.db.prepare("SELECT * FROM skill_usage").all() as Array<{
+      skill_id: string;
+      use_count: number;
+      success_count: number;
+      last_used_at: number | null;
+    }>;
+    return rows.map((row) => ({
+      skillId: row.skill_id,
+      useCount: row.use_count,
+      successCount: row.success_count,
+      lastUsedAt: row.last_used_at,
+    }));
   }
 
   close(): void {

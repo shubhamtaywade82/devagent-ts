@@ -32,6 +32,16 @@ describe("activityStripTokens", () => {
     const texts = activityStripTokens(s).map((t) => t.text);
     expect(texts).toContain("Tok48k/71k");
   });
+
+  it("shows a skills token once a skill is active", () => {
+    let s = fresh();
+    s = reduce(s, {
+      type: "skills.changed",
+      skills: [{ id: "a", name: "A", tags: [], active: true }],
+    });
+    const texts = activityStripTokens(s).map((t) => t.text);
+    expect(texts).toContain("Skl1");
+  });
 });
 
 describe("contextStripTokens", () => {

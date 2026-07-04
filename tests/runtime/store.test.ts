@@ -129,6 +129,35 @@ describe("store reducer", () => {
     expect(s.logs.length).toBe(500);
     expect(s.logs[s.logs.length - 1].message).toBe("m599");
   });
+
+  describe("skills.changed", () => {
+    it("marks the actor muted with no skills at all", () => {
+      const s = reduce(fresh(), { type: "skills.changed", skills: [] });
+      expect(s.actors.skills).toMatchObject({ health: "muted", detail: "✓" });
+      expect(s.skills).toEqual([]);
+    });
+
+    it("marks the actor healthy when skills exist but none are active", () => {
+      const s = reduce(fresh(), {
+        type: "skills.changed",
+        skills: [{ id: "a", name: "A", tags: [], active: false }],
+      });
+      expect(s.actors.skills).toMatchObject({ health: "healthy", detail: "✓" });
+    });
+
+    it("marks the actor active and counts active skills", () => {
+      const s = reduce(fresh(), {
+        type: "skills.changed",
+        skills: [
+          { id: "a", name: "A", tags: [], active: true },
+          { id: "b", name: "B", tags: [], active: false },
+          { id: "c", name: "C", tags: [], active: true },
+        ],
+      });
+      expect(s.actors.skills).toMatchObject({ health: "active", detail: "2" });
+      expect(s.skills).toHaveLength(3);
+    });
+  });
 });
 
 describe("Store", () => {

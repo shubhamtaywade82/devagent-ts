@@ -6,7 +6,8 @@
  */
 
 /** The always-alive actors. Every subsystem is one of these. */
-export type ActorId = "conversation" | "planner" | "executor" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp";
+export type ActorId =
+  "conversation" | "planner" | "executor" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "skills";
 
 export const ACTOR_IDS: readonly ActorId[] = [
   "conversation",
@@ -18,6 +19,7 @@ export const ACTOR_IDS: readonly ActorId[] = [
   "memory",
   "models",
   "mcp",
+  "skills",
 ];
 
 /** Semantic health of an actor, mapped 1:1 to theme colors. */
@@ -120,6 +122,14 @@ export interface McpServerState {
   errors: number;
 }
 
+export interface SkillState {
+  id: string;
+  name: string;
+  tags: string[];
+  /** True if this skill was injected into the most recent turn. */
+  active: boolean;
+}
+
 export interface ApprovalRequest {
   id: string;
   title: string;
@@ -194,6 +204,7 @@ export interface RuntimeState {
   git: GitState;
   model: ModelState;
   mcpServers: McpServerState[];
+  skills: SkillState[];
   approval: ApprovalRequest | null;
   notifications: Notification[];
   lastError: string | null;

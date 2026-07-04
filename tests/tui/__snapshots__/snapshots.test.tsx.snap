@@ -22,7 +22,7 @@ Analyzing project structure and existing patterns...
 
 
 
-Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Tok48k/71k
+Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl·
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;
@@ -55,7 +55,7 @@ agent ▸ Analyzing project structure and existing patterns...
 
 
 
-Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Tok48k/71k
+Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ Tok48k/71k
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;
@@ -88,7 +88,7 @@ agent ▸ Analyzing project structure and existing patterns...
 
 
 
-Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Tok48k/71k
+Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ Tok48k/71k
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;
@@ -136,7 +136,7 @@ agent ▸ Analyzing project structure and existing patterns...
 
 
 
-Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Tok48k/71k
+Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ Tok48k/71k
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;
@@ -199,7 +199,7 @@ agent ▸ Analyzing project structure and existing patterns...
 
 
 
-Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Tok48k/71k
+Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ Tok48k/71k
 ❯
 Mode:NORMAL │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"
 `;

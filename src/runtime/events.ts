@@ -13,6 +13,7 @@ import {
   McpServerState,
   MemoryItem,
   RuntimeMode,
+  SkillState,
   Task,
 } from "./types";
 
@@ -32,6 +33,7 @@ export type RuntimeEvent =
   | { type: "logs.appended"; level: LogLevel; source: string; message: string }
   | { type: "memory.updated"; items?: MemoryItem[]; summary?: string }
   | { type: "mcp.changed"; servers: McpServerState[] }
+  | { type: "skills.changed"; skills: SkillState[] }
   | { type: "approval.requested"; request: ApprovalRequest }
   | { type: "approval.resolved"; id: string; approved: boolean }
   | { type: "execution.goal"; goal: string; steps: ExecutionStep[] }
