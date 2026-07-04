@@ -30,30 +30,13 @@ const store = new Store(
     workspace: path.basename(cfg.workspaceRoot),
     branch: currentBranch(cfg.workspaceRoot),
     model: cfg.model,
+    provider: cfg.tier,
   }),
 );
 store.attach(bus);
 
 const agent = new Agent({ config: cfg });
 
-// Model discovery for the Ctrl+M switcher — same endpoints the classic
-// CLI uses, kept off the Agent class since it is provider-plumbing only.
-async function listModels(): Promise<string[]> {
-  const base = cfg.host ?? process.env.OLLAMA_HOST ?? "http://localhost:11434";
-  const apiPath = cfg.tier === "cloud" ? "/v1/models" : "/api/tags";
-  try {
-    const resp = await fetch(`${base}${apiPath}`);
-    if (!resp.ok) return [];
-    if (cfg.tier === "cloud") {
-      const data = (await resp.json()) as { data?: Array<{ id: string }> };
-      return (data.data ?? []).map((m) => m.id);
-    }
-    const data = (await resp.json()) as { models?: Array<{ name: string }> };
-    return (data.models ?? []).map((m) => m.name);
-  } catch {
-    return [];
-  }
-}
 // Agent.on<E extends AgentEventName> is structurally compatible with
 // BridgeableAgent.on<E extends string> at runtime (the bridge only uses
 // event names Agent emits), but TypeScript's generic-method variance rules
@@ -64,8 +47,9 @@ wireAgentBridge(agent as unknown as BridgeableAgent, bus);
 const shellAgent = {
   runUserMessage: (message: string) => agent.runUserMessage(message),
   setModel: (model: string) => agent.setModel(model),
+  setTier: (tier: string) => agent.setTier(tier),
   resetContext: () => agent.resetContext(),
-  listModels,
+  listModels: () => agent.listModels(),
   validateModel: () => agent.validateModel(),
 };
 

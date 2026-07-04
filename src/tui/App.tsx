@@ -32,6 +32,7 @@ import { SearchEverywhere } from "./overlays/SearchEverywhere";
 export interface ShellAgent {
   runUserMessage(message: string): Promise<unknown>;
   setModel?(model: string): void;
+  setTier?(tier: string): void;
   resetContext?(): void;
   listModels?(): Promise<string[]>;
   /** Round-trips a real request through the new model; true, or an error string. */
@@ -176,6 +177,15 @@ export function App({ bus, store, agent, registry, columns, rows, now }: AppProp
             bus.publish({ type: "model.changed", name: previous });
             bus.publish({ type: "notification", kind: "error", text: `${effect.model} ${result}` });
           }
+          break;
+        }
+        case "set-tier": {
+          const previousTier = store.getState().model.provider;
+          if (effect.tier === previousTier) break;
+          agent?.setTier?.(effect.tier);
+          setModels(null); // invalidate the Ctrl+M cache — it belongs to the old tier
+          bus.publish({ type: "model.changed", name: store.getState().model.name, provider: effect.tier });
+          bus.publish({ type: "notification", kind: "success", text: `Tier: ${effect.tier}` });
           break;
         }
         case "reset-context":
