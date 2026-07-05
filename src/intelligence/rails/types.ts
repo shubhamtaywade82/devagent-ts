@@ -261,6 +261,12 @@ export interface Scanner {
   /** Whether a changed file belongs to this scanner (incremental updates). */
   appliesTo(relPath: string): boolean;
   scan(files: SourceFile[]): ScannerResult;
+  /**
+   * Optional executor that shells out to a Rails command (e.g.
+   * `bin/rails routes`) for higher-fidelity results. Only called when
+   * `RsiOptions.execRoutes` is true. Return null to indicate no-op.
+   */
+  exec?(root: string): Promise<ScannerResult | null>;
 }
 
 export interface EngineInfo {

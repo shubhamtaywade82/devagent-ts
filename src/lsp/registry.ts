@@ -28,6 +28,7 @@ export const BUILTIN_REGISTRY: LanguageProviderConfig[] = [
     extensions: [".rb", ".erb", ".rake", ".gemspec"],
     serverCommand: "ruby-lsp",
     serverArgs: ["--stdio"],
+    linter: "rubocop",
     testRunner: "rspec",
   },
   {

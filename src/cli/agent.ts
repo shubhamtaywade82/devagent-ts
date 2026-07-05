@@ -18,6 +18,8 @@ import { WatchTool } from "../tools/watch-tool";
 import { SearchCodeTool } from "../tools/search-tools";
 import { GitTool } from "../tools/git-tools";
 import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
+import { RunRubocopTool } from "../tools/rubocop-tool";
+import { RunRSpecTool } from "../tools/rspec-tool";
 import { LoopDetector } from "../orchestrator/loop-detector";
 import { MemoryStore } from "../memory/store";
 import { generateSummary } from "../memory/summarizer";
@@ -122,7 +124,9 @@ export class Agent {
       .register(new RunTestsTool(cfg.workspaceRoot))
       .register(new RunLintTool(cfg.workspaceRoot))
       .register(new RunFormatTool(cfg.workspaceRoot))
-      .register(new RunBuildTool(cfg.workspaceRoot));
+      .register(new RunBuildTool(cfg.workspaceRoot))
+      .register(new RunRubocopTool(cfg.workspaceRoot))
+      .register(new RunRSpecTool(cfg.workspaceRoot));
 
     const langRegistry = new LanguageRegistry(
       cfg.languages as Record<string, Partial<import("../lsp/registry").LanguageProviderConfig>> | undefined,
@@ -175,7 +179,14 @@ export class Agent {
     }
 
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
-    this.skills = SkillsRegistry.discover({ workspaceRoot: cfg.workspaceRoot, homeDir: opts.skillsHomeDir });
+    const projectLanguage = this.railsIndex.enabled
+      ? this.railsIndex.workspace.isRails
+        ? "ruby"
+        : this.railsIndex.workspace.isRuby
+          ? "ruby"
+          : undefined
+      : undefined;
+    this.skills = SkillsRegistry.discover({ workspaceRoot: cfg.workspaceRoot, homeDir: opts.skillsHomeDir }, projectLanguage);
   }
 
   /** Keep the Rails semantic index in sync after file-mutating tools. */

@@ -60,13 +60,27 @@ function loadGlobalConfig(): ConfigFile {
 
 function findWorkspaceRoot(cwd: string): string {
   if (process.env.DEVAGENT_WORKSPACE) return process.env.DEVAGENT_WORKSPACE;
+  const home = homedir();
   let dir = resolve(cwd);
   const root = resolve("/");
   while (dir !== root) {
-    if (existsSync(join(dir, ".devagent"))) return dir;
+    if (existsSync(join(dir, ".devagent")) && dir !== home) return dir;
     dir = resolve(dir, "..");
   }
   return cwd;
+}
+
+function loadWorkspaceConfig(root: string): ConfigFile {
+  const p = join(root, ".devagent", "config.json");
+  if (!existsSync(p)) return {};
+  try {
+    const raw = readFileSync(p, "utf8");
+    const parsed = JSON.parse(raw) as ConfigFile;
+    if (parsed && typeof parsed === "object") return parsed;
+  } catch {
+    // skip malformed config file
+  }
+  return {};
 }
 
 function loadAgentsFile(root: string): string {
@@ -83,7 +97,11 @@ function loadAgentsFile(root: string): string {
 }
 
 export function loadConfig(): CliConfig {
-  const file = loadGlobalConfig();
+  const workspaceRoot = findWorkspaceRoot(process.cwd());
+  const globalFile = loadGlobalConfig();
+  const workspaceFile = loadWorkspaceConfig(workspaceRoot);
+  // Workspace config overrides global, env vars override both
+  const file = { ...globalFile, ...workspaceFile };
   const fromEnv = (key: string) => process.env[key];
 
   const rawTimeout = fromEnv("DEVAGENT_TIMEOUT_MS") || String(file.timeoutMs ?? "");
@@ -91,7 +109,6 @@ export function loadConfig(): CliConfig {
   const rawShellTimeout = fromEnv("DEVAGENT_SHELL_TIMEOUT_SEC") || String(file.shellTimeoutSec ?? "");
   const shellTimeoutSec = rawShellTimeout && Number.isFinite(Number(rawShellTimeout)) ? Number(rawShellTimeout) : undefined;
 
-  const workspaceRoot = findWorkspaceRoot(process.cwd());
   const basePrompt = fromEnv("DEVAGENT_SYSTEM_PROMPT") || file.systemPrompt || DEFAULT_SYSTEM_PROMPT;
   const agentsMd = loadAgentsFile(workspaceRoot);
   const systemPrompt = agentsMd ? `${basePrompt}\n\n## Project Rules\n\n${agentsMd}` : basePrompt;

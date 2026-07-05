@@ -22,6 +22,8 @@ export interface SkillMeta {
   dir: string;
   /** Absolute path to SKILL.md itself. */
   path: string;
+  /** Optional programming language this skill targets (e.g. "python", "ruby"). */
+  language?: string;
 }
 
 export interface SkillContent extends SkillMeta {

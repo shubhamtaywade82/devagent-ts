@@ -5,6 +5,8 @@
  * verb routes, and root. Never requires a live Rails app.
  */
 
+import { spawn } from "node:child_process";
+import { join } from "node:path";
 import { RelationshipIntent, RouteEntity, Scanner, ScannerResult, SourceFile } from "../types";
 import { camelize, logicalLines, parseMacroArgs, parseSymbolList, singularize, unquote } from "./ruby-source";
 
@@ -42,6 +44,43 @@ export class RoutesScanner implements Scanner {
 
   appliesTo(relPath: string): boolean {
     return relPath === "config/routes.rb";
+  }
+
+  async exec(root: string): Promise<ScannerResult | null> {
+    const rows = await runRailsRoutes(root);
+    if (!rows) return null;
+
+    const entities: RouteEntity[] = [];
+    const intents: RelationshipIntent[] = [];
+
+    for (const row of rows) {
+      // Strip (.:format) suffix for a canonical path key
+      const cleanPath = row.path.replace(/\(\.:format\)/g, "").replace(/\/+$/, "") || "/";
+      const id = `route:${row.verb} ${cleanPath}`;
+
+      entities.push({
+        id,
+        type: "route",
+        name: `${row.verb} ${cleanPath}`,
+        file: "config/routes.rb",
+        line: 0,
+        verb: row.verb,
+        path: cleanPath,
+        controller: row.controller,
+        action: row.action,
+        routeName: row.prefix || undefined,
+      });
+
+      intents.push({
+        fromId: id,
+        relationship: "routes_to",
+        toType: "controller",
+        toName: `${camelize(row.controller)}Controller`,
+        meta: { action: row.action },
+      });
+    }
+
+    return { entities, intents };
   }
 
   scan(files: SourceFile[]): ScannerResult {
@@ -220,4 +259,48 @@ function pluralizeSegment(segment: string): string {
   if (/(?:x|ch|sh|ss|s|z)$/.test(segment)) return `${segment}es`;
   if (/[^aeiou]y$/.test(segment)) return `${segment.slice(0, -1)}ies`;
   return `${segment}s`;
+}
+
+interface RailsRouteRow {
+  prefix: string;
+  verb: string;
+  path: string;
+  controller: string;
+  action: string;
+}
+
+// Matches bin/rails routes output lines:
+//   [prefix_spaces](prefix)?[spaces]VERB[spaces]URI_PATTERN[spaces]CONTROLLER#ACTION
+const ROUTE_LINE_RE = /^\s*(?:(\S+)\s+)?(GET|POST|PATCH|PUT|DELETE)\s+(\S+)\s+(.+)$/;
+
+async function runRailsRoutes(root: string): Promise<RailsRouteRow[] | null> {
+  return new Promise((resolvePromise) => {
+    const child = spawn("bundle", ["exec", "bin/rails", "routes"], {
+      cwd: root,
+      timeout: 30_000,
+      env: { ...process.env, RAILS_ENV: "production" },
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (c: Buffer) => (stdout += c.toString()));
+    child.stderr.on("data", (c: Buffer) => (stderr += c.toString()));
+    child.on("close", (code) => {
+      if (code !== 0) {
+        resolvePromise(null);
+        return;
+      }
+      const rows: RailsRouteRow[] = [];
+      for (const line of stdout.split("\n")) {
+        if (line.trim().length === 0) continue;
+        const m = ROUTE_LINE_RE.exec(line);
+        if (!m) continue;
+        const [, prefix, verb, path, caPart] = m;
+        const caMatch = /^([^#]+)#(.+)$/.exec(caPart);
+        if (!caMatch) continue;
+        rows.push({ prefix: prefix ?? "", verb, path, controller: caMatch[1], action: caMatch[2] });
+      }
+      resolvePromise(rows.length > 0 ? rows : null);
+    });
+    child.on("error", () => resolvePromise(null));
+  });
 }

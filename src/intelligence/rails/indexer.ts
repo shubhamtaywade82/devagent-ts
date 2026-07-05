@@ -168,6 +168,22 @@ export class SemanticIndex {
         }
       }
 
+      // Optional exec-based scanning (e.g. `bin/rails routes`)
+      if (this.options.execRoutes) {
+        for (const scanner of this.scanners) {
+          if (!scanner.exec) continue;
+          try {
+            const result = await scanner.exec(this.root);
+            if (result) {
+              for (const entity of result.entities) this.graph.addEntity(entity);
+              this.intents.push(...result.intents);
+            }
+          } catch (err) {
+            this.scannerErrors.push({ scanner: scanner.name, error: `exec failed: ${err}` });
+          }
+        }
+      }
+
       this.resolveIntents();
       this.saveCache();
 
@@ -210,6 +226,25 @@ export class SemanticIndex {
           this.intents.push(...result.intents);
         } catch (err) {
           this.scannerErrors.push({ scanner: scanner.name, error: String(err) });
+        }
+      }
+    }
+
+    // Re-run exec-scanners if any relevant file changed (e.g. routes.rb → bin/rails routes)
+    if (this.options.execRoutes) {
+      const execRelevant = relevant.some((p) => this.scanners.some((s) => s.exec && s.appliesTo(p)));
+      if (execRelevant) {
+        for (const scanner of this.scanners) {
+          if (!scanner.exec) continue;
+          try {
+            const result = await scanner.exec(this.root);
+            if (result) {
+              for (const entity of result.entities) this.graph.addEntity(entity);
+              this.intents.push(...result.intents);
+            }
+          } catch (err) {
+            this.scannerErrors.push({ scanner: scanner.name, error: `exec failed: ${err}` });
+          }
         }
       }
     }
