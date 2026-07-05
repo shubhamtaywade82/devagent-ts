@@ -1,0 +1,155 @@
+import { ChildProcess } from "node:child_process";
+import { LspClient } from "./client";
+import { LanguageProviderConfig } from "./registry";
+import { LspCapabilities, deriveCapabilities, NO_CAPABILITIES } from "./capabilities";
+import { pathToUri } from "./protocol";
+import type { Diagnostic, ServerCapabilities } from "vscode-languageserver-protocol";
+
+export class LspServerSession {
+  readonly workspacePath: string;
+  readonly provider: LanguageProviderConfig;
+  client: LspClient | null = null;
+  process: ChildProcess | null = null;
+  capabilities: LspCapabilities = NO_CAPABILITIES;
+  status: "starting" | "running" | "stopped" | "error" = "starting";
+  readonly openDocuments = new Map<string, { uri: string; version: number }>();
+  readonly cachedDiagnostics = new Map<string, Diagnostic[]>();
+  startTime = 0;
+  lastActivity = 0;
+  errorCount = 0;
+
+  onDiagnostics?: (uri: string, diagnostics: Diagnostic[]) => void;
+  onStatus?: (status: "starting" | "running" | "stopped" | "error") => void;
+  onError?: (error: Error) => void;
+
+  constructor(workspacePath: string, provider: LanguageProviderConfig) {
+    this.workspacePath = workspacePath;
+    this.provider = provider;
+  }
+
+  get id(): string {
+    return `${this.workspacePath}:${this.provider.id}`;
+  }
+
+  async start(): Promise<void> {
+    this.startTime = Date.now();
+    this.status = "starting";
+    this.onStatus?.("starting");
+
+    const client = new LspClient({
+      command: this.provider.serverCommand,
+      args: this.provider.serverArgs,
+      cwd: this.workspacePath,
+    });
+
+    client.on("error", (err: Error) => {
+      this.errorCount++;
+      this.onError?.(err);
+    });
+
+    client.on("exit", (code: number | null) => {
+      if (this.status !== "stopped") {
+        this.status = "error";
+        this.errorCount++;
+        this.onStatus?.("error");
+        this.onError?.(new Error(`LSP server exited unexpectedly with code ${code ?? "signal"}`));
+      }
+    });
+
+    client.on("notification", (method: string, params: unknown) => {
+      if (method === "textDocument/publishDiagnostics") {
+        const p = params as { uri: string; diagnostics: Diagnostic[] };
+        this.cachedDiagnostics.set(p.uri, p.diagnostics);
+        this.onDiagnostics?.(p.uri, p.diagnostics);
+      }
+    });
+
+    this.client = client;
+
+    try {
+      await client.start();
+
+      const rootUri = pathToUri(this.workspacePath, ".");
+      const result = (await client.initialize(rootUri)) as { capabilities?: ServerCapabilities };
+
+      if (result.capabilities) {
+        this.capabilities = deriveCapabilities(result.capabilities);
+      }
+
+      client.initialized();
+      this.status = "running";
+      this.lastActivity = Date.now();
+      this.onStatus?.("running");
+    } catch (err) {
+      this.status = "error";
+      this.errorCount++;
+      this.onStatus?.("error");
+      this.onError?.(err instanceof Error ? err : new Error(String(err)));
+      throw err;
+    }
+  }
+
+  async stop(): Promise<void> {
+    this.status = "stopped";
+    this.onStatus?.("stopped");
+    this.openDocuments.clear();
+
+    if (this.client) {
+      try {
+        await this.client.shutdown();
+      } catch {
+        // ignore
+      }
+      this.client.exit();
+      this.client = null;
+    }
+  }
+
+  async openDocument(filePath: string, text: string): Promise<void> {
+    if (!this.client || this.status !== "running") return;
+    const uri = pathToUri(this.workspacePath, filePath);
+    this.openDocuments.set(uri, { uri, version: 1 });
+    this.client.didOpen(uri, text, this.provider.language);
+    this.lastActivity = Date.now();
+  }
+
+  async changeDocument(filePath: string, text: string, version?: number): Promise<void> {
+    if (!this.client || this.status !== "running") return;
+    const uri = pathToUri(this.workspacePath, filePath);
+    const doc = this.openDocuments.get(uri);
+    const nextVersion = version ?? (doc ? doc.version + 1 : 1);
+    this.openDocuments.set(uri, { uri, version: nextVersion });
+    this.client.didChange(uri, nextVersion, [{ text }]);
+    this.lastActivity = Date.now();
+  }
+
+  async closeDocument(filePath: string): Promise<void> {
+    if (!this.client || this.status !== "running") return;
+    const uri = pathToUri(this.workspacePath, filePath);
+    this.openDocuments.delete(uri);
+    this.cachedDiagnostics.delete(uri);
+    this.client.didClose(uri);
+    this.lastActivity = Date.now();
+  }
+
+  isIdle(timeoutMs: number): boolean {
+    return Date.now() - this.lastActivity > timeoutMs;
+  }
+
+  get diagnosticsCount(): number {
+    let count = 0;
+    for (const diags of this.cachedDiagnostics.values()) {
+      count += diags.length;
+    }
+    return count;
+  }
+
+  get state(): { language: string; status: string; documentsCount: number; errorCount: number } {
+    return {
+      language: this.provider.language,
+      status: this.status,
+      documentsCount: this.openDocuments.size,
+      errorCount: this.errorCount,
+    };
+  }
+}

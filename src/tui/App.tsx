@@ -24,6 +24,7 @@ import { LogsView } from "./views/LogsView";
 import { MemoryView } from "./views/MemoryView";
 import { ModelsView } from "./views/ModelsView";
 import { McpView } from "./views/McpView";
+import { LspView } from "./views/LspView";
 import { CommandPalette } from "./overlays/CommandPalette";
 import { HelpOverlay } from "./overlays/HelpOverlay";
 import { ActorsOverlay } from "./overlays/ActorsOverlay";
@@ -66,6 +67,7 @@ const VIEWS: Record<ViewId, (props: ViewProps) => JSX.Element> = {
   memory: MemoryView,
   models: ModelsView,
   mcp: McpView,
+  lsp: LspView,
 };
 
 const VIEW_LABELS: Record<ViewId, string> = {
@@ -77,6 +79,7 @@ const VIEW_LABELS: Record<ViewId, string> = {
   memory: "Memory",
   models: "Models",
   mcp: "MCP",
+  lsp: "LSP",
 };
 
 function useTerminalSize(columns?: number, rows?: number): { width: number; height: number } {

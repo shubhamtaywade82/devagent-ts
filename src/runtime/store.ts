@@ -78,6 +78,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
       contextLimit: opts.contextLimit ?? 0,
     },
     mcpServers: [],
+    lspServers: [],
     skills: [],
     approval: null,
     notifications: [],
@@ -222,6 +223,25 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       return withActor({ ...state, mcpServers: event.servers }, "mcp", {
         health: event.servers.length === 0 ? "muted" : anyDown ? "error" : "healthy",
         detail: anyDown ? "✗" : "✓",
+      });
+    }
+    case "lsp.changed": {
+      const servers = event.servers;
+      const anyError = servers.some((s) => s.status === "error");
+      const anyRunning = servers.some((s) => s.status === "running");
+      const detail = servers
+        .filter((s) => s.status === "running")
+        .map((s) => s.language.slice(0, 2))
+        .join(" ");
+      return withActor({ ...state, lspServers: servers }, "lsp", {
+        health: servers.length === 0 ? "muted" : anyError ? "error" : anyRunning ? "healthy" : "waiting",
+        detail: detail || "—",
+      });
+    }
+    case "lsp.diagnostics": {
+      return withActor({ ...state }, "lsp", {
+        health: event.count > 0 ? "waiting" : "healthy",
+        detail: event.count > 0 ? `${event.count}✗` : state.actors.lsp.detail,
       });
     }
     case "skills.changed": {

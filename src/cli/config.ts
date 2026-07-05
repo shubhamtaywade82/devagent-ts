@@ -2,6 +2,18 @@ import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
+export interface LanguageOverride {
+  enabled?: boolean;
+  serverCommand?: string;
+  serverArgs?: string[];
+}
+
+export interface LspCliConfig {
+  idleTimeoutMs?: number;
+  maxServers?: number;
+  prewarm?: string[];
+}
+
 export interface CliConfig {
   model: string;
   workspaceRoot: string;
@@ -12,6 +24,8 @@ export interface CliConfig {
   systemPrompt?: string;
   shellImage?: string;
   shellTimeoutSec?: number;
+  languages?: Record<string, LanguageOverride>;
+  lsp?: LspCliConfig;
 }
 
 interface ConfigFile {
