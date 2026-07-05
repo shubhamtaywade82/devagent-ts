@@ -2948,3 +2948,31 @@ Key Design Decisions
 3. Tool surface area: Each find_* function becomes an LLM-callable tool via tools/registry.ts, so the planner can query without file reads.
 4. Context budget: The context builder targets ≤1500 tokens for typical Rails queries (route + controller + model + associations + relevant specs).
 Does this plan align with what you had in mind? I'm ready to start with Milestone 1 (Workspace Discovery + core types) when you are.
+---
+
+# Implementation Status (2026-07-05)
+
+Implemented on branch `feat/rails-semantic-index` at `src/intelligence/rails/`. All five milestones are complete; `npm run build`, `npm test` (320 tests / 55 suites), and `npm run lint` are green.
+
+| Milestone | Status | Delivered |
+|---|---|---|
+| M1 Foundation | ✅ | `types.ts`, `scanners/ruby-source.ts` (line-based Ruby DSL parser: comment/heredoc stripping, continuation joining, class/module nesting, inflection), `workspace-discovery.ts`, `manifest.ts` (stat-only freshness hash), `graph/graph.ts` (typed entities/edges, name/type/file indexes, BFS `traverse`, `removeByFile`) |
+| M2 Core scanners + indexer | ✅ | gem (Gemfile.lock), schema (db/schema.rb), model (associations/validations/callbacks/scopes/concerns, `class_name:`/`through:`/polymorphic, `self.table_name`), controller (actions/before_actions/rescue_from/concerns), routes (static routes.rb parser: resources/resource with only/except, namespace, scope, member/collection, nested `:parent_id` params, explicit verbs, root). `indexer.ts` orchestrates: scanner isolation (one failure never kills the build), two-pass intent resolution (scanner order irrelevant; unresolved intents kept as dangling diagnostics) |
+| M3 Query + context + tools + wiring | ✅ | `query-engine.ts` (findModel/findController/findService/findRoute with `:param` matching, routesFor, findAssociations/findCallbacks/findSpecs, traceDependency, search), `context-builder.ts` (~1200-token budgeted markdown context from a task description), 9 LLM tools (`find_model`, `find_route`, `find_controller`, `find_service`, `find_spec`, `find_association`, `find_callback`, `rails_context`, `rails_index_status`) registered in `src/cli/agent.ts`; non-Rails workspaces get a disabled index whose tools return `{ enabled: false }` at zero cost |
+| M4 Remaining scanners | ✅ | service (public methods, `.call` convention, calls/enqueues/delivers intents), job (queue_as, perform args), mailer (actions, default from), policy (Pundit permissions, `authorizes`), concern (ActiveSupport::Concern macros), rspec (subject/type/example counts, `tested_by`), migration (timestamp, operations, table links) |
+| M5 Persistence + incremental + events | ✅ | `graph/graph-store.ts` (better-sqlite3 at `.devagent/rails-index.db`: nodes/edges/intents/meta, single-transaction save, load-if-fresh via manifest hash — warm starts skip scanning), `indexer.update(changedFiles)` (removeByFile → rescan → re-resolve intents → persist), agent feeds updates after file-mutating tools (`write_file`, `patch_file`, ...), `rails.index` runtime event + `RuntimeState.rails` |
+
+## Design decisions vs. the original sketch
+
+- **Line/regex Ruby parsing, not tree-sitter** — no native-build dependency; the `Scanner` interface keeps a tree-sitter swap possible later.
+- **Static routes.rb parsing is primary**; `bin/rails routes` execution is available behind `RsiOptions.execRoutes` as a future enhancement (never required).
+- Entity interfaces live in `types.ts` (single type module, matching codebase convention) rather than an `entities/` directory.
+- Storage layers (`storage/cache.ts` + `storage/semantic-graph.ts`) are folded into `graph/graph-store.ts` — one sqlite file holds graph + intents + freshness meta.
+
+## Remaining future enhancements (out of scope, tracked here)
+
+- View/component scanner (ERB, ViewComponent, Phlex)
+- `bin/rails routes` exec merge path (flag exists, exec not implemented)
+- Engine-namespace-aware autoloading boundaries
+- RuboCop/RSpec run-loop integration in the planner
+- Generic `SemanticIndexer` abstraction for other ecosystems (Phase 15)

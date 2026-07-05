@@ -1,8 +1,22 @@
 import { IntelligenceRouter } from "./router";
 import { FileContext } from "./provider";
+import type { RailsContextBuilder } from "./rails/context-builder";
 
 export class SemanticContextBuilder {
-  constructor(private readonly intelligence: IntelligenceRouter) {}
+  constructor(
+    private readonly intelligence: IntelligenceRouter,
+    private readonly railsContext?: RailsContextBuilder,
+  ) {}
+
+  /**
+   * Build task-level context: Rails semantic context (when the workspace is
+   * a Rails app) prepended to nothing else for now — callers combine it with
+   * per-file context as needed.
+   */
+  buildTaskContext(request: string): string {
+    if (!this.railsContext) return "";
+    return this.railsContext.buildContext(request).text;
+  }
 
   async buildFileContext(filePath: string): Promise<FileContext> {
     return this.intelligence.buildFileContext(filePath);

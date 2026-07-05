@@ -180,3 +180,23 @@ describe("Store", () => {
     expect(calls).toBe(0);
   });
 });
+
+describe("rails.index event", () => {
+  it("stores rails index state", () => {
+    let s = fresh();
+    s = reduce(s, {
+      type: "rails.index",
+      status: "ready",
+      entityCount: 42,
+      edgeCount: 17,
+      scannerErrors: ["model: boom"],
+    });
+    expect(s.rails).toEqual({ status: "ready", entityCount: 42, edgeCount: 17, scannerErrors: ["model: boom"] });
+  });
+
+  it("defaults missing counts to zero", () => {
+    let s = fresh();
+    s = reduce(s, { type: "rails.index", status: "building" });
+    expect(s.rails).toEqual({ status: "building", entityCount: 0, edgeCount: 0, scannerErrors: [] });
+  });
+});

@@ -244,6 +244,17 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         detail: event.count > 0 ? `${event.count}✗` : state.actors.lsp.detail,
       });
     }
+    case "rails.index": {
+      return {
+        ...state,
+        rails: {
+          status: event.status,
+          entityCount: event.entityCount ?? 0,
+          edgeCount: event.edgeCount ?? 0,
+          scannerErrors: event.scannerErrors ?? [],
+        },
+      };
+    }
     case "skills.changed": {
       const anyActive = event.skills.some((s) => s.active);
       return withActor({ ...state, skills: event.skills }, "skills", {

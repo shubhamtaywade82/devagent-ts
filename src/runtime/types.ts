@@ -197,6 +197,13 @@ export interface Notification {
 }
 
 /** The complete runtime state. Rendering maps this to terminal output. */
+export interface RailsIndexState {
+  status: "building" | "ready" | "updated" | "disabled" | "error";
+  entityCount: number;
+  edgeCount: number;
+  scannerErrors: string[];
+}
+
 export interface RuntimeState {
   session: SessionState;
   mode: RuntimeMode;
@@ -213,6 +220,7 @@ export interface RuntimeState {
   model: ModelState;
   mcpServers: McpServerState[];
   lspServers: LspServerState[];
+  rails?: RailsIndexState;
   skills: SkillState[];
   approval: ApprovalRequest | null;
   notifications: Notification[];

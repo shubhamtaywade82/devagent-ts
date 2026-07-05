@@ -36,6 +36,14 @@ export type RuntimeEvent =
   | { type: "mcp.changed"; servers: McpServerState[] }
   | { type: "lsp.changed"; servers: LspServerState[] }
   | { type: "lsp.diagnostics"; path: string; count: number }
+  | {
+      type: "rails.index";
+      status: "building" | "ready" | "updated" | "disabled" | "error";
+      entityCount?: number;
+      edgeCount?: number;
+      scannerErrors?: string[];
+      durationMs?: number;
+    }
   | { type: "skills.changed"; skills: SkillState[] }
   | { type: "approval.requested"; request: ApprovalRequest }
   | { type: "approval.resolved"; id: string; approved: boolean }
