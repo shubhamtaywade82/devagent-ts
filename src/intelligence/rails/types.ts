@@ -19,7 +19,9 @@ export type EntityType =
   | "policy"
   | "concern"
   | "spec"
-  | "migration";
+  | "migration"
+  | "view"
+  | "component";
 
 export type RelationshipType =
   | "belongs_to"
@@ -35,7 +37,11 @@ export type RelationshipType =
   | "delivers"
   | "authorizes"
   | "defined_in_migration"
-  | "depends_on_gem";
+  | "depends_on_gem"
+  | "renders_view"
+  | "renders_partial"
+  | "references_model"
+  | "renders_component";
 
 /** Base shape shared by every node in the knowledge graph. */
 export interface RsiEntity {
@@ -193,6 +199,31 @@ export interface MigrationEntity extends RsiEntity {
   operations: string[];
 }
 
+export type ViewFormat = "erb" | "haml" | "slim" | "builder" | "view_component" | "phlex";
+
+export interface ViewEntity extends RsiEntity {
+  type: "view" | "component";
+  viewFormat: ViewFormat;
+  /** Response format (html, json, xml, text, js, css). */
+  format: string;
+  /** Inferred controller name (CamelCase, e.g. `Users`), undefined for layouts/partials. */
+  controller?: string;
+  /** Inferred action name, undefined for partials. */
+  action?: string;
+  /** Partial template names referenced via `render`. */
+  referencedPartials: string[];
+  /** Component class names referenced via `render XxxComponent.new(...)`. */
+  referencedComponents: string[];
+  /** Model names referenced via `@user`, `User.all`, etc. */
+  referencedModels: string[];
+  /** Helper method names called in the template. */
+  referencedHelpers: string[];
+  /** For component files: the component class name. */
+  componentClass?: string;
+  /** For component files: conventional template path. */
+  template?: string;
+}
+
 /**
  * A relationship expressed by name before the target entity is known to
  * exist. Resolved to an Edge by the indexer once all scanners have run.
@@ -277,7 +308,9 @@ export type ManifestCategory =
   | "migrations"
   | "routes"
   | "schema"
-  | "gemfileLock";
+  | "gemfileLock"
+  | "views"
+  | "components";
 
 export interface ScannerError {
   scanner: string;

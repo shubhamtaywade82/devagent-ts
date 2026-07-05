@@ -6,7 +6,7 @@
  */
 
 import { QueryEngine } from "./query-engine";
-import { ControllerEntity, ModelEntity, RouteEntity, RsiEntity, TableEntity, WorkspaceInfo } from "./types";
+import { ControllerEntity, ModelEntity, RouteEntity, RsiEntity, TableEntity, ViewEntity, WorkspaceInfo } from "./types";
 import { KnowledgeGraph } from "./graph/graph";
 
 export interface RailsContext {
@@ -98,6 +98,9 @@ export class RailsContextBuilder {
         return this.modelSection(entity as ModelEntity);
       case "controller":
         return this.genericSection(entity, controllerDetails(entity));
+      case "view":
+      case "component":
+        return this.viewSection(entity as ViewEntity);
       default:
         return this.genericSection(entity, []);
     }
@@ -125,6 +128,34 @@ export class RailsContextBuilder {
     const specs = this.query.findSpecs(model.name);
     if (specs.length) {
       lines.push(`- specs: ${specs.map((s) => s.file).join(", ")}`);
+    }
+    const views = this.graph.edgesTo(model.id, "references_model")
+      .map((e) => this.graph.getEntity(e.from))
+      .filter((e): e is ViewEntity => e?.type === "view" || e?.type === "component");
+    if (views.length) {
+      lines.push(`- referenced in: ${views.map((v) => v.file).join(", ")}`);
+    }
+    return lines.join("\n");
+  }
+
+  private viewSection(view: ViewEntity): string {
+    const tag = view.type === "component" ? "Component" : "View";
+    const lines = [`## ${tag} ${view.name} (${view.file}:${view.line})`];
+    lines.push(`- format: ${view.viewFormat} (${view.format})`);
+    if (view.controller && view.action) {
+      lines.push(`- serves \`${view.controller}#${view.action}\``);
+    }
+    if (view.referencedPartials.length) {
+      lines.push(`- partials: ${view.referencedPartials.join(", ")}`);
+    }
+    if (view.referencedComponents.length) {
+      lines.push(`- components: ${view.referencedComponents.join(", ")}`);
+    }
+    if (view.referencedModels.length) {
+      lines.push(`- models: ${view.referencedModels.join(", ")}`);
+    }
+    if (view.componentClass) {
+      lines.push(`- class: ${view.componentClass}`);
     }
     return lines.join("\n");
   }

@@ -14,6 +14,7 @@ import {
   RsiEntity,
   ServiceEntity,
   SpecEntity,
+  ViewEntity,
 } from "./types";
 
 export interface DependencyTrace {
@@ -37,6 +38,23 @@ export class QueryEngine {
 
   findService(name: string): ServiceEntity | undefined {
     return this.graph.findByName(name, "service")[0] as ServiceEntity | undefined;
+  }
+
+  findView(name: string): ViewEntity | undefined {
+    const direct = this.graph.findByName(name, "view")[0] as ViewEntity | undefined;
+    if (direct) return direct;
+    // Try matching by relPath pattern (e.g. "users/index" or "app/views/users/index.html.erb").
+    return this.graph.findByName(name, "component")[0] as ViewEntity | undefined;
+  }
+
+  /** Views that serve a given controller (via renders_view edges). */
+  viewsFor(controllerName: string): ViewEntity[] {
+    const controller = this.findController(controllerName);
+    if (!controller) return [];
+    return this.graph
+      .edgesFrom(controller.id, "renders_view")
+      .map((e) => this.graph.getEntity(e.to))
+      .filter((e): e is ViewEntity => e?.type === "view");
   }
 
   /** Find a route by path (exact or `:param`-pattern match) and optional verb. */

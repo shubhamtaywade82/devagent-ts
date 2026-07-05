@@ -10,6 +10,8 @@ import { ManifestCategory, ManifestFile, WorkspaceInfo, WorkspaceManifest } from
 
 const SKIP_DIRS = new Set(["node_modules", "vendor", "tmp", "log", ".git", "public", "storage"]);
 
+const VIEW_EXTS = new Set([".erb", ".haml", ".slim", ".builder"]);
+
 function collectRubyFiles(root: string, dir: string, out: ManifestFile[]): void {
   let entries: string[];
   try {
@@ -29,6 +31,34 @@ function collectRubyFiles(root: string, dir: string, out: ManifestFile[]): void 
     if (stat.isDirectory()) {
       collectRubyFiles(root, full, out);
     } else if (entry.endsWith(".rb")) {
+      out.push({
+        relPath: relative(root, full).split(sep).join("/"),
+        mtimeMs: stat.mtimeMs,
+        size: stat.size,
+      });
+    }
+  }
+}
+
+function collectViewFiles(root: string, dir: string, out: ManifestFile[]): void {
+  let entries: string[];
+  try {
+    entries = readdirSync(dir);
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (SKIP_DIRS.has(entry)) continue;
+    const full = join(dir, entry);
+    let stat;
+    try {
+      stat = statSync(full);
+    } catch {
+      continue;
+    }
+    if (stat.isDirectory()) {
+      collectViewFiles(root, full, out);
+    } else if (VIEW_EXTS.has(entry.slice(entry.lastIndexOf(".")))) {
       out.push({
         relPath: relative(root, full).split(sep).join("/"),
         mtimeMs: stat.mtimeMs,
@@ -58,6 +88,8 @@ const CATEGORY_DIRS: Partial<Record<ManifestCategory, string[]>> = {
   concerns: ["app/models/concerns", "app/controllers/concerns"],
   specs: ["spec"],
   migrations: ["db/migrate"],
+  views: ["app/views"],
+  components: ["app/components"],
 };
 
 export function buildManifest(info: WorkspaceInfo): WorkspaceManifest {
@@ -68,7 +100,11 @@ export function buildManifest(info: WorkspaceInfo): WorkspaceManifest {
     const roots = [info.root, ...info.engines.map((e) => join(info.root, e.path))];
     for (const base of roots) {
       for (const dir of CATEGORY_DIRS[category] ?? []) {
-        collectRubyFiles(info.root, join(base, dir), files);
+        if (category === "views") {
+          collectViewFiles(info.root, join(base, dir), files);
+        } else {
+          collectRubyFiles(info.root, join(base, dir), files);
+        }
       }
     }
     categories[category] = files;

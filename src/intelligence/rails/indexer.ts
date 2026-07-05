@@ -27,6 +27,7 @@ import { RoutesScanner } from "./scanners/routes-scanner";
 import { RspecScanner } from "./scanners/rspec-scanner";
 import { SchemaScanner } from "./scanners/schema-scanner";
 import { ServiceScanner } from "./scanners/service-scanner";
+import { ViewScanner } from "./scanners/view-scanner";
 import { discoverWorkspace } from "./workspace-discovery";
 import {
   IndexStatus,
@@ -53,6 +54,7 @@ const SCANNER_CATEGORIES: Record<string, ManifestCategory[]> = {
   concern: ["concerns"],
   rspec: ["specs"],
   migration: ["migrations"],
+  view: ["views", "components"],
 };
 
 export class SemanticIndex {
@@ -97,6 +99,7 @@ export class SemanticIndex {
       new ConcernScanner(),
       new RspecScanner(),
       new MigrationScanner(),
+      new ViewScanner(),
     ];
   }
 
