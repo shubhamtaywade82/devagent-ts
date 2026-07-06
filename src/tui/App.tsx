@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventBus } from "../runtime/events";
 import { Store } from "../runtime/store";
-import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types";
+import { RuntimeState, ViewId } from "../runtime/types";
 import { activeViewRows, densityForWidth, detailForDensity } from "../layout/density";
 import { resolveKey, UiCommand } from "../interaction/keybindings";
 import { initialUiState, uiReduce } from "../interaction/ui-state";
@@ -79,23 +79,6 @@ const VIEWS: Record<ViewId, (props: ViewProps) => JSX.Element> = {
   context: ContextInspectorView,
   rails: RailsView,
   timeline: ToolTimelineView,
-};
-
-const VIEW_LABELS: Record<ViewId, string> = {
-  conversation: "Conversation",
-  execution: "Execution",
-  tasks: "Tasks",
-  git: "Git",
-  logs: "Logs",
-  memory: "Memory",
-  models: "Models",
-  mcp: "MCP",
-  lsp: "LSP",
-  files: "Files",
-  settings: "Settings",
-  context: "Context",
-  rails: "Rails",
-  timeline: "Timeline",
 };
 
 function useTerminalSize(columns?: number, rows?: number): { width: number; height: number } {
