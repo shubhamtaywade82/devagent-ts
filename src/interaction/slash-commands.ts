@@ -17,6 +17,10 @@ export type CommandEffect =
   | { kind: "activate-skill"; id: string }
   | { kind: "reset-context" }
   | { kind: "init-workspace" }
+  | { kind: "set-agent-mode"; mode: string }
+  | { kind: "run-shell"; command: string }
+  | { kind: "search" }
+  | { kind: "next-mode" }
   | { kind: "quit" }
   | { kind: "error"; text: string };
 
@@ -132,5 +136,103 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register(viewCommand("memory", "memory", "Focus the Memory view"));
   registry.register(viewCommand("models", "models", "Focus the Models view"));
   registry.register(viewCommand("mcp", "mcp", "Focus the MCP view"));
+  registry.register(viewCommand("files", "files", "Focus the File Explorer view"));
+  registry.register(viewCommand("explorer", "files", "Focus the File Explorer view"));
+  registry.register(viewCommand("settings", "settings", "Focus the Settings view"));
+  registry.register(viewCommand("config", "settings", "Focus the Settings view"));
+  registry.register(viewCommand("context", "context", "Focus the Context Inspector view"));
+  registry.register(viewCommand("rails", "rails", "Focus the Rails project view"));
+  registry.register(viewCommand("timeline", "timeline", "Focus the Tool Timeline view"));
+  registry.register({
+    name: "mode",
+    aliases: [],
+    description: "Switch agent mode: /mode [ask|code|architect|review|debug|autonomous]",
+    execute: (args) => {
+      const valid = ["ask", "code", "architect", "review", "debug", "autonomous"];
+      const mode = args.trim().toLowerCase();
+      if (mode && !valid.includes(mode)) {
+        return { kind: "error", text: "Usage: /mode [ask|code|architect|review|debug|autonomous]" };
+      }
+      return mode ? { kind: "set-agent-mode", mode } : { kind: "next-mode" };
+    },
+  });
+  registry.register({
+    name: "search",
+    aliases: ["find"],
+    description: "Search conversation, logs, files, and commands",
+    execute: () => ({ kind: "search" }),
+  });
+  registry.register({
+    name: "plan",
+    aliases: [],
+    description: "Generate a plan: /plan [task description]",
+    execute: (args) =>
+      args.trim()
+        ? { kind: "message", text: `Create a plan to: ${args}` }
+        : { kind: "error", text: "Usage: /plan <task description>" },
+  });
+  registry.register({
+    name: "commit",
+    aliases: [],
+    description: "Stage and commit changes with AI-generated message: /commit [message]",
+    execute: (args) =>
+      args.trim()
+        ? { kind: "message", text: `Stage all and commit with message: ${args}` }
+        : { kind: "message", text: "Stage all changes and create an appropriate commit message" },
+  });
+  registry.register({
+    name: "review",
+    aliases: [],
+    description: "Review the current code changes",
+    execute: () => ({ kind: "message", text: "Review all uncommitted code changes for quality, security, and best practices" }),
+  });
+  registry.register({
+    name: "fix",
+    aliases: ["repair"],
+    description: "Fix failing tests or issues: /fix [description]",
+    execute: (args) =>
+      args.trim()
+        ? { kind: "message", text: `Fix the following issue: ${args}` }
+        : { kind: "message", text: "Find and fix any failing tests or linting issues" },
+  });
+  registry.register({
+    name: "test",
+    aliases: ["spec"],
+    description: "Run tests: /test [path]",
+    execute: (args) =>
+      args.trim()
+        ? { kind: "message", text: `Run tests at ${args}` }
+        : { kind: "message", text: "Run the test suite and report results" },
+  });
+  registry.register({
+    name: "run",
+    aliases: [],
+    description: "Run a shell command: /run <command>",
+    execute: (args) =>
+      args.trim()
+        ? { kind: "run-shell", command: args.trim() }
+        : { kind: "error", text: "Usage: /run <command>" },
+  });
+  registry.register({
+    name: "explain",
+    aliases: ["why"],
+    description: "Explain code or an error: /explain [what]",
+    execute: (args) =>
+      args.trim()
+        ? { kind: "message", text: `Explain: ${args}` }
+        : { kind: "error", text: "Usage: /explain <what to explain>" },
+  });
+  registry.register({
+    name: "undo",
+    aliases: [],
+    description: "Undo the last change",
+    execute: () => ({ kind: "message", text: "Undo the last change that was applied" }),
+  });
+  registry.register({
+    name: "redo",
+    aliases: [],
+    description: "Redo the last undone change",
+    execute: () => ({ kind: "message", text: "Redo the last undone change" }),
+  });
   return registry;
 }

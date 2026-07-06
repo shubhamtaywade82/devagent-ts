@@ -50,7 +50,7 @@ describe("App shell", () => {
     expect(frame).toContain("1 Conversation"); // active view title
     expect(frame).toContain("Chat"); // activity strip
     expect(frame).toContain("❯"); // prompt
-    expect(frame).toContain("Mode:NORMAL"); // context strip
+    expect(frame).toContain("Mode:Code"); // context strip
     unmount();
   });
 

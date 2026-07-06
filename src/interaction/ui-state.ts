@@ -7,7 +7,7 @@
 import { VIEW_ORDER, ViewId } from "../runtime/types";
 import { UiCommand } from "./keybindings";
 
-export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills";
+export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode";
 
 export interface UiState {
   activeView: ViewId;
@@ -40,7 +40,13 @@ export function uiReduce(state: UiState, command: UiCommand): UiState {
     case "toggle-zoom":
       return { ...state, zoom: !state.zoom };
     case "view-diff":
-      return { ...state, overlay: "diff" };
+      return { ...state, overlay: state.overlay === "diff" ? null : "diff" };
+    case "clear-conversation":
+      return state; // handled by App.tsx
+    case "open-mode":
+      return { ...state, overlay: "mode" };
+    case "next-mode":
+      return state; // handled by App.tsx
     case "cancel":
       return state;
     default:

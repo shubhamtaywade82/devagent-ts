@@ -25,11 +25,17 @@ import { MemoryView } from "./views/MemoryView";
 import { ModelsView } from "./views/ModelsView";
 import { McpView } from "./views/McpView";
 import { LspView } from "./views/LspView";
+import { FileExplorerView } from "./views/FileExplorerView";
+import { SettingsView } from "./views/SettingsView";
+import { ContextInspectorView } from "./views/ContextInspectorView";
+import { RailsView } from "./views/RailsView";
+import { ToolTimelineView } from "./views/ToolTimelineView";
 import { CommandPalette } from "./overlays/CommandPalette";
 import { HelpOverlay } from "./overlays/HelpOverlay";
 import { ActorsOverlay } from "./overlays/ActorsOverlay";
 import { ApprovalOverlay } from "./overlays/ApprovalOverlay";
 import { ModelSwitcher } from "./overlays/ModelSwitcher";
+import { ModeSwitcher } from "./overlays/ModeSwitcher";
 import { SearchEverywhere } from "./overlays/SearchEverywhere";
 import { SkillsOverlay } from "./overlays/SkillsOverlay";
 import { SkillsRegistry } from "../skills/registry";
@@ -68,6 +74,11 @@ const VIEWS: Record<ViewId, (props: ViewProps) => JSX.Element> = {
   models: ModelsView,
   mcp: McpView,
   lsp: LspView,
+  files: FileExplorerView,
+  settings: SettingsView,
+  context: ContextInspectorView,
+  rails: RailsView,
+  timeline: ToolTimelineView,
 };
 
 const VIEW_LABELS: Record<ViewId, string> = {
@@ -80,6 +91,11 @@ const VIEW_LABELS: Record<ViewId, string> = {
   models: "Models",
   mcp: "MCP",
   lsp: "LSP",
+  files: "Files",
+  settings: "Settings",
+  context: "Context",
+  rails: "Rails",
+  timeline: "Timeline",
 };
 
 function useTerminalSize(columns?: number, rows?: number): { width: number; height: number } {
@@ -369,6 +385,41 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           agent?.resetContext?.();
           bus.publish({ type: "notification", kind: "info", text: "Context reset" });
           break;
+        case "set-agent-mode": {
+          const valid = ["ask", "code", "architect", "review", "debug", "autonomous"];
+          if (valid.includes(effect.mode)) {
+            bus.publish({ type: "mode.agent", mode: effect.mode as any });
+            bus.publish({ type: "notification", kind: "info", text: `Mode: ${effect.mode}` });
+          }
+          break;
+        }
+        case "run-shell": {
+          bus.publish({ type: "conversation.message", role: "user", text: `Run: ${effect.command}` });
+          if (agent) {
+            setBusy(true);
+            bus.publish({ type: "mode.changed", mode: "streaming" });
+            agent.runUserMessage(`Run the following shell command and show me the output:\n\n${effect.command}`)
+              .catch(() => {})
+              .finally(() => {
+                setBusy(false);
+                bus.publish({ type: "model.streaming", streaming: false });
+                bus.publish({ type: "mode.changed", mode: "idle" });
+              });
+          }
+          break;
+        }
+        case "search":
+          uiDispatch({ type: "open-overlay", overlay: "search" });
+          break;
+        case "next-mode": {
+          const modeList = ["ask", "code", "architect", "review", "debug", "autonomous"];
+          const current = store.getState().agentMode;
+          const idx = modeList.indexOf(current);
+          const next = modeList[(idx + 1) % modeList.length];
+          bus.publish({ type: "mode.agent", mode: next as any });
+          bus.publish({ type: "notification", kind: "info", text: `Mode: ${next}` });
+          break;
+        }
         case "quit":
           exit();
           break;
@@ -432,6 +483,21 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             });
           }
           if (ui.overlay === "diff") uiDispatch({ type: "close-overlay" });
+          return;
+        }
+        case "clear-conversation":
+          bus.publish({ type: "conversation.clear" });
+          return;
+        case "open-mode":
+          uiDispatch(command);
+          return;
+        case "next-mode": {
+          const modes: Array<RuntimeState["agentMode"]> = ["ask", "code", "architect", "review", "debug", "autonomous"];
+          const current = store.getState().agentMode;
+          const idx = modes.indexOf(current);
+          const next = modes[(idx + 1) % modes.length];
+          bus.publish({ type: "mode.agent", mode: next });
+          bus.publish({ type: "notification", kind: "info", text: `Mode: ${next}` });
           return;
         }
         case "cancel":
@@ -592,6 +658,18 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
               onSelect={(view) => {
                 uiDispatch({ type: "close-overlay" });
                 uiDispatch({ type: "focus-view", view });
+              }}
+            />
+          ) : ui.overlay === "mode" ? (
+            <ModeSwitcher
+              current={state.agentMode}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(mode) => {
+                uiDispatch({ type: "close-overlay" });
+                bus.publish({ type: "mode.agent", mode });
+                bus.publish({ type: "notification", kind: "info", text: `Mode: ${mode}` });
               }}
             />
           ) : ui.overlay === "skills" ? (

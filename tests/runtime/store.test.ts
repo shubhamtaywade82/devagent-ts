@@ -21,7 +21,7 @@ describe("store reducer", () => {
     s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "he" });
     s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "llo" });
     expect(s.conversation).toHaveLength(2);
-    expect(s.conversation[1]).toMatchObject({ role: "assistant", text: "hello" });
+    expect(s.conversation[1]).toMatchObject({ kind: "text", role: "assistant", text: "hello" });
     expect(s.actors.conversation.health).toBe("active");
   });
 

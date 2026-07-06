@@ -5,7 +5,9 @@
  */
 
 import {
+  AgentMode,
   ApprovalRequest,
+  CardItem,
   ChatRole,
   ExecutionStep,
   GitState,
@@ -16,12 +18,21 @@ import {
   RuntimeMode,
   SkillState,
   Task,
+  TestFailure,
+  ToolCallStatus,
 } from "./types";
 
 export type RuntimeEvent =
   | { type: "conversation.message"; role: ChatRole; text: string }
   | { type: "conversation.chunk"; role: "assistant" | "thinking"; chunk: string }
   | { type: "conversation.clear" }
+  | { type: "conversation.plan"; goal: string; steps: ExecutionStep[]; status: "pending" | "running" | "completed" }
+  | { type: "conversation.decision"; options: string[]; selected: string; reason: string; confidence: number }
+  | { type: "conversation.tool_call"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string }
+  | { type: "conversation.diff"; filePath: string; diff: string; status: "pending_review" | "approved" | "rejected" }
+  | { type: "conversation.test_result"; command: string; passed: number; failed: number; failures: TestFailure[]; durationMs: number }
+  | { type: "conversation.card"; title: string; status: "running" | "completed" | "failed"; items: CardItem[] }
+  | { type: "conversation.card_item"; title: string; label: string; status: CardItem["status"]; detail?: string }
   | { type: "task.created"; task: Task }
   | { type: "task.progress"; taskId: string; status: Task["status"]; progress?: number }
   | { type: "tool.started"; id: string; name: string; args: Record<string, unknown> }
@@ -52,6 +63,7 @@ export type RuntimeEvent =
   | { type: "execution.queue"; queue: string[]; etaSeconds?: number }
   | { type: "execution.reasoning"; text: string }
   | { type: "mode.changed"; mode: RuntimeMode }
+  | { type: "mode.agent"; mode: AgentMode }
   | { type: "status.changed"; status: string }
   | { type: "notification"; text: string; kind: "info" | "success" | "warning" | "error" }
   | { type: "error"; message: string };

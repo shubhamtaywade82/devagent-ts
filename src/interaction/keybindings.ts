@@ -5,9 +5,14 @@
  * Core contract:
  *   1–9       focus a view          Tab/Shift+Tab   next/previous view
  *   Ctrl+P    command palette       Ctrl+B          actors overlay
- *   Ctrl+M    model switcher        Ctrl+F          search everywhere
- *   z         zoom active view      Esc             close overlay / cancel
- *   ?         help                  q               quit
+ *   Ctrl+M    model switcher        Ctrl+E          mode switcher
+ *   Ctrl+F    search everywhere     Ctrl+K          semantic search (same as Ctrl+F)
+ *   Ctrl+L    clear conversation    Ctrl+D          view diff
+ *   Ctrl+G    focus Git view        z               zoom active view
+ *   Esc       close overlay / cancel  ?             help
+ *   q         quit                  F1              help
+ *   F2        switch model          F3              switch mode
+ *   F5        refresh / reindex
  *
  * Changing focus never stops background actors.
  */
@@ -42,7 +47,10 @@ export type UiCommand =
   | { type: "quit" }
   | { type: "approve" }
   | { type: "reject" }
-  | { type: "view-diff" };
+  | { type: "view-diff" }
+  | { type: "clear-conversation" }
+  | { type: "open-mode" }
+  | { type: "next-mode" };
 
 export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiCommand | null {
   // Escape always wins: close overlay first, otherwise cancel current action.
@@ -55,6 +63,12 @@ export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiComm
   if (key.ctrl && input === "b") return { type: "open-overlay", overlay: "actors" };
   if (key.ctrl && input === "m") return { type: "open-overlay", overlay: "model" };
   if (key.ctrl && input === "f") return { type: "open-overlay", overlay: "search" };
+  if (key.ctrl && input === "k") return { type: "open-overlay", overlay: "search" };
+  if (key.ctrl && input === "l") return { type: "clear-conversation" };
+  if (key.ctrl && input === "d") return { type: "view-diff" };
+  if (key.ctrl && input === "g") return { type: "focus-view", view: "git" };
+  if (key.ctrl && input === "e") return { type: "open-mode" };
+  if (key.ctrl && input === "t") return { type: "focus-view", view: "tasks" };
 
   // Tab cycles views only when the prompt is empty — while typing it
   // belongs to the prompt (ghost-text / completion accept).

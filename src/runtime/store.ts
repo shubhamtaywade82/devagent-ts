@@ -50,6 +50,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
       startedAt: Date.now(),
     },
     mode: "idle",
+    agentMode: "code",
     status: "",
     actors,
     conversation: [],
@@ -96,10 +97,10 @@ function withActor(state: RuntimeState, id: ActorId, patch: Partial<Omit<ActorSt
 
 function appendChunk(conversation: ChatEntry[], role: "assistant" | "thinking", chunk: string): ChatEntry[] {
   const last = conversation[conversation.length - 1];
-  if (last && last.role === role) {
+  if (last && last.kind === "text" && last.role === role) {
     return conversation.slice(0, -1).concat({ ...last, text: last.text + chunk });
   }
-  return bounded([...conversation, { role, text: chunk, at: Date.now() }], MAX_CONVERSATION);
+  return bounded([...conversation, { kind: "text", role, text: chunk, at: Date.now() }], MAX_CONVERSATION);
 }
 
 function taskDetail(tasks: Task[]): string {
@@ -110,7 +111,7 @@ function taskDetail(tasks: Task[]): string {
 export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   switch (event.type) {
     case "conversation.message": {
-      const entry: ChatEntry = { role: event.role, text: sanitizeText(event.text), at: Date.now() };
+      const entry: ChatEntry = { kind: "text", role: event.role, text: sanitizeText(event.text), at: Date.now() };
       return withActor(
         { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
         "conversation",
@@ -123,6 +124,123 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
     }
     case "conversation.clear":
       return { ...state, conversation: [] };
+    case "conversation.plan": {
+      const entry: ChatEntry = {
+        kind: "plan",
+        role: "assistant",
+        steps: event.steps,
+        status: event.status,
+        at: Date.now(),
+      };
+      return withActor(
+        { ...state, execution: { ...state.execution, goal: event.goal, steps: event.steps }, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        "planner",
+        { health: event.status === "running" ? "thinking" : "healthy", detail: event.status === "running" ? "▶" : "✓" },
+      );
+    }
+    case "conversation.decision": {
+      const entry: ChatEntry = {
+        kind: "decision",
+        role: "assistant",
+        options: event.options,
+        selected: event.selected,
+        reason: event.reason,
+        confidence: event.confidence,
+        at: Date.now(),
+      };
+      return withActor(
+        { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        "planner",
+        { health: "healthy", detail: "✓" },
+      );
+    }
+    case "conversation.tool_call": {
+      const entry: ChatEntry = {
+        kind: "tool_call",
+        role: "assistant",
+        id: event.id,
+        name: event.name,
+        args: event.args,
+        status: event.status,
+        result: event.result,
+        error: event.error,
+        at: Date.now(),
+      };
+      const toolCalls = state.toolCalls.filter((t) => t.id !== event.id);
+      const actorHealth = event.status === "failed" ? "error" : event.status === "running" ? "active" : "healthy";
+      return withActor(
+        {
+          ...state,
+          conversation: bounded([...state.conversation, entry], MAX_CONVERSATION),
+          execution: { ...state.execution, activeTool: event.status === "running" ? event.name : state.execution.activeTool },
+        },
+        "executor",
+        { health: actorHealth, detail: event.status === "running" ? "▶" : event.status === "failed" ? "✗" : "✓" },
+      );
+    }
+    case "conversation.diff": {
+      const entry: ChatEntry = {
+        kind: "diff_preview",
+        role: "assistant",
+        filePath: event.filePath,
+        diff: event.diff,
+        status: event.status,
+        at: Date.now(),
+      };
+      return withActor(
+        { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        "executor",
+        { health: "healthy", detail: "✓" },
+      );
+    }
+    case "conversation.test_result": {
+      const entry: ChatEntry = {
+        kind: "test_result",
+        role: "assistant",
+        command: event.command,
+        passed: event.passed,
+        failed: event.failed,
+        failures: event.failures,
+        durationMs: event.durationMs,
+        at: Date.now(),
+      };
+      const actorHealth = event.failed > 0 ? "error" : "healthy";
+      return withActor(
+        { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        "executor",
+        { health: actorHealth, detail: event.failed > 0 ? `✗${event.failed}` : "✓" },
+      );
+    }
+    case "conversation.card": {
+      const entry: ChatEntry = {
+        kind: "card",
+        role: "assistant",
+        title: event.title,
+        status: event.status,
+        items: event.items,
+        at: Date.now(),
+      };
+      return withActor(
+        { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        "tasks",
+        { health: event.status === "running" ? "active" : "healthy", detail: event.status === "running" ? "▶" : "✓" },
+      );
+    }
+    case "conversation.card_item": {
+      const last = state.conversation[state.conversation.length - 1];
+      if (last && last.kind === "card" && last.title === event.title) {
+        const updatedItems = last.items.map((item) =>
+          item.label === event.label ? { ...item, status: event.status, detail: event.detail ?? item.detail } : item,
+        );
+        const updatedEntry: ChatEntry = { ...last, items: updatedItems };
+        return withActor(
+          { ...state, conversation: bounded([...state.conversation.slice(0, -1), updatedEntry], MAX_CONVERSATION) },
+          "tasks",
+          { health: event.status === "running" ? "active" : "healthy", detail: event.status as string },
+        );
+      }
+      return state;
+    }
     case "task.created": {
       const tasks = [...state.tasks.filter((t) => t.id !== event.task.id), event.task];
       return withActor({ ...state, tasks }, "tasks", { health: "active", detail: taskDetail(tasks) });
@@ -302,6 +420,8 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       return { ...state, execution: { ...state.execution, reasoning: sanitizeText(event.text) } };
     case "mode.changed":
       return { ...state, mode: event.mode };
+    case "mode.agent":
+      return { ...state, agentMode: event.mode };
     case "status.changed":
       return { ...state, status: event.status };
     case "notification": {
