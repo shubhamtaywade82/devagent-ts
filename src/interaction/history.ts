@@ -1,7 +1,14 @@
 /**
  * Prompt history: deduplicated, navigable with Up/Down, preserving the
  * draft the user was typing before they started browsing history.
+ *
+ * Persisted to disk so history survives restarts. The file path is
+ * resolved relative to `historyFile` if given, or `.devagent/history.json`
+ * inside the runtime cwd.
  */
+
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 
 export class HistoryManager {
   private entries: string[] = [];
@@ -12,8 +19,39 @@ export class HistoryManager {
   constructor(
     initial: string[] = [],
     private readonly max = 200,
+    private readonly historyFile?: string,
   ) {
     for (const entry of initial) this.add(entry);
+  }
+
+  /** Load persisted history from disk and merge with the in-memory entries. */
+  load(): void {
+    if (!this.historyFile) return;
+    try {
+      const raw = readFileSync(this.historyFile, "utf-8");
+      const saved: unknown = JSON.parse(raw);
+      if (Array.isArray(saved)) {
+        for (const entry of saved) {
+          if (typeof entry === "string" && !this.entries.includes(entry)) {
+            this.entries.push(entry);
+          }
+        }
+      }
+    } catch {
+      // File doesn't exist yet or is corrupt — start fresh.
+    }
+  }
+
+  /** Persist current history to disk. */
+  private save(): void {
+    if (!this.historyFile) return;
+    try {
+      const dir = dirname(this.historyFile);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(this.historyFile, JSON.stringify(this.entries, null, 2), "utf-8");
+    } catch {
+      // Best-effort: don't crash if write fails.
+    }
   }
 
   all(): string[] {
@@ -27,6 +65,7 @@ export class HistoryManager {
     if (this.entries.length > this.max) this.entries = this.entries.slice(this.entries.length - this.max);
     this.cursor = null;
     this.draft = "";
+    this.save();
   }
 
   /** Move back in history; returns the text the prompt should show. */

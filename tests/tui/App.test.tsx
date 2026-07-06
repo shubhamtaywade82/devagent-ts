@@ -28,11 +28,24 @@ function makeWorld() {
   return { bus, store, agent };
 }
 
-function renderApp(columns = 100, rows = 30, seed?: (world: ReturnType<typeof makeWorld>) => void) {
+function renderApp(
+  columns = 100,
+  rows = 30,
+  seed?: (world: ReturnType<typeof makeWorld>) => void,
+  workspaceRoot?: string,
+) {
   const world = makeWorld();
   seed?.(world);
   const r = render(
-    <App bus={world.bus} store={world.store} agent={world.agent} columns={columns} rows={rows} now={NOW} />,
+    <App
+      bus={world.bus}
+      store={world.store}
+      agent={world.agent}
+      columns={columns}
+      rows={rows}
+      now={NOW}
+      workspaceRoot={workspaceRoot}
+    />,
   );
   return { ...world, ...r };
 }
@@ -332,6 +345,41 @@ describe("App shell", () => {
     expect(frame).toContain("Generating...");
     expect(frame).toContain("81 tok/s");
     unmount();
+  });
+
+  it("persists command history to .devagent_history and loads from it", async () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const tempDir = path.join(__dirname, "temp-history-test");
+    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+    const historyFile = path.join(tempDir, ".devagent_history");
+    if (fs.existsSync(historyFile)) fs.unlinkSync(historyFile);
+
+    // Initial run - add a command to history
+    const { stdin, unmount } = renderApp(120, 30, undefined, tempDir);
+    await tick();
+    stdin.write("test command one\r");
+    await tick();
+    unmount();
+
+    // Verify it was written to file
+    expect(fs.existsSync(historyFile)).toBe(true);
+    expect(fs.readFileSync(historyFile, "utf-8").trim()).toBe("test command one");
+
+    // Second run - should load from the file
+    const r2 = renderApp(120, 30, undefined, tempDir);
+    await tick();
+    r2.stdin.write("test command two\r");
+    await tick();
+    r2.unmount();
+
+    // Verify both commands exist in file
+    const content = fs.readFileSync(historyFile, "utf-8").trim().split("\n");
+    expect(content).toEqual(["test command one", "test command two"]);
+
+    // Clean up
+    fs.unlinkSync(historyFile);
+    fs.rmdirSync(tempDir);
   });
 });
 

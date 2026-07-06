@@ -138,17 +138,21 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const [completionIndex, setCompletionIndex] = useState(0);
   const [history] = useState(() => {
     const root = workspaceRoot ?? process.cwd();
-    const historyPath = join(root, ".devagent_history");
+    const historyFile = join(root, ".devagent", "history.json");
+    // Also load legacy flat file for backwards compat
+    const legacyPath = join(root, ".devagent_history");
     let initialHistory: string[] = [];
     try {
-      if (existsSync(historyPath)) {
-        const content = readFileSync(historyPath, "utf-8");
+      if (existsSync(legacyPath)) {
+        const content = readFileSync(legacyPath, "utf-8");
         initialHistory = content.split("\n").filter(Boolean);
       }
     } catch {
       // ignore
     }
-    return new HistoryManager(initialHistory);
+    const mgr = new HistoryManager(initialHistory, 200, historyFile);
+    mgr.load();
+    return mgr;
   });
   const [models, setModels] = useState<string[] | null>(null);
   const commandRegistry = useMemo(() => registry ?? builtinCommands(), [registry]);
