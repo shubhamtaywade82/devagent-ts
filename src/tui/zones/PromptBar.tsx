@@ -27,7 +27,7 @@ export function promptBarRows(text: string): 1 | 2 {
 
 /** Prompt input with multiline support. Shift+Enter inserts a newline. */
 export function PromptBar({ text, ghost, width, busy }: PromptBarProps): JSX.Element {
-  const promptGlyph = busy ? "◌" : ">";
+  const promptGlyph = busy ? "◌" : "❯";
   const lines = text.split("\n");
   const isPasted = isPastedPlaceholder(lines);
   const hiddenCount = isPasted ? lines.length - 1 : 0;

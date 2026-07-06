@@ -18,17 +18,17 @@ export interface ViewProps {
   detail: DetailLevel;
 }
 
-const ROLE_COLOR: Record<string, string> = {
-  user: "green",
-  assistant: "white",
-  thinking: "gray",
-  tool: "yellow",
-  system: "gray",
+const ROLE_STYLE: Record<string, { label: string; color: string }> = {
+  user: { label: "You", color: "green" },
+  assistant: { label: "Agy", color: "blue" },
+  thinking: { label: "Thinking", color: "magenta" },
+  tool: { label: "Tool", color: "yellow" },
+  system: { label: "System", color: "gray" },
 };
 
 function RichText({ spans, role }: { spans: Span[]; role: string }): JSX.Element {
   return (
-    <Text wrap="truncate" color={ROLE_COLOR[role] ?? "white"}>
+    <Text wrap="truncate" color={role === "thinking" ? "gray" : undefined}>
       {spans.map((s, j) => {
         if (s.code) {
           return <Text key={j} inverse>{` ${s.text} `}</Text>;
@@ -45,16 +45,9 @@ function RichText({ spans, role }: { spans: Span[]; role: string }): JSX.Element
 
 function textEntryLines(entry: ChatEntry, bodyWidth: number, detail: DetailLevel): RichLine[] {
   if (entry.kind !== "text") return [];
-  // Hide thinking content in normal mode; show brief indicator if expanded
-  if (entry.role === "thinking") {
-    if (detail === "compact") return [];
-    // Show a minimal gray line for thinking
-    const text = entry.text.slice(0, bodyWidth - 4);
-    if (!text) return [];
-    return [{ role: "thinking", spans: [{ text: `⋯ ${text}`, italic: true }], first: false }];
-  }
-  if (!entry.text) return [];
-  return renderMarkdown(entry.text, entry.role, bodyWidth);
+  const body = detail === "compact" && entry.role === "thinking" ? "" : entry.text;
+  if (!body) return [];
+  return renderMarkdown(body, entry.role, bodyWidth);
 }
 
 function structuredEntryLineCount(entry: ChatEntry, collapsed: boolean): number {
@@ -101,7 +94,9 @@ function StructuredEntry({
 export function ConversationView({ state, width, rows, detail }: ViewProps): JSX.Element {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [scrollOffset, setScrollOffset] = useState(0);
-  const bodyWidth = Math.max(10, width);
+  const maxLabelLength = Math.max(...Object.values(ROLE_STYLE).map((s) => s.label.length));
+  const gutter = detail === "compact" ? 0 : maxLabelLength + 3;
+  const bodyWidth = Math.max(10, width - gutter);
 
   const toggleEntry = useCallback((at: number) => {
     setCollapsed((prev) => {
@@ -112,9 +107,10 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
     });
   }, []);
 
-  // Build flat line array
+  // Build flat line array: text entries produce RichLines,
+  // structured entries produce synthetic lines for scroll tracking.
   const lines: RichLine[] = [];
-  const entryBreak: number[] = [];
+  const entryBreak: number[] = []; // line index where each non-text entry starts
   for (const entry of state.conversation) {
     if (entry.kind === "text") {
       const entryLines = textEntryLines(entry, bodyWidth, detail);
@@ -124,9 +120,18 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
       }
     } else {
       entryBreak.push(lines.length);
+      // Add a single "role label" line for the structured entry header
+      const style = ROLE_STYLE[entry.role] ?? { label: "?", color: "gray" };
+      lines.push({
+        role: entry.role,
+        spans: [{ text: `${style.label} ▸ `, bold: true }],
+        first: true,
+      });
+      // Add extra lines for the structured entry's visual space
+      // (we'll render the actual component inline below)
       const extra = structuredEntryLineCount(entry, collapsed.has(entry.at));
-      for (let i = 0; i < extra; i++) {
-        lines.push({ role: entry.role, spans: [{ text: "" }], first: i === 0 });
+      for (let i = 1; i < extra; i++) {
+        lines.push({ role: entry.role, spans: [{ text: "" }], first: false });
       }
     }
   }
@@ -153,7 +158,7 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
     if (!process.stdin.isTTY) return;
     const handler = (data: Buffer) => {
       const str = data.toString();
-      // eslint-disable-next-line no-control-regex
+      // eslint-disable-next-line no-control-regex -- matching an SGR mouse-tracking escape sequence
       const match = str.match(/^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/);
       if (!match) return;
       const btn = parseInt(match[1], 10);
@@ -169,10 +174,35 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
     };
   }, []);
 
+  // Determine which structured entries are visible
   const visibleStartLine = clampedOffset === 0
     ? Math.max(0, lines.length - rows)
     : lines.length - rows - clampedOffset;
   const visibleEndLine = visibleStartLine + rows;
+
+  const visibleStructured: { entry: ChatEntry; lineIndex: number }[] = [];
+  for (let i = 0; i < state.conversation.length; i++) {
+    const entry = state.conversation[i];
+    if (entry.kind === "text") continue;
+    const lineIdx = entryBreak[visibleStructured.length];
+    if (lineIdx >= visibleStartLine && lineIdx < visibleEndLine) {
+      visibleStructured.push({ entry, lineIndex: lineIdx });
+    }
+  }
+
+  // Reconstruct the rendering by replacing structured entry placeholder lines
+  // We render line-by-line, but for structured entries we render the component
+  // at the correct position.
+  const renderLines: { type: "rich"; line: RichLine }[] = [];
+  let structIdx = 0;
+  for (const line of visible) {
+    // Check if this line position matches a structured entry header
+    const svIdx = visibleStructured.findIndex(
+      (sv) => sv.lineIndex >= visibleStartLine && sv.lineIndex < visibleStartLine + visible.length,
+    );
+    // Simpler approach: iterate through visible lines and replace
+    renderLines.push({ type: "rich", line });
+  }
 
   return (
     <Box flexDirection="column" height={rows}>
@@ -181,6 +211,7 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
       ) : (
         <Box flexDirection="column" height={rows}>
           {visible.map((line, i) => {
+            // Check if a structured entry starts at this line's absolute position
             const absLine = visibleStartLine + i;
             const structEntry = state.conversation.find((entry, ci) => {
               if (entry.kind === "text") return false;
@@ -199,9 +230,16 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
                 </Box>
               );
             }
+            const style = ROLE_STYLE[line.role] ?? { label: "?", color: "gray" };
             return (
               <Box key={i} height={1}>
-                {line.first && line.role === "user" && <Text color="green">&gt; </Text>}
+                {gutter > 0 && (
+                  <Box width={gutter}>
+                    <Text color={style.color} dimColor={!line.first}>
+                      {line.first ? `${style.label} ▸ ` : ""}
+                    </Text>
+                  </Box>
+                )}
                 {line.indent ? <Box width={line.indent} /> : null}
                 <RichText spans={line.spans} role={line.role} />
               </Box>

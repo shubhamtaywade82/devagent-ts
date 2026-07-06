@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventBus } from "../runtime/events";
 import { Store } from "../runtime/store";
-import { RuntimeState, ViewId } from "../runtime/types";
+import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types";
 import { activeViewRows, densityForWidth, detailForDensity } from "../layout/density";
 import { resolveKey, UiCommand } from "../interaction/keybindings";
 import { initialUiState, uiReduce } from "../interaction/ui-state";
@@ -79,6 +79,23 @@ const VIEWS: Record<ViewId, (props: ViewProps) => JSX.Element> = {
   context: ContextInspectorView,
   rails: RailsView,
   timeline: ToolTimelineView,
+};
+
+const VIEW_LABELS: Record<ViewId, string> = {
+  conversation: "Conversation",
+  execution: "Execution",
+  tasks: "Tasks",
+  git: "Git",
+  logs: "Logs",
+  memory: "Memory",
+  models: "Models",
+  mcp: "MCP",
+  lsp: "LSP",
+  files: "Files",
+  settings: "Settings",
+  context: "Context",
+  rails: "Rails",
+  timeline: "Timeline",
 };
 
 function useTerminalSize(columns?: number, rows?: number): { width: number; height: number } {
@@ -608,11 +625,24 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const ActiveView = VIEWS[ui.activeView];
   const approval = state.approval;
   const showApproval = approval != null && (ui.overlay === null || ui.overlay === "diff");
+  const viewIndex = VIEW_ORDER.indexOf(ui.activeView) + 1;
+  const title = ` ${viewIndex} ${VIEW_LABELS[ui.activeView]} `;
+  const rule = "─".repeat(Math.max(0, width - title.length - 2));
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
         <Box flexDirection="column" height={viewRows}>
+          <Box height={1}>
+            <Text color="gray">{"─"}</Text>
+            <Text color="blue" bold>
+              {title}
+            </Text>
+            <Text color="gray" wrap="truncate">
+              {rule}
+            </Text>
+          </Box>
           {showApproval ? (
             <ApprovalOverlay request={approval} width={width} rows={contentRows} showDiff={ui.overlay === "diff"} />
           ) : ui.overlay === "palette" ? (
@@ -681,8 +711,25 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             <ActiveView state={state} width={width} rows={contentRows} detail={detail} />
           )}
         </Box>
-        <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
+        <Box height={1}>
+          <Text color="gray" dimColor>
+            {"─".repeat(Math.max(0, width - 1))}
+          </Text>
+        </Box>
         <ActivityStrip state={state} width={width} now={now} />
+        <Box height={1}>
+          <Text color="gray" dimColor>
+            {"─".repeat(Math.max(0, width - 1))}
+          </Text>
+        </Box>
+        <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
+        <ContextStrip
+          state={state}
+          width={width}
+          activeView={ui.activeView}
+          completionItems={activeCompletion ? completionItems : undefined}
+          completionIndex={completionIndex}
+        />
       </ErrorBoundary>
     </Box>
   );
