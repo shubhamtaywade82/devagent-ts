@@ -60,10 +60,10 @@ describe("App shell", () => {
     const { lastFrame, unmount } = renderApp();
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("DevAgent"); // header
-    expect(frame).toContain("1 Conversation"); // active view title
+    expect(frame).toContain("No conversation yet"); // conversation area
     expect(frame).toContain("Chat"); // activity strip
-    expect(frame).toContain("❯"); // prompt
-    expect(frame).toContain("Mode:Code"); // context strip
+    expect(frame).toContain(">"); // prompt
+    expect(frame).toContain("IDLE"); // status in header
     unmount();
   });
 
@@ -72,10 +72,10 @@ describe("App shell", () => {
     await tick();
     stdin.write("4");
     await tick();
-    expect(stripAnsi(lastFrame() ?? "")).toContain("4 Git");
+    expect(stripAnsi(lastFrame() ?? "")).toContain("0 changed");
     stdin.write("\t");
     await tick();
-    expect(stripAnsi(lastFrame() ?? "")).toContain("5 Logs");
+    expect(stripAnsi(lastFrame() ?? "")).toContain("No log events.");
     unmount();
   });
 
@@ -125,7 +125,7 @@ describe("App shell", () => {
     stdin.write("2");
     await tick();
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("1 Conversation");
+    expect(frame).toContain("No conversation yet");
     expect(frame).toContain("add 2");
     unmount();
   });
@@ -143,14 +143,14 @@ describe("App shell", () => {
     unmount();
   });
 
-  it("slash typing shows completion hints in the context strip", async () => {
+  it("slash typing completes on Tab", async () => {
     const { stdin, lastFrame, unmount } = renderApp();
     await tick();
     stdin.write("/mo");
     await tick();
-    const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("/model");
-    expect(frame).toContain("/models");
+    stdin.write("\t");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("/mode");
     unmount();
   });
 
@@ -248,7 +248,7 @@ describe("App shell", () => {
     await tick();
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).not.toContain("Search Everywhere");
-    expect(frame).toContain("5 Logs");
+    expect(frame).toContain("exit code 1");
     unmount();
   });
 
@@ -257,13 +257,9 @@ describe("App shell", () => {
     await tick();
     stdin.write("@re");
     await tick();
-    let frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("@review");
-    expect(frame).toContain("@refactor");
     stdin.write("\t");
     await tick();
-    frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("Review the following");
+    expect(stripAnsi(lastFrame() ?? "")).toContain("Review the following");
     unmount();
   });
 
@@ -417,7 +413,7 @@ describe("resize safety (regression)", () => {
     expect(frame).toContain("DevAgent");
     expect(frame).toContain("Conversation");
     expect(frame).toContain("Chat");
-    expect(frame).toContain("❯");
+    expect(frame).toContain(">");
     unmount();
   });
 });

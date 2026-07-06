@@ -1,15 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { ChatEntry, ExecutionStep, RuntimeState } from "../../runtime/types";
+import { ChatEntry, RuntimeState } from "../../runtime/types";
 import { DetailLevel } from "../../layout/density";
-import { tail } from "../../layout/truncate";
-import { renderMarkdown, RichLine, Span } from "../markdown";
-import { PlanCard } from "../components/PlanCard";
-import { DecisionCard } from "../components/DecisionCard";
-import { ToolCallCard } from "../components/ToolCallCard";
-import { DiffPreview } from "../components/DiffPreview";
-import { TestResultCard } from "../components/TestResultCard";
-import { StatusCard } from "../components/StatusCard";
+import { truncate } from "../../layout/truncate";
+import { parseInline, Span } from "../markdown";
 
 export interface ViewProps {
   state: RuntimeState;
@@ -18,21 +12,17 @@ export interface ViewProps {
   detail: DetailLevel;
 }
 
-const ROLE_STYLE: Record<string, { label: string; color: string }> = {
-  user: { label: "You", color: "green" },
-  assistant: { label: "Agy", color: "blue" },
-  thinking: { label: "Thinking", color: "magenta" },
-  tool: { label: "Tool", color: "yellow" },
-  system: { label: "System", color: "gray" },
-};
+function formatArgs(args: Record<string, unknown>): string {
+  return Object.values(args)
+    .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
+    .join(", ");
+}
 
-function RichText({ spans, role }: { spans: Span[]; role: string }): JSX.Element {
+function SpanText({ spans }: { spans: Span[] }): JSX.Element {
   return (
-    <Text wrap="truncate" color={role === "thinking" ? "gray" : undefined}>
+    <Text wrap="truncate">
       {spans.map((s, j) => {
-        if (s.code) {
-          return <Text key={j} inverse>{` ${s.text} `}</Text>;
-        }
+        if (s.code) return <Text key={j} inverse>{` ${s.text} `}</Text>;
         return (
           <Text key={j} bold={s.bold} italic={s.italic}>
             {s.text}
@@ -43,112 +33,324 @@ function RichText({ spans, role }: { spans: Span[]; role: string }): JSX.Element
   );
 }
 
-function textEntryLines(entry: ChatEntry, bodyWidth: number, detail: DetailLevel): RichLine[] {
-  if (entry.kind !== "text") return [];
-  const body = detail === "compact" && entry.role === "thinking" ? "" : entry.text;
-  if (!body) return [];
-  return renderMarkdown(body, entry.role, bodyWidth);
-}
-
-function structuredEntryLineCount(entry: ChatEntry, collapsed: boolean): number {
-  if (entry.kind === "text") return 0;
-  if (collapsed) return 1;
-  switch (entry.kind) {
-    case "plan":
-      return 1 + entry.steps.length;
-    case "decision":
-      return 3 + (entry.reason ? 1 : 0);
-    case "tool_call":
-      return 1 + (entry.error ? 1 : 0) + (entry.result ? 1 : 0);
-    case "diff_preview":
-      return 1 + Math.min(entry.diff.split("\n").filter(Boolean).length, 31);
-    case "test_result":
-      return 3 + entry.failures.length * 2;
-    case "card":
-      return 1 + entry.items.length;
-    default:
-      return 1;
+function wrapText(text: string, width: number): string[] {
+  if (text.length <= width) return [text];
+  const lines: string[] = [];
+  let remaining = text;
+  while (remaining.length > 0) {
+    lines.push(remaining.slice(0, width));
+    remaining = remaining.slice(width);
   }
+  return lines;
 }
 
-function StructuredEntry({
+function renderSimpleMarkdown(text: string, bodyWidth: number): { spans: Span[]; indent?: number }[] {
+  const rawLines = text.split("\n");
+  const result: { spans: Span[]; indent?: number }[] = [];
+  let inCode = false;
+  let codeLines: string[] = [];
+
+  for (const raw of rawLines) {
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("```")) {
+      if (inCode) {
+        for (const cl of codeLines) {
+          result.push({ spans: [{ text: cl, code: true }], indent: 2 });
+        }
+        codeLines = [];
+        inCode = false;
+      } else {
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) {
+      codeLines.push(raw);
+      continue;
+    }
+    if (!raw.trim()) {
+      result.push({ spans: [{ text: "" }] });
+      continue;
+    }
+
+    if (raw.startsWith("#")) {
+      const content = raw.replace(/^#+\s*/, "");
+      for (const line of wrapText(content, bodyWidth)) {
+        result.push({ spans: parseInline(line).map((s) => ({ ...s, bold: true })) });
+      }
+      continue;
+    }
+    if (raw.match(/^[-*]\s/)) {
+      const content = raw.replace(/^[-*]\s/, "");
+      for (const line of wrapText(content, bodyWidth - 2)) {
+        result.push({ spans: [{ text: "• " }, ...parseInline(line)], indent: 2 });
+      }
+      continue;
+    }
+    if (raw.startsWith("> ")) {
+      const content = raw.replace(/^>\s*/, "");
+      for (const line of wrapText(content, bodyWidth - 2)) {
+        result.push({ spans: parseInline(line).map((s) => ({ ...s, italic: true })), indent: 2 });
+      }
+      continue;
+    }
+    for (const line of wrapText(raw, bodyWidth)) {
+      result.push({ spans: parseInline(line) });
+    }
+  }
+
+  if (codeLines.length > 0) {
+    for (const cl of codeLines) {
+      result.push({ spans: [{ text: cl, code: true }], indent: 2 });
+    }
+  }
+  return result;
+}
+
+function TurnSeparator({ width }: { width: number }): JSX.Element {
+  return (
+    <Box height={1}>
+      <Text color="gray" dimColor wrap="truncate">
+        {"─".repeat(Math.max(1, width))}
+      </Text>
+    </Box>
+  );
+}
+
+function ToolCallBlock({
   entry,
   collapsed,
-  onToggle,
   width,
 }: {
-  entry: ChatEntry;
+  entry: ChatEntry & { kind: "tool_call" };
   collapsed: boolean;
-  onToggle: () => void;
   width: number;
-}): JSX.Element | null {
-  if (entry.kind === "plan") return <PlanCard entry={entry} collapsed={collapsed} onToggle={onToggle} width={width} />;
-  if (entry.kind === "decision") return <DecisionCard entry={entry} collapsed={collapsed} onToggle={onToggle} width={width} />;
-  if (entry.kind === "tool_call") return <ToolCallCard entry={entry} collapsed={collapsed} onToggle={onToggle} width={width} />;
-  if (entry.kind === "diff_preview") return <DiffPreview entry={entry} collapsed={collapsed} onToggle={onToggle} width={width} />;
-  if (entry.kind === "test_result") return <TestResultCard entry={entry} collapsed={collapsed} onToggle={onToggle} width={width} />;
-  if (entry.kind === "card") return <StatusCard entry={entry} collapsed={collapsed} onToggle={onToggle} width={width} />;
-  return null;
+}): JSX.Element {
+  const args = formatArgs(entry.args);
+  const statusGlyph = entry.status === "running" ? "◌" : entry.status === "completed" ? "●" : "✗";
+  return (
+    <Box flexDirection="column">
+      <Box height={1}>
+        <Text color="yellow">{statusGlyph} </Text>
+        <Text bold>{entry.name}</Text>
+        <Text color="gray" wrap="truncate">
+          ({truncate(args, Math.max(10, width - 6 - entry.name.length))})
+        </Text>
+      </Box>
+      {!collapsed && (entry.result || entry.error) && (
+        <Box marginLeft={3} flexDirection="column">
+          {entry.error && (
+            <Box height={1}>
+              <Text color="red" wrap="truncate">
+                Error: {truncate(entry.error, width - 10)}
+              </Text>
+            </Box>
+          )}
+          {entry.result && (
+            <Box>
+              <Text color="gray" wrap="truncate">
+                {truncate(entry.result, width - 5)}
+              </Text>
+            </Box>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
 }
 
-export function ConversationView({ state, width, rows, detail }: ViewProps): JSX.Element {
-  const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+interface RenderedBlock {
+  key: string;
+  height: number;
+  render: () => JSX.Element;
+}
+
+export function ConversationView({ state, width, rows, detail: _detail }: ViewProps): JSX.Element {
+  const [collapsed] = useState<Set<number>>(new Set());
+  const bodyWidth = Math.max(10, width);
   const [scrollOffset, setScrollOffset] = useState(0);
-  const maxLabelLength = Math.max(...Object.values(ROLE_STYLE).map((s) => s.label.length));
-  const gutter = detail === "compact" ? 0 : maxLabelLength + 3;
-  const bodyWidth = Math.max(10, width - gutter);
 
-  const toggleEntry = useCallback((at: number) => {
-    setCollapsed((prev) => {
-      const next = new Set(prev);
-      if (next.has(at)) next.delete(at);
-      else next.add(at);
-      return next;
-    });
-  }, []);
+  // Build renderable blocks from conversation entries
+  const blocks = useMemo<RenderedBlock[]>(() => {
+    const b: RenderedBlock[] = [];
+    let prevRole: string | null = null;
 
-  // Build flat line array: text entries produce RichLines,
-  // structured entries produce synthetic lines for scroll tracking.
-  const lines: RichLine[] = [];
-  const entryBreak: number[] = []; // line index where each non-text entry starts
-  for (const entry of state.conversation) {
-    if (entry.kind === "text") {
-      const entryLines = textEntryLines(entry, bodyWidth, detail);
-      for (const rl of entryLines) {
-        if (lines.length === 0) rl.first = true;
-        lines.push(rl);
+    for (const entry of state.conversation) {
+      const currentRole = entry.role;
+      if (prevRole !== null && prevRole !== currentRole) {
+        if (currentRole === "user") {
+          b.push({
+            key: `sep-${entry.at}`,
+            height: 1,
+            render: () => <TurnSeparator key={`sep-${entry.at}`} width={bodyWidth} />,
+          });
+        } else {
+          b.push({
+            key: `space-${entry.at}`,
+            height: 1,
+            render: () => <Box key={`space-${entry.at}`} height={1} />,
+          });
+        }
       }
-    } else {
-      entryBreak.push(lines.length);
-      // Add a single "role label" line for the structured entry header
-      const style = ROLE_STYLE[entry.role] ?? { label: "?", color: "gray" };
-      lines.push({
-        role: entry.role,
-        spans: [{ text: `${style.label} ▸ `, bold: true }],
-        first: true,
-      });
-      // Add extra lines for the structured entry's visual space
-      // (we'll render the actual component inline below)
-      const extra = structuredEntryLineCount(entry, collapsed.has(entry.at));
-      for (let i = 1; i < extra; i++) {
-        lines.push({ role: entry.role, spans: [{ text: "" }], first: false });
+      prevRole = currentRole;
+
+      if (entry.kind === "text") {
+        if (entry.role === "thinking") {
+          const preview = entry.text.slice(0, bodyWidth - 6).replace(/\n.*$/s, "") || "Thinking...";
+          b.push({
+            key: `think-${entry.at}`,
+            height: 1,
+            render: () => (
+              <Box key={`think-${entry.at}`} flexDirection="column">
+                <Box height={1}>
+                  <Text color="magenta" dimColor wrap="truncate">
+                    ▸ {preview}
+                  </Text>
+                </Box>
+              </Box>
+            ),
+          });
+        } else if (entry.role === "user") {
+          const lines = renderSimpleMarkdown(entry.text, bodyWidth - 2);
+          b.push({
+            key: `user-${entry.at}`,
+            height: lines.length,
+            render: () => (
+              <Box key={`user-${entry.at}`} flexDirection="column">
+                {lines.map((line, li) => (
+                  <Box key={li} height={1}>
+                    {li === 0 ? <Text color="green">&gt; </Text> : <Box width={2} />}
+                    {line.indent ? <Box width={line.indent} /> : null}
+                    <SpanText spans={line.spans} />
+                  </Box>
+                ))}
+              </Box>
+            ),
+          });
+        } else {
+          // assistant
+          const lines = renderSimpleMarkdown(entry.text, bodyWidth - 2);
+          b.push({
+            key: `asst-${entry.at}`,
+            height: lines.length,
+            render: () => (
+              <Box key={`asst-${entry.at}`} flexDirection="column">
+                {lines.map((line, li) => (
+                  <Box key={li} height={1}>
+                    <Box width={2} />
+                    {line.indent ? <Box width={line.indent} /> : null}
+                    <SpanText spans={line.spans} />
+                  </Box>
+                ))}
+              </Box>
+            ),
+          });
+        }
+      } else if (entry.kind === "tool_call") {
+        const isCollapsed = collapsed.has(entry.at);
+        const extraHeight = isCollapsed ? 0 : (entry.result ? 1 : 0) + (entry.error ? 1 : 0);
+        b.push({
+          key: `tool-${entry.at}`,
+          height: 1 + extraHeight,
+          render: () => <ToolCallBlock entry={entry} collapsed={isCollapsed} width={bodyWidth} />,
+        });
+      } else if (entry.kind === "plan") {
+        b.push({
+          key: `plan-${entry.at}`,
+          height: 1,
+          render: () => (
+            <Box key={`plan-${entry.at}`} height={1}>
+              <Text color="blue">
+                📋 Plan ({entry.steps.length} steps): {entry.status}
+              </Text>
+            </Box>
+          ),
+        });
+      } else if (entry.kind === "decision") {
+        b.push({
+          key: `decision-${entry.at}`,
+          height: 1,
+          render: () => (
+            <Box key={`decision-${entry.at}`} height={1}>
+              <Text color="cyan">✓ {entry.selected}</Text>
+            </Box>
+          ),
+        });
+      } else if (entry.kind === "diff_preview") {
+        b.push({
+          key: `diff-${entry.at}`,
+          height: 1,
+          render: () => (
+            <Box key={`diff-${entry.at}`} height={1}>
+              <Text color="yellow">
+                📄 {entry.filePath} ({entry.status})
+              </Text>
+            </Box>
+          ),
+        });
+      } else if (entry.kind === "test_result") {
+        b.push({
+          key: `test-${entry.at}`,
+          height: 1,
+          render: () => (
+            <Box key={`test-${entry.at}`} height={1}>
+              <Text color={entry.failed > 0 ? "red" : "green"}>
+                {entry.failed > 0 ? "✗" : "✓"} Tests: {entry.passed} passed, {entry.failed} failed
+              </Text>
+            </Box>
+          ),
+        });
+      } else if (entry.kind === "card") {
+        b.push({
+          key: `card-${entry.at}`,
+          height: 1,
+          render: () => (
+            <Box key={`card-${entry.at}`} height={1}>
+              <Text color="gray">
+                [{entry.status}] {entry.title}
+              </Text>
+            </Box>
+          ),
+        });
       }
     }
+    return b;
+  }, [state.conversation, collapsed, bodyWidth]);
+
+  const totalHeight = blocks.reduce((s, b) => s + b.height, 0);
+  const maxOffset = Math.max(0, totalHeight - rows);
+  const clampedOffset = Math.min(scrollOffset, maxOffset);
+
+  // Blocks visible at this scroll position: we show the last `rows` rows.
+  const visibleEnd = totalHeight - clampedOffset;
+  const visibleStart = Math.max(0, visibleEnd - rows);
+
+  // Find the first block that overlaps the visible window
+  let blockStart = 0;
+  let firstVisibleIdx = 0;
+  for (let i = 0; i < blocks.length; i++) {
+    const blockEnd = blockStart + blocks[i].height;
+    if (blockEnd > visibleStart) {
+      firstVisibleIdx = i;
+      break;
+    }
+    blockStart = blockEnd;
   }
 
-  const maxOffset = Math.max(0, lines.length - rows);
-  const clampedOffset = Math.min(scrollOffset, maxOffset);
-  const visible =
-    clampedOffset === 0
-      ? tail(lines, rows)
-      : lines.slice(lines.length - rows - clampedOffset, lines.length - clampedOffset);
+  // Limit to only blocks within visible window
+  const visibleBlocks: RenderedBlock[] = [];
+  let currentRow = blockStart;
+  for (let i = firstVisibleIdx; i < blocks.length && currentRow < visibleEnd; i++) {
+    const b = blocks[i];
+    if (currentRow + b.height > visibleStart) {
+      visibleBlocks.push(b);
+    }
+    currentRow += b.height;
+  }
 
   useInput((_input, key) => {
-    if (key.pageUp) {
-      setScrollOffset((prev) => Math.min(maxOffset, prev + rows));
-    } else if (key.pageDown) {
-      setScrollOffset((prev) => Math.max(0, prev - rows));
-    }
+    if (key.pageUp) setScrollOffset((prev) => Math.min(maxOffset, prev + rows));
+    else if (key.pageDown) setScrollOffset((prev) => Math.max(0, prev - rows));
   });
 
   const maxOffsetRef = useRef(maxOffset);
@@ -157,16 +359,11 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
   useEffect(() => {
     if (!process.stdin.isTTY) return;
     const handler = (data: Buffer) => {
-      const str = data.toString();
-      // eslint-disable-next-line no-control-regex -- matching an SGR mouse-tracking escape sequence
-      const match = str.match(/^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/);
-      if (!match) return;
-      const btn = parseInt(match[1], 10);
-      if (btn === 64) {
-        setScrollOffset((prev) => Math.min(maxOffsetRef.current, prev + 3));
-      } else if (btn === 65) {
-        setScrollOffset((prev) => Math.max(0, prev - 3));
-      }
+      const m = data.toString().match(/^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/);
+      if (!m) return;
+      const btn = parseInt(m[1], 10);
+      if (btn === 64) setScrollOffset((prev) => Math.min(maxOffsetRef.current, prev + 3));
+      else if (btn === 65) setScrollOffset((prev) => Math.max(0, prev - 3));
     };
     process.stdin.on("data", handler);
     return () => {
@@ -174,79 +371,17 @@ export function ConversationView({ state, width, rows, detail }: ViewProps): JSX
     };
   }, []);
 
-  // Determine which structured entries are visible
-  const visibleStartLine = clampedOffset === 0
-    ? Math.max(0, lines.length - rows)
-    : lines.length - rows - clampedOffset;
-  const visibleEndLine = visibleStartLine + rows;
-
-  const visibleStructured: { entry: ChatEntry; lineIndex: number }[] = [];
-  for (let i = 0; i < state.conversation.length; i++) {
-    const entry = state.conversation[i];
-    if (entry.kind === "text") continue;
-    const lineIdx = entryBreak[visibleStructured.length];
-    if (lineIdx >= visibleStartLine && lineIdx < visibleEndLine) {
-      visibleStructured.push({ entry, lineIndex: lineIdx });
-    }
-  }
-
-  // Reconstruct the rendering by replacing structured entry placeholder lines
-  // We render line-by-line, but for structured entries we render the component
-  // at the correct position.
-  const renderLines: { type: "rich"; line: RichLine }[] = [];
-  let structIdx = 0;
-  for (const line of visible) {
-    // Check if this line position matches a structured entry header
-    const svIdx = visibleStructured.findIndex(
-      (sv) => sv.lineIndex >= visibleStartLine && sv.lineIndex < visibleStartLine + visible.length,
+  if (blocks.length === 0) {
+    return (
+      <Box height={rows}>
+        <Text color="gray">No conversation yet — type below to begin.</Text>
+      </Box>
     );
-    // Simpler approach: iterate through visible lines and replace
-    renderLines.push({ type: "rich", line });
   }
 
   return (
     <Box flexDirection="column" height={rows}>
-      {visible.length === 0 ? (
-        <Text color="gray">No conversation yet — type below to begin.</Text>
-      ) : (
-        <Box flexDirection="column" height={rows}>
-          {visible.map((line, i) => {
-            // Check if a structured entry starts at this line's absolute position
-            const absLine = visibleStartLine + i;
-            const structEntry = state.conversation.find((entry, ci) => {
-              if (entry.kind === "text") return false;
-              const breakIdx = entryBreak[state.conversation.slice(0, ci + 1).filter(e => e.kind !== "text").length - 1];
-              return breakIdx === absLine;
-            });
-            if (structEntry && structEntry.kind !== "text") {
-              return (
-                <Box key={`struct-${structEntry.at}`} height={structuredEntryLineCount(structEntry, collapsed.has(structEntry.at))}>
-                  <StructuredEntry
-                    entry={structEntry}
-                    collapsed={collapsed.has(structEntry.at)}
-                    onToggle={() => toggleEntry(structEntry.at)}
-                    width={bodyWidth}
-                  />
-                </Box>
-              );
-            }
-            const style = ROLE_STYLE[line.role] ?? { label: "?", color: "gray" };
-            return (
-              <Box key={i} height={1}>
-                {gutter > 0 && (
-                  <Box width={gutter}>
-                    <Text color={style.color} dimColor={!line.first}>
-                      {line.first ? `${style.label} ▸ ` : ""}
-                    </Text>
-                  </Box>
-                )}
-                {line.indent ? <Box width={line.indent} /> : null}
-                <RichText spans={line.spans} role={line.role} />
-              </Box>
-            );
-          })}
-        </Box>
-      )}
+      {visibleBlocks.map((b) => b.render())}
     </Box>
   );
 }
