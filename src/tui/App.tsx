@@ -625,24 +625,11 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const ActiveView = VIEWS[ui.activeView];
   const approval = state.approval;
   const showApproval = approval != null && (ui.overlay === null || ui.overlay === "diff");
-  const viewIndex = VIEW_ORDER.indexOf(ui.activeView) + 1;
-  const title = ` ${viewIndex} ${VIEW_LABELS[ui.activeView]} `;
-  const rule = "─".repeat(Math.max(0, width - title.length - 2));
-
   return (
     <Box flexDirection="column" width={width} height={height}>
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
         <Box flexDirection="column" height={viewRows}>
-          <Box height={1}>
-            <Text color="gray">{"─"}</Text>
-            <Text color="blue" bold>
-              {title}
-            </Text>
-            <Text color="gray" wrap="truncate">
-              {rule}
-            </Text>
-          </Box>
           {showApproval ? (
             <ApprovalOverlay request={approval} width={width} rows={contentRows} showDiff={ui.overlay === "diff"} />
           ) : ui.overlay === "palette" ? (
@@ -711,25 +698,8 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             <ActiveView state={state} width={width} rows={contentRows} detail={detail} />
           )}
         </Box>
-        <Box height={1}>
-          <Text color="gray" dimColor>
-            {"─".repeat(Math.max(0, width - 1))}
-          </Text>
-        </Box>
-        <ActivityStrip state={state} width={width} now={now} />
-        <Box height={1}>
-          <Text color="gray" dimColor>
-            {"─".repeat(Math.max(0, width - 1))}
-          </Text>
-        </Box>
         <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
-        <ContextStrip
-          state={state}
-          width={width}
-          activeView={ui.activeView}
-          completionItems={activeCompletion ? completionItems : undefined}
-          completionIndex={completionIndex}
-        />
+        <ActivityStrip state={state} width={width} now={now} />
       </ErrorBoundary>
     </Box>
   );
