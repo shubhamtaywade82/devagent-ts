@@ -9,6 +9,7 @@ jest.mock("node:child_process");
 import { spawn } from "node:child_process";
 import { Agent } from "../../src/cli/agent";
 import { ShellTool } from "../../src/tools/shell";
+import { MemoryStore } from "../../src/memory/store";
 
 const mockSpawn = spawn as jest.Mock;
 
@@ -220,7 +221,6 @@ describe("Agent skills activation", () => {
 
     await agent.runUserMessage("help me build a rails endpoint");
 
-    const { MemoryStore } = await import("../../src/memory/store");
     const store = new MemoryStore(join(dir, ".devagent", "memory.db"));
     expect(store.getSkillUsage("rails-api")).toMatchObject({ useCount: 1, successCount: 1 });
     store.close();

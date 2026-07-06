@@ -62,6 +62,7 @@ export function loadSkillMeta(skillDir: string, scope: SkillScope): SkillMeta | 
       description: typeof data.description === "string" ? data.description : "",
       tags: Array.isArray(data.tags) ? data.tags.filter((t): t is string => typeof t === "string") : [],
       version: typeof data.version === "string" && data.version ? data.version : "0.0.0",
+      language: typeof data.language === "string" && data.language ? data.language : undefined,
       scope,
       dir: skillDir,
       path,

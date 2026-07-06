@@ -8,10 +8,13 @@ import { SkillMeta, SkillScore } from "./types";
 
 const TAG_WEIGHT = 3;
 const DESCRIPTION_WEIGHT = 1;
+const LANGUAGE_MISMATCH_PENALTY = -10;
 
 export interface ResolveOptions {
   topN?: number;
   minScore?: number;
+  /** When set, skills with a declared `language` that differs are penalised heavily. */
+  projectLanguage?: string;
 }
 
 /** Lowercase, word-boundary tokenization with de-duplication. */
@@ -20,7 +23,7 @@ export function tokenize(text: string): Set<string> {
   return new Set(words);
 }
 
-function scoreSkill(promptTokens: Set<string>, skill: SkillMeta): SkillScore {
+function scoreSkill(promptTokens: Set<string>, skill: SkillMeta, projectLanguage?: string): SkillScore {
   let score = 0;
   const matchedTags: string[] = [];
 
@@ -37,6 +40,11 @@ function scoreSkill(promptTokens: Set<string>, skill: SkillMeta): SkillScore {
     if (promptTokens.has(token)) score += DESCRIPTION_WEIGHT;
   }
 
+  // Heavily penalise skills that target a different programming language
+  if (skill.language && projectLanguage && skill.language !== projectLanguage) {
+    score += LANGUAGE_MISMATCH_PENALTY;
+  }
+
   return { meta: skill, score, matchedTags };
 }
 
@@ -46,7 +54,7 @@ export function resolveSkills(prompt: string, catalog: SkillMeta[], opts: Resolv
   const promptTokens = tokenize(prompt);
 
   return catalog
-    .map((skill) => scoreSkill(promptTokens, skill))
+    .map((skill) => scoreSkill(promptTokens, skill, opts.projectLanguage))
     .filter((s) => s.score >= minScore)
     .sort((a, b) => b.score - a.score || a.meta.id.localeCompare(b.meta.id))
     .slice(0, topN);

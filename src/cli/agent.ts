@@ -18,6 +18,8 @@ import { WatchTool } from "../tools/watch-tool";
 import { SearchCodeTool } from "../tools/search-tools";
 import { GitTool } from "../tools/git-tools";
 import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
+import { RunRubocopTool } from "../tools/rubocop-tool";
+import { RunRSpecTool } from "../tools/rspec-tool";
 import { LoopDetector } from "../orchestrator/loop-detector";
 import { MemoryStore } from "../memory/store";
 import { generateSummary } from "../memory/summarizer";
@@ -28,6 +30,7 @@ import { connectMcpServer } from "../mcp/client";
 import { SkillsRegistry } from "../skills/registry";
 import { SkillContent, SkillMeta } from "../skills/types";
 import { LspManager } from "../lsp/manager";
+import { SemanticIndex, createRailsTools } from "../intelligence/rails";
 import { LanguageRegistry } from "../lsp/registry";
 import type { LspServerState } from "../lsp/protocol";
 import {
@@ -81,6 +84,7 @@ export class Agent {
   private messages: ChatMessage[] = [];
   private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
   readonly lspManager: LspManager;
+  readonly railsIndex: SemanticIndex;
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
@@ -120,7 +124,9 @@ export class Agent {
       .register(new RunTestsTool(cfg.workspaceRoot))
       .register(new RunLintTool(cfg.workspaceRoot))
       .register(new RunFormatTool(cfg.workspaceRoot))
-      .register(new RunBuildTool(cfg.workspaceRoot));
+      .register(new RunBuildTool(cfg.workspaceRoot))
+      .register(new RunRubocopTool(cfg.workspaceRoot))
+      .register(new RunRSpecTool(cfg.workspaceRoot));
 
     const langRegistry = new LanguageRegistry(
       cfg.languages as Record<string, Partial<import("../lsp/registry").LanguageProviderConfig>> | undefined,
@@ -161,8 +167,36 @@ export class Agent {
 
     const devagentDir = join(cfg.workspaceRoot, ".devagent");
     mkdirSync(devagentDir, { recursive: true });
+
+    this.railsIndex = SemanticIndex.create(cfg.workspaceRoot, {
+      cachePath: join(devagentDir, "rails-index.db"),
+    });
+    for (const tool of createRailsTools(this.railsIndex)) {
+      this.registry.register(tool);
+    }
+    if (this.railsIndex.enabled) {
+      this.railsIndex.build().catch(() => {});
+    }
+
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
-    this.skills = SkillsRegistry.discover({ workspaceRoot: cfg.workspaceRoot, homeDir: opts.skillsHomeDir });
+    const projectLanguage = this.railsIndex.enabled
+      ? this.railsIndex.workspace.isRails
+        ? "ruby"
+        : this.railsIndex.workspace.isRuby
+          ? "ruby"
+          : undefined
+      : undefined;
+    this.skills = SkillsRegistry.discover({ workspaceRoot: cfg.workspaceRoot, homeDir: opts.skillsHomeDir }, projectLanguage);
+  }
+
+  /** Keep the Rails semantic index in sync after file-mutating tools. */
+  private feedRailsIndex(toolName: string, args: Record<string, unknown>, result: Record<string, unknown>): void {
+    if (!this.railsIndex.enabled || result.error) return;
+    const MUTATING = new Set(["write_file", "patch_file", "append_file", "delete_file", "move_file", "copy_file"]);
+    if (!MUTATING.has(toolName)) return;
+    const paths = [args.path, args.source, args.destination, args.from, args.to]
+      .filter((p): p is string => typeof p === "string" && (p.endsWith(".rb") || p.endsWith("Gemfile.lock")));
+    if (paths.length) this.railsIndex.update(paths).catch(() => {});
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
@@ -186,7 +220,8 @@ export class Agent {
       "3) `PathEscapeError` means the path escaped the workspace root; fix the path and retry.\n" +
       "4) After tool results, continue toward the user's stated goal with minimal next steps.\n" +
       "5) Semantic tools (get_definition, find_references, workspace_symbols, document_symbols, hover, diagnostics) provide structured code intelligence for supported file types. Prefer these over raw text search for code understanding.\n" +
-      "6) Use search_code / read_file as fallback when semantic tools are unavailable for a file type.";
+      "6) Use search_code / read_file as fallback when semantic tools are unavailable for a file type.\n" +
+      "7) In Rails workspaces, prefer the Rails semantic tools (find_model, find_route, find_controller, find_service, find_spec, find_association, find_callback, rails_context) over reading files — they answer framework questions (routes, associations, callbacks, spec coverage) directly from the semantic index.";
 
     if (!this.messages.length) {
       this.messages = [{ role: "system", content: header }];
@@ -299,6 +334,7 @@ export class Agent {
             }
 
             this.emit("onToolResult", name, result);
+            this.feedRailsIndex(name, args, result);
             this.messages.push({
               role: "tool",
               content: typeof result === "string" ? result : JSON.stringify(result, null, 2),
