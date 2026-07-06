@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { LanguageRegistry, LanguageProviderConfig } from "./registry";
 import { LspPool } from "./pool";
 import { LspServerSession } from "./session";
-import { LspServerState, pathToUri } from "./protocol";
+import { LspServerState, pathToUri, uriToPath } from "./protocol";
 import { LspGlobalConfig, mergeLspConfig } from "./config";
 import type {
   Location,
@@ -135,15 +135,16 @@ export class LspManager {
     const session = await this.ensureSession(filePath);
     if (!session) return false;
 
+    if (!session.onDiagnostics) {
+      session.onDiagnostics = (diagUri, diagnostics) => {
+        this.events.onDiagnostics?.(uriToPath(diagUri), diagnostics);
+      };
+    }
+
     const uri = pathToUri(this.workspaceRoot, filePath);
     if (!session.openDocuments.has(uri)) {
       const text = content ?? this.readFile(filePath);
       await session.openDocument(filePath, text);
-
-      session.onDiagnostics = (diagUri, diagnostics) => {
-        const diagFilePath = filePath; // capture
-        this.events.onDiagnostics?.(diagFilePath, diagnostics);
-      };
     }
     return true;
   }
@@ -287,7 +288,25 @@ export class LspManager {
     if (!session) return [];
 
     const uri = pathToUri(this.workspaceRoot, filePath);
-    return session.cachedDiagnostics.get(uri) ?? [];
+    const cached = session.cachedDiagnostics.get(uri);
+    if (cached) return cached;
+
+    // Servers that support pull diagnostics may never push; ask directly.
+    if (session.client && session.capabilities.pullDiagnostics) {
+      try {
+        const result = (await session.client.sendRequest("textDocument/diagnostic", {
+          textDocument: { uri },
+        })) as { kind?: string; items?: Diagnostic[] } | null;
+        if (result?.items) {
+          session.cachedDiagnostics.set(uri, result.items);
+          return result.items;
+        }
+      } catch {
+        // fall through to empty
+      }
+    }
+
+    return [];
   }
 
   getAllDiagnostics(): Map<string, Diagnostic[]> {
@@ -434,20 +453,20 @@ export class LspManager {
     if (!result) return [];
 
     if (Array.isArray(result)) {
-      return result as Location[];
+      // LocationLink[] uses targetUri/targetRange instead of uri/range
+      return (result as Array<Record<string, unknown>>).map((r) =>
+        "targetUri" in r
+          ? {
+              uri: r.targetUri as string,
+              range: (r.targetSelectionRange ?? r.targetRange) as Location["range"],
+            }
+          : (r as unknown as Location),
+      );
     }
 
     const single = result as Location;
     if (single.uri && single.range) {
       return [single];
-    }
-
-    const asLinks = result as Array<Record<string, unknown>>;
-    if (Array.isArray(asLinks) && asLinks.length > 0 && "targetUri" in asLinks[0]) {
-      return asLinks.map((r) => ({
-        uri: (r.targetUri ?? r.uri) as string,
-        range: (r.targetRange ?? r.targetSelectionRange ?? r.range) as any,
-      }));
     }
 
     return [];
