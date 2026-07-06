@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventBus } from "../runtime/events";
 import { Store } from "../runtime/store";
@@ -136,7 +136,20 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [completionIndex, setCompletionIndex] = useState(0);
-  const [history] = useState(() => new HistoryManager());
+  const [history] = useState(() => {
+    const root = workspaceRoot ?? process.cwd();
+    const historyPath = join(root, ".devagent_history");
+    let initialHistory: string[] = [];
+    try {
+      if (existsSync(historyPath)) {
+        const content = readFileSync(historyPath, "utf-8");
+        initialHistory = content.split("\n").filter(Boolean);
+      }
+    } catch {
+      // ignore
+    }
+    return new HistoryManager(initialHistory);
+  });
   const [models, setModels] = useState<string[] | null>(null);
   const commandRegistry = useMemo(() => registry ?? builtinCommands(), [registry]);
   const pastingRef = useRef(false);
@@ -436,6 +449,13 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       const trimmed = text.trim();
       if (!trimmed) return;
       history.add(trimmed);
+      try {
+        const root = workspaceRoot ?? process.cwd();
+        const historyPath = join(root, ".devagent_history");
+        writeFileSync(historyPath, history.all().join("\n"), "utf-8");
+      } catch {
+        // ignore
+      }
       setPrompt("");
       setCompletionIndex(0);
 
