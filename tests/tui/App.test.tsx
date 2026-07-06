@@ -347,39 +347,45 @@ describe("App shell", () => {
     unmount();
   });
 
-  it("persists command history to .devagent_history and loads from it", async () => {
+  it("persists command history to .devagent/history.json and loads from it", async () => {
     const fs = require("node:fs");
     const path = require("node:path");
     const tempDir = path.join(__dirname, "temp-history-test");
-    if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
-    const historyFile = path.join(tempDir, ".devagent_history");
-    if (fs.existsSync(historyFile)) fs.unlinkSync(historyFile);
+    // Clean slate: remove any leftover from interrupted runs
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.mkdirSync(tempDir, { recursive: true });
+    const historyDir = path.join(tempDir, ".devagent");
+    const historyFile = path.join(historyDir, "history.json");
 
     // Initial run - add a command to history
     const { stdin, unmount } = renderApp(120, 30, undefined, tempDir);
     await tick();
-    stdin.write("test command one\r");
+    stdin.write("test command one");
+    await tick();
+    stdin.write("\r");
     await tick();
     unmount();
 
-    // Verify it was written to file
+    // Verify it was written to file as JSON array
     expect(fs.existsSync(historyFile)).toBe(true);
-    expect(fs.readFileSync(historyFile, "utf-8").trim()).toBe("test command one");
+    const parsed = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
+    expect(parsed).toEqual(["test command one"]);
 
     // Second run - should load from the file
     const r2 = renderApp(120, 30, undefined, tempDir);
     await tick();
-    r2.stdin.write("test command two\r");
+    r2.stdin.write("test command two");
+    await tick();
+    r2.stdin.write("\r");
     await tick();
     r2.unmount();
 
     // Verify both commands exist in file
-    const content = fs.readFileSync(historyFile, "utf-8").trim().split("\n");
+    const content = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
     expect(content).toEqual(["test command one", "test command two"]);
 
     // Clean up
-    fs.unlinkSync(historyFile);
-    fs.rmdirSync(tempDir);
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 });
 
