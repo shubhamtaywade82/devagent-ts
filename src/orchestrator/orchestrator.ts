@@ -6,7 +6,7 @@ const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_MAX_REPLANS = 5;
 
 const VALID_TRANSITIONS: Record<StepStatus, readonly StepStatus[]> = {
-  pending: ["analyzing", "blocked", "cancelled", "running"],
+  pending: ["analyzing", "blocked", "cancelled", "running", "skipped"],
   analyzing: ["planning", "blocked", "cancelled", "failed"],
   planning: ["implementing", "blocked", "cancelled", "failed"],
   implementing: ["testing", "blocked", "cancelled", "failed"],
@@ -15,8 +15,8 @@ const VALID_TRANSITIONS: Record<StepStatus, readonly StepStatus[]> = {
   completed: ["rolledback"],
   failed: ["pending", "rolledback"],
   rejected: ["pending", "planning", "implementing"],
-  blocked: ["pending", "analyzing", "planning", "implementing", "testing", "reviewing", "cancelled"],
-  paused: ["pending", "analyzing", "planning", "implementing", "testing", "reviewing"],
+  blocked: ["pending", "analyzing", "planning", "implementing", "testing", "reviewing", "cancelled", "skipped"],
+  paused: ["pending", "analyzing", "planning", "implementing", "testing", "reviewing", "skipped"],
   cancelled: [],
   rolledback: [],
   skipped: ["pending"],
@@ -96,6 +96,8 @@ export class Orchestrator {
     const allowed = VALID_TRANSITIONS[from];
     if (!allowed || !allowed.includes(to)) {
       this.logger.warn(`[Orchestrator] Invalid ASL transition from '${from}' to '${to}' for step ${step.id}`);
+      // Do not perform invalid transition; keep current status.
+      return;
     }
     step.status = to;
     this.onStepChange?.(step);
