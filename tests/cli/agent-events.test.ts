@@ -38,6 +38,30 @@ function skipDockerPreflight(tool: ShellTool): void {
 // isn't enough here — we need a fake ReadableStream reader that yields one NDJSON line
 // matching Ollama's chunk format, in addition to `json()` for generateSummary's
 // non-streaming `provider.chat(..., { stream: false })` call.
+
+function mockChatSequence(chunks: Array<Record<string, unknown>>): void {
+  const encoder = new TextEncoder();
+  let call = 0;
+  (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+    const chunk = chunks[Math.min(call, chunks.length - 1)];
+    call += 1;
+    let delivered = false;
+    const reader = {
+      read: async () => {
+        if (delivered) return { done: true, value: undefined };
+        delivered = true;
+        return { done: false, value: encoder.encode(JSON.stringify(chunk) + "\n") };
+      },
+    };
+    return {
+      ok: true,
+      status: 200,
+      json: async () => chunk,
+      body: { getReader: () => reader },
+    };
+  });
+}
+
 function mockChatOnce(content: string) {
   const line = JSON.stringify({ message: { role: "assistant", content }, done: true }) + "\n";
   const encoder = new TextEncoder();
@@ -96,6 +120,24 @@ describe("Agent onShellOutput event", () => {
 
     expect(result.exitCode).toBe(0);
     expect(onShellOutput).toHaveBeenCalledWith("stdout", "hi\n");
+  });
+});
+
+describe("Agent loop detection", () => {
+  it("does not abort repeated successful tool calls", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    const toolCall = {
+      message: {
+        role: "assistant",
+        content: "",
+        tool_calls: [{ function: { name: "list_directory", arguments: { path: "." } } }],
+      },
+      done: true,
+    };
+    mockChatSequence([toolCall, toolCall, toolCall, { message: { role: "assistant", content: "done" }, done: true }]);
+    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "test-model" } });
+
+    await expect(agent.runUserMessage("list files repeatedly")).resolves.toBe("done");
   });
 });
 
