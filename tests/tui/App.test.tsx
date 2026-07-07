@@ -66,7 +66,7 @@ const tick = async () => {
 
 describe("App shell", () => {
   beforeEach(() => {
-    mockTime = 100000;
+    mockTime = NOW;
     jest.spyOn(Date, "now").mockImplementation(() => mockTime);
   });
 
