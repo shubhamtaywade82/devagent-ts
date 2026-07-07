@@ -54,12 +54,26 @@ function renderApp(
   return { ...world, ...r };
 }
 
+let mockTime = 100000;
+
 // Above App's FAST_INPUT_MS (20ms) burst-paste-detection threshold — a real
 // human never sends two keystrokes within 20ms, but a same-tick 0ms test
 // helper would, and App would (correctly) mistake that for a paste burst.
-const tick = () => new Promise((resolve) => setTimeout(resolve, 25));
+const tick = async () => {
+  mockTime += 30; // Shift mock time by 30ms (which is > FAST_INPUT_MS = 20)
+  await new Promise((resolve) => setTimeout(resolve, 10)); // Yield to let React/Ink process input
+};
 
 describe("App shell", () => {
+  beforeEach(() => {
+    mockTime = 100000;
+    jest.spyOn(Date, "now").mockImplementation(() => mockTime);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   it("renders all five permanent zones", () => {
     const { lastFrame, unmount } = renderApp();
     const frame = stripAnsi(lastFrame() ?? "");
@@ -303,6 +317,7 @@ describe("App shell", () => {
       stdin.write(line);
       stdin.write("\r");
     }
+    mockTime += 100; // let the burst-idle debounce fire
     await new Promise((resolve) => setTimeout(resolve, 100)); // let the burst-idle debounce fire
     expect(agent.calls).toEqual([]); // nothing submitted prematurely
     const frame = stripAnsi(lastFrame() ?? "");
