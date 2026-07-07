@@ -127,29 +127,37 @@ function ToolCallBlock({
   width: number;
 }): JSX.Element {
   const args = formatArgs(entry.args);
-  const statusGlyph = entry.status === "running" ? "◌" : entry.status === "completed" ? "●" : "✗";
+  const isRunning = entry.status === "running";
+  const isFailed = entry.status === "failed";
+  const statusColor = isRunning ? "yellow" : isFailed ? "red" : "green";
+  const statusLabel = isRunning ? "running" : isFailed ? "failed" : "done";
+  const connector = "  ├─ ";
+
   return (
     <Box flexDirection="column">
       <Box height={1}>
-        <Text color="yellow">{statusGlyph} </Text>
-        <Text bold>{entry.name}</Text>
+        <Text color="gray">{connector}</Text>
+        <Text bold color="cyan">{entry.name} </Text>
         <Text color="gray" wrap="truncate">
-          ({truncate(args, Math.max(10, width - 6 - entry.name.length))})
+          {truncate(args, Math.max(10, width - 20 - entry.name.length))}
+        </Text>
+        <Text color={statusColor} dimColor={!isRunning}>
+          {" "}[{statusLabel}]
         </Text>
       </Box>
       {!collapsed && (entry.result || entry.error) && (
-        <Box marginLeft={3} flexDirection="column">
+        <Box marginLeft={5} flexDirection="column">
           {entry.error && (
             <Box height={1}>
               <Text color="red" wrap="truncate">
-                Error: {truncate(entry.error, width - 10)}
+                Error: {truncate(entry.error.replace(/\n/g, " "), width - 10)}
               </Text>
             </Box>
           )}
           {entry.result && (
-            <Box>
+            <Box height={1}>
               <Text color="gray" wrap="truncate">
-                {truncate(entry.result, width - 5)}
+                Result: {truncate(entry.result.replace(/\n/g, " "), width - 10)}
               </Text>
             </Box>
           )}
@@ -260,60 +268,177 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           render: () => <ToolCallBlock entry={entry} collapsed={isCollapsed} width={bodyWidth} />,
         });
       } else if (entry.kind === "plan") {
+        const headerText = `📋 Plan (${entry.steps.length} steps) [${entry.status}]`;
+        const stepGlyphs = {
+          completed: { char: "✓", color: "green" },
+          failed: { char: "✗", color: "red" },
+          running: { char: "▶", color: "yellow" },
+          pending: { char: "○", color: "gray" },
+          skipped: { char: "–", color: "gray" },
+        };
         b.push({
           key: `plan-${entry.at}`,
-          height: 1,
+          height: 1 + entry.steps.length,
           render: () => (
-            <Box key={`plan-${entry.at}`} height={1}>
-              <Text color="blue">
-                📋 Plan ({entry.steps.length} steps): {entry.status}
-              </Text>
+            <Box key={`plan-${entry.at}`} flexDirection="column">
+              <Box height={1}>
+                <Text bold color="blue">{headerText}</Text>
+              </Box>
+              {entry.steps.map((step, idx) => {
+                const s = stepGlyphs[step.status] || stepGlyphs.pending;
+                return (
+                  <Box key={step.id} height={1}>
+                    <Text color="gray">  {idx + 1}) </Text>
+                    <Text color={s.color}>{s.char} </Text>
+                    <Text color={step.status === "completed" ? "gray" : "white"}>
+                      {step.description}
+                    </Text>
+                  </Box>
+                );
+              })}
             </Box>
           ),
         });
       } else if (entry.kind === "decision") {
+        const optionList = entry.options.join(", ");
         b.push({
           key: `decision-${entry.at}`,
-          height: 1,
+          height: 3,
           render: () => (
-            <Box key={`decision-${entry.at}`} height={1}>
-              <Text color="cyan">✓ {entry.selected}</Text>
+            <Box key={`decision-${entry.at}`} flexDirection="column">
+              <Box height={1}>
+                <Text bold color="cyan">🧠 Strategy Selection</Text>
+                <Text color="gray"> (Options: {optionList})</Text>
+              </Box>
+              <Box height={1} marginLeft={2}>
+                <Text>
+                  <Text color="gray">Selected: </Text>
+                  <Text bold color="green">{entry.selected}</Text>
+                  <Text color="gray"> (Confidence: {Math.round(entry.confidence * 100)}%)</Text>
+                </Text>
+              </Box>
+              <Box height={1} marginLeft={2}>
+                <Text color="gray" wrap="truncate">
+                  Reason: {truncate(entry.reason, width - 12)}
+                </Text>
+              </Box>
             </Box>
           ),
         });
       } else if (entry.kind === "diff_preview") {
+        const diffLines = entry.diff.split("\n");
+        const changes: Array<{ text: string; color: string }> = [];
+        let additions = 0;
+        let deletions = 0;
+        for (const line of diffLines) {
+          if (line.startsWith("+") && !line.startsWith("+++")) {
+            additions++;
+            if (changes.length < 4) {
+              changes.push({ text: line, color: "green" });
+            }
+          } else if (line.startsWith("-") && !line.startsWith("---")) {
+            deletions++;
+            if (changes.length < 4) {
+              changes.push({ text: line, color: "red" });
+            }
+          }
+        }
+        const hasMore = diffLines.filter((l) => (l.startsWith("+") && !l.startsWith("+++")) || (l.startsWith("-") && !l.startsWith("---"))).length > changes.length;
+
         b.push({
           key: `diff-${entry.at}`,
-          height: 1,
+          height: 1 + changes.length + (hasMore ? 1 : 0),
           render: () => (
-            <Box key={`diff-${entry.at}`} height={1}>
-              <Text color="yellow">
-                📄 {entry.filePath} ({entry.status})
-              </Text>
+            <Box key={`diff-${entry.at}`} flexDirection="column">
+              <Box height={1}>
+                <Text bold color="yellow">📄 {entry.filePath}</Text>
+                <Text color="gray"> ({entry.status}) </Text>
+                <Text color="green">+{additions} </Text>
+                <Text color="red">-{deletions}</Text>
+              </Box>
+              {changes.map((ch, idx) => (
+                <Box key={idx} height={1} marginLeft={2}>
+                  <Text color={ch.color}>{ch.text}</Text>
+                </Box>
+              ))}
+              {hasMore && (
+                <Box height={1} marginLeft={2}>
+                  <Text color="gray">...</Text>
+                </Box>
+              )}
             </Box>
           ),
         });
       } else if (entry.kind === "test_result") {
+        const isSuccess = entry.failed === 0;
+        const statusColor = isSuccess ? "green" : "red";
+        const durationSec = (entry.durationMs / 1000).toFixed(1);
+        const headerText = `🧪 Tests [${isSuccess ? "Passed" : "Failed"}] (${durationSec}s)`;
+
+        const failureLines: string[] = [];
+        if (!isSuccess && entry.failures) {
+          for (const f of entry.failures.slice(0, 2)) {
+            failureLines.push(`  ✗ ${f.file}:${f.line}`);
+            failureLines.push(`    ${f.message.replace(/\s+/g, " ").slice(0, width - 6)}`);
+          }
+          if (entry.failures.length > 2) {
+            failureLines.push(`  ... and ${entry.failures.length - 2} more failures`);
+          }
+        }
+
         b.push({
           key: `test-${entry.at}`,
-          height: 1,
+          height: 3 + failureLines.length,
           render: () => (
-            <Box key={`test-${entry.at}`} height={1}>
-              <Text color={entry.failed > 0 ? "red" : "green"}>
-                {entry.failed > 0 ? "✗" : "✓"} Tests: {entry.passed} passed, {entry.failed} failed
-              </Text>
+            <Box key={`test-${entry.at}`} flexDirection="column">
+              <Box height={1}>
+                <Text bold color={statusColor}>{headerText}</Text>
+              </Box>
+              <Box height={1}>
+                <Text color="gray">  Command: {entry.command}</Text>
+              </Box>
+              <Box height={1}>
+                <Text color={statusColor}>
+                  {isSuccess ? "  ✓" : "  ✗"} {entry.passed} passed, {entry.failed} failed
+                </Text>
+              </Box>
+              {failureLines.map((fl, idx) => (
+                <Box key={idx} height={1}>
+                  <Text color={fl.startsWith("    ") ? "gray" : "red"}>{fl}</Text>
+                </Box>
+              ))}
             </Box>
           ),
         });
       } else if (entry.kind === "card") {
+        const statusColor = entry.status === "completed" ? "green" : entry.status === "failed" ? "red" : "yellow";
+        const glyphs = {
+          completed: { char: "✓", color: "green" },
+          failed: { char: "✗", color: "red" },
+          running: { char: "▶", color: "yellow" },
+          pending: { char: "○", color: "gray" },
+          skipped: { char: "–", color: "gray" },
+        };
         b.push({
           key: `card-${entry.at}`,
-          height: 1,
+          height: 1 + entry.items.length,
           render: () => (
-            <Box key={`card-${entry.at}`} height={1}>
-              <Text color="gray">
-                [{entry.status}] {entry.title}
-              </Text>
+            <Box key={`card-${entry.at}`} flexDirection="column">
+              <Box height={1}>
+                <Text bold color={statusColor}>
+                  {entry.title} [{entry.status}]
+                </Text>
+              </Box>
+              {entry.items.map((item, idx) => {
+                const s = glyphs[item.status] || glyphs.pending;
+                return (
+                  <Box key={idx} height={1} marginLeft={2}>
+                    <Text color={s.color}>{s.char} </Text>
+                    <Text>{item.label}</Text>
+                    {item.detail && <Text color="gray"> ({item.detail})</Text>}
+                  </Box>
+                );
+              })}
             </Box>
           ),
         });
