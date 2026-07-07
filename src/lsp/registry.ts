@@ -27,7 +27,8 @@ export const BUILTIN_REGISTRY: LanguageProviderConfig[] = [
     language: "Ruby",
     extensions: [".rb", ".erb", ".rake", ".gemspec"],
     serverCommand: "ruby-lsp",
-    serverArgs: ["--stdio"],
+    // ruby-lsp speaks LSP over stdio by default and rejects a --stdio flag
+    serverArgs: [],
     linter: "rubocop",
     testRunner: "rspec",
   },

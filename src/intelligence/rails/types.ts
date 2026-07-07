@@ -334,6 +334,10 @@ export interface IndexStatus {
   lastBuiltAt?: number;
   lastBuildMs?: number;
   loadedFromCache: boolean;
+  railsVersion?: string;
+  rubyVersion?: string;
+  testFramework?: string;
+  byType?: Record<string, number>;
 }
 
 export interface RsiOptions {

@@ -47,7 +47,7 @@ describe("activityStripTokens", () => {
 describe("contextStripTokens", () => {
   it("idle mode shows the NORMAL strip", () => {
     const texts = contextStripTokens(fresh()).map((t) => t.text);
-    expect(texts).toEqual(["Mode:NORMAL", "Model:qwen3:30b", "Workspace:ollama-agent", "Ctrl+P Palette"]);
+    expect(texts).toEqual(["Mode:Code", "Model:qwen3:30b", "Workspace:ollama-agent", "Ctrl+P Palette"]);
   });
 
   it("streaming mode shows generation state", () => {
@@ -103,6 +103,6 @@ describe("headerTokens", () => {
   it("shows product, model, workspace, branch, mode, and clock", () => {
     const now = new Date(2026, 0, 1, 10, 42, 11).getTime();
     const texts = headerTokens(fresh(), now).map((t) => t.text);
-    expect(texts).toEqual(["DevAgent", "ollama-agent", "qwen3:30b", "⎇ main", "IDLE", "10:42"]);
+    expect(texts).toEqual(["DevAgent", "ollama-agent", "qwen3:30b", "⎇ main", "Code", "IDLE", "10:42"]);
   });
 });

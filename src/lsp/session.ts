@@ -1,7 +1,7 @@
 import { ChildProcess } from "node:child_process";
 import { LspClient } from "./client";
 import { LanguageProviderConfig } from "./registry";
-import { LspCapabilities, deriveCapabilities, NO_CAPABILITIES } from "./capabilities";
+import { CLIENT_CAPABILITIES, LspCapabilities, deriveCapabilities, NO_CAPABILITIES } from "./capabilities";
 import { pathToUri } from "./protocol";
 import type { Diagnostic, ServerCapabilities } from "vscode-languageserver-protocol";
 
@@ -70,7 +70,7 @@ export class LspServerSession {
       await client.start();
 
       const rootUri = pathToUri(this.workspacePath, ".");
-      const result = (await client.initialize(rootUri)) as { capabilities?: ServerCapabilities };
+      const result = (await client.initialize(rootUri, CLIENT_CAPABILITIES)) as { capabilities?: ServerCapabilities };
 
       if (result.capabilities) {
         this.capabilities = deriveCapabilities(result.capabilities);

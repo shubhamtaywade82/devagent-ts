@@ -5,7 +5,7 @@
  * Context Strip: dynamic status for the current runtime mode.
  */
 
-import { ACTOR_IDS, ActorHealth, ActorId, RuntimeState, StatusToken, ViewId } from "../runtime/types";
+import { ACTOR_IDS, ActorHealth, ActorId, AGENT_MODE_LABELS, RuntimeState, StatusToken, ViewId } from "../runtime/types";
 import { semanticColor } from "./theme-map";
 
 const ACTOR_LABELS: Record<ActorId, string> = {
@@ -95,7 +95,8 @@ export function contextStripTokens(state: RuntimeState, activeView?: ViewId): St
 
   switch (state.mode) {
     case "idle": {
-      push("Mode:NORMAL", 1);
+      const am = AGENT_MODE_LABELS[state.agentMode];
+      push(`Mode:${am.label}`, 1, "active");
       push(`Model:${state.model.name || "-"}`, 2, "active");
       if (state.session.workspace) push(`Workspace:${state.session.workspace}`, 3);
       push("Ctrl+P Palette", 4, "muted");
@@ -161,7 +162,7 @@ const MODE_LABELS: Record<RuntimeState["mode"], string> = {
   streaming: "STREAMING",
 };
 
-/** Header zone: product, workspace, model, branch, context usage, state, clock. */
+/** Header zone: product, workspace, model, branch, context usage, mode, state, clock. */
 export function headerTokens(state: RuntimeState, now: number = Date.now()): StatusToken[] {
   const tokens: StatusToken[] = [{ text: "DevAgent", priority: 1, color: semanticColor("thinking") }];
   if (state.session.workspace) tokens.push({ text: state.session.workspace, priority: 3 });
@@ -173,14 +174,42 @@ export function headerTokens(state: RuntimeState, now: number = Date.now()): Sta
   if (branch) tokens.push({ text: `⎇ ${branch}`, priority: 4 });
   const ctx = contextPercent(state);
   if (ctx) tokens.push({ text: ctx, priority: 5 });
+  const am = AGENT_MODE_LABELS[state.agentMode];
+  tokens.push({ text: am.label, priority: 2, color: semanticColor("active") });
   tokens.push({
     text: MODE_LABELS[state.mode],
-    priority: 2,
+    priority: 3,
     color: semanticColor(state.mode === "idle" ? "healthy" : state.mode === "approval" ? "waiting" : "thinking"),
   });
+  // Git status
+  if (state.git.files.length > 0) {
+    tokens.push({ text: `Git:${state.git.files.length}m`, priority: 6, color: semanticColor("waiting") });
+  }
+  // Memory status
+  if (state.memory.length > 0) {
+    tokens.push({ text: `Mem:${state.memory.length}`, priority: 8, color: semanticColor("healthy") });
+  }
+  // LSP status
+  const runningLsp = state.lspServers.filter((s) => s.status === "running");
+  if (runningLsp.length > 0) {
+    tokens.push({
+      text: `LSP:${runningLsp.map((s) => s.language.slice(0, 2)).join(",")}`,
+      priority: 9,
+      color: semanticColor("healthy"),
+    });
+  }
+  // Rails status
+  if (state.rails && state.rails.status !== "disabled") {
+    tokens.push({ text: `Rails:${state.rails.status}`, priority: 10, color: semanticColor(state.rails.status === "ready" ? "healthy" : "thinking") });
+  }
+  // Skills
+  const activeSkills = state.skills.filter((s) => s.active).length;
+  if (activeSkills > 0) {
+    tokens.push({ text: `Skills:${activeSkills}`, priority: 10, color: semanticColor("active") });
+  }
   const clock = new Date(now);
   const hh = String(clock.getHours()).padStart(2, "0");
   const mm = String(clock.getMinutes()).padStart(2, "0");
-  tokens.push({ text: `${hh}:${mm}`, priority: 6, color: semanticColor("muted") });
+  tokens.push({ text: `${hh}:${mm}`, priority: 11, color: semanticColor("muted") });
   return tokens;
 }

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventBus } from "../runtime/events";
 import { Store } from "../runtime/store";
@@ -25,11 +25,17 @@ import { MemoryView } from "./views/MemoryView";
 import { ModelsView } from "./views/ModelsView";
 import { McpView } from "./views/McpView";
 import { LspView } from "./views/LspView";
+import { FileExplorerView } from "./views/FileExplorerView";
+import { SettingsView } from "./views/SettingsView";
+import { ContextInspectorView } from "./views/ContextInspectorView";
+import { RailsView } from "./views/RailsView";
+import { ToolTimelineView } from "./views/ToolTimelineView";
 import { CommandPalette } from "./overlays/CommandPalette";
 import { HelpOverlay } from "./overlays/HelpOverlay";
 import { ActorsOverlay } from "./overlays/ActorsOverlay";
 import { ApprovalOverlay } from "./overlays/ApprovalOverlay";
 import { ModelSwitcher } from "./overlays/ModelSwitcher";
+import { ModeSwitcher } from "./overlays/ModeSwitcher";
 import { SearchEverywhere } from "./overlays/SearchEverywhere";
 import { SkillsOverlay } from "./overlays/SkillsOverlay";
 import { SkillsRegistry } from "../skills/registry";
@@ -44,6 +50,7 @@ export interface ShellAgent {
   validateModel?(): Promise<true | string>;
   getSkillsRegistry?(): SkillsRegistry;
   pinSkill?(id: string | null): void;
+  addLearning?(category: string, context: string, lesson: string): void;
 }
 
 export interface AppProps {
@@ -68,6 +75,11 @@ const VIEWS: Record<ViewId, (props: ViewProps) => JSX.Element> = {
   models: ModelsView,
   mcp: McpView,
   lsp: LspView,
+  files: FileExplorerView,
+  settings: SettingsView,
+  context: ContextInspectorView,
+  rails: RailsView,
+  timeline: ToolTimelineView,
 };
 
 const VIEW_LABELS: Record<ViewId, string> = {
@@ -80,6 +92,11 @@ const VIEW_LABELS: Record<ViewId, string> = {
   models: "Models",
   mcp: "MCP",
   lsp: "LSP",
+  files: "Files",
+  settings: "Settings",
+  context: "Context",
+  rails: "Rails",
+  timeline: "Timeline",
 };
 
 function useTerminalSize(columns?: number, rows?: number): { width: number; height: number } {
@@ -120,7 +137,24 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
   const [completionIndex, setCompletionIndex] = useState(0);
-  const [history] = useState(() => new HistoryManager());
+  const [history] = useState(() => {
+    const root = workspaceRoot ?? process.cwd();
+    const historyFile = join(root, ".devagent", "history.json");
+    // Also load legacy flat file for backwards compat
+    const legacyPath = join(root, ".devagent_history");
+    let initialHistory: string[] = [];
+    try {
+      if (existsSync(legacyPath)) {
+        const content = readFileSync(legacyPath, "utf-8");
+        initialHistory = content.split("\n").filter(Boolean);
+      }
+    } catch {
+      // ignore
+    }
+    const mgr = new HistoryManager(initialHistory, 200, historyFile);
+    mgr.load();
+    return mgr;
+  });
   const [models, setModels] = useState<string[] | null>(null);
   const commandRegistry = useMemo(() => registry ?? builtinCommands(), [registry]);
   const pastingRef = useRef(false);
@@ -369,6 +403,53 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           agent?.resetContext?.();
           bus.publish({ type: "notification", kind: "info", text: "Context reset" });
           break;
+        case "learn":
+          if (agent && agent.addLearning) {
+            agent.addLearning("user_preference", "user explicitly typed /learn", effect.rule);
+            bus.publish({
+              type: "notification",
+              kind: "success",
+              text: `Learned: ${effect.rule.slice(0, 40)}${effect.rule.length > 40 ? "..." : ""}`,
+            });
+          } else {
+            bus.publish({ type: "notification", kind: "error", text: "Learning not supported by agent" });
+          }
+          break;
+        case "set-agent-mode": {
+          const valid = ["ask", "code", "architect", "review", "debug", "autonomous"];
+          if (valid.includes(effect.mode)) {
+            bus.publish({ type: "mode.agent", mode: effect.mode as any });
+            bus.publish({ type: "notification", kind: "info", text: `Mode: ${effect.mode}` });
+          }
+          break;
+        }
+        case "run-shell": {
+          bus.publish({ type: "conversation.message", role: "user", text: `Run: ${effect.command}` });
+          if (agent) {
+            setBusy(true);
+            bus.publish({ type: "mode.changed", mode: "streaming" });
+            agent.runUserMessage(`Run the following shell command and show me the output:\n\n${effect.command}`)
+              .catch(() => {})
+              .finally(() => {
+                setBusy(false);
+                bus.publish({ type: "model.streaming", streaming: false });
+                bus.publish({ type: "mode.changed", mode: "idle" });
+              });
+          }
+          break;
+        }
+        case "search":
+          uiDispatch({ type: "open-overlay", overlay: "search" });
+          break;
+        case "next-mode": {
+          const modeList = ["ask", "code", "architect", "review", "debug", "autonomous"];
+          const current = store.getState().agentMode;
+          const idx = modeList.indexOf(current);
+          const next = modeList[(idx + 1) % modeList.length];
+          bus.publish({ type: "mode.agent", mode: next as any });
+          bus.publish({ type: "notification", kind: "info", text: `Mode: ${next}` });
+          break;
+        }
         case "quit":
           exit();
           break;
@@ -385,6 +466,13 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       const trimmed = text.trim();
       if (!trimmed) return;
       history.add(trimmed);
+      try {
+        const root = workspaceRoot ?? process.cwd();
+        const historyPath = join(root, ".devagent_history");
+        writeFileSync(historyPath, history.all().join("\n"), "utf-8");
+      } catch {
+        // ignore
+      }
       setPrompt("");
       setCompletionIndex(0);
 
@@ -432,6 +520,21 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             });
           }
           if (ui.overlay === "diff") uiDispatch({ type: "close-overlay" });
+          return;
+        }
+        case "clear-conversation":
+          bus.publish({ type: "conversation.clear" });
+          return;
+        case "open-mode":
+          uiDispatch(command);
+          return;
+        case "next-mode": {
+          const modes: Array<RuntimeState["agentMode"]> = ["ask", "code", "architect", "review", "debug", "autonomous"];
+          const current = store.getState().agentMode;
+          const idx = modes.indexOf(current);
+          const next = modes[(idx + 1) % modes.length];
+          bus.publish({ type: "mode.agent", mode: next });
+          bus.publish({ type: "notification", kind: "info", text: `Mode: ${next}` });
           return;
         }
         case "cancel":
@@ -592,6 +695,18 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
               onSelect={(view) => {
                 uiDispatch({ type: "close-overlay" });
                 uiDispatch({ type: "focus-view", view });
+              }}
+            />
+          ) : ui.overlay === "mode" ? (
+            <ModeSwitcher
+              current={state.agentMode}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(mode) => {
+                uiDispatch({ type: "close-overlay" });
+                bus.publish({ type: "mode.agent", mode });
+                bus.publish({ type: "notification", kind: "info", text: `Mode: ${mode}` });
               }}
             />
           ) : ui.overlay === "skills" ? (

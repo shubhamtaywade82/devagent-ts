@@ -34,7 +34,7 @@ export interface ActorState {
 }
 
 /** The focusable views of the Active View zone. Focus never stops actors. */
-export type ViewId = "conversation" | "execution" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "lsp";
+export type ViewId = "conversation" | "execution" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "lsp" | "files" | "settings" | "context" | "rails" | "timeline";
 
 export const VIEW_ORDER: readonly ViewId[] = [
   "conversation",
@@ -46,10 +46,29 @@ export const VIEW_ORDER: readonly ViewId[] = [
   "models",
   "mcp",
   "lsp",
+  "files",
+  "settings",
+  "context",
+  "rails",
+  "timeline",
 ];
 
 /** Runtime mode drives the Context Strip contents. */
 export type RuntimeMode = "idle" | "planning" | "editing" | "testing" | "approval" | "streaming";
+
+/** Agent operational modes — controls what the agent is allowed to do. */
+export type AgentMode = "ask" | "code" | "architect" | "review" | "debug" | "autonomous";
+
+export const AGENT_MODES: readonly AgentMode[] = ["ask", "code", "architect", "review", "debug", "autonomous"];
+
+export const AGENT_MODE_LABELS: Record<AgentMode, { label: string; description: string }> = {
+  ask: { label: "Ask", description: "Q&A only, no file changes" },
+  code: { label: "Code", description: "Generate and apply code changes" },
+  architect: { label: "Architect", description: "Design, UML, and implementation plans" },
+  review: { label: "Review", description: "Analyze code quality, security, and performance" },
+  debug: { label: "Debug", description: "Investigate failures using logs and tests" },
+  autonomous: { label: "Autonomous", description: "Plan, edit, test, iterate until complete" },
+};
 
 export type TaskStatus = "queued" | "running" | "blocked" | "completed" | "failed" | "cancelled";
 
@@ -150,11 +169,26 @@ export interface ApprovalRequest {
 
 export type ChatRole = "user" | "assistant" | "thinking" | "tool" | "system";
 
-export interface ChatEntry {
-  role: ChatRole;
-  text: string;
-  at: number;
+export interface TestFailure {
+  file: string;
+  line: number;
+  message: string;
 }
+
+export interface CardItem {
+  label: string;
+  status: "pending" | "running" | "completed" | "failed" | "skipped";
+  detail?: string;
+}
+
+export type ChatEntry =
+  | { kind: "text"; role: ChatRole; text: string; at: number }
+  | { kind: "plan"; role: "assistant"; steps: ExecutionStep[]; status: "pending" | "running" | "completed"; at: number }
+  | { kind: "decision"; role: "assistant"; options: string[]; selected: string; reason: string; confidence: number; at: number }
+  | { kind: "tool_call"; role: "assistant"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string; at: number }
+  | { kind: "diff_preview"; role: "assistant"; filePath: string; diff: string; status: "pending_review" | "approved" | "rejected"; at: number }
+  | { kind: "test_result"; role: "assistant"; command: string; passed: number; failed: number; failures: TestFailure[]; durationMs: number; at: number }
+  | { kind: "card"; role: "assistant"; title: string; status: "running" | "completed" | "failed"; items: CardItem[]; at: number };
 
 export interface ExecutionStep {
   id: string;
@@ -202,11 +236,16 @@ export interface RailsIndexState {
   entityCount: number;
   edgeCount: number;
   scannerErrors: string[];
+  railsVersion?: string;
+  rubyVersion?: string;
+  testFramework?: string;
+  byType?: Record<string, number>;
 }
 
 export interface RuntimeState {
   session: SessionState;
   mode: RuntimeMode;
+  agentMode: AgentMode;
   status: string;
   actors: Record<ActorId, ActorState>;
   conversation: ChatEntry[];

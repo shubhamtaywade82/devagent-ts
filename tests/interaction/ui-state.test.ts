@@ -11,7 +11,7 @@ describe("uiReduce", () => {
     expect(s.activeView).toBe("execution");
     s = uiReduce(s, { type: "prev-view" });
     s = uiReduce(s, { type: "prev-view" });
-    expect(s.activeView).toBe("lsp");
+    expect(s.activeView).toBe("timeline");
     s = uiReduce(s, { type: "next-view" });
     expect(s.activeView).toBe("conversation");
   });

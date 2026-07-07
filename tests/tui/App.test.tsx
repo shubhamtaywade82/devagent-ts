@@ -13,9 +13,10 @@ function makeWorld() {
   const bus = new EventBus();
   const store = new Store(initialRuntimeState({ workspace: "ollama-agent", branch: "main", model: "qwen3:30b" }));
   store.attach(bus);
-  const agent: ShellAgent & { calls: string[]; models: string[] } = {
+  const agent: ShellAgent & { calls: string[]; models: string[]; learnings: Array<[string, string, string]> } = {
     calls: [],
     models: [],
+    learnings: [],
     runUserMessage: jest.fn(async (m: string) => {
       agent.calls.push(m);
       return "ok";
@@ -24,15 +25,31 @@ function makeWorld() {
       agent.models.push(m);
     },
     listModels: jest.fn(async () => ["qwen3:30b", "qwen3:8b", "deepseek"]),
+    addLearning: jest.fn((category: string, context: string, lesson: string) => {
+      agent.learnings.push([category, context, lesson]);
+    }),
   };
   return { bus, store, agent };
 }
 
-function renderApp(columns = 100, rows = 30, seed?: (world: ReturnType<typeof makeWorld>) => void) {
+function renderApp(
+  columns = 100,
+  rows = 30,
+  seed?: (world: ReturnType<typeof makeWorld>) => void,
+  workspaceRoot?: string,
+) {
   const world = makeWorld();
   seed?.(world);
   const r = render(
-    <App bus={world.bus} store={world.store} agent={world.agent} columns={columns} rows={rows} now={NOW} />,
+    <App
+      bus={world.bus}
+      store={world.store}
+      agent={world.agent}
+      columns={columns}
+      rows={rows}
+      now={NOW}
+      workspaceRoot={workspaceRoot}
+    />,
   );
   return { ...world, ...r };
 }
@@ -47,10 +64,10 @@ describe("App shell", () => {
     const { lastFrame, unmount } = renderApp();
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("DevAgent"); // header
-    expect(frame).toContain("1 Conversation"); // active view title
+    expect(frame).toContain("No conversation yet"); // conversation area
     expect(frame).toContain("Chat"); // activity strip
-    expect(frame).toContain("❯"); // prompt
-    expect(frame).toContain("Mode:NORMAL"); // context strip
+    expect(frame).toContain(">"); // prompt
+    expect(frame).toContain("IDLE"); // status in header
     unmount();
   });
 
@@ -59,10 +76,10 @@ describe("App shell", () => {
     await tick();
     stdin.write("4");
     await tick();
-    expect(stripAnsi(lastFrame() ?? "")).toContain("4 Git");
+    expect(stripAnsi(lastFrame() ?? "")).toContain("0 changed");
     stdin.write("\t");
     await tick();
-    expect(stripAnsi(lastFrame() ?? "")).toContain("5 Logs");
+    expect(stripAnsi(lastFrame() ?? "")).toContain("No log events.");
     unmount();
   });
 
@@ -112,7 +129,7 @@ describe("App shell", () => {
     stdin.write("2");
     await tick();
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("1 Conversation");
+    expect(frame).toContain("No conversation yet");
     expect(frame).toContain("add 2");
     unmount();
   });
@@ -130,14 +147,25 @@ describe("App shell", () => {
     unmount();
   });
 
-  it("slash typing shows completion hints in the context strip", async () => {
+  it("slash commands execute: /learn records a preference", async () => {
+    const { stdin, agent, unmount } = renderApp();
+    await tick();
+    stdin.write("/learn use 2-space indentation");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(agent.learnings).toEqual([["user_preference", "user explicitly typed /learn", "use 2-space indentation"]]);
+    unmount();
+  });
+
+  it("slash typing completes on Tab", async () => {
     const { stdin, lastFrame, unmount } = renderApp();
     await tick();
     stdin.write("/mo");
     await tick();
-    const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("/model");
-    expect(frame).toContain("/models");
+    stdin.write("\t");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("/mode");
     unmount();
   });
 
@@ -235,7 +263,7 @@ describe("App shell", () => {
     await tick();
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).not.toContain("Search Everywhere");
-    expect(frame).toContain("5 Logs");
+    expect(frame).toContain("exit code 1");
     unmount();
   });
 
@@ -244,13 +272,9 @@ describe("App shell", () => {
     await tick();
     stdin.write("@re");
     await tick();
-    let frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("@review");
-    expect(frame).toContain("@refactor");
     stdin.write("\t");
     await tick();
-    frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("Review the following");
+    expect(stripAnsi(lastFrame() ?? "")).toContain("Review the following");
     unmount();
   });
 
@@ -333,6 +357,47 @@ describe("App shell", () => {
     expect(frame).toContain("81 tok/s");
     unmount();
   });
+
+  it("persists command history to .devagent/history.json and loads from it", async () => {
+    const fs = require("node:fs");
+    const path = require("node:path");
+    const tempDir = path.join(__dirname, "temp-history-test");
+    // Clean slate: remove any leftover from interrupted runs
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    fs.mkdirSync(tempDir, { recursive: true });
+    const historyDir = path.join(tempDir, ".devagent");
+    const historyFile = path.join(historyDir, "history.json");
+
+    // Initial run - add a command to history
+    const { stdin, unmount } = renderApp(120, 30, undefined, tempDir);
+    await tick();
+    stdin.write("test command one");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    unmount();
+
+    // Verify it was written to file as JSON array
+    expect(fs.existsSync(historyFile)).toBe(true);
+    const parsed = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
+    expect(parsed).toEqual(["test command one"]);
+
+    // Second run - should load from the file
+    const r2 = renderApp(120, 30, undefined, tempDir);
+    await tick();
+    r2.stdin.write("test command two");
+    await tick();
+    r2.stdin.write("\r");
+    await tick();
+    r2.unmount();
+
+    // Verify both commands exist in file
+    const content = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
+    expect(content).toEqual(["test command one", "test command two"]);
+
+    // Clean up
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  });
 });
 
 describe("resize safety (regression)", () => {
@@ -363,7 +428,7 @@ describe("resize safety (regression)", () => {
     expect(frame).toContain("DevAgent");
     expect(frame).toContain("Conversation");
     expect(frame).toContain("Chat");
-    expect(frame).toContain("❯");
+    expect(frame).toContain(">");
     unmount();
   });
 });
