@@ -359,6 +359,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
   useEffect(() => {
     if (!process.stdin.isTTY) return;
     const handler = (data: Buffer) => {
+      // eslint-disable-next-line no-control-regex
       const m = data.toString().match(/^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/);
       if (!m) return;
       const btn = parseInt(m[1], 10);
