@@ -10,6 +10,7 @@ import { EventBus } from "../runtime/events";
 import { initialRuntimeState, Store } from "../runtime/store";
 import { wireAgentBridge, BridgeableAgent } from "./agent-bridge";
 import { App } from "./App";
+import { validateAsl, generateAslGraph } from "../asl/commands";
 
 function enableTerminalFeatures(): () => void {
   if (!process.stdin.isTTY) return () => {};
@@ -48,39 +49,59 @@ if (process.env.DEVAGENT_DEBUG_STDIN === "1" && process.stdin.isTTY) {
 }
 
 const cfg = loadConfig();
-const bus = new EventBus();
-const store = new Store(
-  initialRuntimeState({
-    workspace: path.basename(cfg.workspaceRoot),
-    branch: currentBranch(cfg.workspaceRoot),
-    model: cfg.model,
-    provider: cfg.tier,
-  }),
-);
-store.attach(bus);
 
-const agent = new Agent({ config: cfg });
+(async () => {
+  const args = process.argv.slice(2);
+  if (args[0] === "asl") {
+    const cmd = args[1];
+    if (cmd === "validate") {
+      const ok = await validateAsl(cfg.workspaceRoot);
+      process.exit(ok ? 0 : 1);
+    } else if (cmd === "graph") {
+      await generateAslGraph(cfg.workspaceRoot);
+      process.exit(0);
+    } else {
+      console.error(`Unknown ASL command: ${cmd}`);
+      console.error("Usage: devagent asl [validate|graph]");
+      process.exit(1);
+    }
+  }
 
-// Agent.on<E extends AgentEventName> is structurally compatible with
-// BridgeableAgent.on<E extends string> at runtime (the bridge only uses
-// event names Agent emits), but TypeScript's generic-method variance rules
-// reject the assignment statically because AgentEventName is narrower than
-// string. Cast at this single bootstrap boundary.
-wireAgentBridge(agent as unknown as BridgeableAgent, bus);
+  const bus = new EventBus();
+  const store = new Store(
+    initialRuntimeState({
+      workspace: path.basename(cfg.workspaceRoot),
+      branch: currentBranch(cfg.workspaceRoot),
+      model: cfg.model,
+      provider: cfg.tier,
+    }),
+  );
+  store.attach(bus);
 
-const shellAgent = {
-  runUserMessage: (message: string) => agent.runUserMessage(message),
-  setModel: (model: string) => agent.setModel(model),
-  setTier: (tier: string) => agent.setTier(tier),
-  resetContext: () => agent.resetContext(),
-  listModels: () => agent.listModels(),
-  validateModel: () => agent.validateModel(),
-  getSkillsRegistry: () => agent.getSkillsRegistry(),
-  pinSkill: (id: string | null) => agent.pinSkill(id),
-};
+  const agent = new Agent({ config: cfg });
 
-const disableFeatures = enableTerminalFeatures();
-const { waitUntilExit } = render(
-  React.createElement(App, { bus, store, agent: shellAgent, workspaceRoot: cfg.workspaceRoot }),
-);
-waitUntilExit().then(disableFeatures);
+  // Agent.on<E extends AgentEventName> is structurally compatible with
+  // BridgeableAgent.on<E extends string> at runtime (the bridge only uses
+  // event names Agent emits), but TypeScript's generic-method variance rules
+  // reject the assignment statically because AgentEventName is narrower than
+  // string. Cast at this single bootstrap boundary.
+  wireAgentBridge(agent as unknown as BridgeableAgent, bus);
+
+  const shellAgent = {
+    runUserMessage: (message: string) => agent.runUserMessage(message),
+    setModel: (model: string) => agent.setModel(model),
+    setTier: (tier: string) => agent.setTier(tier),
+    resetContext: () => agent.resetContext(),
+    listModels: () => agent.listModels(),
+    validateModel: () => agent.validateModel(),
+    getSkillsRegistry: () => agent.getSkillsRegistry(),
+    pinSkill: (id: string | null) => agent.pinSkill(id),
+  };
+
+  const disableFeatures = enableTerminalFeatures();
+  const { waitUntilExit } = render(
+    React.createElement(App, { bus, store, agent: shellAgent, workspaceRoot: cfg.workspaceRoot }),
+  );
+  await waitUntilExit();
+  disableFeatures();
+})();

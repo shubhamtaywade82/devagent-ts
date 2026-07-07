@@ -15,7 +15,8 @@ export interface BridgeableAgent {
 
 export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   let toolSeq = 0;
-  const openCalls = new Map<string, string[]>(); // tool name -> stack of open call ids
+  interface OpenCall { id: string; args: Record<string, unknown> }
+  const openCalls = new Map<string, OpenCall[]>(); // tool name -> stack of open calls
 
   agent.on("onAssistantText", (chunk: string) => {
     bus.publish({ type: "conversation.chunk", role: "assistant", chunk });
@@ -27,22 +28,27 @@ export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   agent.on("onToolCall", (name: string, args: Record<string, unknown>) => {
     const id = `tc${++toolSeq}`;
     const stack = openCalls.get(name) ?? [];
-    stack.push(id);
+    stack.push({ id, args });
     openCalls.set(name, stack);
     bus.publish({ type: "tool.started", id, name, args });
+    bus.publish({ type: "conversation.tool_call", id, name, args, status: "running" });
     bus.publish({ type: "logs.appended", level: "info", source: "tool", message: `${name} started` });
   });
   agent.on("onToolResult", (name: string, result: Record<string, unknown> | string) => {
     const stack = openCalls.get(name) ?? [];
-    const id = stack.shift();
-    if (!id) return;
+    const call = stack.shift();
+    if (!call) return;
+    const { id, args } = call;
     const resultObj = typeof result === "string" ? { output: result } : (result ?? {});
     const error = resultObj && typeof resultObj.error === "string" ? resultObj.error : null;
     if (error) {
       bus.publish({ type: "tool.failed", id, error });
+      bus.publish({ type: "conversation.tool_call", id, name, args, status: "failed", error });
       bus.publish({ type: "logs.appended", level: "error", source: "tool", message: `${name} failed: ${error}` });
     } else {
+      const resultStr = JSON.stringify(resultObj);
       bus.publish({ type: "tool.completed", id, result: resultObj });
+      bus.publish({ type: "conversation.tool_call", id, name, args, status: "completed", result: resultStr });
       bus.publish({ type: "logs.appended", level: "info", source: "tool", message: `${name} completed` });
     }
   });

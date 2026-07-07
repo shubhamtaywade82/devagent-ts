@@ -1,9 +1,27 @@
-import { PlanStep, StepRunner, Planner, HistoryEntry } from "./types";
+import { PlanStep, StepRunner, Planner, HistoryEntry, StepStatus } from "./types";
 
 export class OrchestratorError extends Error {}
 
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_MAX_REPLANS = 5;
+
+const VALID_TRANSITIONS: Record<StepStatus, readonly StepStatus[]> = {
+  pending: ["analyzing", "blocked", "cancelled", "running"],
+  analyzing: ["planning", "blocked", "cancelled", "failed"],
+  planning: ["implementing", "blocked", "cancelled", "failed"],
+  implementing: ["testing", "blocked", "cancelled", "failed"],
+  testing: ["reviewing", "blocked", "cancelled", "failed"],
+  reviewing: ["completed", "rejected", "blocked", "cancelled", "failed"],
+  completed: ["rolledback"],
+  failed: ["pending", "rolledback"],
+  rejected: ["pending", "planning", "implementing"],
+  blocked: ["pending", "analyzing", "planning", "implementing", "testing", "reviewing", "cancelled"],
+  paused: ["pending", "analyzing", "planning", "implementing", "testing", "reviewing"],
+  cancelled: [],
+  rolledback: [],
+  skipped: ["pending"],
+  running: ["completed", "failed", "blocked", "cancelled", "testing"],
+};
 
 export interface OrchestratorOptions {
   steps: PlanStep[];
@@ -72,29 +90,42 @@ export class Orchestrator {
     return step.dependencies.every((depId) => this.steps.get(depId)?.status === "completed");
   }
 
-  private async runStep(step: PlanStep): Promise<boolean> {
-    step.status = "running";
+  private transitionStatus(step: PlanStep, to: StepStatus): void {
+    const from = step.status;
+    if (from === to) return;
+    const allowed = VALID_TRANSITIONS[from];
+    if (!allowed || !allowed.includes(to)) {
+      this.logger.warn(`[Orchestrator] Invalid ASL transition from '${from}' to '${to}' for step ${step.id}`);
+    }
+    step.status = to;
     this.onStepChange?.(step);
+  }
+
+  private async runStep(step: PlanStep): Promise<boolean> {
+    this.transitionStatus(step, "analyzing");
+    this.transitionStatus(step, "planning");
+    this.transitionStatus(step, "implementing");
+
     const outcome = await this.runner.run(step);
     this.history.push({ stepId: step.id, outcome, at: Date.now() });
 
     if (outcome.kind === "success") {
-      step.status = "completed";
-      this.onStepChange?.(step);
+      this.transitionStatus(step, "testing");
+      this.transitionStatus(step, "reviewing");
+      this.transitionStatus(step, "completed");
       this.executedOrder.push(step);
       return false;
     }
 
     if (outcome.kind === "retryable" && step.retryCount < this.maxRetries) {
       step.retryCount += 1;
-      step.status = "pending";
-      this.onStepChange?.(step);
+      this.transitionStatus(step, "failed");
+      this.transitionStatus(step, "pending");
       this.logger.warn(`[Orchestrator] ${step.id} retry ${step.retryCount}/${this.maxRetries}: ${outcome.error}`);
       return false;
     }
 
-    step.status = "failed";
-    this.onStepChange?.(step);
+    this.transitionStatus(step, "failed");
     this.cascadeFailure(step.id);
     this.logger.warn(`[Orchestrator] ${step.id} failed — triggering RE_PLAN: ${outcome.error}`);
     return true;
@@ -103,7 +134,7 @@ export class Orchestrator {
   private cascadeFailure(failedId: string): void {
     for (const step of this.steps.values()) {
       if (step.status === "pending" && step.dependencies.includes(failedId)) {
-        step.status = "skipped";
+        this.transitionStatus(step, "skipped");
         this.cascadeFailure(step.id);
       }
     }

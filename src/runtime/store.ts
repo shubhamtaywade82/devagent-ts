@@ -166,12 +166,18 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         error: event.error,
         at: Date.now(),
       };
-      const toolCalls = state.toolCalls.filter((t) => t.id !== event.id);
+      const existingIdx = state.conversation.findIndex(
+        (e) => e.kind === "tool_call" && e.id === event.id,
+      );
+      const updatedConversation =
+        existingIdx >= 0
+          ? [...state.conversation.slice(0, existingIdx), entry, ...state.conversation.slice(existingIdx + 1)]
+          : [...state.conversation, entry];
       const actorHealth = event.status === "failed" ? "error" : event.status === "running" ? "active" : "healthy";
       return withActor(
         {
           ...state,
-          conversation: bounded([...state.conversation, entry], MAX_CONVERSATION),
+          conversation: bounded(updatedConversation, MAX_CONVERSATION),
           execution: { ...state.execution, activeTool: event.status === "running" ? event.name : state.execution.activeTool },
         },
         "executor",

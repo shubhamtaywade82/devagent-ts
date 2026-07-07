@@ -1,4 +1,19 @@
-export type StepStatus = "pending" | "running" | "completed" | "failed" | "skipped";
+export type StepStatus =
+  | "pending"
+  | "analyzing"
+  | "planning"
+  | "implementing"
+  | "testing"
+  | "reviewing"
+  | "completed"
+  | "failed"
+  | "skipped"
+  | "blocked"
+  | "paused"
+  | "cancelled"
+  | "rejected"
+  | "rolledback"
+  | "running"; // running kept for compatibility if needed
 
 export interface PlanStep {
   id: string;

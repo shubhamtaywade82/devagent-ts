@@ -2,12 +2,12 @@ import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { LspManager } from "../lsp/manager";
 import { LanguageRegistry } from "../lsp/registry";
-import { SemanticIndex, createRailsTools } from "../intelligence/rails";
+import { SemanticIndex } from "../intelligence/rails";
 import { WorkspaceKnowledgeEngine } from "../intelligence/knowledge-engine";
 import { LspSemanticPlugin } from "../intelligence/semantic-plugin";
 import { RailsSemanticPlugin } from "../intelligence/rails/rails-plugin";
+import { AslSemanticPlugin } from "../intelligence/asl-plugin";
 import type { SemanticQuery, CompositeResult } from "../intelligence/types";
-import type { CliConfig } from "./config";
 import type { LspServerState } from "../lsp/protocol";
 
 export interface AgentIntelligenceOptions {
@@ -57,6 +57,7 @@ export class AgentIntelligence {
     this.knowledgeEngine = new WorkspaceKnowledgeEngine();
     this.knowledgeEngine.register(new LspSemanticPlugin(this.lspManager));
     this.knowledgeEngine.register(new RailsSemanticPlugin(this.railsIndex));
+    this.knowledgeEngine.register(new AslSemanticPlugin(opts.workspaceRoot));
   }
 
   feedRailsIndex(toolName: string, args: Record<string, unknown>, result: Record<string, unknown>): void {

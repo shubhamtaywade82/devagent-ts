@@ -156,6 +156,13 @@ describe("Orchestrator", () => {
 
     await orchestrator.run();
 
-    expect(transitions).toEqual(["s1:running", "s1:completed"]);
+    expect(transitions).toEqual([
+      "s1:analyzing",
+      "s1:planning",
+      "s1:implementing",
+      "s1:testing",
+      "s1:reviewing",
+      "s1:completed",
+    ]);
   });
 });
