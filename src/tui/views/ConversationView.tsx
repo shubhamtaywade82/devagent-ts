@@ -173,12 +173,11 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
   // Build renderable blocks from conversation entries
   const blocks = useMemo<RenderedBlock[]>(() => {
     const b: RenderedBlock[] = [];
-    let prevRole: string | null = null;
+    let isFirst = true;
 
     for (const entry of state.conversation) {
-      const currentRole = entry.role;
-      if (prevRole !== null && prevRole !== currentRole) {
-        if (currentRole === "user") {
+      if (!isFirst) {
+        if (entry.role === "user") {
           b.push({
             key: `sep-${entry.at}`,
             height: 1,
@@ -192,7 +191,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           });
         }
       }
-      prevRole = currentRole;
+      isFirst = false;
 
       if (entry.kind === "text") {
         if (entry.role === "thinking") {
