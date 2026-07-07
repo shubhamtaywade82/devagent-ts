@@ -2,52 +2,18 @@ import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig } from "./config";
 import { Provider, ChatMessage } from "../provider/provider";
-import { Registry } from "../tools/registry";
-import { ReadFileTool, WriteFileTool } from "../tools/filesystem";
-import { ShellTool } from "../tools/shell";
-import {
-  ListDirectoryTool,
-  DeleteFileTool,
-  MakeDirectoryTool,
-  CopyFileTool,
-  MoveFileTool,
-} from "../tools/directory-tools";
-import { PatchTool, AppendTool } from "../tools/edit-tools";
-import { SnapshotBackupTool } from "../tools/backup-tools";
-import { WatchTool } from "../tools/watch-tool";
-import { SearchCodeTool } from "../tools/search-tools";
-import { GitTool } from "../tools/git-tools";
-import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
-import { RunRubocopTool } from "../tools/rubocop-tool";
-import { RunRSpecTool } from "../tools/rspec-tool";
 import { LoopDetector } from "../orchestrator/loop-detector";
-import { MemoryStore } from "../memory/store";
-import { LearningEngine } from "../learning";
-import { generateSummary } from "../memory/summarizer";
 import { Orchestrator } from "../orchestrator/orchestrator";
 import { AgentStepRunner } from "../orchestrator/agent-planner";
 import { PlanStep, Planner } from "../orchestrator/types";
-import { connectMcpServer } from "../mcp/client";
-import { SkillsRegistry } from "../skills/registry";
-import { SkillContent, SkillMeta } from "../skills/types";
-import { LspManager } from "../lsp/manager";
-import { SemanticIndex, createRailsTools } from "../intelligence/rails";
-import { LanguageRegistry } from "../lsp/registry";
-import type { LspServerState } from "../lsp/protocol";
-import {
-  GetDefinitionTool,
-  FindReferencesTool,
-  RenameSymbolTool,
-  WorkspaceSymbolsTool,
-  DocumentSymbolsTool,
-  HoverTool,
-  DiagnosticsTool,
-  CodeActionsTool,
-  FormatDocumentTool,
-  SignatureHelpTool,
-  CompletionTool,
-  SemanticTokensTool,
-} from "../tools/lsp-tools";
+import { SkillMeta } from "../skills/types";
+import { LspServerState } from "../lsp/protocol";
+import { MemoryStore } from "../memory/store";
+import { generateSummary } from "../memory/summarizer";
+import { AgentConversation } from "./agent-conversation";
+import { AgentToolManager } from "./agent-tools";
+import { AgentIntelligence } from "./agent-intelligence";
+import { AgentLearning } from "./agent-learning";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -68,25 +34,23 @@ type AgentEventHandler<E extends AgentEventName> = NonNullable<AgentEvents[E]>;
 export interface AgentOptions {
   config?: Partial<CliConfig>;
   events?: AgentEvents;
-  /** Override for the global skills directory's parent; defaults to the real home dir. Test-only escape hatch. */
   skillsHomeDir?: string;
 }
 
 export class Agent {
+  readonly conversation: AgentConversation;
+  readonly tools: AgentToolManager;
+  readonly intelligence: AgentIntelligence;
+  readonly learning: AgentLearning;
+  readonly memory: MemoryStore;
+  readonly lspManager: AgentIntelligence["lspManager"];
+  readonly railsIndex: AgentIntelligence["railsIndex"];
+
   private readonly provider: Provider;
-  private readonly registry: Registry;
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
-  private readonly memory: MemoryStore;
-  private readonly learning: LearningEngine;
-  private readonly skills: SkillsRegistry;
-  private pinnedSkillId: string | null = null;
-  private isSummarizing = false;
   readonly events: AgentEvents;
-  private messages: ChatMessage[] = [];
   private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
-  readonly lspManager: LspManager;
-  readonly railsIndex: SemanticIndex;
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
@@ -101,113 +65,52 @@ export class Agent {
 
     this.events = opts.events ?? {};
 
-    const shellOpts: ConstructorParameters<typeof ShellTool>[0] = {
-      workspaceRoot: cfg.workspaceRoot,
-    };
-    if (cfg.shellImage) shellOpts.image = cfg.shellImage;
-    if (cfg.shellTimeoutSec) shellOpts.timeoutSec = cfg.shellTimeoutSec;
-    shellOpts.onOutput = (stream, chunk) => this.emit("onShellOutput", stream, chunk);
+    this.conversation = new AgentConversation();
 
-    this.registry = new Registry()
-      .register(new ReadFileTool(cfg.workspaceRoot))
-      .register(new WriteFileTool(cfg.workspaceRoot))
-      .register(new ShellTool(shellOpts))
-      .register(new ListDirectoryTool(cfg.workspaceRoot))
-      .register(new DeleteFileTool(cfg.workspaceRoot))
-      .register(new MakeDirectoryTool(cfg.workspaceRoot))
-      .register(new CopyFileTool(cfg.workspaceRoot))
-      .register(new MoveFileTool(cfg.workspaceRoot))
-      .register(new PatchTool(cfg.workspaceRoot))
-      .register(new AppendTool(cfg.workspaceRoot))
-      .register(new SnapshotBackupTool(cfg.workspaceRoot))
-      .register(new WatchTool(cfg.workspaceRoot))
-      .register(new SearchCodeTool(cfg.workspaceRoot))
-      .register(new GitTool(cfg.workspaceRoot))
-      .register(new RunTestsTool(cfg.workspaceRoot))
-      .register(new RunLintTool(cfg.workspaceRoot))
-      .register(new RunFormatTool(cfg.workspaceRoot))
-      .register(new RunBuildTool(cfg.workspaceRoot))
-      .register(new RunRubocopTool(cfg.workspaceRoot))
-      .register(new RunRSpecTool(cfg.workspaceRoot));
-
-    const langRegistry = new LanguageRegistry(
-      cfg.languages as Record<string, Partial<import("../lsp/registry").LanguageProviderConfig>> | undefined,
+    this.tools = new AgentToolManager();
+    this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) =>
+      this.emit("onShellOutput", stream, chunk),
     );
-    const lspConfig = cfg.lsp ?? {};
-    this.lspManager = new LspManager({
+
+    this.intelligence = new AgentIntelligence({
       workspaceRoot: cfg.workspaceRoot,
-      registry: langRegistry,
-      lspConfig: lspConfig,
-      events: {
-        onDiagnostics: (filePath, diagnostics) => {
-          this.emit("onStatus", `diagnostics: ${filePath} (${diagnostics.length})`);
-        },
-        onServerStateChange: (servers) => {
-          this.emit("onLspStateChange", servers);
-        },
+      languages: cfg.languages as Record<string, Partial<import("../lsp/registry").LanguageProviderConfig>> | undefined,
+      lspConfig: cfg.lsp as import("../lsp/config").LspGlobalConfig | undefined,
+      prewarm: (cfg.lsp as { prewarm?: string[] } | undefined)?.prewarm,
+      onDiagnostics: (filePath, diagnostics) => {
+        this.emit("onStatus", `diagnostics: ${filePath} (${diagnostics.length})`);
+      },
+      onServerStateChange: (servers) => {
+        this.emit("onLspStateChange", servers);
       },
     });
 
-    this.registry
-      .register(new GetDefinitionTool(this.lspManager))
-      .register(new FindReferencesTool(this.lspManager))
-      .register(new RenameSymbolTool(this.lspManager))
-      .register(new WorkspaceSymbolsTool(this.lspManager))
-      .register(new DocumentSymbolsTool(this.lspManager))
-      .register(new HoverTool(this.lspManager))
-      .register(new DiagnosticsTool(this.lspManager))
-      .register(new CodeActionsTool(this.lspManager))
-      .register(new FormatDocumentTool(this.lspManager))
-      .register(new SignatureHelpTool(this.lspManager))
-      .register(new CompletionTool(this.lspManager))
-      .register(new SemanticTokensTool(this.lspManager));
+    this.tools.registerLspTools(this.intelligence.lspManager);
+    this.tools.registerRailsTools(this.intelligence.railsIndex);
 
-    const prewarm = lspConfig.prewarm;
-    if (prewarm && prewarm.length > 0) {
-      this.lspManager.prewarm(prewarm).catch(() => {});
-    }
+    this.lspManager = this.intelligence.lspManager;
+    this.railsIndex = this.intelligence.railsIndex;
 
     const devagentDir = join(cfg.workspaceRoot, ".devagent");
     mkdirSync(devagentDir, { recursive: true });
 
-    this.railsIndex = SemanticIndex.create(cfg.workspaceRoot, {
-      cachePath: join(devagentDir, "rails-index.db"),
-    });
-    for (const tool of createRailsTools(this.railsIndex)) {
-      this.registry.register(tool);
-    }
-    if (this.railsIndex.enabled) {
-      this.railsIndex.build().catch(() => {});
-    }
-
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
-    this.learning = new LearningEngine({
-      workspaceRoot: cfg.workspaceRoot,
-      provider: this.provider,
-      memory: this.memory,
-    });
-    const projectLanguage = this.railsIndex.enabled
-      ? this.railsIndex.workspace.isRails
+
+    const projectLanguage = this.intelligence.railsIndex.enabled
+      ? this.intelligence.railsIndex.workspace.isRails
         ? "ruby"
-        : this.railsIndex.workspace.isRuby
+        : this.intelligence.railsIndex.workspace.isRuby
           ? "ruby"
           : undefined
       : undefined;
-    this.skills = SkillsRegistry.discover(
-      { workspaceRoot: cfg.workspaceRoot, homeDir: opts.skillsHomeDir },
-      projectLanguage,
-    );
-  }
 
-  /** Keep the Rails semantic index in sync after file-mutating tools. */
-  private feedRailsIndex(toolName: string, args: Record<string, unknown>, result: Record<string, unknown>): void {
-    if (!this.railsIndex.enabled || result.error) return;
-    const MUTATING = new Set(["write_file", "patch_file", "append_file", "delete_file", "move_file", "copy_file"]);
-    if (!MUTATING.has(toolName)) return;
-    const paths = [args.path, args.source, args.destination, args.from, args.to].filter(
-      (p): p is string => typeof p === "string" && (p.endsWith(".rb") || p.endsWith("Gemfile.lock")),
-    );
-    if (paths.length) this.railsIndex.update(paths).catch(() => {});
+    this.learning = new AgentLearning({
+      workspaceRoot: cfg.workspaceRoot,
+      provider: this.provider,
+      memory: this.memory,
+      skillsHomeDir: opts.skillsHomeDir,
+      projectLanguage,
+    });
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
@@ -219,11 +122,11 @@ export class Agent {
 
   private emit<E extends AgentEventName>(event: E, ...args: Parameters<AgentEventHandler<E>>): void {
     if (event === "onToolCall") {
-      this.learning.recorder.onToolCall(args[0] as string, args[1] as Record<string, unknown>);
+      this.learning.learning.recorder.onToolCall(args[0] as string, args[1] as Record<string, unknown>);
     } else if (event === "onToolResult") {
-      this.learning.recorder.onToolResult(args[0] as string, args[1] as Record<string, unknown>);
+      this.learning.learning.recorder.onToolResult(args[0] as string, args[1] as Record<string, unknown>);
     } else if (event === "onError") {
-      this.learning.recorder.onError(args[0] as Error);
+      this.learning.learning.recorder.onError(args[0] as Error);
     }
 
     (this.events[event] as ((...a: typeof args) => void) | undefined)?.(...args);
@@ -231,53 +134,41 @@ export class Agent {
   }
 
   async runUserMessage(userMessage: string): Promise<string> {
-    const learnings = this.memory.getLearnings();
-    let learningsBlock = "";
-    if (learnings.length > 0) {
-      learningsBlock =
-        "\n\n[Recalled Past Learnings & User Preferences]:\n" +
-        learnings.map((l) => `- [${l.category}] Lesson: ${l.lesson}`).join("\n");
+    const learnings = this.learning.getLearnings();
+    const activatedSkills = this.learning.resolveForPrompt(userMessage);
+
+    if (this.conversation.isEmpty()) {
+      const cfg = loadConfig();
+      this.conversation.init(cfg, learnings, activatedSkills);
+    } else {
+      const cfg = loadConfig();
+      this.conversation.refreshSystemPrompt(cfg, learnings, activatedSkills);
     }
 
-    const header =
-      (loadConfig().systemPrompt ?? "") +
-      learningsBlock +
-      "\n\nTool contract:\n" +
-      "1) Call exactly one tool per assistant turn when appropriate.\n" +
-      "2) If read_file returns `truncated`, that is a content ceiling, not an instruction to stop.\n" +
-      "3) `PathEscapeError` means the path escaped the workspace root; fix the path and retry.\n" +
-      "4) After tool results, continue toward the user's stated goal with minimal next steps.\n" +
-      "5) Semantic tools (get_definition, find_references, workspace_symbols, document_symbols, hover, diagnostics) provide structured code intelligence for supported file types. Prefer these over raw text search for code understanding.\n" +
-      "6) Use search_code / read_file as fallback when semantic tools are unavailable for a file type.\n" +
-      "7) In Rails workspaces, prefer the Rails semantic tools (find_model, find_route, find_controller, find_service, find_spec, find_association, find_callback, rails_context) over reading files — they answer framework questions (routes, associations, callbacks, spec coverage) directly from the semantic index.";
-
-    if (!this.messages.length) {
-      this.messages = [{ role: "system", content: header }];
-    } else if (this.messages[0] && this.messages[0].role === "system") {
-      this.messages[0].content = header;
-    }
-
-    const activatedSkills: SkillContent[] = this.pinnedSkillId
-      ? [this.skills.activate(this.pinnedSkillId)].filter((s): s is SkillContent => s != null)
-      : this.skills.resolveForPrompt(userMessage);
     for (const skill of activatedSkills) {
-      this.messages.push({ role: "system", content: `Skill: ${skill.name}\n\n${skill.body}` });
+      this.conversation.injectSkill(skill);
     }
-    if (activatedSkills.length) this.emit("onSkillsActivated", activatedSkills);
-    this.learning.recorder.begin(
+    if (activatedSkills.length) {
+      this.emit(
+        "onSkillsActivated",
+        activatedSkills.map((s) => ({ id: s.id, name: s.name, description: s.description, tags: s.tags, version: s.version, scope: s.scope, dir: s.dir, path: s.path })),
+      );
+    }
+
+    this.learning.learning.recorder.begin(
       userMessage,
       activatedSkills.map((skill) => skill.id),
     );
 
-    this.messages.push({ role: "user", content: userMessage });
-    this.memory.appendMessage("user", userMessage);
+    this.conversation.pushUserMessage(userMessage);
+    this.learning.appendMessage("user", userMessage);
 
     let lastAssistantText = "";
     let success = true;
     let episodeEnded = false;
-    const finish = (terminal: Parameters<LearningEngine["onEpisodeEnd"]>[0], text: string): string => {
+    const finish = (terminal: Parameters<typeof this.learning.learning.onEpisodeEnd>[0], text: string): string => {
       if (!episodeEnded) {
-        this.learning.onEpisodeEnd(terminal, text);
+        this.learning.learning.onEpisodeEnd(terminal, text);
         episodeEnded = true;
       }
       return text;
@@ -287,9 +178,9 @@ export class Agent {
       for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
         this.emit("onStatus", `turn ${toolTurn + 1}`);
 
-        const chatResponse = await this.provider.chat(this.messages, {
+        const chatResponse = await this.provider.chat(this.conversation.getMessages(), {
           stream: true,
-          tools: this.registry.schemas(),
+          tools: this.tools.registry.schemas(),
           onChunk: (chunk) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
@@ -307,27 +198,21 @@ export class Agent {
           content?: string;
           tool_calls?: Array<{ function: { name: string; arguments: any } }>;
         };
-        this.messages.push({
-          role: "assistant",
-          content: assistantMessage.content ?? "",
-          tool_calls: assistantMessage.tool_calls,
-        } as ChatMessage);
+        this.conversation.pushAssistantMessage(assistantMessage.content ?? "", assistantMessage.tool_calls);
 
         const toolCalls = assistantMessage.tool_calls ?? [];
         const hasContent = (assistantMessage.content ?? "").trim().length > 0;
 
         if (!toolCalls.length) {
           if (hasContent) {
-            this.memory.appendMessage("assistant", lastAssistantText);
+            this.learning.appendMessage("assistant", lastAssistantText);
             this.triggerSummarization();
             return finish("answered", lastAssistantText);
           }
           if (toolTurn < this.maxToolTurns - 1) {
-            this.messages.push({
-              role: "user",
-              content:
-                "[system] You were thinking but produced no action or response. Please continue toward the goal: call a tool or provide your final answer now.",
-            });
+            this.conversation.pushSystemMessage(
+              "[system] You were thinking but produced no action or response. Please continue toward the goal: call a tool or provide your final answer now.",
+            );
             continue;
           }
           return finish("answered", lastAssistantText || "(no response)");
@@ -351,17 +236,16 @@ export class Agent {
           this.emit("onToolCall", name, args);
 
           try {
-            const result = await this.registry.invoke(name, args);
+            const result = await this.tools.registry.invoke(name, args);
 
             if (result.error === "PathEscapeError") {
-              this.messages.push({
-                role: "tool",
-                content: JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
-              });
+              this.conversation.pushToolResult(
+                JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
+              );
               this.emit("onToolResult", name, result);
-              const guidance =
-                "The previous tool call escaped the workspace root. Retry with a path under the current workspace root.";
-              this.messages.push({ role: "user", content: `[system] ${guidance}` });
+              this.conversation.pushSystemMessage(
+                "[system] The previous tool call escaped the workspace root. Retry with a path under the current workspace root.",
+              );
 
               if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
                 return finish(
@@ -373,11 +257,10 @@ export class Agent {
             }
 
             this.emit("onToolResult", name, result);
-            this.feedRailsIndex(name, args, result);
-            this.messages.push({
-              role: "tool",
-              content: typeof result === "string" ? result : JSON.stringify(result, null, 2),
-            });
+            this.intelligence.feedRailsIndex(name, args, result);
+            this.conversation.pushToolResult(
+              typeof result === "string" ? result : JSON.stringify(result, null, 2),
+            );
 
             if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
               return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
@@ -388,10 +271,9 @@ export class Agent {
           } catch (e) {
             const err = e as Error;
             this.emit("onError", err);
-            this.messages.push({
-              role: "tool",
-              content: JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
-            });
+            this.conversation.pushToolResult(
+              JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
+            );
           }
         }
       }
@@ -402,21 +284,20 @@ export class Agent {
       finish("error", lastAssistantText);
       throw e;
     } finally {
-      for (const skill of activatedSkills) this.memory.recordSkillUse(skill.id, success);
+      for (const skill of activatedSkills) this.learning.recordSkillUse(skill.id, success);
     }
   }
 
-  /** Pin a skill by id so it's always injected (bypassing scoring) until unpinned with null. */
   pinSkill(id: string | null): void {
-    this.pinnedSkillId = id;
+    this.learning.pinSkill(id);
   }
 
-  getSkillsRegistry(): SkillsRegistry {
-    return this.skills;
+  getSkillsRegistry() {
+    return this.learning.getSkillsRegistry();
   }
 
   flushLearning(): Promise<void> {
-    return this.learning.flush();
+    return this.learning.flushLearning();
   }
 
   async runPlannedTask(steps: PlanStep[], planner: Planner): Promise<PlanStep[]> {
@@ -433,11 +314,11 @@ export class Agent {
 
   setModel(model: string): void {
     this.provider.setModel(model);
-    this.resetContext();
+    this.conversation.reset();
   }
 
   addLearning(category: string, context: string, lesson: string): void {
-    this.memory.addLearning(category, context, lesson);
+    this.learning.addLearning(category, context, lesson);
   }
 
   async validateModel(): Promise<true | string> {
@@ -469,7 +350,6 @@ export class Agent {
     return this.provider.currentTier;
   }
 
-  /** Models available on the provider's *current* tier — never stale. */
   async listModels(): Promise<string[]> {
     const data = await this.provider.availableModels();
     if (this.provider.currentTier === "cloud") {
@@ -481,8 +361,10 @@ export class Agent {
   }
 
   resetContext(): void {
-    this.messages = [];
+    this.conversation.reset();
   }
+
+  private isSummarizing = false;
 
   private triggerSummarization(): void {
     if (this.isSummarizing) return;
@@ -495,12 +377,11 @@ export class Agent {
       });
   }
 
-  getRegistry(): Registry {
-    return this.registry;
+  getRegistry() {
+    return this.tools.registry;
   }
 
   async registerMcpServer(command: string, args: string[] = []): Promise<void> {
-    const tools = await connectMcpServer(command, args);
-    for (const tool of tools) this.registry.register(tool);
+    await this.tools.registerMcpServer(command, args);
   }
 }
