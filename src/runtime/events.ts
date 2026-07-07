@@ -54,6 +54,10 @@ export type RuntimeEvent =
       edgeCount?: number;
       scannerErrors?: string[];
       durationMs?: number;
+      railsVersion?: string;
+      rubyVersion?: string;
+      testFramework?: string;
+      byType?: Record<string, number>;
     }
   | { type: "skills.changed"; skills: SkillState[] }
   | { type: "approval.requested"; request: ApprovalRequest }

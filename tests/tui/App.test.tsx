@@ -13,9 +13,10 @@ function makeWorld() {
   const bus = new EventBus();
   const store = new Store(initialRuntimeState({ workspace: "ollama-agent", branch: "main", model: "qwen3:30b" }));
   store.attach(bus);
-  const agent: ShellAgent & { calls: string[]; models: string[] } = {
+  const agent: ShellAgent & { calls: string[]; models: string[]; learnings: Array<[string, string, string]> } = {
     calls: [],
     models: [],
+    learnings: [],
     runUserMessage: jest.fn(async (m: string) => {
       agent.calls.push(m);
       return "ok";
@@ -24,6 +25,9 @@ function makeWorld() {
       agent.models.push(m);
     },
     listModels: jest.fn(async () => ["qwen3:30b", "qwen3:8b", "deepseek"]),
+    addLearning: jest.fn((category: string, context: string, lesson: string) => {
+      agent.learnings.push([category, context, lesson]);
+    }),
   };
   return { bus, store, agent };
 }
@@ -140,6 +144,17 @@ describe("App shell", () => {
     expect(agent.models).toEqual(["qwen3:8b"]);
     expect(store.getState().model.name).toBe("qwen3:8b");
     expect(agent.calls).toEqual([]); // never sent to the model as chat
+    unmount();
+  });
+
+  it("slash commands execute: /learn records a preference", async () => {
+    const { stdin, agent, unmount } = renderApp();
+    await tick();
+    stdin.write("/learn use 2-space indentation");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(agent.learnings).toEqual([["user_preference", "user explicitly typed /learn", "use 2-space indentation"]]);
     unmount();
   });
 

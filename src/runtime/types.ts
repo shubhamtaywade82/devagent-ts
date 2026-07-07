@@ -236,6 +236,10 @@ export interface RailsIndexState {
   entityCount: number;
   edgeCount: number;
   scannerErrors: string[];
+  railsVersion?: string;
+  rubyVersion?: string;
+  testFramework?: string;
+  byType?: Record<string, number>;
 }
 
 export interface RuntimeState {

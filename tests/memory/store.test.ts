@@ -81,4 +81,26 @@ describe("MemoryStore", () => {
     ]);
     store.close();
   });
+
+  it("stores and retrieves learnings", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "mem-"));
+    const store = new MemoryStore(join(dir, "devagent.db"));
+
+    store.addLearning("error_fix", "failing compilation", "use ES2022 target in tsconfig");
+    store.addLearning("user_preference", "rspec tests", "always run bin/rspec");
+
+    const learnings = store.getLearnings();
+    expect(learnings).toHaveLength(2);
+    expect(learnings[0]).toMatchObject({
+      category: "user_preference",
+      context: "rspec tests",
+      lesson: "always run bin/rspec",
+    });
+    expect(learnings[1]).toMatchObject({
+      category: "error_fix",
+      context: "failing compilation",
+      lesson: "use ES2022 target in tsconfig",
+    });
+    store.close();
+  });
 });

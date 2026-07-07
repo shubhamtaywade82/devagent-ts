@@ -268,6 +268,10 @@ export class SemanticIndex {
       lastBuiltAt: this.lastBuiltAt,
       lastBuildMs: this.lastBuildMs,
       loadedFromCache: this.loadedFromCache,
+      railsVersion: this.manifest?.workspace.railsVersion,
+      rubyVersion: this.manifest?.workspace.rubyVersion,
+      testFramework: this.manifest?.workspace.testFramework,
+      byType: stats.byType,
     };
   }
 
@@ -346,6 +350,10 @@ export class SemanticIndex {
       edgeCount: stats.edges,
       scannerErrors: this.scannerErrors.map((e) => `${e.scanner}: ${e.error}`),
       durationMs: this.lastBuildMs,
+      railsVersion: this.manifest?.workspace.railsVersion,
+      rubyVersion: this.manifest?.workspace.rubyVersion,
+      testFramework: this.manifest?.workspace.testFramework,
+      byType: stats.byType,
     });
   }
 

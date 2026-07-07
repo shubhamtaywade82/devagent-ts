@@ -370,6 +370,10 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
           entityCount: event.entityCount ?? 0,
           edgeCount: event.edgeCount ?? 0,
           scannerErrors: event.scannerErrors ?? [],
+          railsVersion: event.railsVersion,
+          rubyVersion: event.rubyVersion,
+          testFramework: event.testFramework,
+          byType: event.byType,
         },
       };
     }

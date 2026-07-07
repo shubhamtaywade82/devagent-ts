@@ -30,6 +30,14 @@ export class MemoryStore {
         success_count INTEGER NOT NULL DEFAULT 0,
         last_used_at INTEGER
       );
+      CREATE TABLE IF NOT EXISTS learnings (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        category TEXT NOT NULL,
+        context TEXT NOT NULL,
+        lesson TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        success_count INTEGER DEFAULT 0
+      );
     `);
   }
 
@@ -97,6 +105,16 @@ export class MemoryStore {
       successCount: row.success_count,
       lastUsedAt: row.last_used_at,
     }));
+  }
+
+  addLearning(category: string, context: string, lesson: string): void {
+    this.db
+      .prepare("INSERT INTO learnings (category, context, lesson, created_at) VALUES (?, ?, ?, ?)")
+      .run(category, context, lesson, Date.now());
+  }
+
+  getLearnings(): Array<{ id: number; category: string; context: string; lesson: string; created_at: number; success_count: number }> {
+    return this.db.prepare("SELECT * FROM learnings ORDER BY id DESC").all() as any[];
   }
 
   close(): void {

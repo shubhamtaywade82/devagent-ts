@@ -50,6 +50,7 @@ export interface ShellAgent {
   validateModel?(): Promise<true | string>;
   getSkillsRegistry?(): SkillsRegistry;
   pinSkill?(id: string | null): void;
+  addLearning?(category: string, context: string, lesson: string): void;
 }
 
 export interface AppProps {
@@ -401,6 +402,18 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         case "reset-context":
           agent?.resetContext?.();
           bus.publish({ type: "notification", kind: "info", text: "Context reset" });
+          break;
+        case "learn":
+          if (agent && agent.addLearning) {
+            agent.addLearning("user_preference", "user explicitly typed /learn", effect.rule);
+            bus.publish({
+              type: "notification",
+              kind: "success",
+              text: `Learned: ${effect.rule.slice(0, 40)}${effect.rule.length > 40 ? "..." : ""}`,
+            });
+          } else {
+            bus.publish({ type: "notification", kind: "error", text: "Learning not supported by agent" });
+          }
           break;
         case "set-agent-mode": {
           const valid = ["ask", "code", "architect", "review", "debug", "autonomous"];

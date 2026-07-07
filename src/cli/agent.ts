@@ -212,8 +212,16 @@ export class Agent {
   }
 
   async runUserMessage(userMessage: string): Promise<string> {
+    const learnings = this.memory.getLearnings();
+    let learningsBlock = "";
+    if (learnings.length > 0) {
+      learningsBlock = "\n\n[Recalled Past Learnings & User Preferences]:\n" +
+        learnings.map((l) => `- [${l.category}] Lesson: ${l.lesson}`).join("\n");
+    }
+
     const header =
       (loadConfig().systemPrompt ?? "") +
+      learningsBlock +
       "\n\nTool contract:\n" +
       "1) Call exactly one tool per assistant turn when appropriate.\n" +
       "2) If read_file returns `truncated`, that is a content ceiling, not an instruction to stop.\n" +
@@ -225,6 +233,8 @@ export class Agent {
 
     if (!this.messages.length) {
       this.messages = [{ role: "system", content: header }];
+    } else if (this.messages[0] && this.messages[0].role === "system") {
+      this.messages[0].content = header;
     }
 
     const activatedSkills: SkillContent[] = this.pinnedSkillId
@@ -390,6 +400,10 @@ export class Agent {
   setModel(model: string): void {
     this.provider.setModel(model);
     this.resetContext();
+  }
+
+  addLearning(category: string, context: string, lesson: string): void {
+    this.memory.addLearning(category, context, lesson);
   }
 
   async validateModel(): Promise<true | string> {

@@ -162,7 +162,7 @@ function ToolCallBlock({
 interface RenderedBlock {
   key: string;
   height: number;
-  render: () => JSX.Element;
+  render: (startRow: number, endRow: number) => JSX.Element;
 }
 
 export function ConversationView({ state, width, rows, detail: _detail }: ViewProps): JSX.Element {
@@ -214,17 +214,20 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           b.push({
             key: `user-${entry.at}`,
             height: lines.length,
-            render: () => (
-              <Box key={`user-${entry.at}`} flexDirection="column">
-                {lines.map((line, li) => (
-                  <Box key={li} height={1}>
-                    {li === 0 ? <Text color="green">&gt; </Text> : <Box width={2} />}
-                    {line.indent ? <Box width={line.indent} /> : null}
-                    <SpanText spans={line.spans} />
-                  </Box>
-                ))}
-              </Box>
-            ),
+            render: (startRow, endRow) => {
+              const visibleLines = lines.slice(startRow, endRow);
+              return (
+                <Box key={`user-${entry.at}`} flexDirection="column">
+                  {visibleLines.map((line, li) => (
+                    <Box key={startRow + li} height={1}>
+                      {startRow + li === 0 ? <Text color="green">&gt; </Text> : <Box width={2} />}
+                      {line.indent ? <Box width={line.indent} /> : null}
+                      <SpanText spans={line.spans} />
+                    </Box>
+                  ))}
+                </Box>
+              );
+            },
           });
         } else {
           // assistant
@@ -232,17 +235,20 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           b.push({
             key: `asst-${entry.at}`,
             height: lines.length,
-            render: () => (
-              <Box key={`asst-${entry.at}`} flexDirection="column">
-                {lines.map((line, li) => (
-                  <Box key={li} height={1}>
-                    <Box width={2} />
-                    {line.indent ? <Box width={line.indent} /> : null}
-                    <SpanText spans={line.spans} />
-                  </Box>
-                ))}
-              </Box>
-            ),
+            render: (startRow, endRow) => {
+              const visibleLines = lines.slice(startRow, endRow);
+              return (
+                <Box key={`asst-${entry.at}`} flexDirection="column">
+                  {visibleLines.map((line, li) => (
+                    <Box key={startRow + li} height={1}>
+                      <Box width={2} />
+                      {line.indent ? <Box width={line.indent} /> : null}
+                      <SpanText spans={line.spans} />
+                    </Box>
+                  ))}
+                </Box>
+              );
+            },
           });
         }
       } else if (entry.kind === "tool_call") {
@@ -337,12 +343,14 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
   }
 
   // Limit to only blocks within visible window
-  const visibleBlocks: RenderedBlock[] = [];
+  const visibleBlocks: Array<{ block: RenderedBlock; startRow: number; endRow: number }> = [];
   let currentRow = blockStart;
   for (let i = firstVisibleIdx; i < blocks.length && currentRow < visibleEnd; i++) {
     const b = blocks[i];
     if (currentRow + b.height > visibleStart) {
-      visibleBlocks.push(b);
+      const startRow = Math.max(0, visibleStart - currentRow);
+      const endRow = Math.min(b.height, visibleEnd - currentRow);
+      visibleBlocks.push({ block: b, startRow, endRow });
     }
     currentRow += b.height;
   }
@@ -381,7 +389,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
 
   return (
     <Box flexDirection="column" height={rows}>
-      {visibleBlocks.map((b) => b.render())}
+      {visibleBlocks.map(({ block, startRow, endRow }) => block.render(startRow, endRow))}
     </Box>
   );
 }

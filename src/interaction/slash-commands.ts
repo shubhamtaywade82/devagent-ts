@@ -22,6 +22,7 @@ export type CommandEffect =
   | { kind: "search" }
   | { kind: "next-mode" }
   | { kind: "quit" }
+  | { kind: "learn"; rule: string }
   | { kind: "error"; text: string };
 
 export interface SlashCommand {
@@ -233,6 +234,15 @@ export function builtinCommands(): SlashCommandRegistry {
     aliases: [],
     description: "Redo the last undone change",
     execute: () => ({ kind: "message", text: "Redo the last undone change" }),
+  });
+  registry.register({
+    name: "learn",
+    aliases: [],
+    description: "Record a learning/preference: /learn <preference>",
+    execute: (args) =>
+      args.trim()
+        ? { kind: "learn", rule: args.trim() }
+        : { kind: "error", text: "Usage: /learn <preference>" },
   });
   return registry;
 }
