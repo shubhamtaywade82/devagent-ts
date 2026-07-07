@@ -1,4 +1,6 @@
 export class LoopDetector {
+  private static readonly maxConsecutiveFailures = 3;
+
   private lastSignature: string | null = null;
   private lastError: string | null = null;
   private repeatCount = 0;
@@ -14,7 +16,7 @@ export class LoopDetector {
       this.lastError = error;
     }
 
-    return this.repeatCount >= 1;
+    return this.repeatCount >= LoopDetector.maxConsecutiveFailures - 1;
   }
 
   reset(): void {

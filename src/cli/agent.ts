@@ -186,7 +186,10 @@ export class Agent {
           ? "ruby"
           : undefined
       : undefined;
-    this.skills = SkillsRegistry.discover({ workspaceRoot: cfg.workspaceRoot, homeDir: opts.skillsHomeDir }, projectLanguage);
+    this.skills = SkillsRegistry.discover(
+      { workspaceRoot: cfg.workspaceRoot, homeDir: opts.skillsHomeDir },
+      projectLanguage,
+    );
   }
 
   /** Keep the Rails semantic index in sync after file-mutating tools. */
@@ -194,8 +197,9 @@ export class Agent {
     if (!this.railsIndex.enabled || result.error) return;
     const MUTATING = new Set(["write_file", "patch_file", "append_file", "delete_file", "move_file", "copy_file"]);
     if (!MUTATING.has(toolName)) return;
-    const paths = [args.path, args.source, args.destination, args.from, args.to]
-      .filter((p): p is string => typeof p === "string" && (p.endsWith(".rb") || p.endsWith("Gemfile.lock")));
+    const paths = [args.path, args.source, args.destination, args.from, args.to].filter(
+      (p): p is string => typeof p === "string" && (p.endsWith(".rb") || p.endsWith("Gemfile.lock")),
+    );
     if (paths.length) this.railsIndex.update(paths).catch(() => {});
   }
 
@@ -215,7 +219,8 @@ export class Agent {
     const learnings = this.memory.getLearnings();
     let learningsBlock = "";
     if (learnings.length > 0) {
-      learningsBlock = "\n\n[Recalled Past Learnings & User Preferences]:\n" +
+      learningsBlock =
+        "\n\n[Recalled Past Learnings & User Preferences]:\n" +
         learnings.map((l) => `- [${l.category}] Lesson: ${l.lesson}`).join("\n");
     }
 
@@ -321,13 +326,6 @@ export class Agent {
           try {
             const result = await this.registry.invoke(name, args);
 
-            const errorLabel =
-              typeof result.error === "string"
-                ? result.error
-                : typeof result.message === "string"
-                  ? result.message
-                  : String(result);
-
             if (result.error === "PathEscapeError") {
               this.messages.push({
                 role: "tool",
@@ -337,7 +335,7 @@ export class Agent {
                 "The previous tool call escaped the workspace root. Retry with a path under the current workspace root.";
               this.messages.push({ role: "user", content: `[system] ${guidance}` });
 
-              if (this.loopDetector.record(name, args, errorLabel)) {
+              if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
                 return lastAssistantText + "\n[aborted] tool loop detected after repeated escapes.";
               }
               continue;
@@ -350,7 +348,7 @@ export class Agent {
               content: typeof result === "string" ? result : JSON.stringify(result, null, 2),
             });
 
-            if (this.loopDetector.record(name, args, errorLabel)) {
+            if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
               return lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name;
             }
             if (toolTurn === this.maxToolTurns - 1) {

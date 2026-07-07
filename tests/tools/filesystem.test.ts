@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, writeFile, readdir } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ReadFileTool, WriteFileTool, PathEscapeError } from "../../src/tools/filesystem";
@@ -19,6 +19,16 @@ describe("ReadFileTool", () => {
     const tool = new ReadFileTool(dir);
 
     await expect(tool.call({ path: "../../etc/passwd" })).rejects.toBeInstanceOf(PathEscapeError);
+  });
+
+  it("rejects reads through symlinks that escape the workspace root", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    const outside = await mkdtemp(join(tmpdir(), "outside-"));
+    await writeFile(join(outside, "secret.txt"), "secret");
+    await symlink(outside, join(dir, "outside"));
+    const tool = new ReadFileTool(dir);
+
+    await expect(tool.call({ path: "outside/secret.txt" })).rejects.toBeInstanceOf(PathEscapeError);
   });
 });
 
@@ -47,5 +57,14 @@ describe("WriteFileTool", () => {
     const tool = new WriteFileTool(dir);
 
     await expect(tool.call({ path: "../outside.txt", content: "x" })).rejects.toBeInstanceOf(PathEscapeError);
+  });
+
+  it("rejects writes through symlinked directories that escape the workspace root", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    const outside = await mkdtemp(join(tmpdir(), "outside-"));
+    await symlink(outside, join(dir, "outside"));
+    const tool = new WriteFileTool(dir);
+
+    await expect(tool.call({ path: "outside/new.txt", content: "x" })).rejects.toBeInstanceOf(PathEscapeError);
   });
 });
