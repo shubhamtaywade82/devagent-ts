@@ -22,6 +22,7 @@ import { RunRubocopTool } from "../tools/rubocop-tool";
 import { RunRSpecTool } from "../tools/rspec-tool";
 import { LoopDetector } from "../orchestrator/loop-detector";
 import { MemoryStore } from "../memory/store";
+import { LearningEngine } from "../learning";
 import { generateSummary } from "../memory/summarizer";
 import { Orchestrator } from "../orchestrator/orchestrator";
 import { AgentStepRunner } from "../orchestrator/agent-planner";
@@ -77,6 +78,7 @@ export class Agent {
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
   private readonly memory: MemoryStore;
+  private readonly learning: LearningEngine;
   private readonly skills: SkillsRegistry;
   private pinnedSkillId: string | null = null;
   private isSummarizing = false;
@@ -179,6 +181,11 @@ export class Agent {
     }
 
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
+    this.learning = new LearningEngine({
+      workspaceRoot: cfg.workspaceRoot,
+      provider: this.provider,
+      memory: this.memory,
+    });
     const projectLanguage = this.railsIndex.enabled
       ? this.railsIndex.workspace.isRails
         ? "ruby"
@@ -211,6 +218,14 @@ export class Agent {
   }
 
   private emit<E extends AgentEventName>(event: E, ...args: Parameters<AgentEventHandler<E>>): void {
+    if (event === "onToolCall") {
+      this.learning.recorder.onToolCall(args[0] as string, args[1] as Record<string, unknown>);
+    } else if (event === "onToolResult") {
+      this.learning.recorder.onToolResult(args[0] as string, args[1] as Record<string, unknown>);
+    } else if (event === "onError") {
+      this.learning.recorder.onError(args[0] as Error);
+    }
+
     (this.events[event] as ((...a: typeof args) => void) | undefined)?.(...args);
     this.listeners.get(event)?.forEach((h) => h(...args));
   }
@@ -249,12 +264,24 @@ export class Agent {
       this.messages.push({ role: "system", content: `Skill: ${skill.name}\n\n${skill.body}` });
     }
     if (activatedSkills.length) this.emit("onSkillsActivated", activatedSkills);
+    this.learning.recorder.begin(
+      userMessage,
+      activatedSkills.map((skill) => skill.id),
+    );
 
     this.messages.push({ role: "user", content: userMessage });
     this.memory.appendMessage("user", userMessage);
 
     let lastAssistantText = "";
     let success = true;
+    let episodeEnded = false;
+    const finish = (terminal: Parameters<LearningEngine["onEpisodeEnd"]>[0], text: string): string => {
+      if (!episodeEnded) {
+        this.learning.onEpisodeEnd(terminal, text);
+        episodeEnded = true;
+      }
+      return text;
+    };
 
     try {
       for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
@@ -293,7 +320,7 @@ export class Agent {
           if (hasContent) {
             this.memory.appendMessage("assistant", lastAssistantText);
             this.triggerSummarization();
-            return lastAssistantText;
+            return finish("answered", lastAssistantText);
           }
           if (toolTurn < this.maxToolTurns - 1) {
             this.messages.push({
@@ -303,7 +330,7 @@ export class Agent {
             });
             continue;
           }
-          return lastAssistantText || "(no response)";
+          return finish("answered", lastAssistantText || "(no response)");
         }
 
         for (const toolCall of toolCalls) {
@@ -331,12 +358,16 @@ export class Agent {
                 role: "tool",
                 content: JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
               });
+              this.emit("onToolResult", name, result);
               const guidance =
                 "The previous tool call escaped the workspace root. Retry with a path under the current workspace root.";
               this.messages.push({ role: "user", content: `[system] ${guidance}` });
 
               if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
-                return lastAssistantText + "\n[aborted] tool loop detected after repeated escapes.";
+                return finish(
+                  "loop_abort",
+                  lastAssistantText + "\n[aborted] tool loop detected after repeated escapes.",
+                );
               }
               continue;
             }
@@ -349,10 +380,10 @@ export class Agent {
             });
 
             if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
-              return lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name;
+              return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
             }
             if (toolTurn === this.maxToolTurns - 1) {
-              return lastAssistantText || "(no response)";
+              return finish("turn_budget", lastAssistantText || "(no response)");
             }
           } catch (e) {
             const err = e as Error;
@@ -365,9 +396,10 @@ export class Agent {
         }
       }
 
-      return lastAssistantText || "(tool budget exceeded)";
+      return finish("turn_budget", lastAssistantText || "(tool budget exceeded)");
     } catch (e) {
       success = false;
+      finish("error", lastAssistantText);
       throw e;
     } finally {
       for (const skill of activatedSkills) this.memory.recordSkillUse(skill.id, success);
@@ -381,6 +413,10 @@ export class Agent {
 
   getSkillsRegistry(): SkillsRegistry {
     return this.skills;
+  }
+
+  flushLearning(): Promise<void> {
+    return this.learning.flush();
   }
 
   async runPlannedTask(steps: PlanStep[], planner: Planner): Promise<PlanStep[]> {
