@@ -26,12 +26,14 @@ describe("AgentStepRunner", () => {
     if (outcome.kind === "retryable") expect(outcome.error).toBe("network blip");
   });
 
-  it("passes the step description as the user message to the wrapped agent", async () => {
+  it("passes the step description and priority as the user message to the wrapped agent", async () => {
     const runUserMessage = jest.fn().mockResolvedValue("ok");
     const runner = new AgentStepRunner({ runUserMessage } as any);
 
-    await runner.run(makeStep("s1", "add a README"));
+    const step = makeStep("s1", "add a README");
+    step.priority = "low";
+    await runner.run(step);
 
-    expect(runUserMessage).toHaveBeenCalledWith("add a README");
+    expect(runUserMessage).toHaveBeenCalledWith("add a README", "low");
   });
 });

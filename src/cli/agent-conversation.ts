@@ -1,5 +1,5 @@
 import { ChatMessage } from "../provider/provider";
-import { CliConfig, loadConfig } from "./config";
+import { CliConfig } from "./config";
 import { SkillContent } from "../skills/types";
 
 interface LearningEntry {
@@ -10,7 +10,7 @@ interface LearningEntry {
 export class AgentConversation {
   private messages: ChatMessage[] = [];
 
-  buildSystemPrompt(config: CliConfig, learnings: LearningEntry[], skills: SkillContent[]): string {
+  buildSystemPrompt(config: CliConfig, learnings: LearningEntry[], _skills: SkillContent[]): string {
     const learningsBlock = learnings.length > 0
       ? "\n\n[Recalled Past Learnings & User Preferences]:\n" +
         learnings.map((l) => `- [${l.category}] Lesson: ${l.lesson}`).join("\n")
@@ -66,6 +66,23 @@ export class AgentConversation {
 
   getMessages(): ChatMessage[] {
     return this.messages;
+  }
+
+  pruneContext(maxMessages = 25): void {
+    if (this.messages.length <= maxMessages) return;
+
+    const systemPrompt = this.messages[0];
+    const recent = this.messages.slice(-10);
+    const middle = this.messages.slice(1, -10);
+
+    const toolRunCount = middle.filter((m) => m.role === "tool").length;
+    const summaryText = `[system] Bypassed ${middle.length} intermediate turns (${toolRunCount} tool calls) to save context window.`;
+
+    this.messages = [
+      systemPrompt,
+      { role: "system", content: summaryText },
+      ...recent,
+    ];
   }
 
   reset(): void {

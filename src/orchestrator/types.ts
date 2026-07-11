@@ -22,6 +22,7 @@ export interface PlanStep {
   dependencies: string[];
   rollbackCommand?: string;
   retryCount: number;
+  priority?: "low" | "medium" | "high" | "critical";
 }
 
 export type StepOutcome =

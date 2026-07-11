@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig } from "./config";
-import { Provider, ChatMessage } from "../provider/provider";
+import { Provider } from "../provider/provider";
 import { LoopDetector } from "../orchestrator/loop-detector";
 import { Orchestrator } from "../orchestrator/orchestrator";
 import { AgentStepRunner } from "../orchestrator/agent-planner";
@@ -133,7 +133,7 @@ export class Agent {
     this.listeners.get(event)?.forEach((h) => h(...args));
   }
 
-  async runUserMessage(userMessage: string): Promise<string> {
+  async runUserMessage(userMessage: string, priority?: PlanStep["priority"]): Promise<string> {
     const learnings = this.learning.getLearnings();
     const activatedSkills = this.learning.resolveForPrompt(userMessage);
 
@@ -174,8 +174,16 @@ export class Agent {
       return text;
     };
 
+    const originalModel = this.currentModel;
+    const delegatedModel = this.getDelegatedModel(priority, userMessage);
+    if (delegatedModel) {
+      this.setModelWithoutReset(delegatedModel);
+      this.emit("onStatus", `delegating task to ${delegatedModel}`);
+    }
+
     try {
       for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
+        this.conversation.pruneContext();
         this.emit("onStatus", `turn ${toolTurn + 1}`);
 
         const chatResponse = await this.provider.chat(this.conversation.getMessages(), {
@@ -284,6 +292,9 @@ export class Agent {
       finish("error", lastAssistantText);
       throw e;
     } finally {
+      if (delegatedModel) {
+        this.setModelWithoutReset(originalModel);
+      }
       for (const skill of activatedSkills) this.learning.recordSkillUse(skill.id, success);
     }
   }
@@ -315,6 +326,31 @@ export class Agent {
   setModel(model: string): void {
     this.provider.setModel(model);
     this.conversation.reset();
+  }
+
+  setModelWithoutReset(model: string): void {
+    this.provider.setModel(model);
+  }
+
+  private getDelegatedModel(priority?: string, text?: string): string | null {
+    const desc = (text || "").toLowerCase();
+    const isNonCritical =
+      priority === "low" ||
+      priority === "medium" ||
+      desc.includes("document") ||
+      desc.includes("readme") ||
+      desc.includes("comment") ||
+      desc.includes("test") ||
+      desc.includes("cleanup") ||
+      desc.includes("lint");
+
+    if (isNonCritical) {
+      if (desc.includes("test") || desc.includes("cleanup") || desc.includes("lint") || desc.includes("refactor")) {
+        return "opencode:latest";
+      }
+      return "hermes3:latest";
+    }
+    return null;
   }
 
   addLearning(category: string, context: string, lesson: string): void {

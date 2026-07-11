@@ -1,7 +1,7 @@
 import { PlanStep, StepOutcome, StepRunner } from "./types";
 
 export interface RunsUserMessages {
-  runUserMessage(message: string): Promise<string>;
+  runUserMessage(message: string, priority?: "low" | "medium" | "high" | "critical"): Promise<string>;
 }
 
 export class AgentStepRunner implements StepRunner {
@@ -9,7 +9,7 @@ export class AgentStepRunner implements StepRunner {
 
   async run(step: PlanStep): Promise<StepOutcome> {
     try {
-      const text = await this.agent.runUserMessage(step.description);
+      const text = await this.agent.runUserMessage(step.description, step.priority);
       return { kind: "success", output: { text } };
     } catch (e) {
       const error = e instanceof Error ? e.message : String(e);
