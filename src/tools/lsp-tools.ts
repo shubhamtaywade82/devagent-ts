@@ -8,13 +8,21 @@ abstract class LspTool extends Tool {
     super();
   }
 
-  protected async withSession<T>(
+  protected async withSession<T extends Record<string, unknown>>(
     args: Record<string, unknown>,
     fn: (filePath: string, lsp: LspManager) => Promise<T>,
   ): Promise<T> {
     const filePath = this.resolveFile(args);
     await this.lsp.ensureOpen(filePath);
-    return fn(filePath, this.lsp);
+    const result = await fn(filePath, this.lsp);
+    // The server may still be doing initial project indexing — an empty
+    // result right now doesn't mean there's nothing to find, just that the
+    // server hasn't gotten there yet. Flag it so callers retry instead of
+    // concluding "no results".
+    if (this.lsp.isIndexing(filePath)) {
+      return { ...result, indexing: true, note: "Language server is still indexing this project — results may be incomplete. Retry in a few seconds." };
+    }
+    return result;
   }
 
   protected resolveFile(args: Record<string, unknown>): string {
@@ -243,21 +251,21 @@ export class DiagnosticsTool extends LspTool {
   }
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const filePath = this.resolveFile(args);
-    await this.lsp.ensureOpen(filePath);
-    const diagnostics = await this.lsp.getDiagnostics(filePath);
-    return {
-      diagnostics: diagnostics.map((d) => ({
-        range: d.range,
-        severity: d.severity,
-        message: d.message,
-        source: d.source,
-        code: d.code,
-      })),
-      count: diagnostics.length,
-      hasErrors: diagnostics.some((d) => d.severity === 1),
-      hasWarnings: diagnostics.some((d) => d.severity === 2),
-    };
+    return this.withSession(args, async (filePath) => {
+      const diagnostics = await this.lsp.getDiagnostics(filePath);
+      return {
+        diagnostics: diagnostics.map((d) => ({
+          range: d.range,
+          severity: d.severity,
+          message: d.message,
+          source: d.source,
+          code: d.code,
+        })),
+        count: diagnostics.length,
+        hasErrors: diagnostics.some((d) => d.severity === 1),
+        hasWarnings: diagnostics.some((d) => d.severity === 2),
+      };
+    });
   }
 }
 

@@ -174,6 +174,13 @@ export class LspManager {
     return this.pool.getSession(this.workspaceRoot, provider.id) ?? null;
   }
 
+  /** True while the server backing this file is still doing initial project
+   * indexing — callers can use this to avoid mistaking "not indexed yet" for
+   * a genuine empty result (see LspServerSession.indexing). */
+  isIndexing(filePath: string): boolean {
+    return this.getFileProviderAndSession(filePath)?.indexing ?? false;
+  }
+
   // --- Semantic Operations ---
 
   async getDefinition(
@@ -443,6 +450,7 @@ export class LspManager {
       status: s.status,
       documentsCount: s.openDocuments.size,
       errorCount: s.errorCount,
+      indexing: s.indexing,
     }));
   }
 

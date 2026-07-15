@@ -77,4 +77,8 @@ export interface LspServerState {
   status: "starting" | "running" | "idle" | "stopped" | "error";
   documentsCount: number;
   errorCount: number;
+  /** True while the server has an open $/progress span (e.g. project
+   * indexing) — "running" alone can't tell "no results" from "not indexed
+   * yet"; queries made while this is true may return incomplete results. */
+  indexing: boolean;
 }

@@ -14,6 +14,10 @@ export class LspServerSession {
   status: "starting" | "running" | "stopped" | "error" = "starting";
   readonly openDocuments = new Map<string, { uri: string; version: number }>();
   readonly cachedDiagnostics = new Map<string, Diagnostic[]>();
+  // Tokens with an open $/progress "begin" and no matching "end" yet — most
+  // servers (ruby-lsp, typescript-language-server) report project indexing
+  // this way. `status` alone can't tell "no results" from "not indexed yet".
+  private readonly activeProgressTokens = new Set<string | number>();
   startTime = 0;
   lastActivity = 0;
   errorCount = 0;
@@ -56,13 +60,7 @@ export class LspServerSession {
       }
     });
 
-    client.on("notification", (method: string, params: unknown) => {
-      if (method === "textDocument/publishDiagnostics") {
-        const p = params as { uri: string; diagnostics: Diagnostic[] };
-        this.cachedDiagnostics.set(p.uri, p.diagnostics);
-        this.onDiagnostics?.(p.uri, p.diagnostics);
-      }
-    });
+    client.on("notification", (method: string, params: unknown) => this.handleNotification(method, params));
 
     this.client = client;
 
@@ -89,10 +87,24 @@ export class LspServerSession {
     }
   }
 
+  handleNotification(method: string, params: unknown): void {
+    if (method === "textDocument/publishDiagnostics") {
+      const p = params as { uri: string; diagnostics: Diagnostic[] };
+      this.cachedDiagnostics.set(p.uri, p.diagnostics);
+      this.onDiagnostics?.(p.uri, p.diagnostics);
+    }
+    if (method === "$/progress") {
+      const p = params as { token: string | number; value?: { kind?: string } };
+      if (p.value?.kind === "begin") this.activeProgressTokens.add(p.token);
+      else if (p.value?.kind === "end") this.activeProgressTokens.delete(p.token);
+    }
+  }
+
   async stop(): Promise<void> {
     this.status = "stopped";
     this.onStatus?.("stopped");
     this.openDocuments.clear();
+    this.activeProgressTokens.clear();
 
     if (this.client) {
       try {
@@ -136,6 +148,11 @@ export class LspServerSession {
     return Date.now() - this.lastActivity > timeoutMs;
   }
 
+  /** True while the server has an open $/progress span (e.g. project indexing). */
+  get indexing(): boolean {
+    return this.activeProgressTokens.size > 0;
+  }
+
   get diagnosticsCount(): number {
     let count = 0;
     for (const diags of this.cachedDiagnostics.values()) {
@@ -144,12 +161,13 @@ export class LspServerSession {
     return count;
   }
 
-  get state(): { language: string; status: string; documentsCount: number; errorCount: number } {
+  get state(): { language: string; status: string; documentsCount: number; errorCount: number; indexing: boolean } {
     return {
       language: this.provider.language,
       status: this.status,
       documentsCount: this.openDocuments.size,
       errorCount: this.errorCount,
+      indexing: this.indexing,
     };
   }
 }

@@ -65,3 +65,24 @@ describe("LspManager.getDocumentSymbols", () => {
     expect(await manager.getDocumentSymbols("/workspace/empty.rb")).toEqual([]);
   });
 });
+
+describe("LspManager.isIndexing", () => {
+  it("returns false when there is no session for the file's language", () => {
+    const manager = new LspManager({ workspaceRoot: "/workspace" });
+    expect(manager.isIndexing("/workspace/foo.unknownext")).toBe(false);
+  });
+
+  it("reflects the underlying session's indexing state", () => {
+    const manager = new LspManager({ workspaceRoot: "/workspace" });
+    const registry = (manager as any).registry;
+    jest.spyOn(registry, "getProviderForFile").mockReturnValue({ id: "ruby", language: "Ruby" });
+
+    const fakeSession = { indexing: true };
+    (manager as any).pool = { getSession: () => fakeSession };
+
+    expect(manager.isIndexing("/workspace/foo.rb")).toBe(true);
+
+    fakeSession.indexing = false;
+    expect(manager.isIndexing("/workspace/foo.rb")).toBe(false);
+  });
+});
