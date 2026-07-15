@@ -1,7 +1,7 @@
 import {
   BinancePublicApiTool, BinanceTechnicalIndicatorsTool, BinanceOrderBookTool,
   BinanceFuturesStatsTool, BinanceScreenerTool, BinanceWatchPriceTool,
-  BinanceUnwatchPriceTool, BinancePriceAlertTool,
+  BinanceUnwatchPriceTool, BinancePriceAlertTool, BinanceLiquidationsTool,
 } from "../../src/tools/binance-tools.js";
 import { BinanceStreamManager } from "../../src/exchange/binance-stream.js";
 
@@ -250,10 +250,60 @@ function fakeStream(overrides: Partial<BinanceStreamManager> = {}): BinanceStrea
     addAlert: jest.fn(),
     removeAlert: jest.fn().mockReturnValue(true),
     listAlerts: jest.fn().mockReturnValue([]),
+    subscribeLiquidations: jest.fn().mockResolvedValue(undefined),
+    unsubscribeLiquidations: jest.fn().mockReturnValue(true),
+    isSubscribedToLiquidations: jest.fn().mockReturnValue(false),
+    getLiquidations: jest.fn().mockReturnValue([]),
     closeAll: jest.fn(),
     ...overrides,
   } as unknown as BinanceStreamManager;
 }
+
+describe("BinanceLiquidationsTool", () => {
+  it("subscribes", async () => {
+    const stream = fakeStream();
+    const tool = new BinanceLiquidationsTool(stream);
+    const result = await tool.call({ action: "subscribe" });
+    expect(stream.subscribeLiquidations).toHaveBeenCalled();
+    expect(result).toEqual({ subscribed: true });
+  });
+
+  it("does not re-subscribe if already subscribed", async () => {
+    const stream = fakeStream({ isSubscribedToLiquidations: jest.fn().mockReturnValue(true) });
+    const tool = new BinanceLiquidationsTool(stream);
+    await tool.call({ action: "subscribe" });
+    expect(stream.subscribeLiquidations).not.toHaveBeenCalled();
+  });
+
+  it("lists liquidations, optionally filtered by symbol", async () => {
+    const liqs = [{ symbol: "BTCUSDT", side: "SELL" as const, price: 60000, quantity: 1, time: 1 }];
+    const stream = fakeStream({ getLiquidations: jest.fn().mockReturnValue(liqs) });
+    const tool = new BinanceLiquidationsTool(stream);
+    const result = await tool.call({ action: "list", symbol: "BTCUSDT" });
+    expect(stream.getLiquidations).toHaveBeenCalledWith("BTCUSDT");
+    expect(result.liquidations).toEqual(liqs);
+  });
+
+  it("unsubscribes", async () => {
+    const stream = fakeStream();
+    const tool = new BinanceLiquidationsTool(stream);
+    const result = await tool.call({ action: "unsubscribe" });
+    expect(result).toEqual({ unsubscribed: true });
+  });
+
+  it("returns a SubscribeError instead of throwing", async () => {
+    const stream = fakeStream({ subscribeLiquidations: jest.fn().mockRejectedValue(new Error("connect failed")) });
+    const tool = new BinanceLiquidationsTool(stream);
+    const result = await tool.call({ action: "subscribe" });
+    expect(result.error).toBe("SubscribeError");
+  });
+
+  it("rejects an unknown action", async () => {
+    const tool = new BinanceLiquidationsTool(fakeStream());
+    const result = await tool.call({ action: "nope" });
+    expect(result.error).toBe("InvalidAction");
+  });
+});
 
 describe("BinanceWatchPriceTool", () => {
   it("subscribes then returns the latest tick once available", async () => {

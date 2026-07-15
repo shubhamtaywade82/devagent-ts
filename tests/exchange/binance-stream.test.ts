@@ -51,4 +51,14 @@ describe("BinanceStreamManager (real network)", () => {
     expect(manager.removeAlert(alert.id)).toBe(true);
     expect(manager.listAlerts()).toHaveLength(0);
   });
+
+  it("subscribes to the real liquidations stream and buffers events", async () => {
+    await manager.subscribeLiquidations();
+    expect(manager.isSubscribedToLiquidations()).toBe(true);
+    // Liquidations are bursty and unpredictable — just prove the connection
+    // opened and the getter doesn't throw; don't wait on a specific event.
+    expect(Array.isArray(manager.getLiquidations())).toBe(true);
+    expect(manager.unsubscribeLiquidations()).toBe(true);
+    expect(manager.isSubscribedToLiquidations()).toBe(false);
+  }, 20000);
 });

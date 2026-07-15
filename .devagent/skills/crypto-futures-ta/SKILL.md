@@ -9,11 +9,11 @@ description: >
   funding/open-interest/long-short-ratio reads, order-book/order-flow
   reads. Enforces a discover-the-edge-first research process instead of
   jumping straight to a strategy.
-tags: [binance, crypto, futures, technical-analysis, trading, trading-setup, quant-research]
+tags: [binance, crypto, futures, technical-analysis, trading, trading-setup, quant-research, backtesting]
 compatibility: >
-  Requires the binance_public_api, binance_technical_indicators,
-  binance_order_book, binance_futures_stats, and binance_screener tools
-  registered on the agent (src/tools/binance-tools.ts).
+  Requires the binance_* tools registered on the agent
+  (src/tools/binance-tools.ts, src/tools/backtest-tools.ts,
+  src/tools/paper-trading-tools.ts).
 ---
 
 # Crypto Futures Research & Technical Analysis
@@ -70,52 +70,106 @@ broader toolset:
     `/futures/data/takerlongshortRatio` (positioning/crowding history,
     usdm)
   All are public, GET-only, no API key. Pass `market`, `path`, `params`.
+- `binance_liquidations` — live futures liquidation feed (`subscribe`,
+  then `list` after a few seconds to see what's buffered).
+- `binance_backtest` — test a rule-based strategy (entry conditions +
+  stop/target) against real historical klines. Returns trade log,
+  win rate, expectancy, profit factor, max drawdown. This is how a
+  hypothesis gets *proven*, not asserted.
+- `binance_walk_forward` — same strategy run across sequential time
+  windows independently; checks whether the edge is stable across
+  regimes or was a one-window fluke. Reports per-window expectancy
+  and a stability score.
+- `binance_monte_carlo` — bootstrap-resamples the backtest's trade
+  sequence thousands of times; reports median/p5/p95 return and
+  probability of a net loss. A wide p5–p95 spread means the historical
+  result isn't robust even if it looked good.
+- `binance_param_sweep` — grid search over strategy parameters (NOT
+  Bayesian optimization — plain grid search, honest for a search space
+  this small). A narrow spike surrounded by poor neighbors = fragile
+  (overfit); a broad plateau of decent results = robust.
+- `binance_paper_trade` — track a validated hypothesis forward against
+  live prices (open/list/close simulated positions). Never touches a
+  real exchange, no keys, no real money — this is forward-testing, not
+  execution.
 
 ## Not available — say so, don't fake it
 
-If the research would benefit from these, say explicitly that the data
-isn't available rather than approximating it:
-
-- **Aggregate market liquidations** — Binance only exposes this as a
-  public WebSocket stream (`!forceOrder@arr`), not wrapped by any tool
-  here yet.
-- **Backtesting / walk-forward / Monte Carlo / parameter-sensitivity
-  testing** — no historical simulation engine exists in this agent.
-  Any "expectancy" or "win rate" claim without one is an *untested
-  hypothesis*, not a validated result — label it as such.
-- **Order execution, account data, paper trading** — not implemented;
-  this agent is read-only market data, it cannot place or simulate
-  orders.
+- **Order execution against a real exchange / real account data** — not
+  implemented and won't be added without the user separately
+  authorizing trade-permissioned API keys. This agent can research and
+  paper-trade only.
+- **Bayesian optimization** — substituted with grid search
+  (`binance_param_sweep`); say so if the user specifically asked for
+  Bayesian methods, don't imply it's the same thing.
 
 ## Research loop
 
-1. **Observe** — pull indicators + order book + (if futures) funding/OI
-   for the symbol in question. Two timeframes minimum for a real read
-   (e.g. 1h structure, 15m trigger) — note if only one was pulled.
-2. **Form a hypothesis** — state a specific, falsifiable claim (e.g.
-   "RSI<30 + positive bid imbalance + negative funding co-occurring
-   suggests short-covering pressure"), not a vague vibe.
-3. **Check confluence** — count how many of (structure, momentum,
-   volatility, order-flow, positioning) actually agree with the
-   hypothesis on the data pulled. State the count explicitly (e.g.
-   "3/5 bullish"). This *is* the edge estimate for this turn — never
-   claim "high probability" without showing it.
-4. **Self-criticism** — before presenting a setup, check: is this
-   conclusion drawn from a single snapshot (small sample, could be
-   noise) or from history (fundingRate/openInterestHist pulled across
-   multiple periods)? A single-snapshot read is weaker evidence than a
-   pattern repeated across several periods — say which one this is.
-5. **Only then, a setup** (if confluence and evidence are strong
-   enough — otherwise say "no qualifying setup, evidence is mixed" and
-   stop):
+Applies whenever the user asks for a "strategy" or an "edge" — a quick
+"what's the RSI" question doesn't need the full loop, use judgment.
+Walk through these stages explicitly (as one agent adopting each lens
+in sequence — this agent is single, tool-first, not a multi-agent
+system; "act as the statistician now, then the critic" is a discipline
+device, not a literal handoff):
+
+1. **Observe** (data scientist lens) — pull indicators + order book +
+   funding/OI/liquidations for the symbol. Two timeframes minimum for
+   a real read — note if only one was pulled.
+2. **Form a hypothesis** (hypothesis generator lens) — a specific,
+   falsifiable, testable claim (e.g. "RSI<30 crossing back above 30
+   while funding is negative precedes a >1% move within 24 candles on
+   BTCUSDT 1h"), not a vague vibe. A claim that can't be phrased as
+   entry conditions can't be tested — rephrase it until it can.
+3. **Validate — actually test it** (statistician lens): convert the
+   hypothesis into a `binance_backtest` strategy config and run it on
+   real history. An untested hypothesis is not evidence, no matter how
+   plausible it sounds. Then:
+   - `binance_walk_forward` — is expectancy consistent across time
+     windows, or did one lucky window carry the whole result?
+   - `binance_monte_carlo` — is the result robust to trade-order
+     luck, or does it fall apart under resampling (wide p5–p95,
+     high probability of loss)?
+   - `binance_param_sweep` — is the result a narrow spike (fragile,
+     likely overfit) or a broad plateau (robust to small parameter
+     changes)?
+4. **Self-criticism** (critic lens) — actively try to disprove the
+   result before presenting it:
+   - Sample size: how many trades did the backtest produce? Under ~20
+     trades, say so — a hypothesis is unconfirmed, not validated.
+   - Look-ahead bias: does any condition reference information not
+     actually available at that candle (e.g. the period's own high/low
+     used to enter within the same period)?
+   - Regime dependence: did `binance_walk_forward` show the edge only
+     in one time window?
+   - Parameter sensitivity: did `binance_param_sweep` show a spike or
+     a plateau?
+   - Execution realism: did the backtest fee (`feeBps`) reflect real
+     round-trip cost? A thin edge that only survives at 0 fees isn't
+     real.
+   - If any of these fail, say the hypothesis is rejected or weak —
+     do not present it as a setup anyway.
+5. **Only then, a setup** — a hypothesis that survived steps 3-4 (not
+   before):
    - Direction: long / short
    - Entry zone: tied to a real level (Bollinger band, SMA/EMA, recent
      swing) — not an arbitrary number
    - Invalidation (stop): the level that proves the thesis wrong
    - Target(s) with R:R computed from entry/stop/target
+   - Cite the backtest evidence: trade count, win rate, expectancy,
+     max drawdown, walk-forward stability, Monte Carlo p5/p95 —
+     numbers, not adjectives
    - Position sizing note: risk-based ("risk 0.5-1% of account to the
      stop distance"), never a fixed size
    - What would flip this call
+6. **Forward-test, don't stop at backtest** (portfolio manager lens) —
+   offer to track the validated setup with `binance_paper_trade`
+   (open a simulated position at the live price) rather than treating
+   the backtest as the final word. Backtest performance on past data
+   and live forward performance are different questions.
+
+An answer that skips straight to a "setup" without a `binance_backtest`
+call backing it is not this skill's output — it's exactly the
+"eyeballed" answer this skill exists to prevent.
 
 ## Discipline
 
