@@ -10,6 +10,22 @@ const TAG_WEIGHT = 3;
 const DESCRIPTION_WEIGHT = 1;
 const LANGUAGE_MISMATCH_PENALTY = -10;
 
+// Common English function words. Without this filter, a skill with a long,
+// prose-heavy description (many stopword hits) scores nonzero against almost
+// any prompt regardless of topic and crowds out more relevant skills.
+const STOPWORDS = new Set([
+  "a", "an", "the", "and", "or", "but", "if", "then", "else", "when", "at", "by", "for",
+  "with", "about", "against", "between", "into", "through", "during", "before", "after",
+  "above", "below", "to", "from", "up", "down", "in", "out", "on", "off", "over", "under",
+  "again", "further", "once", "here", "there", "all", "any", "both", "each", "few", "more",
+  "most", "other", "some", "such", "no", "nor", "not", "only", "own", "same", "so", "than",
+  "too", "very", "s", "t", "can", "will", "just", "don", "should", "now", "is", "are", "was",
+  "were", "be", "been", "being", "have", "has", "had", "having", "do", "does", "did", "doing",
+  "this", "that", "these", "those", "i", "you", "he", "she", "it", "we", "they", "what",
+  "which", "who", "whom", "of", "as", "until", "while", "use", "uses", "using", "also",
+  "your", "our", "their", "its", "get", "gets", "want", "wants", "wanted",
+]);
+
 export interface ResolveOptions {
   topN?: number;
   minScore?: number;
@@ -37,6 +53,7 @@ function scoreSkill(promptTokens: Set<string>, skill: SkillMeta, projectLanguage
 
   const descriptionTokens = tokenize(`${skill.name} ${skill.description}`);
   for (const token of descriptionTokens) {
+    if (STOPWORDS.has(token)) continue;
     if (promptTokens.has(token)) score += DESCRIPTION_WEIGHT;
   }
 

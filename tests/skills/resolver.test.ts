@@ -44,4 +44,19 @@ describe("resolveSkills", () => {
   it("returns nothing for a prompt with no overlap", () => {
     expect(resolveSkills("completely unrelated text", catalog)).toEqual([]);
   });
+
+  it("does not score a verbose-description skill against an unrelated prompt via stopword overlap", () => {
+    const verbose: SkillMeta[] = [
+      meta(
+        "dhanhq",
+        ["dhanhq", "trading", "nse"],
+        "Use when the user mentions DhanHQ or wants to trade on Indian exchanges. " +
+          "Triggers for placing orders, checking fund limits, or building automation for the markets.",
+      ),
+    ];
+
+    const results = resolveSkills("can you fix the bug in the login form and check the tests", verbose);
+
+    expect(results).toEqual([]);
+  });
 });

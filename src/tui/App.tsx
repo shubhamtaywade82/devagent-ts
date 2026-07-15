@@ -120,11 +120,26 @@ function useTerminalSize(columns?: number, rows?: number): { width: number; heig
 // Ink 3 bundles a React 17-era reconciler without useSyncExternalStore,
 // so subscribe the classic way. The re-sync inside the effect catches any
 // events published between first render and subscription.
+//
+// Streaming responses publish one bus event per token (see agent-bridge.ts),
+// often many per event-loop turn. Calling setState synchronously for each
+// one — Ink 3's renderer isn't a real diffing engine, so every commit is a
+// full-screen repaint — is what causes the visible flicker. Coalesce every
+// update that lands within the same turn into a single setState via
+// setImmediate; bursts of N events become one render instead of N.
 function useRuntimeState(store: Store): RuntimeState {
   const [state, setState] = useState<RuntimeState>(() => store.getState());
   useEffect(() => {
     setState(store.getState());
-    return store.subscribe(setState);
+    let scheduled = false;
+    return store.subscribe(() => {
+      if (scheduled) return;
+      scheduled = true;
+      setImmediate(() => {
+        scheduled = false;
+        setState(store.getState());
+      });
+    });
   }, [store]);
   return state;
 }
