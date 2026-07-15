@@ -40,7 +40,7 @@ src/
 
 Filesystem/edit: `read_file`, `write_file`, `patch`, `append`, `list_directory`, `delete_file`, `make_directory`, `copy_file`, `move_file`, `snapshot_backup`, `watch`, `search_code`.
 VCS/infra: `git`, `docker` (build/run/stop/logs/exec/compose; `--privileged` blocked), `github` (`gh` pr/issue/release/repo/run/api; merge/delete/close blocked), `sqlite_query` (read-only: SELECT/PRAGMA/EXPLAIN only).
-Market data: `binance_public_api` (GET-only, no API key — spot/USD-M/COIN-M public endpoints: ticker, klines, order book, exchange info).
+Market data: `binance_public_api` (GET-only, no API key — spot/USD-M/COIN-M public endpoints), `binance_technical_indicators` (SMA/EMA/RSI/MACD/Bollinger from klines), `binance_order_book` (bid/ask imbalance), `binance_futures_stats` (funding rate + open interest), `binance_screener` (multi-symbol RSI scan), `binance_watch_price`/`binance_unwatch_price` (live WebSocket ticker), `binance_price_alert` (WS-backed price threshold alerts).
 Project: `run_tests`, `run_lint`, `run_format`, `run_build`, `rubocop`, `rspec`, `shell` (Docker-sandboxed).
 Code intelligence (LSP-backed): `get_definition`, `find_references`, `rename_symbol`, `workspace_symbols`, `document_symbols`, `hover`, `diagnostics`, `code_actions`, `format_document`, `signature_help`, `completion`, `semantic_tokens`.
 Rails semantic: `find_model`, `find_route`, `find_controller`, `find_service`, `find_spec`, `find_association`, `find_callback`, `rails_context`, and more.
@@ -102,7 +102,7 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 
 ```bash
 npm install
-npm test          # jest — 589 tests across 85 suites
+npm test          # jest — 621 tests across 87 suites
 npm run build     # TypeScript → dist/
 npm run benchmark # score installed models on JSON validity + tool-calling
 ```

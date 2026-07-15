@@ -76,6 +76,25 @@ export class BinancePublicApiTool extends Tool {
 
 const ALL_INDICATORS = ["sma", "ema", "rsi", "macd", "bollinger"] as const;
 
+// ponytail: models don't reliably respect the enum casing/spelling in the schema
+// ("SMA20", "BB", "MACD" all showed up in practice) — normalize aliases at the
+// trust boundary instead of silently returning {} for anything that doesn't match.
+const INDICATOR_ALIASES: Record<string, string> = {
+  sma: "sma", sma20: "sma",
+  ema: "ema", ema20: "ema",
+  rsi: "rsi", rsi14: "rsi",
+  macd: "macd",
+  bollinger: "bollinger", bollingerbands: "bollinger", bb: "bollinger", bb20: "bollinger",
+};
+
+function normalizeIndicators(input: unknown): readonly string[] {
+  if (!Array.isArray(input) || input.length === 0) return ALL_INDICATORS;
+  const normalized = input
+    .map((v) => INDICATOR_ALIASES[String(v).toLowerCase().replace(/[^a-z0-9]/g, "")])
+    .filter((v): v is string => Boolean(v));
+  return normalized.length > 0 ? [...new Set(normalized)] : ALL_INDICATORS;
+}
+
 export class BinanceTechnicalIndicatorsTool extends Tool {
   get name(): string {
     return "binance_technical_indicators";
@@ -116,7 +135,7 @@ export class BinanceTechnicalIndicatorsTool extends Tool {
     const symbol = String(args.symbol ?? "");
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 100) || 100, 500);
-    const wanted = Array.isArray(args.indicators) && args.indicators.length > 0 ? (args.indicators as string[]) : ALL_INDICATORS;
+    const wanted = normalizeIndicators(args.indicators);
 
     const path = KLINES_PATH[market];
     if (!path) {

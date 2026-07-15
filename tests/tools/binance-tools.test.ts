@@ -115,6 +115,31 @@ describe("BinanceTechnicalIndicatorsTool", () => {
     expect(indicators.macd).toBeUndefined();
   });
 
+  it("normalizes mis-cased/aliased indicator names instead of silently returning {} (regression: models pass 'SMA', 'BB20', 'MACD')", async () => {
+    const rows = Array.from({ length: 40 }, (_, i) => fakeKline(100 + i, i));
+    (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => rows });
+
+    const tool = new BinanceTechnicalIndicatorsTool();
+    const result = await tool.call({ symbol: "BTCUSDT", indicators: ["SMA20", "EMA20", "RSI14", "MACD", "BB"] });
+    const indicators = result.indicators as Record<string, unknown>;
+    expect(indicators.sma20).toBeDefined();
+    expect(indicators.ema20).toBeDefined();
+    expect(indicators.rsi14).toBeDefined();
+    expect(indicators.macd).toBeDefined();
+    expect(indicators.bollinger).toBeDefined();
+  });
+
+  it("falls back to all indicators when every requested name is unrecognized", async () => {
+    const rows = Array.from({ length: 40 }, (_, i) => fakeKline(100 + i, i));
+    (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => rows });
+
+    const tool = new BinanceTechnicalIndicatorsTool();
+    const result = await tool.call({ symbol: "BTCUSDT", indicators: ["nonsense"] });
+    const indicators = result.indicators as Record<string, unknown>;
+    expect(indicators.sma20).toBeDefined();
+    expect(indicators.rsi14).toBeDefined();
+  });
+
   it("errors when too few candles are returned", async () => {
     const rows = Array.from({ length: 5 }, (_, i) => fakeKline(100 + i, i));
     (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => rows });
