@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ViewProps } from "./ConversationView";
+import { ViewProps } from "./ConversationView.js";
 
 export function ContextInspectorView({ state, width, rows }: ViewProps): JSX.Element {
   const { model, memory, execution } = state;

@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { ChatEntry, RuntimeState } from "../../runtime/types";
-import { DetailLevel } from "../../layout/density";
-import { truncate } from "../../layout/truncate";
-import { parseInline, Span } from "../markdown";
+import { ChatEntry, RuntimeState } from "../../runtime/types.js";
+import { DetailLevel } from "../../layout/density.js";
+import { truncate } from "../../layout/truncate.js";
+import { parseInline, Span } from "../markdown.js";
 
 export interface ViewProps {
   state: RuntimeState;

@@ -1,7 +1,7 @@
 import { readFile, writeFile, rename, unlink, mkdir, stat } from "node:fs/promises";
 import { dirname } from "node:path";
-import { Tool } from "./tool";
-import { resolveWorkspacePath, PathEscapeError } from "./path-utils";
+import { Tool } from "./tool.js";
+import { resolveWorkspacePath, PathEscapeError } from "./path-utils.js";
 
 export { PathEscapeError };
 

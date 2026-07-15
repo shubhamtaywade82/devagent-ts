@@ -1,5 +1,5 @@
-import { Tool } from "./tool";
-import { Provider, ChatMessage } from "../provider/provider";
+import { Tool } from "./tool.js";
+import { Provider, ChatMessage } from "../provider/provider.js";
 
 export type SelectionMode = "heuristic" | "llm" | "hybrid";
 

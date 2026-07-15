@@ -8,8 +8,8 @@ import boxen from "boxen";
 import { marked } from "marked";
 import TerminalRenderer from "marked-terminal";
 
-import { Agent } from "./agent";
-import { CliConfig, loadConfig } from "./config";
+import { Agent } from "./agent.js";
+import { CliConfig, loadConfig } from "./config.js";
 
 // Setup marked terminal styling for premium aesthetics
 marked.setOptions({

@@ -1,5 +1,5 @@
-import { Provider, ChatMessage, ChatResponse, ChatOptions, RateLimitError, TimeoutError } from "./provider";
-import { Capability, ModelCatalog } from "./catalog";
+import { Provider, ChatMessage, ChatResponse, ChatOptions, RateLimitError, TimeoutError } from "./provider.js";
+import { Capability, ModelCatalog } from "./catalog.js";
 
 export interface RouterOptions {
   local: Provider;

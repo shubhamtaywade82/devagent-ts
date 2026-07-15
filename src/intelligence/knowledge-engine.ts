@@ -1,4 +1,4 @@
-import type { SemanticPlugin, SemanticQuery, CompositeResult, QueryResult, DiscoveredEntity } from "./types";
+import type { SemanticPlugin, SemanticQuery, CompositeResult, QueryResult, DiscoveredEntity } from "./types.js";
 
 export class WorkspaceKnowledgeEngine {
   private plugins: SemanticPlugin[] = [];

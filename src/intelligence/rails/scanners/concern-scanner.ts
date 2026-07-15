@@ -3,8 +3,8 @@
  * ActiveSupport::Concern modules and the macros their `included do` blocks add.
  */
 
-import { ConcernEntity, Scanner, ScannerResult, SourceFile } from "../types";
-import { logicalLines } from "./ruby-source";
+import { ConcernEntity, Scanner, ScannerResult, SourceFile } from "../types.js";
+import { logicalLines } from "./ruby-source.js";
 
 const TRACKED_MACROS =
   /^(?:has_many|has_one|belongs_to|has_and_belongs_to_many|validates?|scope|before_\w+|after_\w+|around_\w+)\b/;

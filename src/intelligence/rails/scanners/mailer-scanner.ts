@@ -3,8 +3,8 @@
  * `default from:`.
  */
 
-import { MailerEntity, Scanner, ScannerResult, SourceFile } from "../types";
-import { logicalLines, parseMacroArgs, unquote } from "./ruby-source";
+import { MailerEntity, Scanner, ScannerResult, SourceFile } from "../types.js";
+import { logicalLines, parseMacroArgs, unquote } from "./ruby-source.js";
 
 export class MailerScanner implements Scanner {
   readonly name = "mailer";

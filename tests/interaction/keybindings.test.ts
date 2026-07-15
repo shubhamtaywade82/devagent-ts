@@ -1,4 +1,4 @@
-import { KeyContext, resolveKey } from "../../src/interaction/keybindings";
+import { KeyContext, resolveKey } from "../../src/interaction/keybindings.js";
 
 const base: KeyContext = { overlay: null, promptHasText: false, mode: "idle" };
 

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SkillsRegistry } from "../../src/skills/registry";
+import { SkillsRegistry } from "../../src/skills/registry.js";
 
 function writeSkill(root: string, id: string, frontmatter: string, body = "Body text"): void {
   const dir = join(root, ".devagent", "skills", id);

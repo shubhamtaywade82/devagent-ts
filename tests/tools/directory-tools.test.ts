@@ -7,7 +7,7 @@ import {
   MakeDirectoryTool,
   CopyFileTool,
   MoveFileTool,
-} from "../../src/tools/directory-tools";
+} from "../../src/tools/directory-tools.js";
 
 describe("ListDirectoryTool", () => {
   it("lists files and directories with type", async () => {

@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { discoverWorkspace } from "../../../src/intelligence/rails/workspace-discovery";
+import { discoverWorkspace } from "../../../src/intelligence/rails/workspace-discovery.js";
 
 async function makeRailsApp(overrides?: { application?: string; lockfile?: string }): Promise<string> {
   const root = await mkdtemp(join(tmpdir(), "rsi-app-"));

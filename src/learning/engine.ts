@@ -1,13 +1,13 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { MemoryStore } from "../memory/store";
-import { Provider } from "../provider/provider";
-import { EpisodeRecorder } from "./episode-recorder";
-import { gradeEpisode } from "./grader";
-import { LessonStore } from "./lesson-store";
-import { reflect } from "./reflector";
-import { SkillSynthesizer } from "./skill-synthesizer";
-import { Episode } from "./types";
+import { MemoryStore } from "../memory/store.js";
+import { Provider } from "../provider/provider.js";
+import { EpisodeRecorder } from "./episode-recorder.js";
+import { gradeEpisode } from "./grader.js";
+import { LessonStore } from "./lesson-store.js";
+import { reflect } from "./reflector.js";
+import { SkillSynthesizer } from "./skill-synthesizer.js";
+import { Episode } from "./types.js";
 
 export interface LearningEngineOptions {
   workspaceRoot: string;

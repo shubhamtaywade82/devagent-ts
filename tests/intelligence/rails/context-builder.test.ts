@@ -1,8 +1,12 @@
 import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { extractCandidates } from "../../../src/intelligence/rails/context-builder";
-import { SemanticIndex } from "../../../src/intelligence/rails/indexer";
+import { extractCandidates } from "../../../src/intelligence/rails/context-builder.js";
+import { SemanticIndex } from "../../../src/intelligence/rails/indexer.js";
+
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const FIXTURE = join(__dirname, "..", "..", "fixtures", "rails-app");
 

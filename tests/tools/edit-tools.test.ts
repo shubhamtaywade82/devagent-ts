@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PatchTool, AppendTool } from "../../src/tools/edit-tools";
+import { PatchTool, AppendTool } from "../../src/tools/edit-tools.js";
 
 describe("PatchTool", () => {
   it("replaces the first occurrence of a find block", async () => {

@@ -1,11 +1,11 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { gradeEpisode } from "../../src/learning/grader";
-import { LessonStore, lessonId } from "../../src/learning/lesson-store";
-import { parseReflection } from "../../src/learning/reflector";
-import { SkillSynthesizer } from "../../src/learning/skill-synthesizer";
-import { Episode, ToolEvent } from "../../src/learning/types";
+import { gradeEpisode } from "../../src/learning/grader.js";
+import { LessonStore, lessonId } from "../../src/learning/lesson-store.js";
+import { parseReflection } from "../../src/learning/reflector.js";
+import { SkillSynthesizer } from "../../src/learning/skill-synthesizer.js";
+import { Episode, ToolEvent } from "../../src/learning/types.js";
 
 function ev(name: string, ok: boolean, errorLabel?: string): ToolEvent {
   const event: ToolEvent = { name, args: {}, ok, durationMs: 10, at: Date.now() };

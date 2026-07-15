@@ -4,7 +4,7 @@
  * `:param` segments.
  */
 
-import { KnowledgeGraph, TraversalNode } from "./graph/graph";
+import { KnowledgeGraph, TraversalNode } from "./graph/graph.js";
 import {
   Association,
   Callback,
@@ -15,7 +15,7 @@ import {
   ServiceEntity,
   SpecEntity,
   ViewEntity,
-} from "./types";
+} from "./types.js";
 
 export interface DependencyTrace {
   root: RsiEntity;

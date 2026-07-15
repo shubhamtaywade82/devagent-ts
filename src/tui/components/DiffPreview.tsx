@@ -1,7 +1,7 @@
 import React, { useMemo } from "react";
 import { Box, Text } from "ink";
-import { CollapsibleSection } from "./CollapsibleSection";
-import { ChatEntry } from "../../runtime/types";
+import { CollapsibleSection } from "./CollapsibleSection.js";
+import { ChatEntry } from "../../runtime/types.js";
 
 interface DiffPreviewProps {
   entry: ChatEntry;

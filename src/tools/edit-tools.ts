@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir, stat } from "node:fs/promises";
 import { dirname } from "node:path";
-import { Tool, ToolError } from "./tool";
-import { resolveWorkspacePath } from "./path-utils";
+import { Tool, ToolError } from "./tool.js";
+import { resolveWorkspacePath } from "./path-utils.js";
 
 export class PatchTool extends Tool {
   constructor(private readonly root: string) { super(); }

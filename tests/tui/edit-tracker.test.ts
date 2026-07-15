@@ -1,4 +1,4 @@
-import { EditTracker } from "../../src/tui/edit-tracker";
+import { EditTracker } from "../../src/tui/edit-tracker.js";
 
 describe("EditTracker", () => {
   it("returns an empty diff (all context) when content is unchanged", () => {

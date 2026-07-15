@@ -9,26 +9,26 @@
 
 import { readFileSync } from "fs";
 import { join } from "path";
-import { EventBus } from "../../runtime/events";
-import { RailsContextBuilder } from "./context-builder";
-import { KnowledgeGraph } from "./graph/graph";
-import { GraphStore } from "./graph/graph-store";
-import { QueryEngine } from "./query-engine";
-import { buildManifest, manifestHash } from "./manifest";
-import { ConcernScanner } from "./scanners/concern-scanner";
-import { ControllerScanner } from "./scanners/controller-scanner";
-import { GemScanner } from "./scanners/gem-scanner";
-import { JobScanner } from "./scanners/job-scanner";
-import { MailerScanner } from "./scanners/mailer-scanner";
-import { MigrationScanner } from "./scanners/migration-scanner";
-import { ModelScanner } from "./scanners/model-scanner";
-import { PolicyScanner } from "./scanners/policy-scanner";
-import { RoutesScanner } from "./scanners/routes-scanner";
-import { RspecScanner } from "./scanners/rspec-scanner";
-import { SchemaScanner } from "./scanners/schema-scanner";
-import { ServiceScanner } from "./scanners/service-scanner";
-import { ViewScanner } from "./scanners/view-scanner";
-import { discoverWorkspace } from "./workspace-discovery";
+import { EventBus } from "../../runtime/events.js";
+import { RailsContextBuilder } from "./context-builder.js";
+import { KnowledgeGraph } from "./graph/graph.js";
+import { GraphStore } from "./graph/graph-store.js";
+import { QueryEngine } from "./query-engine.js";
+import { buildManifest, manifestHash } from "./manifest.js";
+import { ConcernScanner } from "./scanners/concern-scanner.js";
+import { ControllerScanner } from "./scanners/controller-scanner.js";
+import { GemScanner } from "./scanners/gem-scanner.js";
+import { JobScanner } from "./scanners/job-scanner.js";
+import { MailerScanner } from "./scanners/mailer-scanner.js";
+import { MigrationScanner } from "./scanners/migration-scanner.js";
+import { ModelScanner } from "./scanners/model-scanner.js";
+import { PolicyScanner } from "./scanners/policy-scanner.js";
+import { RoutesScanner } from "./scanners/routes-scanner.js";
+import { RspecScanner } from "./scanners/rspec-scanner.js";
+import { SchemaScanner } from "./scanners/schema-scanner.js";
+import { ServiceScanner } from "./scanners/service-scanner.js";
+import { ViewScanner } from "./scanners/view-scanner.js";
+import { discoverWorkspace } from "./workspace-discovery.js";
 import {
   IndexStatus,
   ManifestCategory,
@@ -39,7 +39,7 @@ import {
   SourceFile,
   WorkspaceInfo,
   WorkspaceManifest,
-} from "./types";
+} from "./types.js";
 
 const SCANNER_CATEGORIES: Record<string, ManifestCategory[]> = {
   gem: ["gemfileLock"],

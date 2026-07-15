@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ViewProps } from "./ConversationView";
+import { ViewProps } from "./ConversationView.js";
 
 const MOCK_TREE = [
   { name: "src/", depth: 0, type: "dir" },

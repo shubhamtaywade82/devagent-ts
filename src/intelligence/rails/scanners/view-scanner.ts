@@ -10,8 +10,8 @@
  * Convention mapping: app/views/users/index.html.erb → UsersController#index.
  */
 
-import { RelationshipIntent, Scanner, ScannerResult, SourceFile, ViewEntity } from "../types";
-import { logicalLines, singularize } from "./ruby-source";
+import { RelationshipIntent, Scanner, ScannerResult, SourceFile, ViewEntity } from "../types.js";
+import { logicalLines, singularize } from "./ruby-source.js";
 
 const VIEW_EXT = /\.(erb|haml|slim|builder)$/;
 

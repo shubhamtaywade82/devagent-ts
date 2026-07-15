@@ -1,10 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { parseAslFile, validateTaskSpec } from "../asl/parser";
-import { getAslFiles } from "../asl/commands";
-import { AslTaskSpec } from "../asl/types";
-import { SemanticPlugin, DiscoveredEntity, SemanticQuery, QueryResult, PluginKind } from "./types";
-import { SemanticOperation } from "../lsp/manager";
+import { parseAslFile, validateTaskSpec } from "../asl/parser.js";
+import { getAslFiles } from "../asl/commands.js";
+import { AslTaskSpec } from "../asl/types.js";
+import { SemanticPlugin, DiscoveredEntity, SemanticQuery, QueryResult, PluginKind } from "./types.js";
+import { SemanticOperation } from "../lsp/manager.js";
 
 export class AslSemanticPlugin implements SemanticPlugin {
   readonly id = "asl";

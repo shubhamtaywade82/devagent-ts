@@ -3,8 +3,8 @@
  * query methods and the model the policy authorizes (FooPolicy → Foo).
  */
 
-import { PolicyEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types";
-import { logicalLines } from "./ruby-source";
+import { PolicyEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types.js";
+import { logicalLines } from "./ruby-source.js";
 
 export class PolicyScanner implements Scanner {
   readonly name = "policy";

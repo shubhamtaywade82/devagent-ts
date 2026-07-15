@@ -1,8 +1,8 @@
 import React from "react";
-import { RuntimeState, ViewId } from "../../runtime/types";
-import { SlashCommandRegistry } from "../../interaction/slash-commands";
-import { searchItems } from "../../interaction/search";
-import { UniversalPicker } from "./UniversalPicker";
+import { RuntimeState, ViewId } from "../../runtime/types.js";
+import { SlashCommandRegistry } from "../../interaction/slash-commands.js";
+import { searchItems } from "../../interaction/search.js";
+import { UniversalPicker } from "./UniversalPicker.js";
 
 export interface SearchEverywhereProps {
   state: RuntimeState;

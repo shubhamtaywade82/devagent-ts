@@ -1,4 +1,4 @@
-import { LspServerSession } from "../../src/lsp/session";
+import { LspServerSession } from "../../src/lsp/session.js";
 
 function makeSession(): LspServerSession {
   return new LspServerSession("/workspace", {

@@ -2,10 +2,14 @@ import { cp, mkdtemp, utimes } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { KnowledgeGraph } from "../../../src/intelligence/rails/graph/graph";
-import { GraphStore } from "../../../src/intelligence/rails/graph/graph-store";
-import { SemanticIndex } from "../../../src/intelligence/rails/indexer";
-import { ModelEntity, RelationshipIntent } from "../../../src/intelligence/rails/types";
+import { KnowledgeGraph } from "../../../src/intelligence/rails/graph/graph.js";
+import { GraphStore } from "../../../src/intelligence/rails/graph/graph-store.js";
+import { SemanticIndex } from "../../../src/intelligence/rails/indexer.js";
+import { ModelEntity, RelationshipIntent } from "../../../src/intelligence/rails/types.js";
+
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const FIXTURE = join(__dirname, "..", "..", "fixtures", "rails-app");
 

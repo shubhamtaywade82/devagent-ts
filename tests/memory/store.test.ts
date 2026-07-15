@@ -1,7 +1,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MemoryStore } from "../../src/memory/store";
+import { MemoryStore } from "../../src/memory/store.js";
 
 describe("MemoryStore", () => {
   it("persists and retrieves recent messages in chronological order", async () => {

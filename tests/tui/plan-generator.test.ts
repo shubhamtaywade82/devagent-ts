@@ -1,5 +1,5 @@
-import { generatePlan, PlanGenerationError } from "../../src/tui/plan-generator";
-import { Provider } from "../../src/provider/provider";
+import { generatePlan, PlanGenerationError } from "../../src/tui/plan-generator.js";
+import { Provider } from "../../src/provider/provider.js";
 
 function fakeProvider(content: string) {
   return {

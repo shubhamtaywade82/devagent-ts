@@ -4,8 +4,8 @@
  * intents linking the subject entity to the spec.
  */
 
-import { EntityType, RelationshipIntent, Scanner, ScannerResult, SourceFile, SpecEntity, SpecType } from "../types";
-import { logicalLines } from "./ruby-source";
+import { EntityType, RelationshipIntent, Scanner, ScannerResult, SourceFile, SpecEntity, SpecType } from "../types.js";
+import { logicalLines } from "./ruby-source.js";
 
 const PATH_TYPES: [RegExp, SpecType][] = [
   [/spec\/models\//, "model"],

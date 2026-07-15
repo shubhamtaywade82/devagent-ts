@@ -1,4 +1,4 @@
-import { initialUiState, uiReduce } from "../../src/interaction/ui-state";
+import { initialUiState, uiReduce } from "../../src/interaction/ui-state.js";
 
 describe("uiReduce", () => {
   it("starts on the conversation view with no overlay", () => {

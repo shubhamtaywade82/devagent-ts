@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { CollapsibleSection } from "./CollapsibleSection";
-import { ChatEntry } from "../../runtime/types";
-import { truncate } from "../../layout/truncate";
+import { CollapsibleSection } from "./CollapsibleSection.js";
+import { ChatEntry } from "../../runtime/types.js";
+import { truncate } from "../../layout/truncate.js";
 
 interface ToolCallCardProps {
   entry: ChatEntry;

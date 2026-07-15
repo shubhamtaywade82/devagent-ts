@@ -1,4 +1,4 @@
-import { Provider, ProviderError } from "../../src/provider/provider";
+import { Provider, ProviderError } from "../../src/provider/provider.js";
 
 describe("Provider cloud auth", () => {
   it("throws ProviderError before making a request when apiKey is missing", async () => {

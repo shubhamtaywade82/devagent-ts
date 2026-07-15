@@ -1,6 +1,6 @@
-import { templateCompletions } from "../../src/interaction/templates";
-import { completions } from "../../src/interaction/completion";
-import { builtinCommands } from "../../src/interaction/slash-commands";
+import { templateCompletions } from "../../src/interaction/templates.js";
+import { completions } from "../../src/interaction/completion.js";
+import { builtinCommands } from "../../src/interaction/slash-commands.js";
 
 describe("templateCompletions", () => {
   it("offers all templates for a bare @", () => {

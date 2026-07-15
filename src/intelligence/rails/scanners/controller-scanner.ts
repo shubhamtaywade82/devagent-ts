@@ -10,8 +10,8 @@ import {
   Scanner,
   ScannerResult,
   SourceFile,
-} from "../types";
-import { logicalLines, parseMacroArgs, parseSymbolList } from "./ruby-source";
+} from "../types.js";
+import { logicalLines, parseMacroArgs, parseSymbolList } from "./ruby-source.js";
 
 export class ControllerScanner implements Scanner {
   readonly name = "controller";

@@ -4,7 +4,7 @@
  * skill id so resolution is reproducible.
  */
 
-import { SkillMeta, SkillScore } from "./types";
+import { SkillMeta, SkillScore } from "./types.js";
 
 const TAG_WEIGHT = 3;
 const DESCRIPTION_WEIGHT = 1;

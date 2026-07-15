@@ -1,5 +1,5 @@
-import { ModelScanner } from "../../../../src/intelligence/rails/scanners/model-scanner";
-import { ModelEntity } from "../../../../src/intelligence/rails/types";
+import { ModelScanner } from "../../../../src/intelligence/rails/scanners/model-scanner.js";
+import { ModelEntity } from "../../../../src/intelligence/rails/types.js";
 
 const USER_MODEL = [
   "class User < ApplicationRecord",

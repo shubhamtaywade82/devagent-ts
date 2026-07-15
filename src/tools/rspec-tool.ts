@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { Tool } from "./tool";
+import { Tool } from "./tool.js";
 
 export class RunRSpecTool extends Tool {
   constructor(private readonly root: string) {

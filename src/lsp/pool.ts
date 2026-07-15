@@ -1,6 +1,6 @@
-import { LspServerSession } from "./session";
-import { LanguageProviderConfig } from "./registry";
-import { LspGlobalConfig } from "./config";
+import { LspServerSession } from "./session.js";
+import { LanguageProviderConfig } from "./registry.js";
+import { LspGlobalConfig } from "./config.js";
 
 export class LspPool {
   private readonly sessions = new Map<string, LspServerSession>();

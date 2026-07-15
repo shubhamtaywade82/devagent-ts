@@ -5,8 +5,8 @@
  * all of it, Right Arrow accepts one word, Esc dismisses.
  */
 
-import { SlashCommandRegistry } from "./slash-commands";
-import { BUILTIN_TEMPLATES, PromptTemplate, templateCompletions } from "./templates";
+import { SlashCommandRegistry } from "./slash-commands.js";
+import { BUILTIN_TEMPLATES, PromptTemplate, templateCompletions } from "./templates.js";
 
 /**
  * Ghost suffix for the current input, from the newest history entry that

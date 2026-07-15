@@ -1,5 +1,5 @@
-import { applyTaskTransition, canTransition, readyTasks } from "../../src/runtime/task-machine";
-import { Task } from "../../src/runtime/types";
+import { applyTaskTransition, canTransition, readyTasks } from "../../src/runtime/task-machine.js";
+import { Task } from "../../src/runtime/types.js";
 
 function task(id: string, status: Task["status"], deps: string[] = []): Task {
   return { id, title: id, status, dependencies: deps };

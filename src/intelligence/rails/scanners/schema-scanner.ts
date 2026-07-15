@@ -3,8 +3,8 @@
  * columns, references, and indexes.
  */
 
-import { Column, Scanner, ScannerResult, SourceFile, TableEntity, TableIndex } from "../types";
-import { logicalLines, parseMacroArgs, parseSymbolList, splitTopLevel, unquote } from "./ruby-source";
+import { Column, Scanner, ScannerResult, SourceFile, TableEntity, TableIndex } from "../types.js";
+import { logicalLines, parseMacroArgs, parseSymbolList, splitTopLevel, unquote } from "./ruby-source.js";
 
 const COLUMN_TYPES = new Set([
   "string", "text", "integer", "bigint", "float", "decimal", "numeric",

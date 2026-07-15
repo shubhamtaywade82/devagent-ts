@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { UniversalPicker } from "./UniversalPicker";
-import { OverlayFrame } from "./OverlayFrame";
+import { UniversalPicker } from "./UniversalPicker.js";
+import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface ModelSwitcherProps {
   current: string;

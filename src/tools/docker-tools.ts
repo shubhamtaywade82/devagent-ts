@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { Tool } from "./tool";
+import { Tool } from "./tool.js";
 
 const ALLOWED_SUBCOMMANDS = new Set(["build", "run", "stop", "logs", "exec", "compose", "ps", "images", "inspect"]);
 

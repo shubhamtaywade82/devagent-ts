@@ -1,6 +1,6 @@
-import { Provider, RateLimitError, ProviderError, ChatResponse } from "../../src/provider/provider";
-import { ModelCatalog } from "../../src/provider/catalog";
-import { Router } from "../../src/provider/router";
+import { Provider, RateLimitError, ProviderError, ChatResponse } from "../../src/provider/provider.js";
+import { ModelCatalog } from "../../src/provider/catalog.js";
+import { Router } from "../../src/provider/router.js";
 
 const okResponse = (content: string): ChatResponse => ({
   message: { role: "assistant", content },

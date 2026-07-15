@@ -1,4 +1,4 @@
-import { LspClient } from "../../src/lsp/client";
+import { LspClient } from "../../src/lsp/client.js";
 
 // No real language server binary is required for these tests — a tiny Node
 // script speaking the same Content-Length-framed JSON-RPC protocol stands in

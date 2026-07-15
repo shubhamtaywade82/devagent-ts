@@ -1,5 +1,5 @@
-import { ViewScanner } from "../../../../src/intelligence/rails/scanners/view-scanner";
-import { ViewEntity } from "../../../../src/intelligence/rails/types";
+import { ViewScanner } from "../../../../src/intelligence/rails/scanners/view-scanner.js";
+import { ViewEntity } from "../../../../src/intelligence/rails/types.js";
 
 describe("ViewScanner", () => {
   // ─── ERB templates ──────────────────────────────────────────────────

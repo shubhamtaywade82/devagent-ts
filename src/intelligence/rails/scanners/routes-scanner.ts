@@ -7,8 +7,8 @@
 
 import { spawn } from "node:child_process";
 import { join } from "node:path";
-import { RelationshipIntent, RouteEntity, Scanner, ScannerResult, SourceFile } from "../types";
-import { camelize, logicalLines, parseMacroArgs, parseSymbolList, singularize, unquote } from "./ruby-source";
+import { RelationshipIntent, RouteEntity, Scanner, ScannerResult, SourceFile } from "../types.js";
+import { camelize, logicalLines, parseMacroArgs, parseSymbolList, singularize, unquote } from "./ruby-source.js";
 
 interface Frame {
   kind: "namespace" | "scope" | "resources" | "resource" | "member" | "collection" | "other";

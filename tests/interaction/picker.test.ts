@@ -1,4 +1,4 @@
-import { filterPickerItems, visibleWindow } from "../../src/interaction/picker";
+import { filterPickerItems, visibleWindow } from "../../src/interaction/picker.js";
 
 const items = [
   { id: "1", label: "Filesystem", detail: "MCP server" },

@@ -4,13 +4,13 @@ import { execSync } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 import React from "react";
 import { render } from "ink";
-import { Agent } from "../cli/agent";
-import { loadConfig } from "../cli/config";
-import { EventBus } from "../runtime/events";
-import { initialRuntimeState, Store } from "../runtime/store";
-import { wireAgentBridge, BridgeableAgent } from "./agent-bridge";
-import { App } from "./App";
-import { validateAsl, generateAslGraph } from "../asl/commands";
+import { Agent } from "../cli/agent.js";
+import { loadConfig } from "../cli/config.js";
+import { EventBus } from "../runtime/events.js";
+import { initialRuntimeState, Store } from "../runtime/store.js";
+import { wireAgentBridge, BridgeableAgent } from "./agent-bridge.js";
+import { App } from "./App.js";
+import { validateAsl, generateAslGraph } from "../asl/commands.js";
 
 function enableTerminalFeatures(): () => void {
   if (!process.stdin.isTTY) return () => {};

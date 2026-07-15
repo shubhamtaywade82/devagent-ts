@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SearchCodeTool } from "../../src/tools/search-tools";
+import { SearchCodeTool } from "../../src/tools/search-tools.js";
 
 describe("SearchCodeTool", () => {
   it("finds matching lines with file path and line number", async () => {

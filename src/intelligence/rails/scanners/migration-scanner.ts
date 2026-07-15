@@ -3,8 +3,8 @@
  * filename, schema operations, and links to the tables they define/alter.
  */
 
-import { MigrationEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types";
-import { logicalLines, unquote } from "./ruby-source";
+import { MigrationEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types.js";
+import { logicalLines, unquote } from "./ruby-source.js";
 
 const TABLE_OPS =
   /^(create_table|drop_table|rename_table|add_column|remove_column|rename_column|change_column|add_index|remove_index|add_reference|remove_reference|add_foreign_key|remove_foreign_key|create_join_table)\s+(.+)$/;

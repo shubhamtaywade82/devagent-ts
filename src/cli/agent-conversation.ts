@@ -1,6 +1,6 @@
-import { ChatMessage } from "../provider/provider";
-import { CliConfig } from "./config";
-import { SkillContent } from "../skills/types";
+import { ChatMessage } from "../provider/provider.js";
+import { CliConfig } from "./config.js";
+import { SkillContent } from "../skills/types.js";
 
 interface LearningEntry {
   category: string;

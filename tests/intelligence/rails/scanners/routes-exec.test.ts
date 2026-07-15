@@ -1,9 +1,10 @@
 import { EventEmitter } from "node:events";
+import { jest } from "@jest/globals";
 
-jest.mock("node:child_process");
+jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
-import { spawn } from "node:child_process";
-import { RoutesScanner } from "../../../../src/intelligence/rails/scanners/routes-scanner";
+const { spawn } = await import("node:child_process");
+const { RoutesScanner } = await import("../../../../src/intelligence/rails/scanners/routes-scanner.js");
 
 const mockSpawn = spawn as jest.Mock;
 

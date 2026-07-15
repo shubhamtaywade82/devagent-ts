@@ -1,4 +1,4 @@
-import { ModelScore } from "./types";
+import { ModelScore } from "./types.js";
 
 export function formatReport(scores: ModelScore[]): string {
   if (scores.length === 0) return "(no benchmark results)";

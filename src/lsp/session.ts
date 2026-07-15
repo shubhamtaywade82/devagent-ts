@@ -1,8 +1,8 @@
 import { ChildProcess } from "node:child_process";
-import { LspClient } from "./client";
-import { LanguageProviderConfig } from "./registry";
-import { CLIENT_CAPABILITIES, LspCapabilities, deriveCapabilities, NO_CAPABILITIES } from "./capabilities";
-import { pathToUri } from "./protocol";
+import { LspClient } from "./client.js";
+import { LanguageProviderConfig } from "./registry.js";
+import { CLIENT_CAPABILITIES, LspCapabilities, deriveCapabilities, NO_CAPABILITIES } from "./capabilities.js";
+import { pathToUri } from "./protocol.js";
 import type { Diagnostic, ServerCapabilities } from "vscode-languageserver-protocol";
 
 export class LspServerSession {

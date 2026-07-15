@@ -1,30 +1,30 @@
-import { Registry } from "../tools/registry";
-import { ReadFileTool, WriteFileTool } from "../tools/filesystem";
-import { ShellTool } from "../tools/shell";
+import { Registry } from "../tools/registry.js";
+import { ReadFileTool, WriteFileTool } from "../tools/filesystem.js";
+import { ShellTool } from "../tools/shell.js";
 import {
   ListDirectoryTool, DeleteFileTool, MakeDirectoryTool, CopyFileTool, MoveFileTool,
-} from "../tools/directory-tools";
-import { PatchTool, AppendTool } from "../tools/edit-tools";
-import { SnapshotBackupTool } from "../tools/backup-tools";
-import { WatchTool } from "../tools/watch-tool";
-import { SearchCodeTool } from "../tools/search-tools";
-import { GitTool } from "../tools/git-tools";
-import { DockerTool } from "../tools/docker-tools";
-import { GitHubTool } from "../tools/github-tools";
-import { SqliteQueryTool } from "../tools/database-tools";
-import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
-import { RunRubocopTool } from "../tools/rubocop-tool";
-import { RunRSpecTool } from "../tools/rspec-tool";
+} from "../tools/directory-tools.js";
+import { PatchTool, AppendTool } from "../tools/edit-tools.js";
+import { SnapshotBackupTool } from "../tools/backup-tools.js";
+import { WatchTool } from "../tools/watch-tool.js";
+import { SearchCodeTool } from "../tools/search-tools.js";
+import { GitTool } from "../tools/git-tools.js";
+import { DockerTool } from "../tools/docker-tools.js";
+import { GitHubTool } from "../tools/github-tools.js";
+import { SqliteQueryTool } from "../tools/database-tools.js";
+import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools.js";
+import { RunRubocopTool } from "../tools/rubocop-tool.js";
+import { RunRSpecTool } from "../tools/rspec-tool.js";
 import {
   GetDefinitionTool, FindReferencesTool, RenameSymbolTool,
   WorkspaceSymbolsTool, DocumentSymbolsTool, HoverTool,
   DiagnosticsTool, CodeActionsTool, FormatDocumentTool,
   SignatureHelpTool, CompletionTool, SemanticTokensTool,
-} from "../tools/lsp-tools";
-import { LspManager } from "../lsp/manager";
-import { SemanticIndex, createRailsTools } from "../intelligence/rails";
-import { connectMcpServer } from "../mcp/client";
-import { Tool } from "../tools/tool";
+} from "../tools/lsp-tools.js";
+import { LspManager } from "../lsp/manager.js";
+import { SemanticIndex, createRailsTools } from "../intelligence/rails/index.js";
+import { connectMcpServer } from "../mcp/client.js";
+import { Tool } from "../tools/tool.js";
 
 export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
 

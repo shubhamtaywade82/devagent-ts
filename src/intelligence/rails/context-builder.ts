@@ -5,9 +5,9 @@
  * truncating least-relevant sections first.
  */
 
-import { QueryEngine } from "./query-engine";
-import { ControllerEntity, ModelEntity, RouteEntity, RsiEntity, TableEntity, ViewEntity, WorkspaceInfo } from "./types";
-import { KnowledgeGraph } from "./graph/graph";
+import { QueryEngine } from "./query-engine.js";
+import { ControllerEntity, ModelEntity, RouteEntity, RsiEntity, TableEntity, ViewEntity, WorkspaceInfo } from "./types.js";
+import { KnowledgeGraph } from "./graph/graph.js";
 
 export interface RailsContext {
   text: string;

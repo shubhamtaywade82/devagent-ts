@@ -4,7 +4,7 @@ import {
   AslTaskKind,
   AslTaskStatus,
   AslDocument,
-} from "./types";
+} from "./types.js";
 
 const VALID_TASK_KINDS: AslTaskKind[] = [
   "implementation",

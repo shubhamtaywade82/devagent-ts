@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ViewProps } from "./ConversationView";
+import { ViewProps } from "./ConversationView.js";
 
 export function ToolTimelineView({ state, width, rows }: ViewProps): JSX.Element {
   const { toolCalls } = state;

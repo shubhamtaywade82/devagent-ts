@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { discoverSkills, loadSkillContent, loadSkillMeta } from "../../src/skills/loader";
+import { discoverSkills, loadSkillContent, loadSkillMeta } from "../../src/skills/loader.js";
 
 function writeSkill(root: string, id: string, frontmatter: string, body = "# Body\n\ncontent"): string {
   const dir = join(root, ".devagent", "skills", id);

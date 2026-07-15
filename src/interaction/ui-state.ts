@@ -4,8 +4,8 @@
  * closing an overlay or switching views can never stop an actor.
  */
 
-import { VIEW_ORDER, ViewId } from "../runtime/types";
-import { UiCommand } from "./keybindings";
+import { VIEW_ORDER, ViewId } from "../runtime/types.js";
+import { UiCommand } from "./keybindings.js";
 
 export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode";
 

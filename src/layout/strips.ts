@@ -5,8 +5,8 @@
  * Context Strip: dynamic status for the current runtime mode.
  */
 
-import { ACTOR_IDS, ActorHealth, ActorId, AGENT_MODE_LABELS, RuntimeState, StatusToken, ViewId } from "../runtime/types";
-import { semanticColor } from "./theme-map";
+import { ACTOR_IDS, ActorHealth, ActorId, AGENT_MODE_LABELS, RuntimeState, StatusToken, ViewId } from "../runtime/types.js";
+import { semanticColor } from "./theme-map.js";
 
 const ACTOR_LABELS: Record<ActorId, string> = {
   conversation: "Chat",

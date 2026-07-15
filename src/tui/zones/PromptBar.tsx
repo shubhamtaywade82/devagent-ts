@@ -52,7 +52,7 @@ export function PromptBar({ text, ghost, width, busy }: PromptBarProps): JSX.Ele
         <Text color={busy ? "magenta" : "green"} bold>
           {promptGlyph}{" "}
         </Text>
-        <Text wrap="truncate">
+        <Text key={visibleLine}>
           {visibleLine}
           <Text inverse> </Text>
           <Text color="gray">{visibleGhost}</Text>

@@ -20,7 +20,7 @@ import {
   Task,
   TestFailure,
   ToolCallStatus,
-} from "./types";
+} from "./types.js";
 
 export type RuntimeEvent =
   | { type: "conversation.message"; role: ChatRole; text: string }

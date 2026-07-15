@@ -1,11 +1,11 @@
 #!/usr/bin/env node
-import { Provider } from "../provider/provider";
-import { ModelCatalog } from "../provider/catalog";
-import { loadConfig } from "../cli/config";
-import { runBenchmark, BenchmarkTarget } from "./runner";
-import { BUILTIN_CASES } from "./cases";
-import { scoreByModel } from "./score";
-import { formatReport } from "./report";
+import { Provider } from "../provider/provider.js";
+import { ModelCatalog } from "../provider/catalog.js";
+import { loadConfig } from "../cli/config.js";
+import { runBenchmark, BenchmarkTarget } from "./runner.js";
+import { BUILTIN_CASES } from "./cases.js";
+import { scoreByModel } from "./score.js";
+import { formatReport } from "./report.js";
 
 async function main() {
   const cfg = loadConfig();

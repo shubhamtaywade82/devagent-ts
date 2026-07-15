@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { tail } from "../../layout/truncate";
-import { ViewProps } from "./ConversationView";
+import { tail } from "../../layout/truncate.js";
+import { ViewProps } from "./ConversationView.js";
 
 const STATUS_COLORS: Record<string, string> = {
   running: "green",

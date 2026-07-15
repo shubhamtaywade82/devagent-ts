@@ -4,7 +4,7 @@
  * red = error/blocked, purple = thinking/model activity, gray = muted.
  */
 
-import { ActorHealth } from "../runtime/types";
+import { ActorHealth } from "../runtime/types.js";
 
 export type SemanticColor = "green" | "blue" | "yellow" | "red" | "magenta" | "gray";
 

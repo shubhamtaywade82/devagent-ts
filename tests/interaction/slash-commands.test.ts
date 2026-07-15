@@ -1,4 +1,4 @@
-import { builtinCommands, parseSlashInput, SlashCommandRegistry } from "../../src/interaction/slash-commands";
+import { builtinCommands, parseSlashInput, SlashCommandRegistry } from "../../src/interaction/slash-commands.js";
 
 describe("parseSlashInput", () => {
   it("parses name and args", () => {

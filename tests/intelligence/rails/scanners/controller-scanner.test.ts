@@ -1,5 +1,5 @@
-import { ControllerScanner } from "../../../../src/intelligence/rails/scanners/controller-scanner";
-import { ControllerEntity } from "../../../../src/intelligence/rails/types";
+import { ControllerScanner } from "../../../../src/intelligence/rails/scanners/controller-scanner.js";
+import { ControllerEntity } from "../../../../src/intelligence/rails/types.js";
 
 const CONTROLLER = [
   "class UsersController < ApplicationController",

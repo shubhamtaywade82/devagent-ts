@@ -1,4 +1,4 @@
-import { Episode, Grade } from "./types";
+import { Episode, Grade } from "./types.js";
 
 /**
  * Grades an episode from hard signals only: exit codes, error labels, and

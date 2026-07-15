@@ -6,7 +6,7 @@
 
 import { existsSync, readFileSync, readdirSync, statSync } from "fs";
 import { join } from "path";
-import { EngineInfo, WorkspaceInfo } from "./types";
+import { EngineInfo, WorkspaceInfo } from "./types.js";
 
 function readIfExists(path: string): string | null {
   try {

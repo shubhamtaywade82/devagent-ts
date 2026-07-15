@@ -1,5 +1,5 @@
-import { Provider } from "../../src/provider/provider";
-import { ModelCatalog, inferCapabilities } from "../../src/provider/catalog";
+import { Provider } from "../../src/provider/provider.js";
+import { ModelCatalog, inferCapabilities } from "../../src/provider/catalog.js";
 
 describe("inferCapabilities", () => {
   it("tags vision models", () => {

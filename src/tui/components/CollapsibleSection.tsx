@@ -1,6 +1,6 @@
 import React, { useCallback } from "react";
 import { Box, Text, useInput } from "ink";
-import { StatusChip } from "./StatusChip";
+import { StatusChip } from "./StatusChip.js";
 
 interface CollapsibleSectionProps {
   title: string;

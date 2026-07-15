@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ExecutionStep } from "../../runtime/types";
-import { tail, truncate } from "../../layout/truncate";
-import { ViewProps } from "./ConversationView";
+import { ExecutionStep } from "../../runtime/types.js";
+import { tail, truncate } from "../../layout/truncate.js";
+import { ViewProps } from "./ConversationView.js";
 
 const STEP_GLYPH: Record<ExecutionStep["status"], { glyph: string; color: string }> = {
   pending: { glyph: "○", color: "gray" },

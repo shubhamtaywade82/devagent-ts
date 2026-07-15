@@ -1,5 +1,5 @@
-import { Provider, ChatMessage } from "../provider/provider";
-import { PlanStep } from "../orchestrator/types";
+import { Provider, ChatMessage } from "../provider/provider.js";
+import { PlanStep } from "../orchestrator/types.js";
 
 export class PlanGenerationError extends Error {}
 

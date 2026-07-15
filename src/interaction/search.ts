@@ -4,9 +4,9 @@
  * the view that owns it.
  */
 
-import { RuntimeState, ViewId } from "../runtime/types";
-import { SlashCommandRegistry } from "./slash-commands";
-import { PickerItem } from "./picker";
+import { RuntimeState, ViewId } from "../runtime/types.js";
+import { SlashCommandRegistry } from "./slash-commands.js";
+import { PickerItem } from "./picker.js";
 
 export interface SearchItem extends PickerItem {
   view: ViewId;

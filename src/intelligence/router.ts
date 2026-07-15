@@ -9,8 +9,8 @@ import type {
   SignatureHelp,
   TextEdit,
 } from "vscode-languageserver-protocol";
-import { LspManager, SemanticOperation } from "../lsp/manager";
-import { LanguageIntelligenceProvider, FileContext } from "./provider";
+import { LspManager, SemanticOperation } from "../lsp/manager.js";
+import { LanguageIntelligenceProvider, FileContext } from "./provider.js";
 
 class TextFallbackProvider implements LanguageIntelligenceProvider {
   supportsOperation(_filePath: string, op: SemanticOperation): boolean {

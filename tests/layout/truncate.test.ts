@@ -1,4 +1,4 @@
-import { elidePath, tail, truncate, truncateStart, wrapText } from "../../src/layout/truncate";
+import { elidePath, tail, truncate, truncateStart, wrapText } from "../../src/layout/truncate.js";
 
 describe("truncate", () => {
   it("passes short text through", () => {

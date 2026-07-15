@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ApprovalRequest } from "../../runtime/types";
-import { wrapText, tail } from "../../layout/truncate";
-import { OverlayFrame } from "./OverlayFrame";
+import { ApprovalRequest } from "../../runtime/types.js";
+import { wrapText, tail } from "../../layout/truncate.js";
+import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface ApprovalOverlayProps {
   request: ApprovalRequest;

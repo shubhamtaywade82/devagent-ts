@@ -1,7 +1,7 @@
 import React from "react";
-import { RuntimeState } from "../../runtime/types";
-import { headerTokens } from "../../layout/strips";
-import { TokenLine } from "./TokenLine";
+import { RuntimeState } from "../../runtime/types.js";
+import { headerTokens } from "../../layout/strips.js";
+import { TokenLine } from "./TokenLine.js";
 
 export interface HeaderProps {
   state: RuntimeState;

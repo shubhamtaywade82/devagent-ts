@@ -2,7 +2,7 @@ import { mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { loadConfig } from "../../src/cli/config";
+import { loadConfig } from "../../src/cli/config.js";
 
 describe("loadConfig apiKeys pool", () => {
   const originalEnv = { ...process.env };

@@ -9,8 +9,8 @@ import {
   validatePolicySpec,
   validateResultContract,
   validateReviewContract,
-} from "./parser";
-import { AslTaskSpec } from "./types";
+} from "./parser.js";
+import { AslTaskSpec } from "./types.js";
 
 export function getAslFiles(dir: string): string[] {
   const results: string[] = [];

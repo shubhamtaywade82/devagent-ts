@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
-import { LspManager, SemanticOperation } from "../lsp/manager";
+import { LspManager, SemanticOperation } from "../lsp/manager.js";
 import type { Location, SymbolInformation, Hover, Diagnostic, CodeAction, CompletionItem, SignatureHelp, TextEdit } from "vscode-languageserver-protocol";
-import type { SemanticPlugin, DiscoveredEntity, SemanticQuery, QueryResult, PluginKind } from "./types";
+import type { SemanticPlugin, DiscoveredEntity, SemanticQuery, QueryResult, PluginKind } from "./types.js";
 
 export interface LanguageIntelligenceProvider {
   supportsOperation(filePath: string, op: SemanticOperation): boolean;

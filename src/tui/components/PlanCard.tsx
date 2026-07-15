@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { CollapsibleSection } from "./CollapsibleSection";
-import { StatusChip } from "./StatusChip";
-import { ChatEntry, ExecutionStep } from "../../runtime/types";
+import { CollapsibleSection } from "./CollapsibleSection.js";
+import { StatusChip } from "./StatusChip.js";
+import { ChatEntry, ExecutionStep } from "../../runtime/types.js";
 
 interface PlanCardProps {
   entry: ChatEntry;

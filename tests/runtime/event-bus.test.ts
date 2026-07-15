@@ -1,4 +1,4 @@
-import { EventBus, RuntimeEvent } from "../../src/runtime/events";
+import { EventBus, RuntimeEvent } from "../../src/runtime/events.js";
 
 describe("EventBus", () => {
   it("delivers events to all subscribers", () => {

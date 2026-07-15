@@ -3,7 +3,7 @@
  * task graph can never drift into an inconsistent shape.
  */
 
-import { Task, TaskStatus } from "./types";
+import { Task, TaskStatus } from "./types.js";
 
 const TRANSITIONS: Record<TaskStatus, readonly TaskStatus[]> = {
   queued: ["running", "blocked", "cancelled"],

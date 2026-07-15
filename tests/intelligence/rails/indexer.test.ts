@@ -2,8 +2,12 @@ import { cp, mkdtemp, rm } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SemanticIndex } from "../../../src/intelligence/rails/indexer";
-import { ModelEntity } from "../../../src/intelligence/rails/types";
+import { SemanticIndex } from "../../../src/intelligence/rails/indexer.js";
+import { ModelEntity } from "../../../src/intelligence/rails/types.js";
+
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const FIXTURE = join(__dirname, "..", "..", "fixtures", "rails-app");
 

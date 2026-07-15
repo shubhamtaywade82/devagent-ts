@@ -6,7 +6,7 @@
 
 import { readdirSync, statSync } from "fs";
 import { join, relative, sep } from "path";
-import { ManifestCategory, ManifestFile, WorkspaceInfo, WorkspaceManifest } from "./types";
+import { ManifestCategory, ManifestFile, WorkspaceInfo, WorkspaceManifest } from "./types.js";
 
 const SKIP_DIRS = new Set(["node_modules", "vendor", "tmp", "log", ".git", "public", "storage"]);
 

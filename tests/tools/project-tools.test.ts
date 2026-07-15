@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../../src/tools/project-tools";
+import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../../src/tools/project-tools.js";
 
 async function initProject(scripts: Record<string, string>) {
   const dir = await mkdtemp(join(tmpdir(), "ws-"));

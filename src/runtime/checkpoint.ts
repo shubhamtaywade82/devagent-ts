@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { PlanStep, HistoryEntry, StepStatus } from "../orchestrator/types";
+import { PlanStep, HistoryEntry, StepStatus } from "../orchestrator/types.js";
 
 export interface CheckpointData {
   steps: PlanStep[];

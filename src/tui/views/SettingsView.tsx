@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ViewProps } from "./ConversationView";
-import { AGENT_MODE_LABELS } from "../../runtime/types";
+import { ViewProps } from "./ConversationView.js";
+import { AGENT_MODE_LABELS } from "../../runtime/types.js";
 
 export function SettingsView({ state, width, rows }: ViewProps): JSX.Element {
   const am = AGENT_MODE_LABELS[state.agentMode];

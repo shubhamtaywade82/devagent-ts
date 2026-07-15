@@ -1,6 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { validateAsl, generateAslGraph } from "../../src/asl/commands";
+import { validateAsl, generateAslGraph } from "../../src/asl/commands.js";
+
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("ASL Commands", () => {
   const tempWorkspace = path.join(__dirname, "../fixtures/asl-workspace-temp");

@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { SkillMeta, SkillUsageStats } from "../../skills/types";
-import { UniversalPicker } from "./UniversalPicker";
-import { OverlayFrame } from "./OverlayFrame";
+import { SkillMeta, SkillUsageStats } from "../../skills/types.js";
+import { UniversalPicker } from "./UniversalPicker.js";
+import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface SkillsOverlayProps {
   skills: SkillMeta[];

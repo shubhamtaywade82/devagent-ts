@@ -3,13 +3,14 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
+import { jest } from "@jest/globals";
 
-jest.mock("node:child_process");
+jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
-import { spawn } from "node:child_process";
-import { Agent } from "../../src/cli/agent";
-import { ShellTool } from "../../src/tools/shell";
-import { MemoryStore } from "../../src/memory/store";
+const { spawn } = await import("node:child_process");
+const { Agent } = await import("../../src/cli/agent.js");
+const { ShellTool } = await import("../../src/tools/shell.js");
+const { MemoryStore } = await import("../../src/memory/store.js");
 
 const mockSpawn = spawn as jest.Mock;
 
@@ -27,7 +28,11 @@ function fakeProc(): FakeProc {
   return proc;
 }
 
-function skipDockerPreflight(tool: ShellTool): void {
+// Dynamic `await import()` gives ShellTool as a value binding only — this
+// recovers a type from it for annotations below.
+type ShellToolInstance = InstanceType<typeof ShellTool>;
+
+function skipDockerPreflight(tool: ShellToolInstance): void {
   (tool as any).dockerChecked = true;
   (tool as any).dockerAvailable = true;
 }
@@ -108,7 +113,7 @@ describe("Agent onShellOutput event", () => {
 
     // Reach into the registry to bypass ShellTool's docker preflight check, the same way
     // tests/tools/shell.test.ts does for standalone ShellTool instances.
-    const shellTool = (registry as any).tools.get("run_shell") as ShellTool;
+    const shellTool = (registry as any).tools.get("run_shell") as ShellToolInstance;
     skipDockerPreflight(shellTool);
 
     const resultPromise = registry.invoke("run_shell", { command: "echo hi" });

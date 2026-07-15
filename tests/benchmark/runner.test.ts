@@ -1,6 +1,6 @@
-import { Provider, ChatResponse } from "../../src/provider/provider";
-import { runBenchmark } from "../../src/benchmark/runner";
-import { BenchmarkCase } from "../../src/benchmark/types";
+import { Provider, ChatResponse } from "../../src/provider/provider.js";
+import { runBenchmark } from "../../src/benchmark/runner.js";
+import { BenchmarkCase } from "../../src/benchmark/types.js";
 
 function response(content: string, extra: Partial<ChatResponse> = {}): ChatResponse {
   return { message: { role: "assistant", content }, done: true, ...extra };

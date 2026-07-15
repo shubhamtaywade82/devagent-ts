@@ -1,8 +1,8 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AgentConversation } from "../../src/cli/agent-conversation";
-import { Agent } from "../../src/cli/agent";
+import { AgentConversation } from "../../src/cli/agent-conversation.js";
+import { Agent } from "../../src/cli/agent.js";
 
 describe("AgentConversation context pruning", () => {
   it("correctly prunes context once maxMessages limit is exceeded", () => {

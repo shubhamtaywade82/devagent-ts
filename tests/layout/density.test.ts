@@ -1,4 +1,4 @@
-import { activeViewRows, densityForWidth, detailForDensity } from "../../src/layout/density";
+import { activeViewRows, densityForWidth, detailForDensity } from "../../src/layout/density.js";
 
 describe("density tiers", () => {
   it("maps widths to the frozen tiers", () => {

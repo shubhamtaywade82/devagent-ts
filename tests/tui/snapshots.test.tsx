@@ -1,8 +1,8 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { App } from "../../src/tui/App";
-import { EventBus } from "../../src/runtime/events";
-import { initialRuntimeState, Store } from "../../src/runtime/store";
+import { App } from "../../src/tui/App.js";
+import { EventBus } from "../../src/runtime/events.js";
+import { initialRuntimeState, Store } from "../../src/runtime/store.js";
 
 const NOW = new Date(2026, 0, 1, 10, 42, 11).getTime();
 

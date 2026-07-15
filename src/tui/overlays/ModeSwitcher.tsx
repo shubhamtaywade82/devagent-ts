@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Box, Text } from "ink";
-import { AGENT_MODES, AGENT_MODE_LABELS, AgentMode } from "../../runtime/types";
-import { OverlayFrame } from "./OverlayFrame";
+import { AGENT_MODES, AGENT_MODE_LABELS, AgentMode } from "../../runtime/types.js";
+import { OverlayFrame } from "./OverlayFrame.js";
 
 interface ModeSwitcherProps {
   current: AgentMode;

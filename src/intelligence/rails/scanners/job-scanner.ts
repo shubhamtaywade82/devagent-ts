@@ -3,8 +3,8 @@
  * models/mailers the job touches.
  */
 
-import { JobEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types";
-import { logicalLines, parseSymbolList } from "./ruby-source";
+import { JobEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types.js";
+import { logicalLines, parseSymbolList } from "./ruby-source.js";
 
 export class JobScanner implements Scanner {
   readonly name = "job";

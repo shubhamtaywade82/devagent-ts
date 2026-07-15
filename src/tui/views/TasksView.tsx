@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { Task, TaskStatus } from "../../runtime/types";
-import { tail, truncate } from "../../layout/truncate";
-import { ViewProps } from "./ConversationView";
+import { Task, TaskStatus } from "../../runtime/types.js";
+import { tail, truncate } from "../../layout/truncate.js";
+import { ViewProps } from "./ConversationView.js";
 
 const TASK_GLYPH: Record<TaskStatus, { glyph: string; color: string }> = {
   queued: { glyph: "○", color: "gray" },

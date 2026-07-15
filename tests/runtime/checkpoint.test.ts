@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { existsSync, readFileSync } from "node:fs";
-import { CheckpointStore, sanitizeResumedSteps } from "../../src/runtime/checkpoint";
-import { PlanStep } from "../../src/orchestrator/types";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { CheckpointStore, sanitizeResumedSteps } from "../../src/runtime/checkpoint.js";
+import { PlanStep } from "../../src/orchestrator/types.js";
 
 function makeStep(id: string, status: PlanStep["status"]): PlanStep {
   return { id, description: id, status, dependencies: [], retryCount: 0 };
@@ -74,7 +74,7 @@ describe("CheckpointStore", () => {
   it("returns null instead of throwing on corrupt JSON", () => {
     const store = new CheckpointStore(path);
     store.save({ steps: [], history: [], replanCount: 0 });
-    require("node:fs").writeFileSync(path, "{not valid json");
+    writeFileSync(path, "{not valid json");
     expect(store.load()).toBeNull();
   });
 

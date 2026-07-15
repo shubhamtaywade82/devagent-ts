@@ -1,6 +1,6 @@
-import { KnowledgeGraph } from "../../../src/intelligence/rails/graph/graph";
-import { QueryEngine } from "../../../src/intelligence/rails/query-engine";
-import { ControllerEntity, ModelEntity, RouteEntity, SpecEntity } from "../../../src/intelligence/rails/types";
+import { KnowledgeGraph } from "../../../src/intelligence/rails/graph/graph.js";
+import { QueryEngine } from "../../../src/intelligence/rails/query-engine.js";
+import { ControllerEntity, ModelEntity, RouteEntity, SpecEntity } from "../../../src/intelligence/rails/types.js";
 
 function buildGraph(): KnowledgeGraph {
   const graph = new KnowledgeGraph();

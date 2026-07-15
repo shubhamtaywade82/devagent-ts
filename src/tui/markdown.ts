@@ -1,4 +1,4 @@
-import { wrapText } from "../layout/truncate";
+import { wrapText } from "../layout/truncate.js";
 
 export interface Span {
   text: string;

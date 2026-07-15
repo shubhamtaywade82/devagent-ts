@@ -1,9 +1,13 @@
 import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SemanticIndex } from "../../../src/intelligence/rails/indexer";
-import { createRailsTools } from "../../../src/intelligence/rails/tools/semantic-tools";
-import { Tool } from "../../../src/tools/tool";
+import { SemanticIndex } from "../../../src/intelligence/rails/indexer.js";
+import { createRailsTools } from "../../../src/intelligence/rails/tools/semantic-tools.js";
+import { Tool } from "../../../src/tools/tool.js";
+
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const FIXTURE = join(__dirname, "..", "..", "fixtures", "rails-app");
 

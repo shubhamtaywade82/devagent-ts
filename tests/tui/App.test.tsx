@@ -1,8 +1,13 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { App, ShellAgent } from "../../src/tui/App";
-import { EventBus } from "../../src/runtime/events";
-import { initialRuntimeState, Store } from "../../src/runtime/store";
+import { App, ShellAgent } from "../../src/tui/App.js";
+import { EventBus } from "../../src/runtime/events.js";
+import { initialRuntimeState, Store } from "../../src/runtime/store.js";
+
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const NOW = new Date(2026, 0, 1, 10, 42, 11).getTime();
 
@@ -61,7 +66,9 @@ let mockTime = 100000;
 // helper would, and App would (correctly) mistake that for a paste burst.
 const tick = async () => {
   mockTime += 30; // Shift mock time by 30ms (which is > FAST_INPUT_MS = 20)
-  await new Promise((resolve) => setTimeout(resolve, 10)); // Yield to let React/Ink process input
+  // Real wait, not mocked: must clear App.tsx's RENDER_THROTTLE_MS (50ms) so a
+  // deferred store-driven render has actually flushed before assertions run.
+  await new Promise((resolve) => setTimeout(resolve, 60));
 };
 
 describe("App shell", () => {
@@ -136,10 +143,24 @@ describe("App shell", () => {
     unmount();
   });
 
+  it("ignores raw SGR mouse-reporting escape sequences instead of typing them into the prompt", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    // Some terminals send these on scroll/click while the app is in raw mode,
+    // even though DevAgent never enables mouse tracking.
+    stdin.write("\x1b[<65;80;34M\x1b[<64;80;34M");
+    await tick();
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).not.toContain("[<65");
+    expect(frame).toContain("No conversation yet"); // still idle, nothing typed
+    unmount();
+  });
+
   it("digits type into a non-empty prompt instead of switching views", async () => {
     const { stdin, lastFrame, unmount } = renderApp();
     await tick();
     stdin.write("add ");
+    await tick();
     stdin.write("2");
     await tick();
     const frame = stripAnsi(lastFrame() ?? "");
@@ -374,14 +395,12 @@ describe("App shell", () => {
   });
 
   it("persists command history to .devagent/history.json and loads from it", async () => {
-    const fs = require("node:fs");
-    const path = require("node:path");
-    const tempDir = path.join(__dirname, "temp-history-test");
+    const tempDir = join(__dirname, "temp-history-test");
     // Clean slate: remove any leftover from interrupted runs
-    fs.rmSync(tempDir, { recursive: true, force: true });
-    fs.mkdirSync(tempDir, { recursive: true });
-    const historyDir = path.join(tempDir, ".devagent");
-    const historyFile = path.join(historyDir, "history.json");
+    rmSync(tempDir, { recursive: true, force: true });
+    mkdirSync(tempDir, { recursive: true });
+    const historyDir = join(tempDir, ".devagent");
+    const historyFile = join(historyDir, "history.json");
 
     // Initial run - add a command to history
     const { stdin, unmount } = renderApp(120, 30, undefined, tempDir);
@@ -393,8 +412,8 @@ describe("App shell", () => {
     unmount();
 
     // Verify it was written to file as JSON array
-    expect(fs.existsSync(historyFile)).toBe(true);
-    const parsed = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
+    expect(existsSync(historyFile)).toBe(true);
+    const parsed = JSON.parse(readFileSync(historyFile, "utf-8"));
     expect(parsed).toEqual(["test command one"]);
 
     // Second run - should load from the file
@@ -407,11 +426,11 @@ describe("App shell", () => {
     r2.unmount();
 
     // Verify both commands exist in file
-    const content = JSON.parse(fs.readFileSync(historyFile, "utf-8"));
+    const content = JSON.parse(readFileSync(historyFile, "utf-8"));
     expect(content).toEqual(["test command one", "test command two"]);
 
     // Clean up
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    rmSync(tempDir, { recursive: true, force: true });
   });
 });
 

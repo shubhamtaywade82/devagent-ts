@@ -1,9 +1,9 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MemoryStore } from "../../src/memory/store";
-import { generateSummary } from "../../src/memory/summarizer";
-import { Provider } from "../../src/provider/provider";
+import { MemoryStore } from "../../src/memory/store.js";
+import { generateSummary } from "../../src/memory/summarizer.js";
+import { Provider } from "../../src/provider/provider.js";
 
 describe("generateSummary", () => {
   it("prompts the provider with recent messages and stores the resulting bullet summary", async () => {

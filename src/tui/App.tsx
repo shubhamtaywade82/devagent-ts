@@ -2,43 +2,43 @@ import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } 
 import { Box, Text, useApp, useInput, useStdout } from "ink";
 import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { EventBus } from "../runtime/events";
-import { Store } from "../runtime/store";
-import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types";
-import { activeViewRows, densityForWidth, detailForDensity } from "../layout/density";
-import { resolveKey, UiCommand } from "../interaction/keybindings";
-import { initialUiState, uiReduce } from "../interaction/ui-state";
-import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands";
-import { HistoryManager } from "../interaction/history";
-import { acceptWord, completions, ghostSuffix } from "../interaction/completion";
-import { ErrorBoundary } from "./ErrorBoundary";
-import { Header } from "./zones/Header";
-import { ActivityStrip } from "./zones/ActivityStrip";
-import { ContextStrip } from "./zones/ContextStrip";
-import { PromptBar, promptBarRows } from "./zones/PromptBar";
-import { ConversationView, ViewProps } from "./views/ConversationView";
-import { ExecutionView } from "./views/ExecutionView";
-import { TasksView } from "./views/TasksView";
-import { GitView } from "./views/GitView";
-import { LogsView } from "./views/LogsView";
-import { MemoryView } from "./views/MemoryView";
-import { ModelsView } from "./views/ModelsView";
-import { McpView } from "./views/McpView";
-import { LspView } from "./views/LspView";
-import { FileExplorerView } from "./views/FileExplorerView";
-import { SettingsView } from "./views/SettingsView";
-import { ContextInspectorView } from "./views/ContextInspectorView";
-import { RailsView } from "./views/RailsView";
-import { ToolTimelineView } from "./views/ToolTimelineView";
-import { CommandPalette } from "./overlays/CommandPalette";
-import { HelpOverlay } from "./overlays/HelpOverlay";
-import { ActorsOverlay } from "./overlays/ActorsOverlay";
-import { ApprovalOverlay } from "./overlays/ApprovalOverlay";
-import { ModelSwitcher } from "./overlays/ModelSwitcher";
-import { ModeSwitcher } from "./overlays/ModeSwitcher";
-import { SearchEverywhere } from "./overlays/SearchEverywhere";
-import { SkillsOverlay } from "./overlays/SkillsOverlay";
-import { SkillsRegistry } from "../skills/registry";
+import { EventBus } from "../runtime/events.js";
+import { Store } from "../runtime/store.js";
+import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types.js";
+import { activeViewRows, densityForWidth, detailForDensity } from "../layout/density.js";
+import { resolveKey, UiCommand } from "../interaction/keybindings.js";
+import { initialUiState, uiReduce } from "../interaction/ui-state.js";
+import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
+import { HistoryManager } from "../interaction/history.js";
+import { acceptWord, completions, ghostSuffix } from "../interaction/completion.js";
+import { ErrorBoundary } from "./ErrorBoundary.js";
+import { Header } from "./zones/Header.js";
+import { ActivityStrip } from "./zones/ActivityStrip.js";
+import { ContextStrip } from "./zones/ContextStrip.js";
+import { PromptBar, promptBarRows } from "./zones/PromptBar.js";
+import { ConversationView, ViewProps } from "./views/ConversationView.js";
+import { ExecutionView } from "./views/ExecutionView.js";
+import { TasksView } from "./views/TasksView.js";
+import { GitView } from "./views/GitView.js";
+import { LogsView } from "./views/LogsView.js";
+import { MemoryView } from "./views/MemoryView.js";
+import { ModelsView } from "./views/ModelsView.js";
+import { McpView } from "./views/McpView.js";
+import { LspView } from "./views/LspView.js";
+import { FileExplorerView } from "./views/FileExplorerView.js";
+import { SettingsView } from "./views/SettingsView.js";
+import { ContextInspectorView } from "./views/ContextInspectorView.js";
+import { RailsView } from "./views/RailsView.js";
+import { ToolTimelineView } from "./views/ToolTimelineView.js";
+import { CommandPalette } from "./overlays/CommandPalette.js";
+import { HelpOverlay } from "./overlays/HelpOverlay.js";
+import { ActorsOverlay } from "./overlays/ActorsOverlay.js";
+import { ApprovalOverlay } from "./overlays/ApprovalOverlay.js";
+import { ModelSwitcher } from "./overlays/ModelSwitcher.js";
+import { ModeSwitcher } from "./overlays/ModeSwitcher.js";
+import { SearchEverywhere } from "./overlays/SearchEverywhere.js";
+import { SkillsOverlay } from "./overlays/SkillsOverlay.js";
+import { SkillsRegistry } from "../skills/registry.js";
 
 export interface ShellAgent {
   runUserMessage(message: string): Promise<unknown>;
@@ -121,28 +121,52 @@ function useTerminalSize(columns?: number, rows?: number): { width: number; heig
 // so subscribe the classic way. The re-sync inside the effect catches any
 // events published between first render and subscription.
 //
-// Streaming responses publish one bus event per token (see agent-bridge.ts),
-// often many per event-loop turn. Calling setState synchronously for each
-// one — Ink 3's renderer isn't a real diffing engine, so every commit is a
-// full-screen repaint — is what causes the visible flicker. Coalesce every
-// update that lands within the same turn into a single setState via
-// setImmediate; bursts of N events become one render instead of N.
+// Streaming responses publish one bus event per token (see agent-bridge.ts).
+// Real tokens arrive on separate event-loop turns (real network/inference
+// latency between them), not in a same-tick burst — same-tick coalescing
+// (the previous approach here) does nothing for that case, since there's
+// only ever one event per turn to coalesce. Calling setState on every single
+// token is what causes the flicker: Ink 3's renderer isn't a real diffing
+// engine, so every commit is close to a full-screen repaint.
+//
+// Real fix: a leading+trailing time-window throttle, independent of how the
+// events are spaced. The first update in a quiet period renders immediately
+// (stays responsive); anything within RENDER_THROTTLE_MS of the last render
+// is deferred to a single trailing flush instead of one render each.
+const RENDER_THROTTLE_MS = 50; // ~20fps cap — well above flicker threshold, still feels live
 function useRuntimeState(store: Store): RuntimeState {
   const [state, setState] = useState<RuntimeState>(() => store.getState());
   useEffect(() => {
     setState(store.getState());
-    let scheduled = false;
-    return store.subscribe(() => {
-      if (scheduled) return;
-      scheduled = true;
-      setImmediate(() => {
-        scheduled = false;
-        setState(store.getState());
-      });
+    let lastFlush = 0;
+    let pendingTimer: ReturnType<typeof setTimeout> | null = null;
+    const flush = () => {
+      pendingTimer = null;
+      lastFlush = Date.now();
+      setState(store.getState());
+    };
+    const unsubscribe = store.subscribe(() => {
+      if (pendingTimer) return; // a trailing flush is already scheduled — it'll pick up this update
+      const elapsed = Date.now() - lastFlush;
+      if (elapsed >= RENDER_THROTTLE_MS) {
+        flush();
+      } else {
+        pendingTimer = setTimeout(flush, RENDER_THROTTLE_MS - elapsed);
+      }
     });
+    return () => {
+      if (pendingTimer) clearTimeout(pendingTimer);
+      unsubscribe();
+    };
   }, [store]);
   return state;
 }
+
+// SGR mouse reporting (scroll wheel, click) — some terminals send these
+// whenever the app is in raw mode, even though DevAgent never requests mouse
+// tracking. Format: ESC [ < button ; col ; row (M press or m release). Without
+// this filter the raw escape sequence gets typed into the prompt literally.
+const MOUSE_SGR_PATTERN = /\x1b?\[<\d+;\d+;\d+[Mm]/;
 
 export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): JSX.Element {
   const { exit } = useApp();
@@ -566,6 +590,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
 
   useInput((input, key) => {
     if (pastingRef.current) return; // let the data handler manage paste content
+    if (MOUSE_SGR_PATTERN.test(input)) return; // scroll/click artifact, never real text
 
     const now = Date.now();
     const gapSincePrev = now - lastInputAtRef.current;

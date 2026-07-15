@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { OverlayFrame } from "./OverlayFrame";
+import { OverlayFrame } from "./OverlayFrame.js";
 
 const KEYS: [string, string][] = [
   ["1-8", "Focus a view (Conversation, Execution, Tasks, Git, Logs, Memory, Models, MCP)"],

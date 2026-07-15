@@ -1,9 +1,13 @@
 import { EventEmitter } from "node:events";
+import { jest } from "@jest/globals";
 
-jest.mock("node:child_process");
+// jest.mock's auto-hoisting doesn't apply to real ESM — mock explicitly and
+// import both the mock and the module under test dynamically, after the
+// mock is registered (see https://jestjs.io/docs/ecmascript-modules).
+jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
-import { spawn } from "node:child_process";
-import { ShellTool } from "../../src/tools/shell";
+const { spawn } = await import("node:child_process");
+const { ShellTool } = await import("../../src/tools/shell.js");
 
 const mockSpawn = spawn as jest.Mock;
 
@@ -26,7 +30,11 @@ afterEach(() => {
   jest.useRealTimers();
 });
 
-function skipDockerPreflight(tool: ShellTool): void {
+// Dynamic `await import()` gives ShellTool as a value binding only — this
+// recovers a type from it for annotations below.
+type ShellToolInstance = InstanceType<typeof ShellTool>;
+
+function skipDockerPreflight(tool: ShellToolInstance): void {
   (tool as any).dockerChecked = true;
   (tool as any).dockerAvailable = true;
 }

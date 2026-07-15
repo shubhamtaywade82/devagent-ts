@@ -1,7 +1,7 @@
 import { readdir, stat, rm, mkdir, copyFile, rename } from "node:fs/promises";
 import { resolve, relative } from "node:path";
-import { Tool } from "./tool";
-import { resolveWorkspacePath } from "./path-utils";
+import { Tool } from "./tool.js";
+import { resolveWorkspacePath } from "./path-utils.js";
 
 export class ListDirectoryTool extends Tool {
   constructor(private readonly root: string) { super(); }

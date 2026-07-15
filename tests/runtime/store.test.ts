@@ -1,6 +1,6 @@
-import { EventBus } from "../../src/runtime/events";
-import { initialRuntimeState, reduce, sanitizeText, Store } from "../../src/runtime/store";
-import { RuntimeState } from "../../src/runtime/types";
+import { EventBus } from "../../src/runtime/events.js";
+import { initialRuntimeState, reduce, sanitizeText, Store } from "../../src/runtime/store.js";
+import { RuntimeState } from "../../src/runtime/types.js";
 
 function fresh(): RuntimeState {
   return initialRuntimeState({ workspace: "devagent", branch: "main", model: "qwen3:30b" });

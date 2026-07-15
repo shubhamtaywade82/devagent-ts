@@ -1,5 +1,5 @@
-import { acceptWord, completions, ghostSuffix } from "../../src/interaction/completion";
-import { builtinCommands } from "../../src/interaction/slash-commands";
+import { acceptWord, completions, ghostSuffix } from "../../src/interaction/completion.js";
+import { builtinCommands } from "../../src/interaction/slash-commands.js";
 
 describe("ghostSuffix", () => {
   const history = ["create filesystem tool", "create tests", "fix docker"];

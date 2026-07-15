@@ -5,7 +5,7 @@
  * primitive incremental updates are built on.
  */
 
-import { Edge, EntityType, RelationshipType, RsiEntity } from "../types";
+import { Edge, EntityType, RelationshipType, RsiEntity } from "../types.js";
 
 export interface TraverseOptions {
   direction?: "out" | "in" | "both";

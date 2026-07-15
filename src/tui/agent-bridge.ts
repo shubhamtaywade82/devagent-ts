@@ -4,9 +4,9 @@
  * bus -> store -> renderer.
  */
 
-import { EventBus } from "../runtime/events";
-import { LspServerState } from "../lsp/protocol";
-import { SkillMeta } from "../skills/types";
+import { EventBus } from "../runtime/events.js";
+import { LspServerState } from "../lsp/protocol.js";
+import { SkillMeta } from "../skills/types.js";
 
 export interface BridgeableAgent {
   on<E extends string>(event: E, handler: (...args: any[]) => void): unknown;

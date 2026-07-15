@@ -11,8 +11,8 @@ import {
   Scanner,
   ScannerResult,
   SourceFile,
-} from "../types";
-import { classify, logicalLines, parseMacroArgs, parseSymbolList, singularize, underscore, unquote } from "./ruby-source";
+} from "../types.js";
+import { classify, logicalLines, parseMacroArgs, parseSymbolList, singularize, underscore, unquote } from "./ruby-source.js";
 
 const ASSOCIATION_KINDS = ["belongs_to", "has_many", "has_one", "has_and_belongs_to_many"] as const;
 

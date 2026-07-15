@@ -7,7 +7,7 @@ import {
   singularize,
   stripComment,
   underscore,
-} from "../../../src/intelligence/rails/scanners/ruby-source";
+} from "../../../src/intelligence/rails/scanners/ruby-source.js";
 
 describe("ruby-source", () => {
   describe("stripComment", () => {

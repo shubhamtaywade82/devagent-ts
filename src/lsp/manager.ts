@@ -1,9 +1,9 @@
 import { readFileSync } from "node:fs";
-import { LanguageRegistry, LanguageProviderConfig } from "./registry";
-import { LspPool } from "./pool";
-import { LspServerSession } from "./session";
-import { LspServerState, pathToUri, uriToPath } from "./protocol";
-import { LspGlobalConfig, mergeLspConfig } from "./config";
+import { LanguageRegistry, LanguageProviderConfig } from "./registry.js";
+import { LspPool } from "./pool.js";
+import { LspServerSession } from "./session.js";
+import { LspServerState, pathToUri, uriToPath } from "./protocol.js";
+import { LspGlobalConfig, mergeLspConfig } from "./config.js";
 import type {
   Location,
   Diagnostic,

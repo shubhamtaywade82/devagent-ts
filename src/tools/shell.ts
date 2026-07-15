@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
-import { Tool } from "./tool";
+import { Tool } from "./tool.js";
 
 export interface ShellToolOptions {
   workspaceRoot: string;

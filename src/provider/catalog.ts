@@ -1,4 +1,4 @@
-import { Provider, Tier } from "./provider";
+import { Provider, Tier } from "./provider.js";
 
 export type Capability = "coding" | "vision" | "reasoning" | "quick" | "tools";
 

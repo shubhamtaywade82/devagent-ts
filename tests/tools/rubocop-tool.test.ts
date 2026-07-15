@@ -1,9 +1,10 @@
 import { EventEmitter } from "node:events";
+import { jest } from "@jest/globals";
 
-jest.mock("node:child_process");
+jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
-import { spawn } from "node:child_process";
-import { RunRubocopTool } from "../../src/tools/rubocop-tool";
+const { spawn } = await import("node:child_process");
+const { RunRubocopTool } = await import("../../src/tools/rubocop-tool.js");
 
 const mockSpawn = spawn as jest.Mock;
 

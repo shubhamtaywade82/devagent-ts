@@ -1,23 +1,23 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
-import { CliConfig, loadConfig } from "./config";
-import { Provider } from "../provider/provider";
-import { Router } from "../provider/router";
-import { Capability, ModelCatalog } from "../provider/catalog";
-import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint";
-import { LoopDetector } from "../orchestrator/loop-detector";
-import { Orchestrator } from "../orchestrator/orchestrator";
-import { AgentStepRunner } from "../orchestrator/agent-planner";
-import { PlanStep, Planner } from "../orchestrator/types";
-import { SkillMeta } from "../skills/types";
-import { LspServerState } from "../lsp/protocol";
-import { MemoryStore } from "../memory/store";
-import { generateSummary } from "../memory/summarizer";
-import { AgentConversation } from "./agent-conversation";
-import { AgentToolManager } from "./agent-tools";
-import { AgentIntelligence } from "./agent-intelligence";
-import { AgentLearning } from "./agent-learning";
-import { DynamicToolSelector } from "../tools/discovery";
+import { CliConfig, loadConfig } from "./config.js";
+import { Provider } from "../provider/provider.js";
+import { Router } from "../provider/router.js";
+import { Capability, ModelCatalog } from "../provider/catalog.js";
+import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
+import { LoopDetector } from "../orchestrator/loop-detector.js";
+import { Orchestrator } from "../orchestrator/orchestrator.js";
+import { AgentStepRunner } from "../orchestrator/agent-planner.js";
+import { PlanStep, Planner } from "../orchestrator/types.js";
+import { SkillMeta } from "../skills/types.js";
+import { LspServerState } from "../lsp/protocol.js";
+import { MemoryStore } from "../memory/store.js";
+import { generateSummary } from "../memory/summarizer.js";
+import { AgentConversation } from "./agent-conversation.js";
+import { AgentToolManager } from "./agent-tools.js";
+import { AgentIntelligence } from "./agent-intelligence.js";
+import { AgentLearning } from "./agent-learning.js";
+import { DynamicToolSelector } from "../tools/discovery.js";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -113,8 +113,8 @@ export class Agent {
 
     this.intelligence = new AgentIntelligence({
       workspaceRoot: cfg.workspaceRoot,
-      languages: cfg.languages as Record<string, Partial<import("../lsp/registry").LanguageProviderConfig>> | undefined,
-      lspConfig: cfg.lsp as import("../lsp/config").LspGlobalConfig | undefined,
+      languages: cfg.languages as Record<string, Partial<import("../lsp/registry.js").LanguageProviderConfig>> | undefined,
+      lspConfig: cfg.lsp as import("../lsp/config.js").LspGlobalConfig | undefined,
       prewarm: (cfg.lsp as { prewarm?: string[] } | undefined)?.prewarm,
       onDiagnostics: (filePath, diagnostics) => {
         this.emit("onStatus", `diagnostics: ${filePath} (${diagnostics.length})`);

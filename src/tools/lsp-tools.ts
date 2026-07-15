@@ -1,7 +1,7 @@
-import { Tool } from "./tool";
-import { resolveWorkspacePath } from "./path-utils";
-import { LspManager } from "../lsp/manager";
-import { uriToPath } from "../lsp/protocol";
+import { Tool } from "./tool.js";
+import { resolveWorkspacePath } from "./path-utils.js";
+import { LspManager } from "../lsp/manager.js";
+import { uriToPath } from "../lsp/protocol.js";
 
 abstract class LspTool extends Tool {
   constructor(protected lsp: LspManager) {

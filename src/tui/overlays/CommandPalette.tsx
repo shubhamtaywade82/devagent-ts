@@ -1,7 +1,7 @@
 import React from "react";
-import { CommandEffect, SlashCommandRegistry } from "../../interaction/slash-commands";
-import { VIEW_ORDER } from "../../runtime/types";
-import { UniversalPicker } from "./UniversalPicker";
+import { CommandEffect, SlashCommandRegistry } from "../../interaction/slash-commands.js";
+import { VIEW_ORDER } from "../../runtime/types.js";
+import { UniversalPicker } from "./UniversalPicker.js";
 
 export interface PaletteAction {
   id: string;

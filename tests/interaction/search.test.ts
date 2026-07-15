@@ -1,6 +1,6 @@
-import { searchItems } from "../../src/interaction/search";
-import { builtinCommands } from "../../src/interaction/slash-commands";
-import { initialRuntimeState, reduce } from "../../src/runtime/store";
+import { searchItems } from "../../src/interaction/search.js";
+import { builtinCommands } from "../../src/interaction/slash-commands.js";
+import { initialRuntimeState, reduce } from "../../src/runtime/store.js";
 
 describe("searchItems", () => {
   it("indexes every source and routes to the owning view", () => {

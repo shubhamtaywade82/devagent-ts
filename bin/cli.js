@@ -1,3 +1,4 @@
 #!/usr/bin/env node
-require("dotenv").config();
-require("../dist/tui/index");
+import 'dotenv/config';
+import '../dist/tui/index.js';
+

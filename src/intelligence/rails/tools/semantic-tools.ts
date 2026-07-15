@@ -4,9 +4,9 @@
  * workspace each call short-circuits with `{ enabled: false }`.
  */
 
-import { Tool } from "../../../tools/tool";
-import { SemanticIndex } from "../indexer";
-import { RsiEntity } from "../types";
+import { Tool } from "../../../tools/tool.js";
+import { SemanticIndex } from "../indexer.js";
+import { RsiEntity } from "../types.js";
 
 abstract class RailsTool extends Tool {
   constructor(protected readonly index: SemanticIndex) {

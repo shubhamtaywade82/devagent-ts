@@ -1,19 +1,19 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
-import { LspManager } from "../lsp/manager";
-import { LanguageRegistry } from "../lsp/registry";
-import { SemanticIndex } from "../intelligence/rails";
-import { WorkspaceKnowledgeEngine } from "../intelligence/knowledge-engine";
-import { LspSemanticPlugin } from "../intelligence/semantic-plugin";
-import { RailsSemanticPlugin } from "../intelligence/rails/rails-plugin";
-import { AslSemanticPlugin } from "../intelligence/asl-plugin";
-import type { SemanticQuery, CompositeResult } from "../intelligence/types";
-import type { LspServerState } from "../lsp/protocol";
+import { LspManager } from "../lsp/manager.js";
+import { LanguageRegistry } from "../lsp/registry.js";
+import { SemanticIndex } from "../intelligence/rails/index.js";
+import { WorkspaceKnowledgeEngine } from "../intelligence/knowledge-engine.js";
+import { LspSemanticPlugin } from "../intelligence/semantic-plugin.js";
+import { RailsSemanticPlugin } from "../intelligence/rails/rails-plugin.js";
+import { AslSemanticPlugin } from "../intelligence/asl-plugin.js";
+import type { SemanticQuery, CompositeResult } from "../intelligence/types.js";
+import type { LspServerState } from "../lsp/protocol.js";
 
 export interface AgentIntelligenceOptions {
   workspaceRoot: string;
-  languages?: Record<string, Partial<import("../lsp/registry").LanguageProviderConfig>>;
-  lspConfig?: import("../lsp/config").LspGlobalConfig;
+  languages?: Record<string, Partial<import("../lsp/registry.js").LanguageProviderConfig>>;
+  lspConfig?: import("../lsp/config.js").LspGlobalConfig;
   prewarm?: string[];
   onDiagnostics?: (filePath: string, diagnostics: unknown[]) => void;
   onServerStateChange?: (servers: LspServerState[]) => void;
@@ -26,7 +26,7 @@ export class AgentIntelligence {
 
   constructor(opts: AgentIntelligenceOptions) {
     const langRegistry = new LanguageRegistry(
-      opts.languages as Record<string, Partial<import("../lsp/registry").LanguageProviderConfig>> | undefined,
+      opts.languages as Record<string, Partial<import("../lsp/registry.js").LanguageProviderConfig>> | undefined,
     );
 
     this.lspManager = new LspManager({

@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import { createHash } from "node:crypto";
-import { Lesson, ReflectionResult } from "./types";
+import { Lesson, ReflectionResult } from "./types.js";
 
 /**
  * Persistent lesson ledger. Dedupe uses a normalized token hash so repeated

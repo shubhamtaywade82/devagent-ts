@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { join } from "node:path";
-import { Tool } from "./tool";
+import { Tool } from "./tool.js";
 
 async function detectPackageManager(root: string): Promise<"npm" | "pnpm" | "yarn"> {
   const check = async (file: string) => {

@@ -4,8 +4,8 @@
  * and the strip never wraps or overflows.
  */
 
-import { StatusToken } from "../runtime/types";
-import { truncate } from "./truncate";
+import { StatusToken } from "../runtime/types.js";
+import { truncate } from "./truncate.js";
 
 export const TOKEN_SEPARATOR = " │ ";
 

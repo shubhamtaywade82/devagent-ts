@@ -1,4 +1,4 @@
-import { LspManager } from "../../src/lsp/manager";
+import { LspManager } from "../../src/lsp/manager.js";
 
 function managerWithFakeSession(sendRequestResult: unknown): LspManager {
   const manager = new LspManager({ workspaceRoot: "/workspace" });

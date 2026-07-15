@@ -1,4 +1,4 @@
-import { BenchmarkCase } from "./types";
+import { BenchmarkCase } from "./types.js";
 
 function parseContent(content: unknown): unknown {
   if (typeof content !== "string") return undefined;

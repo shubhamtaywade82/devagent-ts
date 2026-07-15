@@ -1,8 +1,8 @@
 import React from "react";
-import { RuntimeState } from "../../runtime/types";
-import { activityStripTokens } from "../../layout/strips";
-import { semanticColor } from "../../layout/theme-map";
-import { TokenLine } from "./TokenLine";
+import { RuntimeState } from "../../runtime/types.js";
+import { activityStripTokens } from "../../layout/strips.js";
+import { semanticColor } from "../../layout/theme-map.js";
+import { TokenLine } from "./TokenLine.js";
 
 export interface ActivityStripProps {
   state: RuntimeState;

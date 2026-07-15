@@ -1,6 +1,6 @@
-import { activityStripTokens, contextStripTokens, headerTokens } from "../../src/layout/strips";
-import { initialRuntimeState, reduce } from "../../src/runtime/store";
-import { RuntimeState } from "../../src/runtime/types";
+import { activityStripTokens, contextStripTokens, headerTokens } from "../../src/layout/strips.js";
+import { initialRuntimeState, reduce } from "../../src/runtime/store.js";
+import { RuntimeState } from "../../src/runtime/types.js";
 
 function fresh(): RuntimeState {
   return initialRuntimeState({ workspace: "ollama-agent", branch: "main", model: "qwen3:30b" });

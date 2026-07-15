@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { relative } from "node:path";
-import { Tool } from "./tool";
-import { resolveWorkspacePath } from "./path-utils";
+import { Tool } from "./tool.js";
+import { resolveWorkspacePath } from "./path-utils.js";
 
 export interface SearchMatch {
   path: string;

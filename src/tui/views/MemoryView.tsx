@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { MemoryItem } from "../../runtime/types";
-import { tail, truncate, wrapText } from "../../layout/truncate";
-import { ViewProps } from "./ConversationView";
+import { MemoryItem } from "../../runtime/types.js";
+import { tail, truncate, wrapText } from "../../layout/truncate.js";
+import { ViewProps } from "./ConversationView.js";
 
 const KIND_LABEL: Record<MemoryItem["kind"], string> = {
   repo: "repo",

@@ -1,5 +1,5 @@
-import { packTokens, renderTokenLine, TOKEN_SEPARATOR } from "../../src/layout/status-tokens";
-import { StatusToken } from "../../src/runtime/types";
+import { packTokens, renderTokenLine, TOKEN_SEPARATOR } from "../../src/layout/status-tokens.js";
+import { StatusToken } from "../../src/runtime/types.js";
 
 const tokens: StatusToken[] = [
   { text: "Now: Running tests", priority: 1 },

@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { StatusToken } from "../../runtime/types";
-import { packTokens, TOKEN_SEPARATOR } from "../../layout/status-tokens";
+import { StatusToken } from "../../runtime/types.js";
+import { packTokens, TOKEN_SEPARATOR } from "../../layout/status-tokens.js";
 
 export interface TokenLineProps {
   tokens: StatusToken[];
@@ -13,7 +13,7 @@ export function TokenLine({ tokens, width }: TokenLineProps): JSX.Element {
   const packed = packTokens(tokens, width);
   return (
     <Box height={1} minHeight={1}>
-      <Text wrap="truncate">
+      <Text>
         {packed.length > 0 ? (
           packed.map((token, i) => (
             <React.Fragment key={`${token.text}-${i}`}>

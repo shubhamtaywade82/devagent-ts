@@ -17,8 +17,8 @@
  * Changing focus never stops background actors.
  */
 
-import { RuntimeMode, VIEW_ORDER, ViewId } from "../runtime/types";
-import { OverlayId } from "./ui-state";
+import { RuntimeMode, VIEW_ORDER, ViewId } from "../runtime/types.js";
+import { OverlayId } from "./ui-state.js";
 
 export interface KeyInfo {
   ctrl?: boolean;

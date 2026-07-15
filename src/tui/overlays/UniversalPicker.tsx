@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
-import { filterPickerItems, PickerItem, visibleWindow } from "../../interaction/picker";
-import { OverlayFrame } from "./OverlayFrame";
+import { filterPickerItems, PickerItem, visibleWindow } from "../../interaction/picker.js";
+import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface UniversalPickerProps {
   title: string;

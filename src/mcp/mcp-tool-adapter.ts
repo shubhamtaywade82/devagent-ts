@@ -1,4 +1,4 @@
-import { Tool } from "../tools/tool";
+import { Tool } from "../tools/tool.js";
 
 export interface McpToolDescriptor {
   name: string;

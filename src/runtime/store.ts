@@ -5,16 +5,16 @@
  * No business logic lives in rendering; it all terminates here.
  */
 
-import { EventBus, RuntimeEvent } from "./events";
-import { applyTaskTransition } from "./task-machine";
-import { ACTOR_IDS, ActorId, ActorState, ChatEntry, RuntimeState, Task, ToolCall } from "./types";
+import { EventBus, RuntimeEvent } from "./events.js";
+import { applyTaskTransition } from "./task-machine.js";
+import { ACTOR_IDS, ActorId, ActorState, ChatEntry, RuntimeState, Task, ToolCall } from "./types.js";
 
 /** Bounded buffer sizes so long sessions can't grow state without limit. */
 // NOTE: Buffer limits are now configurable via `src/runtime/config.ts`. This file
 // reads the values from environment variables (or falls back to sensible defaults).
 // Moving the constants out of this file keeps the reducer pure and makes it easy
 // for CI or callers to adjust limits without recompiling.
-import { MAX_LOGS, MAX_CONVERSATION, MAX_TOOL_CALLS, MAX_NOTIFICATIONS } from "./config";
+import { MAX_LOGS, MAX_CONVERSATION, MAX_TOOL_CALLS, MAX_NOTIFICATIONS } from "./config.js";
 
 // Strips ANSI/C0/C1 control sequences from text before it lands in state,
 // so tool or shell output emitting screen-clear/cursor-addressing/title-set

@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
-import { Tool } from "./tool";
-import { resolveWorkspacePath } from "./path-utils";
+import { Tool } from "./tool.js";
+import { resolveWorkspacePath } from "./path-utils.js";
 
 // ponytail: read-only by design (SELECT/PRAGMA/EXPLAIN only) — a DB tool that
 // lets an LLM silently DROP/DELETE a project's database is a real destructive-

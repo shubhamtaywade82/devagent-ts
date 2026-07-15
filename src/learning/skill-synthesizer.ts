@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { SkillUsageStats } from "../skills/types";
-import { LessonStore } from "./lesson-store";
-import { Lesson } from "./types";
+import { SkillUsageStats } from "../skills/types.js";
+import { LessonStore } from "./lesson-store.js";
+import { Lesson } from "./types.js";
 
 /**
  * Materializes promoted lessons as ordinary workspace skills and demotes

@@ -1,5 +1,5 @@
-import { RoutesScanner } from "../../../../src/intelligence/rails/scanners/routes-scanner";
-import { RouteEntity } from "../../../../src/intelligence/rails/types";
+import { RoutesScanner } from "../../../../src/intelligence/rails/scanners/routes-scanner.js";
+import { RouteEntity } from "../../../../src/intelligence/rails/types.js";
 
 function scan(lines: string[]): RouteEntity[] {
   const content = ["Rails.application.routes.draw do", ...lines.map((l) => `  ${l}`), "end"].join("\n");

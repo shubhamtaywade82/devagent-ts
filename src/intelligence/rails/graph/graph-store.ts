@@ -5,8 +5,8 @@
  */
 
 import Database from "better-sqlite3";
-import { Edge, RelationshipIntent, RsiEntity } from "../types";
-import { KnowledgeGraph } from "./graph";
+import { Edge, RelationshipIntent, RsiEntity } from "../types.js";
+import { KnowledgeGraph } from "./graph.js";
 
 /** Bump when the persisted shape changes; mismatched caches are discarded. */
 const SCHEMA_VERSION = "1";

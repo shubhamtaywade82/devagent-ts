@@ -1,4 +1,4 @@
-import { HistoryManager } from "../../src/interaction/history";
+import { HistoryManager } from "../../src/interaction/history.js";
 
 describe("HistoryManager", () => {
   it("navigates up through history and back down to the draft", () => {

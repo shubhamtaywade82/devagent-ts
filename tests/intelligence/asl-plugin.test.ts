@@ -1,6 +1,10 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { AslSemanticPlugin } from "../../src/intelligence/asl-plugin";
+import { AslSemanticPlugin } from "../../src/intelligence/asl-plugin.js";
+
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 describe("AslSemanticPlugin", () => {
   const tempWorkspace = path.join(__dirname, "../fixtures/asl-semantic-temp");

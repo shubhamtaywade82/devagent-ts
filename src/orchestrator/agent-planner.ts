@@ -1,4 +1,4 @@
-import { PlanStep, StepOutcome, StepRunner } from "./types";
+import { PlanStep, StepOutcome, StepRunner } from "./types.js";
 
 export interface RunsUserMessages {
   runUserMessage(message: string, priority?: "low" | "medium" | "high" | "critical"): Promise<string>;

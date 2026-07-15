@@ -3,8 +3,8 @@
  * discoverable by prefix for autocomplete and executed by the prompt.
  */
 
-import { ViewId } from "../runtime/types";
-import { OverlayId } from "./ui-state";
+import { ViewId } from "../runtime/types.js";
+import { OverlayId } from "./ui-state.js";
 
 /** Effects a command can request; the shell interprets them. */
 export type CommandEffect =

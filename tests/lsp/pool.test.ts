@@ -1,6 +1,6 @@
-import { LspPool } from "../../src/lsp/pool";
-import { LspServerSession } from "../../src/lsp/session";
-import { LanguageProviderConfig } from "../../src/lsp/registry";
+import { LspPool } from "../../src/lsp/pool.js";
+import { LspServerSession } from "../../src/lsp/session.js";
+import { LanguageProviderConfig } from "../../src/lsp/registry.js";
 
 const CONFIG = { idleTimeoutMs: 60_000, maxServers: 2, prewarm: [] as string[] };
 

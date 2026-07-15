@@ -1,6 +1,6 @@
-import { scoreByModel } from "../../src/benchmark/score";
-import { formatReport } from "../../src/benchmark/report";
-import { BenchmarkResult } from "../../src/benchmark/types";
+import { scoreByModel } from "../../src/benchmark/score.js";
+import { formatReport } from "../../src/benchmark/report.js";
+import { BenchmarkResult } from "../../src/benchmark/types.js";
 
 function result(overrides: Partial<BenchmarkResult>): BenchmarkResult {
   return {

@@ -1,8 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { LogLevel } from "../../runtime/types";
-import { tail, truncate } from "../../layout/truncate";
-import { ViewProps } from "./ConversationView";
+import { LogLevel } from "../../runtime/types.js";
+import { tail, truncate } from "../../layout/truncate.js";
+import { ViewProps } from "./ConversationView.js";
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
   debug: "gray",

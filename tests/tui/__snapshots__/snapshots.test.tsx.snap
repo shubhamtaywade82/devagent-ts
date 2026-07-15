@@ -21,7 +21,7 @@ exports[`layout snapshots same structure, density-only changes at 80x24 1`] = `
 
 
 ───────────────────────────────────────────────────────────────────────────────
-Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP·
+Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │
 ───────────────────────────────────────────────────────────────────────────────
 >
 Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ Ctrl+P Palette"

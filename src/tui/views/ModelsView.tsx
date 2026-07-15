@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ViewProps } from "./ConversationView";
+import { ViewProps } from "./ConversationView.js";
 
 function row(label: string, value: React.ReactNode): JSX.Element {
   return (

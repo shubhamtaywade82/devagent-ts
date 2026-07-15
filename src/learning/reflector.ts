@@ -1,5 +1,5 @@
-import { Provider, ChatMessage } from "../provider/provider";
-import { Episode, ReflectionResult } from "./types";
+import { Provider, ChatMessage } from "../provider/provider.js";
+import { Episode, ReflectionResult } from "./types.js";
 
 /**
  * Distills a graded episode into 0–3 candidate lessons. Malformed provider

@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile, readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SnapshotBackupTool } from "../../src/tools/backup-tools";
+import { SnapshotBackupTool } from "../../src/tools/backup-tools.js";
 
 describe("SnapshotBackupTool", () => {
   it("copies the target file into .devagent/backups with a timestamp suffix", async () => {

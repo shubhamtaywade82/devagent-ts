@@ -1,4 +1,4 @@
-import { McpToolAdapter } from "../../src/mcp/mcp-tool-adapter";
+import { McpToolAdapter } from "../../src/mcp/mcp-tool-adapter.js";
 
 function fakeMcpClient(callResult: unknown) {
   return {

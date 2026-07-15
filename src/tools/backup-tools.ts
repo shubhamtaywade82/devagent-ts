@@ -1,7 +1,7 @@
 import { mkdir, copyFile } from "node:fs/promises";
 import { resolve, join, relative } from "node:path";
-import { Tool } from "./tool";
-import { resolveWorkspacePath } from "./path-utils";
+import { Tool } from "./tool.js";
+import { resolveWorkspacePath } from "./path-utils.js";
 
 const BACKUP_DIR = ".devagent/backups";
 

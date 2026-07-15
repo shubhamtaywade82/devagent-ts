@@ -1,5 +1,5 @@
-import { Provider, ChatResponse, Tier } from "../provider/provider";
-import { BenchmarkCase, BenchmarkResult } from "./types";
+import { Provider, ChatResponse, Tier } from "../provider/provider.js";
+import { BenchmarkCase, BenchmarkResult } from "./types.js";
 
 export interface BenchmarkTarget {
   model: string;

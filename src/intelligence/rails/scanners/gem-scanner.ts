@@ -3,7 +3,7 @@
  * 4-space indent (`name (version)`) with dependencies at 6-space indent.
  */
 
-import { GemEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types";
+import { GemEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types.js";
 
 export class GemScanner implements Scanner {
   readonly name = "gem";

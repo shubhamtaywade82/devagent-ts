@@ -1,5 +1,5 @@
-import { PlanStep, StepRunner, Planner, HistoryEntry, StepStatus } from "./types";
-import { CheckpointStore } from "../runtime/checkpoint";
+import { PlanStep, StepRunner, Planner, HistoryEntry, StepStatus } from "./types.js";
+import { CheckpointStore } from "../runtime/checkpoint.js";
 
 export class OrchestratorError extends Error {}
 

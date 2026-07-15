@@ -1,12 +1,16 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
+
+import { fileURLToPath } from "node:url";
+import { dirname } from "node:path";
+const __dirname = dirname(fileURLToPath(import.meta.url));
 import {
   parseAslFile,
   validateTaskSpec,
   validateWorkspaceSpec,
   validateRoleSpec,
   validatePolicySpec,
-} from "../../src/asl/parser";
+} from "../../src/asl/parser.js";
 
 describe("ASL Parser & Validators", () => {
   const tempDir = path.join(__dirname, "../fixtures/asl-temp");

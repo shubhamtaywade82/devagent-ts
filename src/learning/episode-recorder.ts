@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Episode, ToolEvent } from "./types";
+import { Episode, ToolEvent } from "./types.js";
 
 /**
  * Builds one Episode per runUserMessage call by observing the Agent's

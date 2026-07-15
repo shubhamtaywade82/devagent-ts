@@ -5,8 +5,8 @@
  * services.
  */
 
-import { RelationshipIntent, Scanner, ScannerResult, ServiceEntity, SourceFile } from "../types";
-import { logicalLines } from "./ruby-source";
+import { RelationshipIntent, Scanner, ScannerResult, ServiceEntity, SourceFile } from "../types.js";
+import { logicalLines } from "./ruby-source.js";
 
 export class ServiceScanner implements Scanner {
   readonly name = "service";

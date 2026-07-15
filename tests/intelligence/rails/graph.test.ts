@@ -1,5 +1,5 @@
-import { KnowledgeGraph } from "../../../src/intelligence/rails/graph/graph";
-import { RsiEntity } from "../../../src/intelligence/rails/types";
+import { KnowledgeGraph } from "../../../src/intelligence/rails/graph/graph.js";
+import { RsiEntity } from "../../../src/intelligence/rails/types.js";
 
 function entity(id: string, overrides?: Partial<RsiEntity>): RsiEntity {
   const [type, name] = id.split(":");

@@ -2,7 +2,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { SqliteQueryTool } from "../../src/tools/database-tools";
+import { SqliteQueryTool } from "../../src/tools/database-tools.js";
 
 describe("SqliteQueryTool", () => {
   let dir: string;
