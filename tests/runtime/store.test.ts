@@ -52,6 +52,17 @@ describe("store reducer", () => {
     expect(s.actors.executor.health).toBe("error");
   });
 
+  it("surfaces a top-level error as a visible notification, not just the executor glyph (regression: message was previously silent)", () => {
+    let s = fresh();
+    s = reduce(s, { type: "error", message: "Ollama local 400: model does not support tools" });
+    expect(s.lastError).toBe("Ollama local 400: model does not support tools");
+    expect(s.actors.executor).toMatchObject({ health: "error", detail: "✗" });
+    expect(s.notifications[s.notifications.length - 1]).toMatchObject({
+      kind: "error",
+      text: "Ollama local 400: model does not support tools",
+    });
+  });
+
   it("applies task graph updates through the state machine", () => {
     let s = fresh();
     s = reduce(s, { type: "task.created", task: { id: "a", title: "A", status: "queued", dependencies: [] } });

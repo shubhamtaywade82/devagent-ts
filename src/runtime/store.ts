@@ -444,8 +444,17 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       };
       return { ...state, notifications: bounded([...state.notifications, note], MAX_NOTIFICATIONS) };
     }
-    case "error":
-      return withActor({ ...state, lastError: event.message }, "executor", { health: "error", detail: "✗" });
+    case "error": {
+      // Executor health flips to "✗" on any error, but that glyph alone gives
+      // the user zero detail — surface the actual message as a notification
+      // too, the same path a visible toast already uses elsewhere.
+      const note = { id: `n${Date.now()}-${state.notifications.length}`, text: event.message, kind: "error" as const, at: Date.now() };
+      return withActor(
+        { ...state, lastError: event.message, notifications: bounded([...state.notifications, note], MAX_NOTIFICATIONS) },
+        "executor",
+        { health: "error", detail: "✗" },
+      );
+    }
     default:
       return state;
   }
