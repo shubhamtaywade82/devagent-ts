@@ -121,7 +121,10 @@ export class LspServerSession {
     if (!this.client || this.status !== "running") return;
     const uri = pathToUri(this.workspacePath, filePath);
     this.openDocuments.set(uri, { uri, version: 1 });
-    this.client.didOpen(uri, text, this.provider.language);
+    // provider.id is the actual LSP-spec languageId (lowercase, e.g. "typescript");
+    // provider.language is a display label ("TypeScript") — sending that instead
+    // triggers "Invalid languageId" warnings on servers that validate it.
+    this.client.didOpen(uri, text, this.provider.id);
     this.lastActivity = Date.now();
   }
 
@@ -148,9 +151,18 @@ export class LspServerSession {
     return Date.now() - this.lastActivity > timeoutMs;
   }
 
-  /** True while the server has an open $/progress span (e.g. project indexing). */
+  // Fallback grace window: verified live that neither typescript-language-server
+  // nor ruby-lsp actually emit $/progress for their startup project indexing (at
+  // least in the versions tested), even though real queries return empty/
+  // incomplete results for several seconds after start on a real-sized project.
+  // Without this, "no results" and "not indexed yet" look identical.
+  private static readonly COLD_START_GRACE_MS = 20_000;
+
+  /** True while the server has an open $/progress span, or — for servers that
+   * don't report one — during a fixed grace window right after startup. */
   get indexing(): boolean {
-    return this.activeProgressTokens.size > 0;
+    if (this.activeProgressTokens.size > 0) return true;
+    return this.status === "running" && Date.now() - this.startTime < LspServerSession.COLD_START_GRACE_MS;
   }
 
   get diagnosticsCount(): number {

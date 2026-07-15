@@ -1,9 +1,15 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { GetDefinitionTool, DiagnosticsTool } from "../../src/tools/lsp-tools";
 import { LspManager } from "../../src/lsp/manager";
 
+const workspaceRoot = mkdtempSync(join(tmpdir(), "lsp-tools-test-"));
+writeFileSync(join(workspaceRoot, "foo.ts"), "export const x = 1;\n");
+
 function fakeManager(overrides: Partial<LspManager> = {}): LspManager {
   return {
-    workspaceRoot: "/workspace",
+    workspaceRoot,
     ensureOpen: jest.fn().mockResolvedValue(true),
     isIndexing: jest.fn().mockReturnValue(false),
     getDefinition: jest.fn().mockResolvedValue([]),

@@ -8,9 +8,10 @@ export interface ModelInfo {
   capabilities: Capability[];
 }
 
-// ponytail: name-substring heuristic, not real capability metadata (Ollama Cloud's
-// /v1/models doesn't expose it). Upgrade to local `/api/show` capability flags per
-// model if this misroutes in practice.
+// Fallback only — used when real capability metadata isn't available (Ollama
+// Cloud's OpenAI-compatible /v1/models doesn't expose it, matching the
+// OpenAI models API shape). Local Ollama's /api/tags DOES report real
+// capabilities per model (see capabilitiesFromLocalTag) — prefer that.
 export function inferCapabilities(name: string): Capability[] {
   const n = name.toLowerCase();
   const caps: Capability[] = ["tools"];
@@ -23,9 +24,54 @@ export function inferCapabilities(name: string): Capability[] {
   return caps;
 }
 
-function namesFromLocalTags(data: unknown): string[] {
-  const models = (data as { models?: Array<{ name?: string; model?: string }> } | undefined)?.models ?? [];
-  return models.map((m) => m.name ?? m.model).filter((n): n is string => !!n);
+// Ollama's parameter_size is a free-form string like "4.7B" or "494.03M".
+// Returns the size in billions of parameters, or null if unparseable.
+function parseParameterSizeB(size: string | undefined): number | null {
+  if (!size) return null;
+  const m = size.match(/^([\d.]+)\s*([BMK])$/i);
+  if (!m) return null;
+  const value = parseFloat(m[1]);
+  if (Number.isNaN(value)) return null;
+  const unit = m[2].toUpperCase();
+  if (unit === "B") return value;
+  if (unit === "M") return value / 1000;
+  return value / 1_000_000; // K
+}
+
+const QUICK_MAX_PARAMS_B = 4;
+
+interface LocalTagEntry {
+  name?: string;
+  model?: string;
+  capabilities?: string[];
+  details?: { parameter_size?: string };
+}
+
+// Local Ollama's /api/tags reports each model's real capabilities array
+// (e.g. ["tools","vision","thinking","completion"]) and parameter_size —
+// no heuristic guessing needed, unlike the cloud tier.
+function capabilitiesFromLocalTag(entry: LocalTagEntry, name: string): Capability[] {
+  if (!entry.capabilities) return inferCapabilities(name);
+
+  const caps: Capability[] = [];
+  if (entry.capabilities.includes("tools")) caps.push("tools");
+  if (entry.capabilities.includes("vision")) caps.push("vision");
+  if (entry.capabilities.includes("thinking")) caps.push("reasoning");
+
+  const sizeB = parseParameterSizeB(entry.details?.parameter_size);
+  if (sizeB !== null && sizeB <= QUICK_MAX_PARAMS_B) caps.push("quick");
+
+  // Embedding-only models (capabilities: ["embedding"], no "completion") can't
+  // generate text at all — don't fall back to "coding" for them, they can't
+  // chat regardless of how small or generically-named they are.
+  const canGenerateText = entry.capabilities.includes("completion");
+  if (canGenerateText && !caps.includes("vision") && !caps.includes("reasoning")) caps.push("coding");
+
+  return caps;
+}
+
+function localTagEntries(data: unknown): LocalTagEntry[] {
+  return (data as { models?: LocalTagEntry[] } | undefined)?.models ?? [];
 }
 
 function namesFromCloudModels(data: unknown): string[] {
@@ -47,8 +93,10 @@ export class ModelCatalog {
     if (this.local) {
       try {
         const data = await this.local.availableModels();
-        for (const name of namesFromLocalTags(data)) {
-          results.push({ name, tier: "local", capabilities: inferCapabilities(name) });
+        for (const entry of localTagEntries(data)) {
+          const name = entry.name ?? entry.model;
+          if (!name) continue;
+          results.push({ name, tier: "local", capabilities: capabilitiesFromLocalTag(entry, name) });
         }
       } catch {
         // local Ollama not running — leave local models empty
