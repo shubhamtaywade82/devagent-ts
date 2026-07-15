@@ -87,7 +87,7 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 | `OLLAMA_API_KEYS` | — | Comma-separated extra Ollama Cloud keys (e.g. separate accounts). On a 429 `Provider` rotates to the next key and retries before giving up — this is for availability across your own accounts, not multi-vendor routing to other providers |
 | `DEVAGENT_MODEL` | `qwen3.5:4b` | Default model tag |
 | `DEVAGENT_TIER` | `local` | `local` or `cloud` |
-| `DEVAGENT_WORKSPACE` | `process.cwd()` | Workspace root directory |
+| `DEVAGENT_WORKSPACE` | auto-detected | Workspace root override. Auto-detection walks up from `cwd` to the nearest `.git` (matching how most editor/CLI tooling resolves a project root), then falls back to the nearest existing `.devagent/`, then `cwd` itself. All workspace-scoped state (`.devagent/history.json`, `memory.db`, `checkpoint.json`, workspace `config.json`) lives under whatever this resolves to — set it explicitly if you run devagent from outside the project tree |
 | `DEVAGENT_TIMEOUT_MS` | — | Request timeout in milliseconds (cloud tier only — local never times out mid-generation) |
 | `DEVAGENT_SYSTEM_PROMPT` | *(built-in)* | Custom system prompt |
 | `DEVAGENT_SHELL_IMAGE` | `devagent-sandbox:latest` | Docker image for sandbox |

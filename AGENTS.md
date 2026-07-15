@@ -144,7 +144,9 @@ You can also watch tests during development with the standard Jest `--watch` fla
     - Runtime values such as `DEVAGENT_MODEL`, `DEVAGENT_TIMEOUT_MS`, `DEVAGENT_SHELL_IMAGE`, `DEVAGENT_TOOL_SELECTION_MODE` are read from `process.env` (via `dotenv`), see `src/cli/config.ts` and the README's environment variable table.
 13. **Multiple API Keys — Ollama Cloud Key Pool, Not Multi-Vendor Routing**
     - `CliConfig.apiKeys: string[]` (`src/cli/config.ts`, from `OLLAMA_API_KEY` + comma-separated `OLLAMA_API_KEYS` + config-file `apiKeys`, deduped) is a pool of Ollama Cloud keys for one provider — e.g. separate accounts for availability. `Provider` (`src/provider/provider.ts`) tracks a rotation index; on a cloud-tier 429 it rotates to the next key and retries before throwing `RateLimitError`. It does not route by model vendor and does not reach non-Ollama endpoints — `Provider.chat` always POSTs to Ollama's native `/api/chat` shape.
-13. **Testing Philosophy**
+14. **Workspace Root Resolution — Git Root First, Like Most Editor Tooling**
+    - `findWorkspaceRoot` (`src/cli/config.ts`) walks up from `cwd` to the nearest `.git` (dir or file — worktrees work), then falls back to the nearest existing `.devagent/`, then `cwd`. Git-first avoids the old chicken-and-egg bug where a first-ever run in a project, or a run from a subdirectory that hadn't had `.devagent` created yet, silently fell back to `cwd` and started a disconnected `.devagent/` (fragmented history/memory/config per launch directory). All workspace-scoped state hangs off this resolution — `DEVAGENT_WORKSPACE` overrides it outright.
+15. **Testing Philosophy**
     - Unit tests mock Docker `/run_shell` calls and provider responses (`fetch`); tools that wrap real CLIs (`git`, `docker`, `gh`) are tested against the real binaries for allowlist/rejection behavior, not mocked. Tests assert state transitions and tool outputs rather than UI output, making them fast and deterministic.
 
 ---

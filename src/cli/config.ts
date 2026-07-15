@@ -66,16 +66,27 @@ function loadGlobalConfig(): ConfigFile {
   return {};
 }
 
+// Matches how Claude Code/Cursor/most editor tooling resolve a project root:
+// walk up from cwd to the nearest `.git` (a real repo needs no prior devagent
+// session to be "found" — no chicken-and-egg where the first run in a new
+// project, or a run from a subdirectory that hasn't had `.devagent` created
+// yet, silently falls back to cwd and starts a disconnected history/config).
+// `.devagent` presence is kept as a fallback signal for non-git workspaces.
 function findWorkspaceRoot(cwd: string): string {
   if (process.env.DEVAGENT_WORKSPACE) return process.env.DEVAGENT_WORKSPACE;
   const home = homedir();
-  let dir = resolve(cwd);
   const root = resolve("/");
-  while (dir !== root) {
-    if (existsSync(join(dir, ".devagent")) && dir !== home) return dir;
-    dir = resolve(dir, "..");
-  }
-  return cwd;
+
+  const walkUpTo = (marker: string): string | null => {
+    let dir = resolve(cwd);
+    while (dir !== root) {
+      if (existsSync(join(dir, marker)) && dir !== home) return dir;
+      dir = resolve(dir, "..");
+    }
+    return null;
+  };
+
+  return walkUpTo(".git") ?? walkUpTo(".devagent") ?? cwd;
 }
 
 function loadWorkspaceConfig(root: string): ConfigFile {
