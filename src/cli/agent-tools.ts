@@ -27,7 +27,12 @@ import {
   BrowserGetTextTool, BrowserScreenshotTool, BrowserEvaluateTool, BrowserCloseTool,
 } from "../tools/browser-tools.js";
 import { BrowserManager } from "../browser/manager.js";
-import { BinancePublicApiTool, BinanceTechnicalIndicatorsTool } from "../tools/binance-tools.js";
+import {
+  BinancePublicApiTool, BinanceTechnicalIndicatorsTool, BinanceOrderBookTool,
+  BinanceFuturesStatsTool, BinanceScreenerTool, BinanceWatchPriceTool,
+  BinanceUnwatchPriceTool, BinancePriceAlertTool,
+} from "../tools/binance-tools.js";
+import { BinanceStreamManager } from "../exchange/binance-stream.js";
 import { SemanticIndex, createRailsTools } from "../intelligence/rails/index.js";
 import { connectMcpServer } from "../mcp/client.js";
 import { Tool } from "../tools/tool.js";
@@ -70,7 +75,17 @@ export class AgentToolManager {
       .register(new RunRubocopTool(root))
       .register(new RunRSpecTool(root))
       .register(new BinancePublicApiTool())
-      .register(new BinanceTechnicalIndicatorsTool());
+      .register(new BinanceTechnicalIndicatorsTool())
+      .register(new BinanceOrderBookTool())
+      .register(new BinanceFuturesStatsTool())
+      .register(new BinanceScreenerTool());
+  }
+
+  registerBinanceStreamTools(stream: BinanceStreamManager): void {
+    this.registry
+      .register(new BinanceWatchPriceTool(stream))
+      .register(new BinanceUnwatchPriceTool(stream))
+      .register(new BinancePriceAlertTool(stream));
   }
 
   registerLspTools(lsp: LspManager): void {

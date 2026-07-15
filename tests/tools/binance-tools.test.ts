@@ -1,4 +1,9 @@
-import { BinancePublicApiTool, BinanceTechnicalIndicatorsTool } from "../../src/tools/binance-tools.js";
+import {
+  BinancePublicApiTool, BinanceTechnicalIndicatorsTool, BinanceOrderBookTool,
+  BinanceFuturesStatsTool, BinanceScreenerTool, BinanceWatchPriceTool,
+  BinanceUnwatchPriceTool, BinancePriceAlertTool,
+} from "../../src/tools/binance-tools.js";
+import { BinanceStreamManager } from "../../src/exchange/binance-stream.js";
 
 function fakeKline(close: number, i: number): unknown[] {
   const t = 1700000000000 + i * 3600000;
@@ -126,6 +131,171 @@ describe("BinanceTechnicalIndicatorsTool", () => {
   });
 });
 
+describe("BinanceOrderBookTool", () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    (globalThis as any).fetch = originalFetch;
+  });
+
+  it("computes bid/ask imbalance", async () => {
+    (globalThis as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ bids: [["100", "10"], ["99", "5"]], asks: [["101", "3"], ["102", "2"]] }),
+    });
+    const tool = new BinanceOrderBookTool();
+    const result = await tool.call({ symbol: "BTCUSDT" });
+    expect(result.bidVolume).toBe(15);
+    expect(result.askVolume).toBe(5);
+    expect(result.imbalance).toBeCloseTo(0.5); // (15-5)/(15+5)
+    expect(result.bestBid).toBe("100");
+    expect(result.bestAsk).toBe("101");
+  });
+});
+
+describe("BinanceFuturesStatsTool", () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    (globalThis as any).fetch = originalFetch;
+  });
+
+  it("combines premium index and open interest", async () => {
+    (globalThis as any).fetch = jest.fn().mockImplementation((url: URL) => {
+      if (url.toString().includes("premiumIndex")) {
+        return Promise.resolve({
+          ok: true, status: 200,
+          json: async () => ({ markPrice: "60000.5", lastFundingRate: "0.0001", nextFundingTime: 123 }),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200, json: async () => ({ openInterest: "1234.5" }) });
+    });
+    const tool = new BinanceFuturesStatsTool();
+    const result = await tool.call({ symbol: "BTCUSDT" });
+    expect(result.markPrice).toBe(60000.5);
+    expect(result.lastFundingRate).toBe(0.0001);
+    expect(result.openInterest).toBe(1234.5);
+  });
+});
+
+describe("BinanceScreenerTool", () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    (globalThis as any).fetch = originalFetch;
+  });
+
+  it("flags oversold and overbought symbols", async () => {
+    (globalThis as any).fetch = jest.fn().mockImplementation((url: URL) => {
+      const symbol = url.searchParams.get("symbol");
+      const closes =
+        symbol === "UPUSDT"
+          ? Array.from({ length: 40 }, (_, i) => 100 + i)
+          : Array.from({ length: 40 }, (_, i) => 100 - i);
+      const rows = closes.map((c, i) => fakeKline(c, i));
+      return Promise.resolve({ ok: true, status: 200, json: async () => rows });
+    });
+    const tool = new BinanceScreenerTool();
+    const result = await tool.call({ symbols: ["UPUSDT", "DOWNUSDT"] });
+    const results = result.results as Array<{ symbol: string; signal: string }>;
+    expect(results.find((r) => r.symbol === "UPUSDT")?.signal).toBe("overbought");
+    expect(results.find((r) => r.symbol === "DOWNUSDT")?.signal).toBe("oversold");
+  });
+
+  it("rejects an empty symbols array", async () => {
+    const tool = new BinanceScreenerTool();
+    const result = await tool.call({ symbols: [] });
+    expect(result.error).toBe("InvalidSymbols");
+  });
+});
+
+function fakeStream(overrides: Partial<BinanceStreamManager> = {}): BinanceStreamManager {
+  return {
+    subscribe: jest.fn().mockResolvedValue(undefined),
+    unsubscribe: jest.fn().mockReturnValue(true),
+    isSubscribed: jest.fn().mockReturnValue(false),
+    getLatest: jest.fn().mockReturnValue(undefined),
+    listSubscriptions: jest.fn().mockReturnValue([]),
+    addAlert: jest.fn(),
+    removeAlert: jest.fn().mockReturnValue(true),
+    listAlerts: jest.fn().mockReturnValue([]),
+    closeAll: jest.fn(),
+    ...overrides,
+  } as unknown as BinanceStreamManager;
+}
+
+describe("BinanceWatchPriceTool", () => {
+  it("subscribes then returns the latest tick once available", async () => {
+    const tick = { symbol: "BTCUSDT", price: 60000, time: 1 };
+    const stream = fakeStream({ isSubscribed: jest.fn().mockReturnValue(false), getLatest: jest.fn().mockReturnValue(tick) });
+    const tool = new BinanceWatchPriceTool(stream);
+    const result = await tool.call({ symbol: "btcusdt" });
+    expect(stream.subscribe).toHaveBeenCalledWith("BTCUSDT");
+    expect(result).toEqual(tick);
+  });
+
+  it("does not re-subscribe if already subscribed", async () => {
+    const tick = { symbol: "BTCUSDT", price: 1, time: 1 };
+    const stream = fakeStream({ isSubscribed: jest.fn().mockReturnValue(true), getLatest: jest.fn().mockReturnValue(tick) });
+    const tool = new BinanceWatchPriceTool(stream);
+    await tool.call({ symbol: "BTCUSDT" });
+    expect(stream.subscribe).not.toHaveBeenCalled();
+  });
+
+  it("returns a SubscribeError instead of throwing", async () => {
+    const stream = fakeStream({ subscribe: jest.fn().mockRejectedValue(new Error("connect failed")) });
+    const tool = new BinanceWatchPriceTool(stream);
+    const result = await tool.call({ symbol: "BTCUSDT" });
+    expect(result.error).toBe("SubscribeError");
+  });
+});
+
+describe("BinanceUnwatchPriceTool", () => {
+  it("unsubscribes", async () => {
+    const stream = fakeStream();
+    const tool = new BinanceUnwatchPriceTool(stream);
+    const result = await tool.call({ symbol: "BTCUSDT" });
+    expect(stream.unsubscribe).toHaveBeenCalledWith("BTCUSDT");
+    expect(result).toEqual({ unsubscribed: true });
+  });
+});
+
+describe("BinancePriceAlertTool", () => {
+  it("creates an alert, subscribing first if needed", async () => {
+    const alert = { id: 1, symbol: "BTCUSDT", condition: "above", threshold: 70000, triggered: false, triggeredAt: null, triggeredPrice: null };
+    const stream = fakeStream({ addAlert: jest.fn().mockReturnValue(alert) });
+    const tool = new BinancePriceAlertTool(stream);
+    const result = await tool.call({ action: "create", symbol: "btcusdt", condition: "above", threshold: 70000 });
+    expect(stream.subscribe).toHaveBeenCalledWith("BTCUSDT");
+    expect(result).toEqual(alert);
+  });
+
+  it("rejects an invalid create call", async () => {
+    const tool = new BinancePriceAlertTool(fakeStream());
+    const result = await tool.call({ action: "create", symbol: "BTCUSDT" });
+    expect(result.error).toBe("InvalidArgs");
+  });
+
+  it("lists alerts", async () => {
+    const stream = fakeStream({ listAlerts: jest.fn().mockReturnValue([{ id: 1 }]) });
+    const tool = new BinancePriceAlertTool(stream);
+    const result = await tool.call({ action: "list" });
+    expect(result.alerts).toEqual([{ id: 1 }]);
+  });
+
+  it("removes an alert", async () => {
+    const stream = fakeStream();
+    const tool = new BinancePriceAlertTool(stream);
+    const result = await tool.call({ action: "remove", id: 1 });
+    expect(stream.removeAlert).toHaveBeenCalledWith(1);
+    expect(result).toEqual({ removed: true });
+  });
+
+  it("rejects an unknown action", async () => {
+    const tool = new BinancePriceAlertTool(fakeStream());
+    const result = await tool.call({ action: "nope" });
+    expect(result.error).toBe("InvalidAction");
+  });
+});
+
 describe("BinancePublicApiTool (real network)", () => {
   it("pings the real Binance spot API", async () => {
     const tool = new BinancePublicApiTool();
@@ -150,5 +320,32 @@ describe("BinanceTechnicalIndicatorsTool (real network)", () => {
     expect(typeof indicators.rsi14).toBe("number");
     expect(indicators.rsi14 as number).toBeGreaterThanOrEqual(0);
     expect(indicators.rsi14 as number).toBeLessThanOrEqual(100);
+  }, 15000);
+});
+
+describe("BinanceOrderBookTool (real network)", () => {
+  it("fetches a real BTCUSDT order book", async () => {
+    const tool = new BinanceOrderBookTool();
+    const result = await tool.call({ symbol: "BTCUSDT" });
+    expect(typeof result.imbalance).toBe("number");
+  }, 15000);
+});
+
+describe("BinanceFuturesStatsTool (real network)", () => {
+  it("fetches real BTCUSDT funding rate and open interest", async () => {
+    const tool = new BinanceFuturesStatsTool();
+    const result = await tool.call({ symbol: "BTCUSDT" });
+    expect(typeof result.markPrice).toBe("number");
+    expect(typeof result.openInterest).toBe("number");
+  }, 15000);
+});
+
+describe("BinanceScreenerTool (real network)", () => {
+  it("screens real symbols", async () => {
+    const tool = new BinanceScreenerTool();
+    const result = await tool.call({ symbols: ["BTCUSDT", "ETHUSDT"] });
+    const results = result.results as Array<{ symbol: string; signal: string }>;
+    expect(results).toHaveLength(2);
+    expect(["oversold", "overbought", "neutral"]).toContain(results[0].signal);
   }, 15000);
 });

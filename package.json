@@ -27,6 +27,7 @@
     "@types/marked-terminal": "^6.1.1",
     "@types/node": "^20.14.0",
     "@types/react": "^18.3.31",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^7.18.0",
     "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^8.57.1",
@@ -54,6 +55,7 @@
     "react": "^18.3.1",
     "vscode-languageserver-protocol": "^3.18.2",
     "vscode-languageserver-types": "^3.18.0",
-    "vscode-uri": "^3.1.0"
+    "vscode-uri": "^3.1.0",
+    "ws": "^8.21.1"
   }
 }

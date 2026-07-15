@@ -20,6 +20,7 @@ import { AgentIntelligence } from "./agent-intelligence.js";
 import { AgentLearning } from "./agent-learning.js";
 import { DynamicToolSelector } from "../tools/discovery.js";
 import { BrowserManager } from "../browser/manager.js";
+import { BinanceStreamManager } from "../exchange/binance-stream.js";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -52,6 +53,7 @@ export class Agent {
   readonly lspManager: AgentIntelligence["lspManager"];
   readonly railsIndex: AgentIntelligence["railsIndex"];
   readonly browser: BrowserManager;
+  readonly binanceStream: BinanceStreamManager;
   private readonly toolSelector: DynamicToolSelector;
 
   private readonly provider: Provider;
@@ -133,6 +135,8 @@ export class Agent {
 
     this.browser = new BrowserManager();
     this.tools.registerBrowserTools(this.browser);
+    this.binanceStream = new BinanceStreamManager();
+    this.tools.registerBinanceStreamTools(this.binanceStream);
 
     this.lspManager = this.intelligence.lspManager;
     this.railsIndex = this.intelligence.railsIndex;
