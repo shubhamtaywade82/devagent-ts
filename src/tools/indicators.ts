@@ -55,3 +55,30 @@ export function bollingerBands(values: number[], period = 20, k = 2): { upper: n
   const stdDev = Math.sqrt(variance);
   return { upper: middle + k * stdDev, middle, lower: middle - k * stdDev };
 }
+
+// --- Per-index series variants, for walking a strategy candle-by-candle (backtesting). ---
+// Each series[i] corresponds to values[i]; indices before the warmup period are NaN.
+
+export function smaSeries(values: number[], period: number): number[] {
+  return values.map((_, i) => (i + 1 >= period ? sma(values.slice(0, i + 1), period) : NaN));
+}
+
+export function rsiSeries(values: number[], period = 14): number[] {
+  return values.map((_, i) => (i + 1 >= period + 1 ? rsi(values.slice(0, i + 1), period) : NaN));
+}
+
+export function macdSeries(
+  values: number[],
+  fast = 12,
+  slow = 26,
+  signalPeriod = 9
+): Array<{ macd: number; signal: number; histogram: number }> {
+  const warmup = slow + signalPeriod;
+  return values.map((_, i) => (i + 1 >= warmup ? macd(values.slice(0, i + 1), fast, slow, signalPeriod) : { macd: NaN, signal: NaN, histogram: NaN }));
+}
+
+export function bollingerSeries(values: number[], period = 20, k = 2): Array<{ upper: number; middle: number; lower: number }> {
+  return values.map((_, i) =>
+    i + 1 >= period ? bollingerBands(values.slice(0, i + 1), period, k) : { upper: NaN, middle: NaN, lower: NaN }
+  );
+}

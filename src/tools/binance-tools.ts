@@ -379,6 +379,57 @@ export class BinanceUnwatchPriceTool extends BinanceStreamTool {
   }
 }
 
+export class BinanceLiquidationsTool extends BinanceStreamTool {
+  get name(): string {
+    return "binance_liquidations";
+  }
+
+  get description(): string {
+    return (
+      "Live futures liquidation feed (WebSocket, no key). action: 'subscribe' (start buffering, " +
+      "returns immediately — liquidations accumulate in the background, call 'list' after a few " +
+      "seconds), 'list' (recent liquidations, optionally filtered by symbol), 'unsubscribe'. A " +
+      "burst of same-side liquidations often precedes/confirms a squeeze — use with order-book and " +
+      "funding data, not alone."
+    );
+  }
+
+  get parameters(): Record<string, unknown> {
+    return {
+      type: "object",
+      properties: {
+        action: { type: "string", enum: ["subscribe", "list", "unsubscribe"] },
+        symbol: { type: "string", description: "Optional filter for 'list'" },
+      },
+      required: ["action"],
+    };
+  }
+
+  async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const action = String(args.action ?? "");
+
+    if (action === "subscribe") {
+      try {
+        if (!this.stream.isSubscribedToLiquidations()) await this.stream.subscribeLiquidations();
+      } catch (e) {
+        return { error: "SubscribeError", message: (e as Error).message };
+      }
+      return { subscribed: true };
+    }
+
+    if (action === "list") {
+      const symbol = typeof args.symbol === "string" ? args.symbol : undefined;
+      return { liquidations: this.stream.getLiquidations(symbol) };
+    }
+
+    if (action === "unsubscribe") {
+      return { unsubscribed: this.stream.unsubscribeLiquidations() };
+    }
+
+    return { error: "InvalidAction", message: "action must be 'subscribe', 'list', or 'unsubscribe'" };
+  }
+}
+
 export class BinancePriceAlertTool extends BinanceStreamTool {
   get name(): string {
     return "binance_price_alert";

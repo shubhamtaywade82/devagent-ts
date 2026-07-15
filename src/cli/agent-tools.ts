@@ -30,9 +30,14 @@ import { BrowserManager } from "../browser/manager.js";
 import {
   BinancePublicApiTool, BinanceTechnicalIndicatorsTool, BinanceOrderBookTool,
   BinanceFuturesStatsTool, BinanceScreenerTool, BinanceWatchPriceTool,
-  BinanceUnwatchPriceTool, BinancePriceAlertTool,
+  BinanceUnwatchPriceTool, BinancePriceAlertTool, BinanceLiquidationsTool,
 } from "../tools/binance-tools.js";
 import { BinanceStreamManager } from "../exchange/binance-stream.js";
+import {
+  BinanceBacktestTool, BinanceWalkForwardTool, BinanceMonteCarloTool, BinanceParamSweepTool,
+} from "../tools/backtest-tools.js";
+import { BinancePaperTradeTool } from "../tools/paper-trading-tools.js";
+import { PaperTradingManager } from "../exchange/paper-trading.js";
 import { SemanticIndex, createRailsTools } from "../intelligence/rails/index.js";
 import { connectMcpServer } from "../mcp/client.js";
 import { Tool } from "../tools/tool.js";
@@ -78,14 +83,22 @@ export class AgentToolManager {
       .register(new BinanceTechnicalIndicatorsTool())
       .register(new BinanceOrderBookTool())
       .register(new BinanceFuturesStatsTool())
-      .register(new BinanceScreenerTool());
+      .register(new BinanceScreenerTool())
+      .register(new BinanceBacktestTool())
+      .register(new BinanceWalkForwardTool())
+      .register(new BinanceMonteCarloTool())
+      .register(new BinanceParamSweepTool());
   }
 
   registerBinanceStreamTools(stream: BinanceStreamManager): void {
     this.registry
       .register(new BinanceWatchPriceTool(stream))
       .register(new BinanceUnwatchPriceTool(stream))
-      .register(new BinancePriceAlertTool(stream));
+      .register(new BinancePriceAlertTool(stream))
+      .register(new BinanceLiquidationsTool(stream));
+
+    const paper = new PaperTradingManager(stream);
+    this.registry.register(new BinancePaperTradeTool(paper));
   }
 
   registerLspTools(lsp: LspManager): void {

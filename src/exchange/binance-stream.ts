@@ -19,6 +19,17 @@ export interface Alert {
 }
 
 const STREAM_BASE = "wss://stream.binance.com:9443/ws";
+const FUTURES_STREAM_BASE = "wss://fstream.binance.com/ws";
+const LIQUIDATIONS_STREAM = "!forceOrder@arr";
+const MAX_LIQUIDATIONS_BUFFERED = 200;
+
+export interface Liquidation {
+  symbol: string;
+  side: "BUY" | "SELL";
+  price: number;
+  quantity: number;
+  time: number;
+}
 
 // ponytail: one manager, in-memory only — no persistence across restarts,
 // add a store if alerts need to survive a process crash.
@@ -27,6 +38,7 @@ export class BinanceStreamManager {
   private latest = new Map<string, Tick>();
   private alerts: Alert[] = [];
   private nextAlertId = 1;
+  private liquidations: Liquidation[] = [];
 
   subscribe(symbol: string): Promise<void> {
     const sym = symbol.toUpperCase();
@@ -116,9 +128,53 @@ export class BinanceStreamManager {
     }
   }
 
+  subscribeLiquidations(): Promise<void> {
+    if (this.sockets.has(LIQUIDATIONS_STREAM)) return Promise.resolve();
+
+    return new Promise((resolve, reject) => {
+      const ws = new WebSocket(`${FUTURES_STREAM_BASE}/${LIQUIDATIONS_STREAM}`);
+      const onError = (err: Error) => {
+        this.sockets.delete(LIQUIDATIONS_STREAM);
+        reject(err);
+      };
+      ws.once("error", onError);
+      ws.once("open", () => {
+        ws.off("error", onError);
+        resolve();
+      });
+      ws.on("message", (data: Buffer) => {
+        const msg = JSON.parse(data.toString());
+        const o = msg.o;
+        if (!o) return;
+        this.liquidations.push({ symbol: o.s, side: o.S, price: Number(o.ap), quantity: Number(o.q), time: Number(o.T) });
+        if (this.liquidations.length > MAX_LIQUIDATIONS_BUFFERED) this.liquidations.shift();
+      });
+      ws.on("error", () => {});
+      this.sockets.set(LIQUIDATIONS_STREAM, ws);
+    });
+  }
+
+  unsubscribeLiquidations(): boolean {
+    const ws = this.sockets.get(LIQUIDATIONS_STREAM);
+    if (!ws) return false;
+    ws.terminate();
+    this.sockets.delete(LIQUIDATIONS_STREAM);
+    return true;
+  }
+
+  isSubscribedToLiquidations(): boolean {
+    return this.sockets.has(LIQUIDATIONS_STREAM);
+  }
+
+  getLiquidations(symbol?: string): Liquidation[] {
+    const list = symbol ? this.liquidations.filter((l) => l.symbol === symbol.toUpperCase()) : this.liquidations;
+    return [...list];
+  }
+
   closeAll(): void {
     for (const ws of this.sockets.values()) ws.terminate();
     this.sockets.clear();
     this.latest.clear();
+    this.liquidations = [];
   }
 }

@@ -523,7 +523,15 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
 
   const submitPrompt = useCallback(
     (text: string): void => {
-      const trimmed = text.trim();
+      // "[Pasted text #N +K lines]" is a display-only label PromptBar uses to
+      // collapse a paste — the real content is already on the following
+      // lines, so drop the label itself before it leaks into the actual
+      // message sent to the model / saved to history.
+      const withoutPasteLabels = text
+        .split("\n")
+        .filter((line) => !/^\[Pasted text #\d+ \+\d+ lines\]$/.test(line))
+        .join("\n");
+      const trimmed = withoutPasteLabels.trim();
       if (!trimmed) return;
       history.add(trimmed);
       try {

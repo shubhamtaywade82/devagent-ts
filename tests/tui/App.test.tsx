@@ -380,7 +380,9 @@ describe("App shell", () => {
     expect(frame).toContain("[Pasted text #1 +5 lines]");
     stdin.write("\r"); // now submit for real
     await tick();
-    expect(agent.calls).toEqual(["[Pasted text #1 +5 lines]\n# DevAgent TS\n\nsecond line\nthird line"]);
+    // The placeholder label is display-only — the actual message sent to the
+    // model must not contain it, just the real pasted content.
+    expect(agent.calls).toEqual(["# DevAgent TS\n\nsecond line\nthird line"]);
     unmount();
   });
 
