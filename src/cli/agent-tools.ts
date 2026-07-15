@@ -27,7 +27,7 @@ import {
   BrowserGetTextTool, BrowserScreenshotTool, BrowserEvaluateTool, BrowserCloseTool,
 } from "../tools/browser-tools.js";
 import { BrowserManager } from "../browser/manager.js";
-import { BinancePublicApiTool } from "../tools/binance-tools.js";
+import { BinancePublicApiTool, BinanceTechnicalIndicatorsTool } from "../tools/binance-tools.js";
 import { SemanticIndex, createRailsTools } from "../intelligence/rails/index.js";
 import { connectMcpServer } from "../mcp/client.js";
 import { Tool } from "../tools/tool.js";
@@ -69,7 +69,8 @@ export class AgentToolManager {
       .register(new RunBuildTool(root))
       .register(new RunRubocopTool(root))
       .register(new RunRSpecTool(root))
-      .register(new BinancePublicApiTool());
+      .register(new BinancePublicApiTool())
+      .register(new BinanceTechnicalIndicatorsTool());
   }
 
   registerLspTools(lsp: LspManager): void {
