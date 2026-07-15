@@ -257,10 +257,15 @@ export class LspManager {
       { textDocument: { uri } },
     )) as SymbolInformation[] | { name: string; kind: number; range: unknown; children?: unknown[] }[];
 
-    if (!result) return [];
+    if (!result || result.length === 0) return [];
 
-    if (Array.isArray(result) && result.length > 0 && "name" in result[0] && "children" in result[0]) {
-      return this.flattenDocumentSymbols(result as any[]);
+    // DocumentSymbol (hierarchical — what ruby-lsp and some others return) has
+    // no `location` field, only range/selectionRange; SymbolInformation (flat)
+    // always has `location`. Checking for `children` alone misclassifies a
+    // childless top-level DocumentSymbol as flat SymbolInformation, which then
+    // crashes downstream on the missing `.location`.
+    if (!("location" in result[0])) {
+      return this.flattenDocumentSymbols(result as any[], uri);
     }
 
     return result as SymbolInformation[];
@@ -474,6 +479,7 @@ export class LspManager {
 
   private flattenDocumentSymbols(
     symbols: { name: string; kind: number; range: unknown; children?: unknown[] }[],
+    uri: string,
   ): SymbolInformation[] {
     const result: SymbolInformation[] = [];
     const walk = (
@@ -484,7 +490,7 @@ export class LspManager {
         result.push({
           name: sym.name,
           kind: sym.kind,
-          location: { uri: "", range: sym.range as any },
+          location: { uri, range: sym.range as any },
           containerName: containerName ?? "",
         } as SymbolInformation);
         if (sym.children) {
