@@ -28,7 +28,9 @@ export interface CliConfig {
   lsp?: LspCliConfig;
   toolSelectionMode?: "heuristic" | "llm" | "hybrid";
   maxActiveTools?: number;
-  apiKeys?: Record<string, string>;
+  /** Pool of Ollama Cloud API keys (e.g. separate accounts) — Provider rotates to the
+   * next key on a 429 before giving up. Ollama Cloud only, not a multi-vendor router. */
+  apiKeys?: string[];
 }
 
 interface ConfigFile {
@@ -42,7 +44,7 @@ interface ConfigFile {
   shellTimeoutSec?: number;
   toolSelectionMode?: string;
   maxActiveTools?: number;
-  apiKeys?: Record<string, string>;
+  apiKeys?: string[];
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
@@ -123,19 +125,11 @@ export function loadConfig(): CliConfig {
   const maxActiveTools = rawMaxActiveTools && Number.isFinite(Number(rawMaxActiveTools)) ? Number(rawMaxActiveTools) : undefined;
   const toolSelectionMode = (fromEnv("DEVAGENT_TOOL_SELECTION_MODE") || file.toolSelectionMode) as "heuristic" | "llm" | "hybrid" | undefined;
 
-  const apiKeys: Record<string, string> = {
-    ...file.apiKeys,
-  };
-  if (fromEnv("OLLAMA_API_KEY")) apiKeys.ollama = fromEnv("OLLAMA_API_KEY")!;
-  if (fromEnv("OPENAI_API_KEY")) apiKeys.openai = fromEnv("OPENAI_API_KEY")!;
-  if (fromEnv("ANTHROPIC_API_KEY")) apiKeys.anthropic = fromEnv("ANTHROPIC_API_KEY")!;
-  if (fromEnv("DEEPSEEK_API_KEY")) apiKeys.deepseek = fromEnv("DEEPSEEK_API_KEY")!;
-
+  // Pool of Ollama Cloud keys: primary single key, comma-separated OLLAMA_API_KEYS,
+  // and any keys listed in the config file, deduped in that priority order.
   const primaryApiKey = fromEnv("OLLAMA_API_KEY") || file.apiKey;
-  if (primaryApiKey) {
-    apiKeys.ollama = apiKeys.ollama || primaryApiKey;
-    apiKeys.cloud = apiKeys.cloud || primaryApiKey;
-  }
+  const envKeys = (fromEnv("OLLAMA_API_KEYS") ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+  const apiKeys = [...new Set([...(primaryApiKey ? [primaryApiKey] : []), ...envKeys, ...(file.apiKeys ?? [])])];
 
   return {
     model: fromEnv("DEVAGENT_MODEL") || file.model || "qwen3.5:4b",
@@ -149,6 +143,6 @@ export function loadConfig(): CliConfig {
     shellTimeoutSec,
     toolSelectionMode,
     maxActiveTools,
-    apiKeys,
+    apiKeys: apiKeys.length ? apiKeys : undefined,
   };
 }

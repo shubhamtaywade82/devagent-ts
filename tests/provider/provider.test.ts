@@ -31,79 +31,90 @@ describe("Provider error redaction", () => {
   });
 });
 
-describe("Provider dynamic key resolution", () => {
-  const fakeFetch = jest.fn().mockResolvedValue({
-    ok: true,
-    status: 200,
-    json: async () => ({ message: { role: "assistant", content: "ok" }, done: true }),
-  });
-
+describe("Provider apiKeys pool (Ollama Cloud only)", () => {
   beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it("uses the single apiKey when no pool is given", async () => {
+    const fakeFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ message: { role: "assistant", content: "ok" }, done: true }),
+    });
     (globalThis as any).fetch = fakeFetch;
-    fakeFetch.mockClear();
-  });
 
-  it("selects key matching model pattern", async () => {
-    const apiKeys = {
-      openai: "openai_key",
-      anthropic: "anthropic_key",
-      deepseek: "deepseek_key",
-      ollama: "ollama_key",
-    };
-
-    const provider = new Provider({
-      tier: "cloud",
-      model: "gpt-4o",
-      apiKeys,
-      apiKey: "fallback_key",
-      host: "https://x",
-    });
-
+    const provider = new Provider({ tier: "cloud", model: "m", apiKey: "solo_key", host: "https://x" });
     await provider.chat([{ role: "user", content: "hi" }]);
 
-    expect(fakeFetch).toHaveBeenCalled();
-    const [, options] = fakeFetch.mock.calls[0];
-    expect(options.headers.Authorization).toBe("Bearer openai_key");
+    expect(fakeFetch.mock.calls[0][1].headers.Authorization).toBe("Bearer solo_key");
   });
 
-  it("selects anthropic key for claude models", async () => {
-    const apiKeys = {
-      openai: "openai_key",
-      anthropic: "anthropic_key",
-    };
-
-    const provider = new Provider({
-      tier: "cloud",
-      model: "claude-3-opus",
-      apiKeys,
-      apiKey: "fallback_key",
-      host: "https://x",
+  it("uses the first key in the pool by default", async () => {
+    const fakeFetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ message: { role: "assistant", content: "ok" }, done: true }),
     });
+    (globalThis as any).fetch = fakeFetch;
 
+    const provider = new Provider({ tier: "cloud", model: "m", apiKeys: ["key_a", "key_b"], host: "https://x" });
     await provider.chat([{ role: "user", content: "hi" }]);
 
-    expect(fakeFetch).toHaveBeenCalled();
-    const [, options] = fakeFetch.mock.calls[0];
-    expect(options.headers.Authorization).toBe("Bearer anthropic_key");
+    expect(fakeFetch.mock.calls[0][1].headers.Authorization).toBe("Bearer key_a");
   });
 
-  it("falls back to primary apiKey if no specific key exists", async () => {
-    const apiKeys = {
-      openai: "openai_key",
-    };
+  it("rotates to the next key and retries on a 429, succeeding without throwing", async () => {
+    const fakeFetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 429, text: async () => "rate limited" })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ message: { role: "assistant", content: "ok" }, done: true }),
+      });
+    (globalThis as any).fetch = fakeFetch;
 
-    const provider = new Provider({
-      tier: "cloud",
-      model: "claude-3-opus",
-      apiKeys,
-      apiKey: "fallback_key",
-      host: "https://x",
-    });
+    const provider = new Provider({ tier: "cloud", model: "m", apiKeys: ["key_a", "key_b"], host: "https://x" });
+    const result = await provider.chat([{ role: "user", content: "hi" }]);
 
+    expect(result.message.content).toBe("ok");
+    expect(fakeFetch).toHaveBeenCalledTimes(2);
+    expect(fakeFetch.mock.calls[0][1].headers.Authorization).toBe("Bearer key_a");
+    expect(fakeFetch.mock.calls[1][1].headers.Authorization).toBe("Bearer key_b");
+  });
+
+  it("throws RateLimitError once every key in the pool is rate-limited", async () => {
+    const fakeFetch = jest.fn().mockResolvedValue({ ok: false, status: 429, text: async () => "rate limited" });
+    (globalThis as any).fetch = fakeFetch;
+
+    const provider = new Provider({ tier: "cloud", model: "m", apiKeys: ["key_a", "key_b"], host: "https://x" });
+
+    await expect(provider.chat([{ role: "user", content: "hi" }])).rejects.toThrow(/rate limited on all 2 key/);
+    expect(fakeFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps rotation state across calls — a later call starts from the last successful key", async () => {
+    const fakeFetch = jest
+      .fn()
+      .mockResolvedValueOnce({ ok: false, status: 429, text: async () => "rate limited" }) // key_a fails
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ message: { role: "assistant", content: "first" }, done: true }),
+      }) // key_b succeeds
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ message: { role: "assistant", content: "second" }, done: true }),
+      }); // second call should go straight to key_b
+    (globalThis as any).fetch = fakeFetch;
+
+    const provider = new Provider({ tier: "cloud", model: "m", apiKeys: ["key_a", "key_b"], host: "https://x" });
     await provider.chat([{ role: "user", content: "hi" }]);
+    await provider.chat([{ role: "user", content: "hi again" }]);
 
-    expect(fakeFetch).toHaveBeenCalled();
-    const [, options] = fakeFetch.mock.calls[0];
-    expect(options.headers.Authorization).toBe("Bearer fallback_key");
+    expect(fakeFetch).toHaveBeenCalledTimes(3);
+    expect(fakeFetch.mock.calls[2][1].headers.Authorization).toBe("Bearer key_b");
   });
 });

@@ -45,7 +45,10 @@ export interface ProviderOptions {
   model: string;
   host?: string;
   apiKey?: string;
-  apiKeys?: Record<string, string>;
+  /** Pool of Ollama Cloud API keys (e.g. separate accounts). On a 429 the
+   * provider rotates to the next key and retries before giving up — this is
+   * for availability across your own accounts, not multi-vendor routing. */
+  apiKeys?: string[];
   timeoutMs?: number;
 }
 
@@ -53,8 +56,8 @@ export class Provider {
   private tier: Tier;
   private model: string;
   private host: string;
-  private readonly apiKey?: string;
-  private readonly apiKeys?: Record<string, string>;
+  private readonly apiKeys: string[];
+  private apiKeyIndex = 0;
   private readonly timeoutMs: number;
 
   constructor(opts: ProviderOptions) {
@@ -63,8 +66,7 @@ export class Provider {
     this.host =
       opts.host ??
       (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
-    this.apiKey = opts.apiKey;
-    this.apiKeys = opts.apiKeys;
+    this.apiKeys = opts.apiKeys && opts.apiKeys.length > 0 ? opts.apiKeys : opts.apiKey ? [opts.apiKey] : [];
     // Cloud has a 60s connect timeout; local has no timeout — never kill a running generation.
     this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 0);
   }
@@ -89,85 +91,75 @@ export class Provider {
     this.host = host;
   }
 
-  private getApiKeyForModel(modelName: string): string | undefined {
-    if (!this.apiKeys) return this.apiKey;
-
-    const m = modelName.toLowerCase();
-    if (this.apiKeys[modelName]) return this.apiKeys[modelName];
-    if (this.apiKeys[m]) return this.apiKeys[m];
-
-    if (m.startsWith("gpt-") || m.startsWith("o1-") || m.startsWith("openai/")) {
-      return this.apiKeys.openai || this.apiKey;
-    }
-    if (m.startsWith("claude-") || m.startsWith("anthropic/")) {
-      return this.apiKeys.anthropic || this.apiKey;
-    }
-    if (m.startsWith("deepseek")) {
-      return this.apiKeys.deepseek || this.apiKey;
-    }
-
-    return this.apiKeys.ollama || this.apiKeys.cloud || this.apiKey;
-  }
-
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {
-    const activeKey = this.getApiKeyForModel(this.model);
-    if (this.tier === "cloud" && !activeKey) {
+    if (this.tier === "cloud" && this.apiKeys.length === 0) {
       throw new ProviderError("missing apiKey for cloud chat");
     }
 
     const body: Record<string, unknown> = { model: this.model, messages, stream: opts.stream ?? false };
     if (opts.tools) body.tools = opts.tools;
 
+    // Cloud with multiple keys: rotate to the next key on a 429 and retry
+    // before giving up — resilience across your own accounts, not a router.
+    const maxAttempts = this.tier === "cloud" ? this.apiKeys.length : 1;
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (this.tier === "cloud") headers.Authorization = `Bearer ${activeKey}`;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (this.tier === "cloud") headers.Authorization = `Bearer ${this.apiKeys[this.apiKeyIndex]}`;
 
-    let resp: Response;
-    if (this.tier === "local" || this.timeoutMs === 0) {
-      // Local: no timeout at all — let the model take as long as it needs.
-      resp = await fetch(`${this.host}/api/chat`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      });
-    } else {
-      // Cloud: use a connect timeout only for the initial HTTP response headers.
-      // Once headers arrive the stream is open; we cancel the abort so the body
-      // reads freely without a hard deadline.
-      const connectAbort = new AbortController();
-      const connectTimer = setTimeout(
-        () => connectAbort.abort(new TimeoutError(`connect timeout after ${this.timeoutMs}ms`)),
-        this.timeoutMs,
-      );
-      try {
+      let resp: Response;
+      if (this.tier === "local" || this.timeoutMs === 0) {
+        // Local: no timeout at all — let the model take as long as it needs.
         resp = await fetch(`${this.host}/api/chat`, {
           method: "POST",
           headers,
           body: JSON.stringify(body),
-          signal: connectAbort.signal,
         });
-      } finally {
-        clearTimeout(connectTimer);
+      } else {
+        // Cloud: use a connect timeout only for the initial HTTP response headers.
+        // Once headers arrive the stream is open; we cancel the abort so the body
+        // reads freely without a hard deadline.
+        const connectAbort = new AbortController();
+        const connectTimer = setTimeout(
+          () => connectAbort.abort(new TimeoutError(`connect timeout after ${this.timeoutMs}ms`)),
+          this.timeoutMs,
+        );
+        try {
+          resp = await fetch(`${this.host}/api/chat`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify(body),
+            signal: connectAbort.signal,
+          });
+        } finally {
+          clearTimeout(connectTimer);
+        }
       }
+
+      if (resp.status === 429) {
+        if (attempt < maxAttempts - 1) {
+          this.apiKeyIndex = (this.apiKeyIndex + 1) % this.apiKeys.length;
+          continue;
+        }
+        throw new RateLimitError(`${this.model} (${this.tier}) rate limited on all ${this.apiKeys.length} key(s)`);
+      }
+      if (!resp.ok) {
+        throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${redactSecrets(await resp.text())}`);
+      }
+
+      return opts.stream ? this.streamChunks(resp, opts.onChunk) : ((await resp.json()) as ChatResponse);
     }
 
-    if (resp.status === 429) {
-      throw new RateLimitError(`${this.model} (${this.tier}) rate limited`);
-    }
-    if (!resp.ok) {
-      throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${redactSecrets(await resp.text())}`);
-    }
-
-    return opts.stream ? this.streamChunks(resp, opts.onChunk) : ((await resp.json()) as ChatResponse);
+    // Unreachable: maxAttempts is always >= 1 and the loop body always returns or throws.
+    throw new RateLimitError(`${this.model} (${this.tier}) rate limited`);
   }
 
   async availableModels(): Promise<unknown> {
     const path = this.tier === "cloud" ? "/v1/models" : "/api/tags";
     const headers: Record<string, string> = {};
     if (this.tier === "cloud") {
-      const activeKey = this.getApiKeyForModel(this.model);
-      if (!activeKey) throw new ProviderError("missing apiKey for cloud availableModels");
-      headers.Authorization = `Bearer ${activeKey}`;
+      if (this.apiKeys.length === 0) throw new ProviderError("missing apiKey for cloud availableModels");
+      headers.Authorization = `Bearer ${this.apiKeys[this.apiKeyIndex]}`;
     }
 
     let resp: Response;
