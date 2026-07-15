@@ -9,6 +9,10 @@ export class Registry {
     return this;
   }
 
+  getTools(): Tool[] {
+    return [...this.tools.values()];
+  }
+
   schemas(): OllamaToolSchema[] {
     return [...this.tools.values()].map((t) => t.schema);
   }

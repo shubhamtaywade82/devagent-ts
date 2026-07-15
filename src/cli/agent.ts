@@ -2,6 +2,8 @@ import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig } from "./config";
 import { Provider } from "../provider/provider";
+import { Router } from "../provider/router";
+import { Capability, ModelCatalog } from "../provider/catalog";
 import { LoopDetector } from "../orchestrator/loop-detector";
 import { Orchestrator } from "../orchestrator/orchestrator";
 import { AgentStepRunner } from "../orchestrator/agent-planner";
@@ -14,6 +16,7 @@ import { AgentConversation } from "./agent-conversation";
 import { AgentToolManager } from "./agent-tools";
 import { AgentIntelligence } from "./agent-intelligence";
 import { AgentLearning } from "./agent-learning";
+import { DynamicToolSelector } from "../tools/discovery";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -45,8 +48,12 @@ export class Agent {
   readonly memory: MemoryStore;
   readonly lspManager: AgentIntelligence["lspManager"];
   readonly railsIndex: AgentIntelligence["railsIndex"];
+  private readonly toolSelector: DynamicToolSelector;
 
   private readonly provider: Provider;
+  private readonly catalog: ModelCatalog;
+  private readonly router: Router;
+  private catalogRefreshed: Promise<void> | null = null;
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
   readonly events: AgentEvents;
@@ -61,6 +68,33 @@ export class Agent {
       host: cfg.host,
       apiKey: cfg.apiKey,
       ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
+    });
+
+    // Separate provider pool for capability-routed delegation (see classifyCapability),
+    // kept independent of `this.provider` so the primary conversation's model/tier is
+    // never mutated. Cloud provider is omitted entirely when no API key is configured.
+    const localProvider = new Provider({
+      tier: "local",
+      model: cfg.model,
+      host: cfg.tier === "local" ? cfg.host : undefined,
+      ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
+    });
+    const cloudProvider = cfg.apiKey
+      ? new Provider({
+          tier: "cloud",
+          model: cfg.model,
+          host: cfg.tier === "cloud" ? cfg.host : undefined,
+          apiKey: cfg.apiKey,
+          ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
+        })
+      : undefined;
+
+    this.catalog = new ModelCatalog(localProvider, cloudProvider);
+    this.router = new Router({
+      local: localProvider,
+      cloud: cloudProvider,
+      catalog: this.catalog,
+      logger: { warn: (msg: string) => this.emit("onStatus", msg) },
     });
 
     this.events = opts.events ?? {};
@@ -110,6 +144,12 @@ export class Agent {
       memory: this.memory,
       skillsHomeDir: opts.skillsHomeDir,
       projectLanguage,
+    });
+
+    this.toolSelector = new DynamicToolSelector({
+      mode: cfg.toolSelectionMode,
+      maxActiveTools: cfg.maxActiveTools,
+      provider: this.provider,
     });
   }
 
@@ -174,11 +214,11 @@ export class Agent {
       return text;
     };
 
-    const originalModel = this.currentModel;
-    const delegatedModel = this.getDelegatedModel(priority, userMessage);
-    if (delegatedModel) {
-      this.setModelWithoutReset(delegatedModel);
-      this.emit("onStatus", `delegating task to ${delegatedModel}`);
+    const capability = this.classifyCapability(priority, userMessage);
+    if (capability) await this.ensureCatalog();
+    const delegateCandidates = capability ? this.catalog.modelsFor(capability) : [];
+    if (delegateCandidates.length) {
+      this.emit("onStatus", `delegating task to ${delegateCandidates[0].tier}/${delegateCandidates[0].name}`);
     }
 
     try {
@@ -186,10 +226,16 @@ export class Agent {
         this.conversation.pruneContext();
         this.emit("onStatus", `turn ${toolTurn + 1}`);
 
-        const chatResponse = await this.provider.chat(this.conversation.getMessages(), {
+        const activeTools = await this.toolSelector.selectTools(
+          userMessage,
+          this.conversation.getMessages(),
+          this.tools.registry.getTools(),
+        );
+
+        const chatOpts = {
           stream: true,
-          tools: this.tools.registry.schemas(),
-          onChunk: (chunk) => {
+          tools: activeTools.length > 0 ? activeTools.map((t) => t.schema) : undefined,
+          onChunk: (chunk: any) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
               lastAssistantText += delta;
@@ -200,7 +246,10 @@ export class Agent {
               this.emit("onThinking", thinking);
             }
           },
-        });
+        };
+        const chatResponse = delegateCandidates.length
+          ? await this.router.route(capability!, this.conversation.getMessages(), chatOpts)
+          : await this.provider.chat(this.conversation.getMessages(), chatOpts);
 
         const assistantMessage = chatResponse.message as {
           content?: string;
@@ -292,9 +341,6 @@ export class Agent {
       finish("error", lastAssistantText);
       throw e;
     } finally {
-      if (delegatedModel) {
-        this.setModelWithoutReset(originalModel);
-      }
       for (const skill of activatedSkills) this.learning.recordSkillUse(skill.id, success);
     }
   }
@@ -332,7 +378,11 @@ export class Agent {
     this.provider.setModel(model);
   }
 
-  private getDelegatedModel(priority?: string, text?: string): string | null {
+  // ponytail: single "quick" bucket — the old code distinguished a test/cleanup/lint
+  // bucket from a generic one but routed both to hardcoded, unverified model names.
+  // Capability routing now picks a real, available small model instead; add a second
+  // bucket only if a task type actually needs different capabilities (e.g. vision).
+  private classifyCapability(priority?: string, text?: string): Capability | null {
     const desc = (text || "").toLowerCase();
     const isNonCritical =
       priority === "low" ||
@@ -344,13 +394,15 @@ export class Agent {
       desc.includes("cleanup") ||
       desc.includes("lint");
 
-    if (isNonCritical) {
-      if (desc.includes("test") || desc.includes("cleanup") || desc.includes("lint") || desc.includes("refactor")) {
-        return "opencode:latest";
-      }
-      return "hermes3:latest";
+    return isNonCritical ? "quick" : null;
+  }
+
+  // Refreshed once, on first delegation attempt, and cached for the Agent's lifetime.
+  private ensureCatalog(): Promise<void> {
+    if (!this.catalogRefreshed) {
+      this.catalogRefreshed = this.catalog.refresh().then(() => undefined);
     }
-    return null;
+    return this.catalogRefreshed;
   }
 
   addLearning(category: string, context: string, lesson: string): void {

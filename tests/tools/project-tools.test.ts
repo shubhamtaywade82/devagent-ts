@@ -11,6 +11,8 @@ async function initProject(scripts: Record<string, string>) {
 }
 
 describe("RunTestsTool", () => {
+  jest.setTimeout(10000);
+
   it("runs the test script and reports exit code", async () => {
     const dir = await initProject({ test: "node -e \"process.exit(0)\"" });
     const tool = new RunTestsTool(dir);

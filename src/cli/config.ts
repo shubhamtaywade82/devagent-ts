@@ -26,6 +26,8 @@ export interface CliConfig {
   shellTimeoutSec?: number;
   languages?: Record<string, LanguageOverride>;
   lsp?: LspCliConfig;
+  toolSelectionMode?: "heuristic" | "llm" | "hybrid";
+  maxActiveTools?: number;
 }
 
 interface ConfigFile {
@@ -37,6 +39,8 @@ interface ConfigFile {
   systemPrompt?: string;
   shellImage?: string;
   shellTimeoutSec?: number;
+  toolSelectionMode?: string;
+  maxActiveTools?: number;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
@@ -113,6 +117,10 @@ export function loadConfig(): CliConfig {
   const agentsMd = loadAgentsFile(workspaceRoot);
   const systemPrompt = agentsMd ? `${basePrompt}\n\n## Project Rules\n\n${agentsMd}` : basePrompt;
 
+  const rawMaxActiveTools = fromEnv("DEVAGENT_MAX_ACTIVE_TOOLS") || String(file.maxActiveTools ?? "");
+  const maxActiveTools = rawMaxActiveTools && Number.isFinite(Number(rawMaxActiveTools)) ? Number(rawMaxActiveTools) : undefined;
+  const toolSelectionMode = (fromEnv("DEVAGENT_TOOL_SELECTION_MODE") || file.toolSelectionMode) as "heuristic" | "llm" | "hybrid" | undefined;
+
   return {
     model: fromEnv("DEVAGENT_MODEL") || file.model || "qwen3.5:4b",
     workspaceRoot,
@@ -123,5 +131,7 @@ export function loadConfig(): CliConfig {
     systemPrompt,
     shellImage: fromEnv("DEVAGENT_SHELL_IMAGE") || file.shellImage,
     shellTimeoutSec,
+    toolSelectionMode,
+    maxActiveTools,
   };
 }

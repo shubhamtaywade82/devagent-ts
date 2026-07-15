@@ -6,6 +6,14 @@ export abstract class Tool {
   abstract get name(): string;
   abstract get description(): string;
 
+  get tags(): string[] {
+    return [];
+  }
+
+  get capabilities(): string[] {
+    return [];
+  }
+
   get parameters(): Record<string, unknown> {
     return { type: "object", properties: {}, required: [] };
   }

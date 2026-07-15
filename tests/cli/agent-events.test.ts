@@ -179,12 +179,14 @@ function writeSkill(workspaceRoot: string, id: string, frontmatter: string, body
   writeFileSync(join(dir, "SKILL.md"), `---\n${frontmatter}\n---\n\n${body}`);
 }
 
-// The main chat turn is always the FIRST fetch call — triggerSummarization fires a
-// second, synchronous fetch (its own chat call) before runUserMessage returns, so the
-// last call is unreliable for asserting what the primary turn sent.
+// The main chat turn is the fetch call with a body — triggerSummarization fires a
+// second, synchronous fetch (its own chat call) before runUserMessage returns.
+// Find the first POST request by checking for a request body.
 function firstRequestMessages(): Array<{ role: string; content: string }> {
   const calls = (globalThis.fetch as jest.Mock).mock.calls;
-  const [, init] = calls[0];
+  const postCall = calls.find((c) => c[1] && c[1].body);
+  if (!postCall) throw new Error("No fetch call with body found");
+  const [, init] = postCall;
   return JSON.parse(init.body as string).messages;
 }
 

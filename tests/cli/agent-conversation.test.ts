@@ -34,7 +34,21 @@ describe("Agent non-critical task model delegation", () => {
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "agent-test-"));
     const encoder = new TextEncoder();
-    (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+    (globalThis as any).fetch = jest.fn().mockImplementation(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/api/tags") || urlStr.includes("/v1/models")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            models: [
+              { name: "hermes3:latest" },
+              { name: "opencode:latest" }
+            ]
+          })
+        };
+      }
+
       const line = JSON.stringify({ message: { role: "assistant", content: "ok" }, done: true }) + "\n";
       let delivered = false;
       const reader = {
@@ -65,12 +79,46 @@ describe("Agent non-critical task model delegation", () => {
     expect(agent.currentModel).toBe("original-model");
     // Verify it was switched to hermes during execution by checking the mock fetch history
     const calls = (globalThis.fetch as jest.Mock).mock.calls;
-    expect(calls.length).toBeGreaterThan(0);
-    const firstCallBody = JSON.parse(calls[0][1].body);
+    const postCall = calls.find((c) => c[1] && c[1].body);
+    expect(postCall).toBeDefined();
+    const firstCallBody = JSON.parse(postCall![1].body);
     expect(firstCallBody.model).toBe("hermes3:latest");
   });
 
   it("delegates low priority code/test tasks to opencode", async () => {
+    const encoder = new TextEncoder();
+    (globalThis as any).fetch = jest.fn().mockImplementation(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/api/tags") || urlStr.includes("/v1/models")) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            models: [
+              { name: "opencode:latest" },
+              { name: "hermes3:latest" }
+            ]
+          })
+        };
+      }
+
+      const line = JSON.stringify({ message: { role: "assistant", content: "ok" }, done: true }) + "\n";
+      let delivered = false;
+      const reader = {
+        read: async () => {
+          if (delivered) return { done: true, value: undefined };
+          delivered = true;
+          return { done: false, value: encoder.encode(line) };
+        },
+      };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ message: { role: "assistant", content: "ok" }, done: true }),
+        body: { getReader: () => reader },
+      };
+    });
+
     const agent = new Agent({
       config: { workspaceRoot: tempDir, tier: "local", model: "original-model" },
     });
@@ -81,8 +129,9 @@ describe("Agent non-critical task model delegation", () => {
 
     expect(agent.currentModel).toBe("original-model");
     const calls = (globalThis.fetch as jest.Mock).mock.calls;
-    expect(calls.length).toBeGreaterThan(0);
-    const firstCallBody = JSON.parse(calls[0][1].body);
+    const postCall = calls.find((c) => c[1] && c[1].body);
+    expect(postCall).toBeDefined();
+    const firstCallBody = JSON.parse(postCall![1].body);
     expect(firstCallBody.model).toBe("opencode:latest");
   });
 });

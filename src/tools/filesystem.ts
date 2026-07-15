@@ -18,6 +18,14 @@ export class ReadFileTool extends Tool {
     return "Read a UTF-8 text file relative to the workspace root.";
   }
 
+  override get capabilities(): string[] {
+    return ["File System"];
+  }
+
+  override get tags(): string[] {
+    return ["read", "file", "view", "cat", "open", "show", "inspect"];
+  }
+
   get parameters(): Record<string, unknown> {
     return { type: "object", properties: { path: { type: "string" } }, required: ["path"] };
   }
@@ -42,6 +50,14 @@ export class WriteFileTool extends Tool {
 
   get description(): string {
     return "Write a UTF-8 text file relative to the workspace root. Overwrites atomically.";
+  }
+
+  override get capabilities(): string[] {
+    return ["File System"];
+  }
+
+  override get tags(): string[] {
+    return ["write", "file", "create", "save", "update", "new"];
   }
 
   get parameters(): Record<string, unknown> {

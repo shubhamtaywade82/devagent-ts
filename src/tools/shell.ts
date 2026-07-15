@@ -45,6 +45,14 @@ export class ShellTool extends Tool {
 
   get description(): string { return "Run a shell command inside an isolated Docker sandbox rooted at the workspace."; }
 
+  override get capabilities(): string[] {
+    return ["Terminal"];
+  }
+
+  override get tags(): string[] {
+    return ["execute", "run", "bash", "sh", "cmd", "command", "shell", "terminal"];
+  }
+
   get parameters(): Record<string, unknown> {
     return {
       type: "object",
