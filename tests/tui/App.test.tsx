@@ -193,6 +193,39 @@ describe("App shell", () => {
     unmount();
   });
 
+  it("/resume replays a restored transcript into the conversation view", async () => {
+    const world = makeWorld();
+    (world.agent as any).resumeSession = jest.fn(() => [
+      { role: "system", content: "old system prompt" },
+      { role: "user", content: "earlier question" },
+      { role: "assistant", content: "earlier answer" },
+    ]);
+    const r = render(
+      <App bus={world.bus} store={world.store} agent={world.agent} columns={100} rows={30} now={NOW} />,
+    );
+    await tick();
+    r.stdin.write("/resume");
+    await tick();
+    r.stdin.write("\r");
+    await tick();
+    const frame = stripAnsi(r.lastFrame() ?? "");
+    expect(frame).toContain("earlier question");
+    expect(frame).toContain("earlier answer");
+    expect(frame).not.toContain("old system prompt"); // system messages are never replayed into the log
+    r.unmount();
+  });
+
+  it("/resume shows a notification when there is nothing to resume", async () => {
+    const { stdin, lastFrame, unmount } = renderApp();
+    await tick();
+    stdin.write("/resume");
+    await tick();
+    stdin.write("\r");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("No previous session to resume");
+    unmount();
+  });
+
   it("slash typing completes on Tab", async () => {
     const { stdin, lastFrame, unmount } = renderApp();
     await tick();

@@ -28,6 +28,36 @@ describe("AgentConversation context pruning", () => {
   });
 });
 
+describe("AgentConversation.loadMessages", () => {
+  it("replaces the whole transcript", () => {
+    const convo = new AgentConversation();
+    convo.init({ model: "test", workspaceRoot: ".", tier: "local" }, [], []);
+    convo.pushUserMessage("will be discarded");
+
+    const restored = [
+      { role: "system" as const, content: "old system prompt" },
+      { role: "user" as const, content: "earlier question" },
+      { role: "assistant" as const, content: "earlier answer" },
+    ];
+    convo.loadMessages(restored);
+
+    expect(convo.getMessages()).toEqual(restored);
+  });
+
+  it("a stale loaded system prompt self-heals on the next refreshSystemPrompt call", () => {
+    const convo = new AgentConversation();
+    convo.loadMessages([
+      { role: "system", content: "stale prompt" },
+      { role: "user", content: "hi" },
+    ]);
+
+    convo.refreshSystemPrompt({ model: "test", workspaceRoot: ".", tier: "local", systemPrompt: "fresh prompt" }, [], []);
+
+    expect(convo.getMessages()[0].content).toContain("fresh prompt");
+    expect(convo.getMessages()[1]).toEqual({ role: "user", content: "hi" });
+  });
+});
+
 describe("Agent non-critical task model delegation", () => {
   let tempDir: string;
 

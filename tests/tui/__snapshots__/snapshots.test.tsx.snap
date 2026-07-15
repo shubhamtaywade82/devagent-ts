@@ -1,4 +1,4 @@
-// Jest Snapshot v1, https://goo.gl/fbAQLP
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
 exports[`layout snapshots same structure, density-only changes at 80x24 1`] = `
 "DevAgent │ ollama-agent │ qwen3:30b │ ⎇ main │ ctx68% │ Code │ IDLE │ Git:2m

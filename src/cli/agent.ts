@@ -1,10 +1,11 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig } from "./config.js";
-import { Provider } from "../provider/provider.js";
+import { Provider, ChatMessage } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
 import { Capability, ModelCatalog } from "../provider/catalog.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
+import { SessionStore } from "../runtime/session.js";
 import { LoopDetector } from "../orchestrator/loop-detector.js";
 import { Orchestrator } from "../orchestrator/orchestrator.js";
 import { AgentStepRunner } from "../orchestrator/agent-planner.js";
@@ -18,6 +19,7 @@ import { AgentToolManager } from "./agent-tools.js";
 import { AgentIntelligence } from "./agent-intelligence.js";
 import { AgentLearning } from "./agent-learning.js";
 import { DynamicToolSelector } from "../tools/discovery.js";
+import { BrowserManager } from "../browser/manager.js";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -49,6 +51,7 @@ export class Agent {
   readonly memory: MemoryStore;
   readonly lspManager: AgentIntelligence["lspManager"];
   readonly railsIndex: AgentIntelligence["railsIndex"];
+  readonly browser: BrowserManager;
   private readonly toolSelector: DynamicToolSelector;
 
   private readonly provider: Provider;
@@ -56,6 +59,7 @@ export class Agent {
   private readonly router: Router;
   private catalogRefreshed: Promise<void> | null = null;
   private readonly planCheckpoint: CheckpointStore;
+  private readonly sessionStore: SessionStore;
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
   readonly events: AgentEvents;
@@ -127,6 +131,9 @@ export class Agent {
     this.tools.registerLspTools(this.intelligence.lspManager);
     this.tools.registerRailsTools(this.intelligence.railsIndex);
 
+    this.browser = new BrowserManager();
+    this.tools.registerBrowserTools(this.browser);
+
     this.lspManager = this.intelligence.lspManager;
     this.railsIndex = this.intelligence.railsIndex;
 
@@ -135,6 +142,7 @@ export class Agent {
 
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
     this.planCheckpoint = new CheckpointStore(join(devagentDir, "checkpoint.json"));
+    this.sessionStore = new SessionStore(join(devagentDir, "session.json"));
 
     const projectLanguage = this.intelligence.railsIndex.enabled
       ? this.intelligence.railsIndex.workspace.isRails
@@ -217,6 +225,10 @@ export class Agent {
         this.learning.learning.onEpisodeEnd(terminal, text);
         episodeEnded = true;
       }
+      // Persist the transcript after every turn (not just success) so a
+      // killed/restarted process can resume with the model still remembering
+      // this turn — mirrors the plan checkpoint's "save progress as you go".
+      this.sessionStore.save(this.conversation.getMessages());
       return text;
     };
 
@@ -490,6 +502,21 @@ export class Agent {
 
   resetContext(): void {
     this.conversation.reset();
+    this.sessionStore.clear();
+  }
+
+  hasResumableSession(): boolean {
+    return this.sessionStore.load() !== null;
+  }
+
+  /** Restores a persisted conversation transcript, e.g. after a crash/restart.
+   * Returns the restored messages (for replaying into the TUI's visible chat
+   * log) or null if there was nothing to resume. */
+  resumeSession(): ChatMessage[] | null {
+    const saved = this.sessionStore.load();
+    if (!saved) return null;
+    this.conversation.loadMessages(saved);
+    return saved;
   }
 
   private isSummarizing = false;

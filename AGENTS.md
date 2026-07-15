@@ -4,7 +4,8 @@
 
 **DevAgent‑TS** is a TypeScript‑based developer‑agent runtime that enables LLM‑driven coding assistants. It provides:
 - A **capability-based model router** (`src/provider/`) — a `ModelCatalog` discovers installed local + Ollama Cloud models, tags them by capability (coding/vision/reasoning/quick/tools), and a `Router` picks a local-first candidate per request, falling back through the rest on rate-limit/timeout/network errors.
-- **Checkpoint/resume** (`src/runtime/checkpoint.ts`) — the orchestrator persists plan state after every step transition; a crashed multi-step task resumes instead of restarting, without re-running completed steps.
+- **Checkpoint/resume** (`src/runtime/checkpoint.ts`) — the orchestrator persists plan state after every step transition; a crashed multi-step task resumes instead of restarting, without re-running completed steps. Separately, `src/runtime/session.ts`'s `SessionStore` persists the LLM conversation transcript after every turn; `Agent.resumeSession()` / the `/resume` slash command restore it in a new process.
+- **Browser automation** (`src/browser/manager.ts`) — a lazily-launched headless Chromium (Playwright), one reused page, exposed as `browser_navigate`/`click`/`fill`/`get_text`/`screenshot`/`evaluate`/`close` tools.
 - **Parallel step execution** — independent plan steps run concurrently (`Promise.all` per round); dependents still wait for their dependency's batch.
 - **Docker‑sandboxed shell execution** – every `shell` tool call runs inside an isolated container with no network, bounded memory/CPU and hard time‑outs.
 - **LSP‑backed code intelligence** (`src/lsp/`, `src/intelligence/`) — 14 languages configured, degrading to a text fallback when a server isn't installed instead of failing.
@@ -48,7 +49,7 @@ The project uses **Jest** with the `ts-jest` preset.
 ### Run the test suite
 
 ```bash
-npm test          # runs jest — 477 tests across 75 suites
+npm test          # runs jest — 580 tests across 84 suites
 ```
 
 You can also watch tests during development with the standard Jest `--watch` flag (e.g. `npx jest --watch`).
@@ -106,7 +107,7 @@ You can also watch tests during development with the standard Jest `--watch` fla
 │   ├── skills/                   # Skill loader/registry/resolver
 │   ├── tools/                     # Tool base class + 35+ concrete tools + dynamic selector
 │   └── tui/                        # Ink TUI components (main UI, status bar, etc.)
-├── tests/                   # Jest test suite mirroring src layout — 477 tests / 75 suites
+├── tests/                   # Jest test suite mirroring src layout — 580 tests / 84 suites
 ├── package.json             # npm scripts, dependencies, runtime config
 ├── tsconfig*.json           # Typescript compiler config (main + eslint)
 ├── .eslintrc.cjs            # ESLint configuration
@@ -147,7 +148,9 @@ You can also watch tests during development with the standard Jest `--watch` fla
 14. **Workspace Root Resolution — Git Root First, Like Most Editor Tooling**
     - `findWorkspaceRoot` (`src/cli/config.ts`) walks up from `cwd` to the nearest `.git` (dir or file — worktrees work), then falls back to the nearest existing `.devagent/`, then `cwd`. Git-first avoids the old chicken-and-egg bug where a first-ever run in a project, or a run from a subdirectory that hadn't had `.devagent` created yet, silently fell back to `cwd` and started a disconnected `.devagent/` (fragmented history/memory/config per launch directory). All workspace-scoped state hangs off this resolution — `DEVAGENT_WORKSPACE` overrides it outright.
 15. **Testing Philosophy**
-    - Unit tests mock Docker `/run_shell` calls and provider responses (`fetch`); tools that wrap real CLIs (`git`, `docker`, `gh`) are tested against the real binaries for allowlist/rejection behavior, not mocked. Tests assert state transitions and tool outputs rather than UI output, making them fast and deterministic.
+    - Unit tests mock Docker `/run_shell` calls and provider responses (`fetch`); tools that wrap real CLIs (`git`, `docker`, `gh`) are tested against the real binaries for allowlist/rejection behavior, not mocked. Browser tools (`src/browser/`) are tested against a real headless Chromium (`data:` URLs, offline/deterministic), not a Playwright mock. Tests assert state transitions and tool outputs rather than UI output, making them fast and deterministic.
+16. **ESM Migration — Jest Runs in Real ESM Mode, Pinned to Jest 30**
+    - The project is `"type": "module"`; `package.json`'s `test` script runs `node --experimental-vm-modules .../jest`, and `jest.config.js` uses `ts-jest/presets/default-esm`. `tests/jest.setup.js` restores `jest.fn()`/`spyOn()`/`mock()` as a global (not auto-injected in real ESM mode). `jest.mock()` doesn't auto-hoist under ESM — the 5 files that need it use `jest.unstable_mockModule()` + dynamic `await import()` instead (see `tests/tools/shell.test.ts` for the pattern). Jest was bumped from 29 to 30 specifically to fix a real, recurring `signal-exit` dual-package-hazard crash (`Export '__signal_exit_emitter__' is not defined`) that only showed up under `--experimental-vm-modules` — confirmed via multiple full-suite reruns before and after the bump. Don't downgrade Jest without re-verifying that issue doesn't come back.
 
 ---
 

@@ -16,6 +16,7 @@ export type CommandEffect =
   | { kind: "set-tier"; tier: "local" | "cloud" }
   | { kind: "activate-skill"; id: string }
   | { kind: "reset-context" }
+  | { kind: "resume-session" }
   | { kind: "init-workspace" }
   | { kind: "set-agent-mode"; mode: string }
   | { kind: "run-shell"; command: string }
@@ -89,6 +90,12 @@ export function builtinCommands(): SlashCommandRegistry {
     aliases: ["compact"],
     description: "Reset the model conversation context",
     execute: () => ({ kind: "reset-context" }),
+  });
+  registry.register({
+    name: "resume",
+    aliases: ["continue"],
+    description: "Resume the conversation from before a crash/restart",
+    execute: () => ({ kind: "resume-session" }),
   });
   registry.register({
     name: "model",

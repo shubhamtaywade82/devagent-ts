@@ -22,6 +22,12 @@ import {
   SignatureHelpTool, CompletionTool, SemanticTokensTool,
 } from "../tools/lsp-tools.js";
 import { LspManager } from "../lsp/manager.js";
+import {
+  BrowserNavigateTool, BrowserClickTool, BrowserFillTool,
+  BrowserGetTextTool, BrowserScreenshotTool, BrowserEvaluateTool, BrowserCloseTool,
+} from "../tools/browser-tools.js";
+import { BrowserManager } from "../browser/manager.js";
+import { BinancePublicApiTool } from "../tools/binance-tools.js";
 import { SemanticIndex, createRailsTools } from "../intelligence/rails/index.js";
 import { connectMcpServer } from "../mcp/client.js";
 import { Tool } from "../tools/tool.js";
@@ -62,7 +68,8 @@ export class AgentToolManager {
       .register(new RunFormatTool(root))
       .register(new RunBuildTool(root))
       .register(new RunRubocopTool(root))
-      .register(new RunRSpecTool(root));
+      .register(new RunRSpecTool(root))
+      .register(new BinancePublicApiTool());
   }
 
   registerLspTools(lsp: LspManager): void {
@@ -79,6 +86,17 @@ export class AgentToolManager {
       .register(new SignatureHelpTool(lsp))
       .register(new CompletionTool(lsp))
       .register(new SemanticTokensTool(lsp));
+  }
+
+  registerBrowserTools(browser: BrowserManager): void {
+    this.registry
+      .register(new BrowserNavigateTool(browser))
+      .register(new BrowserClickTool(browser))
+      .register(new BrowserFillTool(browser))
+      .register(new BrowserGetTextTool(browser))
+      .register(new BrowserScreenshotTool(browser))
+      .register(new BrowserEvaluateTool(browser))
+      .register(new BrowserCloseTool(browser));
   }
 
   registerRailsTools(rails: SemanticIndex): void {

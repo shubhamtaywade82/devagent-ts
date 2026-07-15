@@ -94,3 +94,78 @@ describe("Agent plan checkpoint/resume", () => {
     expect(agent.hasResumablePlan()).toBe(false);
   });
 });
+
+describe("Agent conversation session resume", () => {
+  let tempDir: string;
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "agent-session-test-"));
+    const encoder = new TextEncoder();
+    (globalThis as any).fetch = jest.fn().mockImplementation(async (url: string) => {
+      if (typeof url === "string" && url.endsWith("/api/tags")) {
+        return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      }
+      const line = JSON.stringify({ message: { role: "assistant", content: "done" }, done: true }) + "\n";
+      let delivered = false;
+      const reader = {
+        read: async () => {
+          if (delivered) return { done: true, value: undefined };
+          delivered = true;
+          return { done: false, value: encoder.encode(line) };
+        },
+      };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ message: { role: "assistant", content: "done" }, done: true }),
+        body: { getReader: () => reader },
+      };
+    });
+  });
+
+  it("has no resumable session for a fresh workspace", () => {
+    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "m" } });
+    expect(agent.hasResumableSession()).toBe(false);
+    expect(agent.resumeSession()).toBeNull();
+  });
+
+  it("persists the transcript after a turn and can resume it in a fresh Agent instance", async () => {
+    const first = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "m" } });
+    await first.runUserMessage("what is 2+2");
+
+    expect(first.hasResumableSession()).toBe(true);
+
+    const second = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "m" } });
+    const restored = second.resumeSession();
+
+    expect(restored).not.toBeNull();
+    expect(restored!.some((m) => m.role === "user" && m.content === "what is 2+2")).toBe(true);
+    expect(restored!.some((m) => m.role === "assistant" && m.content === "done")).toBe(true);
+  });
+
+  it("a follow-up turn after resuming sends the full prior transcript to the model", async () => {
+    const first = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "m" } });
+    await first.runUserMessage("remember the number 42");
+
+    const second = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "m" } });
+    second.resumeSession();
+    await second.runUserMessage("what number did I say");
+
+    const chatBodies = (globalThis.fetch as jest.Mock).mock.calls
+      .filter((c) => c[1]?.body)
+      .map((c) => JSON.parse(c[1].body));
+    const lastCall = chatBodies[chatBodies.length - 1];
+    expect(lastCall.messages.some((m: { content?: string }) => m.content === "remember the number 42")).toBe(true);
+    expect(lastCall.messages.some((m: { content?: string }) => m.content === "what number did I say")).toBe(true);
+  });
+
+  it("resetContext clears the persisted session too", async () => {
+    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "m" } });
+    await agent.runUserMessage("hello");
+    expect(agent.hasResumableSession()).toBe(true);
+
+    agent.resetContext();
+
+    expect(agent.hasResumableSession()).toBe(false);
+  });
+});

@@ -24,7 +24,8 @@ src/
 ## Key Features
 
 - **Capability-based model routing** — `ModelCatalog` discovers installed local + Ollama Cloud models and tags them (`coding`/`vision`/`reasoning`/`quick`/`tools`) by name heuristic; `Router` picks a local-first candidate per capability and falls back through the rest on rate-limit/timeout/network errors. Non-critical turns (low/medium priority, doc/test/lint keywords) delegate to a `quick` model; screenshot/image mentions route to `vision`; architecture/trade-off questions route to `reasoning` — all gracefully no-op back to the primary model when no matching model is installed.
-- **Checkpoint/resume** — the orchestrator persists plan state (`CheckpointStore`, atomic JSON) after every step transition; `Agent.resumePlannedTask()` picks a crashed run back up, resetting only non-terminal step statuses so completed work is never re-run.
+- **Checkpoint/resume** — the orchestrator persists plan state (`CheckpointStore`, atomic JSON) after every step transition; `Agent.resumePlannedTask()` picks a crashed run back up, resetting only non-terminal step statuses so completed work is never re-run. Separately, `SessionStore` persists the full LLM conversation transcript after every turn; `Agent.resumeSession()` / the `/resume` slash command restore it in a fresh process, verified to correctly re-send prior context to the model.
+- **Browser tool** — `src/browser/manager.ts` wraps a lazily-launched headless Chromium (Playwright) with one reused page; `browser_navigate`/`click`/`fill`/`get_text`/`screenshot`/`evaluate`/`close` tools expose it to the agent.
 - **Parallel step execution** — independent plan steps (no dependency between them) run concurrently via `Promise.all` each round; dependents still wait for their dependency's batch to finish.
 - **Tool-first architecture** — the LLM never searches files, greps, or runs git/docker/gh by itself; every such action is a deterministic `Tool` with a JSON-schema signature. `DynamicToolSelector` prunes which tool schemas are exposed per turn instead of dumping the full registry.
 - **LSP intelligence** — 14 languages configured (TypeScript, Ruby, Python, Go, Rust, Java, C#, C/C++, PHP, Swift, Kotlin, Dart, YAML, Docker), with definition/references/hover/diagnostics/rename/completion/etc. exposed as tools.
@@ -39,6 +40,7 @@ src/
 
 Filesystem/edit: `read_file`, `write_file`, `patch`, `append`, `list_directory`, `delete_file`, `make_directory`, `copy_file`, `move_file`, `snapshot_backup`, `watch`, `search_code`.
 VCS/infra: `git`, `docker` (build/run/stop/logs/exec/compose; `--privileged` blocked), `github` (`gh` pr/issue/release/repo/run/api; merge/delete/close blocked), `sqlite_query` (read-only: SELECT/PRAGMA/EXPLAIN only).
+Market data: `binance_public_api` (GET-only, no API key — spot/USD-M/COIN-M public endpoints: ticker, klines, order book, exchange info).
 Project: `run_tests`, `run_lint`, `run_format`, `run_build`, `rubocop`, `rspec`, `shell` (Docker-sandboxed).
 Code intelligence (LSP-backed): `get_definition`, `find_references`, `rename_symbol`, `workspace_symbols`, `document_symbols`, `hover`, `diagnostics`, `code_actions`, `format_document`, `signature_help`, `completion`, `semantic_tokens`.
 Rails semantic: `find_model`, `find_route`, `find_controller`, `find_service`, `find_spec`, `find_association`, `find_callback`, `rails_context`, and more.
@@ -100,7 +102,7 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 
 ```bash
 npm install
-npm test          # jest — 477 tests across 75 suites
+npm test          # jest — 589 tests across 85 suites
 npm run build     # TypeScript → dist/
 npm run benchmark # score installed models on JSON validity + tool-calling
 ```

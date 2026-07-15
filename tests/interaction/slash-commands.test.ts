@@ -15,7 +15,14 @@ describe("SlashCommandRegistry", () => {
     expect(registry.find("help")?.name).toBe("help");
     expect(registry.find("h")?.name).toBe("help");
     expect(registry.find("compact")?.name).toBe("reset");
+    expect(registry.find("resume")?.name).toBe("resume");
+    expect(registry.find("continue")?.name).toBe("resume");
     expect(registry.find("nope")).toBeUndefined();
+  });
+
+  it("/resume executes to a resume-session effect", () => {
+    const registry = builtinCommands();
+    expect(registry.find("resume")?.execute("")).toEqual({ kind: "resume-session" });
   });
 
   it("completes by prefix", () => {

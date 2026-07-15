@@ -68,6 +68,13 @@ export class AgentConversation {
     return this.messages;
   }
 
+  /** Replaces the whole transcript, e.g. when resuming a persisted session.
+   * The next runUserMessage call refreshes message[0]'s system prompt in
+   * place via refreshSystemPrompt, so a stale saved prompt self-heals. */
+  loadMessages(messages: ChatMessage[]): void {
+    this.messages = messages;
+  }
+
   pruneContext(maxMessages = 25): void {
     if (this.messages.length <= maxMessages) return;
 

@@ -45,6 +45,8 @@ export interface ShellAgent {
   setModel?(model: string): void;
   setTier?(tier: string): void;
   resetContext?(): void;
+  resumeSession?(): Array<{ role: string; content: string }> | null;
+  hasResumableSession?(): boolean;
   listModels?(): Promise<string[]>;
   /** Round-trips a real request through the new model; true, or an error string. */
   validateModel?(): Promise<true | string>;
@@ -442,6 +444,25 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           agent?.resetContext?.();
           bus.publish({ type: "notification", kind: "info", text: "Context reset" });
           break;
+        case "resume-session": {
+          const restored = agent?.resumeSession?.();
+          if (!restored || restored.length === 0) {
+            bus.publish({ type: "notification", kind: "info", text: "No previous session to resume" });
+            break;
+          }
+          bus.publish({ type: "conversation.clear" });
+          for (const m of restored) {
+            if (m.role !== "user" && m.role !== "assistant") continue; // skip system/tool noise in the log
+            if (!m.content) continue;
+            bus.publish({ type: "conversation.message", role: m.role, text: m.content });
+          }
+          bus.publish({
+            type: "notification",
+            kind: "success",
+            text: `Resumed session (${restored.length} messages)`,
+          });
+          break;
+        }
         case "learn":
           if (agent && agent.addLearning) {
             agent.addLearning("user_preference", "user explicitly typed /learn", effect.rule);
