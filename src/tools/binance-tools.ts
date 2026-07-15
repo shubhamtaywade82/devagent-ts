@@ -4,7 +4,7 @@ import { BinanceStreamManager, AlertCondition } from "../exchange/binance-stream
 
 const MARKETS: Record<string, { base: string; prefixes: string[] }> = {
   spot: { base: "https://api.binance.com", prefixes: ["/api/v3/"] },
-  usdm: { base: "https://fapi.binance.com", prefixes: ["/fapi/v1/", "/fapi/v2/"] },
+  usdm: { base: "https://fapi.binance.com", prefixes: ["/fapi/v1/", "/fapi/v2/", "/futures/data/"] },
   coinm: { base: "https://dapi.binance.com", prefixes: ["/dapi/v1/"] },
 };
 

@@ -59,6 +59,14 @@ describe("BinancePublicApiTool", () => {
     expect(result.error).toBe("InvalidPath");
   });
 
+  it("allows /futures/data/ paths on usdm (open interest history, long/short ratio)", async () => {
+    (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+    const tool = new BinancePublicApiTool();
+    const result = await tool.call({ market: "usdm", path: "/futures/data/openInterestHist", params: { symbol: "BTCUSDT", period: "1h" } });
+    expect(result.error).toBeUndefined();
+    expect(result.status).toBe(200);
+  });
+
   it("surfaces non-ok responses as BinanceApiError without throwing", async () => {
     (globalThis as any).fetch = jest.fn().mockResolvedValue({
       ok: false,

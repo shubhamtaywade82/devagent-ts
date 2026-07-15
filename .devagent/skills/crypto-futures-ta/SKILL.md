@@ -1,99 +1,131 @@
 ---
 name: crypto-futures-ta
 description: >
-  Use when the user asks for technical analysis, a trading setup, an
-  "edge", entry/exit levels, or a trade idea on a crypto symbol (spot
-  or futures) backed by Binance data. Triggers for: "technical
-  analysis for X", "trading setup", "find an edge", "should I long or
-  short X", "SOLUSDT/BTCUSDT strategy", futures funding/open-interest
-  reads, order-book/order-flow reads. Produces a structured,
-  institutional-desk-style analysis from real tool output, not
-  freehand commentary.
-tags: [binance, crypto, futures, technical-analysis, trading, trading-setup]
+  Use when the user asks for technical analysis, a trading setup, a
+  "strategy", a market "edge", entry/exit levels, or a trade idea on a
+  crypto symbol (spot or futures) backed by Binance data. Triggers for:
+  "technical analysis for X", "trading setup", "find an edge", "build a
+  strategy", "should I long or short X", "SOLUSDT/BTCUSDT strategy",
+  funding/open-interest/long-short-ratio reads, order-book/order-flow
+  reads. Enforces a discover-the-edge-first research process instead of
+  jumping straight to a strategy.
+tags: [binance, crypto, futures, technical-analysis, trading, trading-setup, quant-research]
 compatibility: >
-  Requires the binance_technical_indicators, binance_order_book,
-  binance_futures_stats, and binance_screener tools registered on the
-  agent (src/tools/binance-tools.ts).
+  Requires the binance_public_api, binance_technical_indicators,
+  binance_order_book, binance_futures_stats, and binance_screener tools
+  registered on the agent (src/tools/binance-tools.ts).
 ---
 
-# Crypto Futures Technical Analysis
+# Crypto Futures Research & Technical Analysis
 
-## Ground rule
+## The objective is not a strategy
 
-Every number in the output must come from a tool call made *this turn*.
-Never estimate, round from memory, or eyeball raw kline/depth JSON by
-hand — `binance_technical_indicators` already computes SMA/EMA/RSI/MACD/
-Bollinger deterministically; use it instead of reading candle arrays.
-If a tool call fails or returns an error, say so — don't fill the gap
-with a plausible-sounding guess.
+The objective is to discover a statistically significant, repeatable
+market behavior — a strategy is just the implementation of an already-
+discovered edge. Never respond to "build me a strategy" by writing
+entry/exit rules directly. First establish: what pattern is claimed,
+what evidence supports it, how strong is that evidence given the data
+actually pulled this turn. Only convert a pattern into a concrete setup
+once that evidence is stated.
 
-## Data to pull
+If the user asks for "a profitable strategy" with no data pulled yet,
+treat that as a request to *start the research loop below*, not a
+request for boilerplate EMA-cross rules.
 
-For a full setup on `SYMBOL`, call in this order (parallelize where the
-agent supports it):
+## Ground rule: no invented market facts
 
-1. `binance_technical_indicators` — spot, interval `1h` for swing bias,
-   `15m` for entry timing. All indicators, `limit >= 100`.
-2. `binance_order_book` — `limit: 50` or `100`. Read `imbalance` for
-   near-term order-flow bias.
-3. `binance_futures_stats` — only if the user means futures/perp
-   (funding rate, open interest). Skip for a pure spot question.
-4. `binance_screener` — only if comparing against other symbols or the
-   user didn't name one.
+Every number and every market claim in the output must trace back to a
+tool call made *this turn*. Never estimate, round from memory, or
+eyeball raw kline/depth JSON by hand — `binance_technical_indicators`
+already computes SMA/EMA/RSI/MACD/Bollinger deterministically; use it
+instead of reading candle arrays. If a tool call fails or data is
+insufficient, say so and either pull more data or state the limitation
+— never fill the gap with a plausible-sounding guess.
 
-Use two timeframes minimum (e.g. 1h for structure, 15m for trigger) —
-single-timeframe reads produce lower-confidence setups; say so if only
-one timeframe was pulled.
+State the evidence chain explicitly: **Observation → Evidence →
+Hypothesis → Confluence check → Setup (only if confluence supports it)**.
+If a link is missing (no supporting data pulled), do not produce a
+directional call — say what's missing instead.
 
-## Output structure
+## Actual available tools (do not invent others)
 
-Always answer in this shape, institutional-desk style — terse, numeric,
-no hedging filler:
+Confirmed registered on this agent — use these, not a hypothetical
+broader toolset:
 
-**1. Market structure** — trend direction from price vs SMA20/EMA20 on
-the higher timeframe. State it as a fact from the numbers, not vibes.
+- `binance_technical_indicators` — SMA20/EMA20/RSI14/MACD/Bollinger from
+  klines. Any market/interval.
+- `binance_order_book` — bid/ask volume + imbalance.
+- `binance_futures_stats` — current mark price, funding rate, open
+  interest (single latest snapshot, USD-M futures only).
+- `binance_screener` — RSI oversold/overbought scan across a symbol list.
+- `binance_watch_price` / `binance_unwatch_price` / `binance_price_alert`
+  — live WebSocket ticker + threshold alerts.
+- `binance_public_api` — generic GET escape hatch for anything not
+  wrapped above. Useful for:
+  - `/api/v3/trades`, `/api/v3/aggTrades` (spot recent trades)
+  - `/fapi/v1/fundingRate` (funding rate *history*, not just latest)
+  - `/futures/data/openInterestHist` (open interest history, usdm)
+  - `/futures/data/globalLongShortAccountRatio`,
+    `/futures/data/topLongShortPositionRatio`,
+    `/futures/data/takerlongshortRatio` (positioning/crowding history,
+    usdm)
+  All are public, GET-only, no API key. Pass `market`, `path`, `params`.
 
-**2. Momentum** — RSI14 reading (oversold <30 / neutral 30-70 /
-overbought >70) and MACD state (line vs signal, histogram
-direction/sign = momentum accelerating or decaying).
+## Not available — say so, don't fake it
 
-**3. Volatility** — price position relative to Bollinger bands (near
-upper/lower/mid), band width if it matters (wide = trending, tight =
-squeeze setup).
+If the research would benefit from these, say explicitly that the data
+isn't available rather than approximating it:
 
-**4. Order flow** — order-book imbalance sign/magnitude; funding rate
-sign (positive = longs paying shorts, crowded long; negative = crowded
-short) and open interest level if futures data was pulled.
+- **Aggregate market liquidations** — Binance only exposes this as a
+  public WebSocket stream (`!forceOrder@arr`), not wrapped by any tool
+  here yet.
+- **Backtesting / walk-forward / Monte Carlo / parameter-sensitivity
+  testing** — no historical simulation engine exists in this agent.
+  Any "expectancy" or "win rate" claim without one is an *untested
+  hypothesis*, not a validated result — label it as such.
+- **Order execution, account data, paper trading** — not implemented;
+  this agent is read-only market data, it cannot place or simulate
+  orders.
 
-**5. Confluence** — count how many of (structure, momentum, volatility,
-order-flow) agree on direction. State the count explicitly (e.g. "3/4
-bullish"). This *is* the edge estimate — don't claim "high probability"
-without showing the confluence count that backs it.
+## Research loop
 
-**6. Trade setup** (only if confluence >= 3/4; otherwise say "no
-qualifying setup" and stop here):
+1. **Observe** — pull indicators + order book + (if futures) funding/OI
+   for the symbol in question. Two timeframes minimum for a real read
+   (e.g. 1h structure, 15m trigger) — note if only one was pulled.
+2. **Form a hypothesis** — state a specific, falsifiable claim (e.g.
+   "RSI<30 + positive bid imbalance + negative funding co-occurring
+   suggests short-covering pressure"), not a vague vibe.
+3. **Check confluence** — count how many of (structure, momentum,
+   volatility, order-flow, positioning) actually agree with the
+   hypothesis on the data pulled. State the count explicitly (e.g.
+   "3/5 bullish"). This *is* the edge estimate for this turn — never
+   claim "high probability" without showing it.
+4. **Self-criticism** — before presenting a setup, check: is this
+   conclusion drawn from a single snapshot (small sample, could be
+   noise) or from history (fundingRate/openInterestHist pulled across
+   multiple periods)? A single-snapshot read is weaker evidence than a
+   pattern repeated across several periods — say which one this is.
+5. **Only then, a setup** (if confluence and evidence are strong
+   enough — otherwise say "no qualifying setup, evidence is mixed" and
+   stop):
    - Direction: long / short
-   - Entry zone: specific price level or range, tied to a real level
-     (Bollinger band, SMA/EMA, recent swing) — not an arbitrary number
+   - Entry zone: tied to a real level (Bollinger band, SMA/EMA, recent
+     swing) — not an arbitrary number
    - Invalidation (stop): the level that proves the thesis wrong
-   - Target(s): next structural level, with R:R computed from
-     entry/stop/target (state the ratio, e.g. "R:R ≈ 1:2.3")
-   - Position sizing note: risk-based, not fixed-size ("risk 0.5-1% of
-     account to the stop distance above")
-
-**7. Invalidation / no-trade conditions** — what would flip this call
-(e.g. "if RSI breaks above 70 before entry, thesis is stale, re-pull
-data").
+   - Target(s) with R:R computed from entry/stop/target
+   - Position sizing note: risk-based ("risk 0.5-1% of account to the
+     stop distance"), never a fixed size
+   - What would flip this call
 
 ## Discipline
 
-- No setup is "guaranteed" or "high probability" without the confluence
-  count shown. If confluence is 2/4 or lower, say the market is mixed
-  and do not manufacture a directional call.
-- Funding rate and open interest are sentiment/crowding signals, not
-  entry triggers on their own — extreme positive funding + bearish
-  technicals is a stronger short case than either alone.
-- Always timestamp implicitly by stating the interval/limit pulled, so
-  the user knows how fresh the read is.
-- This is data-driven scenario analysis, not financial advice — say so
-  once, briefly, don't repeat it every section.
+- Funding rate and open interest/positioning ratios are
+  sentiment/crowding signals, not entry triggers alone — extreme
+  positive funding + bearish technicals is a stronger case than either
+  alone.
+- No claim of "edge", "high probability", or "statistically
+  significant" without stating what evidence backs it and how many
+  data points/periods it was observed over.
+- This is data-driven scenario analysis from live market data, not a
+  validated backtested strategy and not financial advice — say once,
+  briefly.
