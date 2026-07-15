@@ -28,6 +28,7 @@ export interface CliConfig {
   lsp?: LspCliConfig;
   toolSelectionMode?: "heuristic" | "llm" | "hybrid";
   maxActiveTools?: number;
+  apiKeys?: Record<string, string>;
 }
 
 interface ConfigFile {
@@ -41,6 +42,7 @@ interface ConfigFile {
   shellTimeoutSec?: number;
   toolSelectionMode?: string;
   maxActiveTools?: number;
+  apiKeys?: Record<string, string>;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
@@ -121,17 +123,32 @@ export function loadConfig(): CliConfig {
   const maxActiveTools = rawMaxActiveTools && Number.isFinite(Number(rawMaxActiveTools)) ? Number(rawMaxActiveTools) : undefined;
   const toolSelectionMode = (fromEnv("DEVAGENT_TOOL_SELECTION_MODE") || file.toolSelectionMode) as "heuristic" | "llm" | "hybrid" | undefined;
 
+  const apiKeys: Record<string, string> = {
+    ...file.apiKeys,
+  };
+  if (fromEnv("OLLAMA_API_KEY")) apiKeys.ollama = fromEnv("OLLAMA_API_KEY")!;
+  if (fromEnv("OPENAI_API_KEY")) apiKeys.openai = fromEnv("OPENAI_API_KEY")!;
+  if (fromEnv("ANTHROPIC_API_KEY")) apiKeys.anthropic = fromEnv("ANTHROPIC_API_KEY")!;
+  if (fromEnv("DEEPSEEK_API_KEY")) apiKeys.deepseek = fromEnv("DEEPSEEK_API_KEY")!;
+
+  const primaryApiKey = fromEnv("OLLAMA_API_KEY") || file.apiKey;
+  if (primaryApiKey) {
+    apiKeys.ollama = apiKeys.ollama || primaryApiKey;
+    apiKeys.cloud = apiKeys.cloud || primaryApiKey;
+  }
+
   return {
     model: fromEnv("DEVAGENT_MODEL") || file.model || "qwen3.5:4b",
     workspaceRoot,
     tier: (fromEnv("DEVAGENT_TIER") || file.tier) === "cloud" ? "cloud" : "local",
     host: fromEnv("OLLAMA_HOST") || file.host,
-    apiKey: fromEnv("OLLAMA_API_KEY") || file.apiKey,
+    apiKey: primaryApiKey,
     timeoutMs,
     systemPrompt,
     shellImage: fromEnv("DEVAGENT_SHELL_IMAGE") || file.shellImage,
     shellTimeoutSec,
     toolSelectionMode,
     maxActiveTools,
+    apiKeys,
   };
 }

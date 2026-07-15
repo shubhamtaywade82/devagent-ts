@@ -1,4 +1,5 @@
 import { PlanStep, StepRunner, Planner, HistoryEntry, StepStatus } from "./types";
+import { CheckpointStore } from "../runtime/checkpoint";
 
 export class OrchestratorError extends Error {}
 
@@ -32,6 +33,7 @@ export interface OrchestratorOptions {
   maxReplans?: number;
   logger?: Pick<Console, "info" | "warn" | "error">;
   onStepChange?: (step: PlanStep) => void;
+  checkpoint?: CheckpointStore;
 }
 
 export class Orchestrator {
@@ -46,6 +48,7 @@ export class Orchestrator {
   private readonly history: HistoryEntry[] = [];
   private replanCount = 0;
   private readonly onStepChange?: (step: PlanStep) => void;
+  private readonly checkpoint?: CheckpointStore;
 
   constructor(opts: OrchestratorOptions) {
     this.steps = new Map(opts.steps.map((s) => [s.id, s]));
@@ -56,16 +59,30 @@ export class Orchestrator {
     this.maxReplans = opts.maxReplans ?? DEFAULT_MAX_REPLANS;
     this.logger = opts.logger ?? console;
     this.onStepChange = opts.onStepChange;
+    this.checkpoint = opts.checkpoint;
+  }
+
+  private saveCheckpoint(): void {
+    this.checkpoint?.save({
+      steps: [...this.steps.values()],
+      history: this.history,
+      replanCount: this.replanCount,
+    });
   }
 
   async run(): Promise<PlanStep[]> {
     let order = this.topologicalOrder();
 
     for (;;) {
-      const next = order.find((s) => s.status === "pending" && this.dependenciesSatisfied(s));
-      if (!next) break;
+      // All steps whose dependencies are already satisfied run concurrently —
+      // e.g. independent coder/reviewer/tester steps fan out in one round
+      // instead of executing one at a time. Steps that only become ready
+      // because this round completed are picked up in the next round.
+      const ready = order.filter((s) => s.status === "pending" && this.dependenciesSatisfied(s));
+      if (!ready.length) break;
 
-      const replanNeeded = await this.runStep(next);
+      const results = await Promise.all(ready.map((s) => this.runStep(s)));
+      const replanNeeded = results.some(Boolean);
       if (!replanNeeded) continue;
 
       this.replanCount += 1;
@@ -83,6 +100,7 @@ export class Orchestrator {
       await this.rollbackAll();
     }
 
+    this.checkpoint?.clear();
     return [...this.steps.values()];
   }
 
@@ -101,6 +119,7 @@ export class Orchestrator {
     }
     step.status = to;
     this.onStepChange?.(step);
+    this.saveCheckpoint();
   }
 
   private async runStep(step: PlanStep): Promise<boolean> {
@@ -146,6 +165,7 @@ export class Orchestrator {
     for (const step of revised) {
       this.steps.set(step.id, step);
     }
+    this.saveCheckpoint();
   }
 
   private topologicalOrder(): PlanStep[] {

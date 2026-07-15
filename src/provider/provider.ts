@@ -45,6 +45,7 @@ export interface ProviderOptions {
   model: string;
   host?: string;
   apiKey?: string;
+  apiKeys?: Record<string, string>;
   timeoutMs?: number;
 }
 
@@ -53,6 +54,7 @@ export class Provider {
   private model: string;
   private host: string;
   private readonly apiKey?: string;
+  private readonly apiKeys?: Record<string, string>;
   private readonly timeoutMs: number;
 
   constructor(opts: ProviderOptions) {
@@ -62,6 +64,7 @@ export class Provider {
       opts.host ??
       (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
     this.apiKey = opts.apiKey;
+    this.apiKeys = opts.apiKeys;
     // Cloud has a 60s connect timeout; local has no timeout — never kill a running generation.
     this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 0);
   }
@@ -86,22 +89,38 @@ export class Provider {
     this.host = host;
   }
 
+  private getApiKeyForModel(modelName: string): string | undefined {
+    if (!this.apiKeys) return this.apiKey;
+
+    const m = modelName.toLowerCase();
+    if (this.apiKeys[modelName]) return this.apiKeys[modelName];
+    if (this.apiKeys[m]) return this.apiKeys[m];
+
+    if (m.startsWith("gpt-") || m.startsWith("o1-") || m.startsWith("openai/")) {
+      return this.apiKeys.openai || this.apiKey;
+    }
+    if (m.startsWith("claude-") || m.startsWith("anthropic/")) {
+      return this.apiKeys.anthropic || this.apiKey;
+    }
+    if (m.startsWith("deepseek")) {
+      return this.apiKeys.deepseek || this.apiKey;
+    }
+
+    return this.apiKeys.ollama || this.apiKeys.cloud || this.apiKey;
+  }
+
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {
-    if (this.tier === "cloud" && !this.apiKey) {
+    const activeKey = this.getApiKeyForModel(this.model);
+    if (this.tier === "cloud" && !activeKey) {
       throw new ProviderError("missing apiKey for cloud chat");
     }
 
     const body: Record<string, unknown> = { model: this.model, messages, stream: opts.stream ?? false };
     if (opts.tools) body.tools = opts.tools;
 
-    // For local models: pass num_ctx: 0 so Ollama uses the model's full native context window
-    // and never silently truncates the conversation.
-    if (this.tier === "local") {
-      body.options = { num_ctx: 0 };
-    }
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (this.tier === "cloud") headers.Authorization = `Bearer ${this.apiKey}`;
+    if (this.tier === "cloud") headers.Authorization = `Bearer ${activeKey}`;
 
     let resp: Response;
     if (this.tier === "local" || this.timeoutMs === 0) {
@@ -146,8 +165,9 @@ export class Provider {
     const path = this.tier === "cloud" ? "/v1/models" : "/api/tags";
     const headers: Record<string, string> = {};
     if (this.tier === "cloud") {
-      if (!this.apiKey) throw new ProviderError("missing apiKey for cloud availableModels");
-      headers.Authorization = `Bearer ${this.apiKey}`;
+      const activeKey = this.getApiKeyForModel(this.model);
+      if (!activeKey) throw new ProviderError("missing apiKey for cloud availableModels");
+      headers.Authorization = `Bearer ${activeKey}`;
     }
 
     let resp: Response;

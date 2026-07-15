@@ -14,6 +14,7 @@
     "start": "node dist/tui/index.js",
     "dev": "tsx src/tui/index.ts",
     "dev:legacy": "tsx src/cli/tui.ts",
+    "benchmark": "tsx src/benchmark/cli.ts",
     "lint": "eslint src tests --ext .ts,.tsx",
     "format:check": "prettier --check src tests"
   },

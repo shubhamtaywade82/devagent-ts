@@ -135,3 +135,80 @@ describe("Agent non-critical task model delegation", () => {
     expect(firstCallBody.model).toBe("opencode:latest");
   });
 });
+
+describe("Agent vision/reasoning capability routing", () => {
+  let tempDir: string;
+
+  function mockFetchWithModels(models: string[]) {
+    const encoder = new TextEncoder();
+    (globalThis as any).fetch = jest.fn().mockImplementation(async (url) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/api/tags") || urlStr.includes("/v1/models")) {
+        return { ok: true, status: 200, json: async () => ({ models: models.map((name) => ({ name })) }) };
+      }
+      const line = JSON.stringify({ message: { role: "assistant", content: "ok" }, done: true }) + "\n";
+      let delivered = false;
+      const reader = {
+        read: async () => {
+          if (delivered) return { done: true, value: undefined };
+          delivered = true;
+          return { done: false, value: encoder.encode(line) };
+        },
+      };
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ message: { role: "assistant", content: "ok" }, done: true }),
+        body: { getReader: () => reader },
+      };
+    });
+  }
+
+  function chatCallBody(): { model: string } {
+    const calls = (globalThis.fetch as jest.Mock).mock.calls;
+    const postCall = calls.find((c) => c[1] && c[1].body);
+    expect(postCall).toBeDefined();
+    return JSON.parse(postCall![1].body);
+  }
+
+  beforeEach(async () => {
+    tempDir = await mkdtemp(join(tmpdir(), "agent-test-"));
+  });
+
+  it("routes a screenshot-mentioning task to the installed vision model", async () => {
+    mockFetchWithModels(["qwen3-vl:4b", "qwen3:8b"]);
+    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "original-model" } });
+
+    await agent.runUserMessage("Look at this screenshot and tell me what's wrong with the layout");
+
+    expect(chatCallBody().model).toBe("qwen3-vl:4b");
+    expect(agent.currentModel).toBe("original-model");
+  });
+
+  it("routes an architecture question to the installed reasoning model", async () => {
+    mockFetchWithModels(["deepseek-r1:8b", "qwen3:8b"]);
+    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "original-model" } });
+
+    await agent.runUserMessage("What are the trade-offs of this architecture before we commit to it?");
+
+    expect(chatCallBody().model).toBe("deepseek-r1:8b");
+  });
+
+  it("falls back to the primary model when no vision model is installed", async () => {
+    mockFetchWithModels(["qwen3:8b"]); // no vision-capable model in the catalog
+    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "original-model" } });
+
+    await agent.runUserMessage("Look at this screenshot and tell me what's wrong");
+
+    expect(chatCallBody().model).toBe("original-model");
+  });
+
+  it("does not route a plain coding task to vision or reasoning", async () => {
+    mockFetchWithModels(["qwen3-vl:4b", "deepseek-r1:8b"]);
+    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "original-model" } });
+
+    await agent.runUserMessage("Add a null check to the parser");
+
+    expect(chatCallBody().model).toBe("original-model");
+  });
+});

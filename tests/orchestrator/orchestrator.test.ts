@@ -1,5 +1,9 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { Orchestrator, OrchestratorError } from "../../src/orchestrator/orchestrator";
 import { PlanStep, StepRunner, Planner, StepOutcome } from "../../src/orchestrator/types";
+import { CheckpointStore, sanitizeResumedSteps } from "../../src/runtime/checkpoint";
 
 const noopLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 
@@ -107,6 +111,58 @@ describe("Orchestrator", () => {
     expect(rolledBack).toEqual(["rollback-b", "rollback-a"]);
   });
 
+  it("runs independent steps concurrently instead of one at a time", async () => {
+    // "coder" and "reviewer" both depend only on "planner" — once it
+    // completes they should overlap in-flight, not run sequentially.
+    const steps = [makeStep("planner"), makeStep("coder", ["planner"]), makeStep("reviewer", ["planner"])];
+    const inFlight = new Set<string>();
+    let maxConcurrent = 0;
+
+    const runner: StepRunner = {
+      async run(step) {
+        inFlight.add(step.id);
+        maxConcurrent = Math.max(maxConcurrent, inFlight.size);
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        inFlight.delete(step.id);
+        return { kind: "success", output: {} };
+      },
+    };
+
+    const orchestrator = new Orchestrator({
+      steps,
+      runner,
+      planner: new StubPlanner(),
+      runRollback: async () => {},
+      logger: noopLogger,
+    });
+    await orchestrator.run();
+
+    expect(maxConcurrent).toBe(2);
+  });
+
+  it("does not start a dependent step until its dependency's batch has completed", async () => {
+    const steps = [makeStep("a"), makeStep("b", ["a"])];
+    const startOrder: string[] = [];
+    const runner: StepRunner = {
+      async run(step) {
+        startOrder.push(step.id);
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        return { kind: "success", output: {} };
+      },
+    };
+
+    const orchestrator = new Orchestrator({
+      steps,
+      runner,
+      planner: new StubPlanner(),
+      runRollback: async () => {},
+      logger: noopLogger,
+    });
+    await orchestrator.run();
+
+    expect(startOrder).toEqual(["a", "b"]);
+  });
+
   it("throws on a dependency cycle", async () => {
     const steps = [makeStep("a", ["b"]), makeStep("b", ["a"])];
     const orchestrator = new Orchestrator({
@@ -164,5 +220,101 @@ describe("Orchestrator", () => {
       "s1:reviewing",
       "s1:completed",
     ]);
+  });
+});
+
+describe("Orchestrator checkpointing", () => {
+  let dir: string;
+  let checkpointPath: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(join(tmpdir(), "orchestrator-checkpoint-"));
+    checkpointPath = join(dir, "checkpoint.json");
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("clears the checkpoint once the whole plan completes", async () => {
+    const checkpoint = new CheckpointStore(checkpointPath);
+    const steps = [makeStep("a"), makeStep("b", ["a"])];
+    const orchestrator = new Orchestrator({
+      steps,
+      runner: { run: async () => ({ kind: "success", output: {} }) },
+      planner: new StubPlanner(),
+      runRollback: async () => {},
+      logger: noopLogger,
+      checkpoint,
+    });
+
+    await orchestrator.run();
+
+    expect(checkpoint.load()).toBeNull();
+  });
+
+  it("leaves a checkpoint behind mid-run that reflects progress so far", async () => {
+    const checkpoint = new CheckpointStore(checkpointPath);
+    const steps = [makeStep("a"), makeStep("b", ["a"])];
+    let seenMidRunSnapshot: string[] | null = null;
+
+    const runner: StepRunner = {
+      async run(step) {
+        if (step.id === "a") {
+          // Simulate a crash right after "a" finishes but before "b" starts:
+          // read the checkpoint a fresh CheckpointStore instance would see.
+          const snapshot = new CheckpointStore(checkpointPath).load();
+          seenMidRunSnapshot = snapshot?.steps.map((s) => `${s.id}:${s.status}`) ?? null;
+        }
+        return { kind: "success", output: {} };
+      },
+    };
+
+    const orchestrator = new Orchestrator({
+      steps,
+      runner,
+      planner: new StubPlanner(),
+      runRollback: async () => {},
+      logger: noopLogger,
+      checkpoint,
+    });
+    await orchestrator.run();
+
+    expect(seenMidRunSnapshot).toEqual(expect.arrayContaining(["a:implementing", "b:pending"]));
+  });
+
+  it("resumes an interrupted plan without re-running completed steps", async () => {
+    // "a" already completed before the crash; "b" was mid-flight (implementing)
+    // when the process died, so its outcome is unknown.
+    const crashedSteps: PlanStep[] = [
+      { id: "a", description: "a", status: "completed", dependencies: [], retryCount: 0 },
+      { id: "b", description: "b", status: "implementing", dependencies: ["a"], retryCount: 0 },
+    ];
+    const checkpoint = new CheckpointStore(checkpointPath);
+    checkpoint.save({ steps: crashedSteps, history: [], replanCount: 0 });
+
+    const executed: string[] = [];
+    const runner: StepRunner = {
+      async run(step) {
+        executed.push(step.id);
+        return { kind: "success", output: {} };
+      },
+    };
+
+    const saved = checkpoint.load()!;
+    const orchestrator = new Orchestrator({
+      steps: sanitizeResumedSteps(saved.steps),
+      runner,
+      planner: new StubPlanner(),
+      runRollback: async () => {},
+      logger: noopLogger,
+      checkpoint,
+    });
+    const result = await orchestrator.run();
+
+    expect(executed).toEqual(["b"]);
+    expect(result.find((s) => s.id === "a")?.status).toBe("completed");
+    expect(result.find((s) => s.id === "b")?.status).toBe("completed");
+    expect(checkpoint.load()).toBeNull();
   });
 });

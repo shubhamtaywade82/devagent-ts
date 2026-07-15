@@ -30,3 +30,80 @@ describe("Provider error redaction", () => {
     await expect(provider.chat([{ role: "user", content: "hi" }])).rejects.not.toThrow(/sk-secret-abc123/);
   });
 });
+
+describe("Provider dynamic key resolution", () => {
+  const fakeFetch = jest.fn().mockResolvedValue({
+    ok: true,
+    status: 200,
+    json: async () => ({ message: { role: "assistant", content: "ok" }, done: true }),
+  });
+
+  beforeEach(() => {
+    (globalThis as any).fetch = fakeFetch;
+    fakeFetch.mockClear();
+  });
+
+  it("selects key matching model pattern", async () => {
+    const apiKeys = {
+      openai: "openai_key",
+      anthropic: "anthropic_key",
+      deepseek: "deepseek_key",
+      ollama: "ollama_key",
+    };
+
+    const provider = new Provider({
+      tier: "cloud",
+      model: "gpt-4o",
+      apiKeys,
+      apiKey: "fallback_key",
+      host: "https://x",
+    });
+
+    await provider.chat([{ role: "user", content: "hi" }]);
+
+    expect(fakeFetch).toHaveBeenCalled();
+    const [, options] = fakeFetch.mock.calls[0];
+    expect(options.headers.Authorization).toBe("Bearer openai_key");
+  });
+
+  it("selects anthropic key for claude models", async () => {
+    const apiKeys = {
+      openai: "openai_key",
+      anthropic: "anthropic_key",
+    };
+
+    const provider = new Provider({
+      tier: "cloud",
+      model: "claude-3-opus",
+      apiKeys,
+      apiKey: "fallback_key",
+      host: "https://x",
+    });
+
+    await provider.chat([{ role: "user", content: "hi" }]);
+
+    expect(fakeFetch).toHaveBeenCalled();
+    const [, options] = fakeFetch.mock.calls[0];
+    expect(options.headers.Authorization).toBe("Bearer anthropic_key");
+  });
+
+  it("falls back to primary apiKey if no specific key exists", async () => {
+    const apiKeys = {
+      openai: "openai_key",
+    };
+
+    const provider = new Provider({
+      tier: "cloud",
+      model: "claude-3-opus",
+      apiKeys,
+      apiKey: "fallback_key",
+      host: "https://x",
+    });
+
+    await provider.chat([{ role: "user", content: "hi" }]);
+
+    expect(fakeFetch).toHaveBeenCalled();
+    const [, options] = fakeFetch.mock.calls[0];
+    expect(options.headers.Authorization).toBe("Bearer fallback_key");
+  });
+});

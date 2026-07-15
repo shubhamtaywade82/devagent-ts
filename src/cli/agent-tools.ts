@@ -9,6 +9,9 @@ import { SnapshotBackupTool } from "../tools/backup-tools";
 import { WatchTool } from "../tools/watch-tool";
 import { SearchCodeTool } from "../tools/search-tools";
 import { GitTool } from "../tools/git-tools";
+import { DockerTool } from "../tools/docker-tools";
+import { GitHubTool } from "../tools/github-tools";
+import { SqliteQueryTool } from "../tools/database-tools";
 import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools";
 import { RunRubocopTool } from "../tools/rubocop-tool";
 import { RunRSpecTool } from "../tools/rspec-tool";
@@ -51,6 +54,9 @@ export class AgentToolManager {
       .register(new WatchTool(root))
       .register(new SearchCodeTool(root))
       .register(new GitTool(root))
+      .register(new DockerTool(root))
+      .register(new GitHubTool(root))
+      .register(new SqliteQueryTool(root))
       .register(new RunTestsTool(root))
       .register(new RunLintTool(root))
       .register(new RunFormatTool(root))

@@ -4,6 +4,7 @@ import { CliConfig, loadConfig } from "./config";
 import { Provider } from "../provider/provider";
 import { Router } from "../provider/router";
 import { Capability, ModelCatalog } from "../provider/catalog";
+import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint";
 import { LoopDetector } from "../orchestrator/loop-detector";
 import { Orchestrator } from "../orchestrator/orchestrator";
 import { AgentStepRunner } from "../orchestrator/agent-planner";
@@ -54,6 +55,7 @@ export class Agent {
   private readonly catalog: ModelCatalog;
   private readonly router: Router;
   private catalogRefreshed: Promise<void> | null = null;
+  private readonly planCheckpoint: CheckpointStore;
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
   readonly events: AgentEvents;
@@ -67,6 +69,7 @@ export class Agent {
       model: cfg.model,
       host: cfg.host,
       apiKey: cfg.apiKey,
+      apiKeys: cfg.apiKeys,
       ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
     });
 
@@ -77,6 +80,7 @@ export class Agent {
       tier: "local",
       model: cfg.model,
       host: cfg.tier === "local" ? cfg.host : undefined,
+      apiKeys: cfg.apiKeys,
       ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
     });
     const cloudProvider = cfg.apiKey
@@ -85,6 +89,7 @@ export class Agent {
           model: cfg.model,
           host: cfg.tier === "cloud" ? cfg.host : undefined,
           apiKey: cfg.apiKey,
+          apiKeys: cfg.apiKeys,
           ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
         })
       : undefined;
@@ -129,6 +134,7 @@ export class Agent {
     mkdirSync(devagentDir, { recursive: true });
 
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
+    this.planCheckpoint = new CheckpointStore(join(devagentDir, "checkpoint.json"));
 
     const projectLanguage = this.intelligence.railsIndex.enabled
       ? this.intelligence.railsIndex.workspace.isRails
@@ -365,8 +371,34 @@ export class Agent {
       runRollback: async (command: string) => {
         await this.runUserMessage(`Roll back by running exactly this: ${command}`);
       },
+      checkpoint: this.planCheckpoint,
     });
     return orchestrator.run();
+  }
+
+  /**
+   * Resume a plan interrupted by a crash or kill. Returns null if no
+   * checkpoint exists (nothing to resume). Non-terminal step statuses are
+   * reset to "pending" — the process died mid-step, so its outcome is unknown.
+   */
+  async resumePlannedTask(planner: Planner): Promise<PlanStep[] | null> {
+    const saved = this.planCheckpoint.load();
+    if (!saved) return null;
+
+    const orchestrator = new Orchestrator({
+      steps: sanitizeResumedSteps(saved.steps),
+      runner: new AgentStepRunner(this),
+      planner,
+      runRollback: async (command: string) => {
+        await this.runUserMessage(`Roll back by running exactly this: ${command}`);
+      },
+      checkpoint: this.planCheckpoint,
+    });
+    return orchestrator.run();
+  }
+
+  hasResumablePlan(): boolean {
+    return this.planCheckpoint.load() !== null;
   }
 
   setModel(model: string): void {
@@ -378,12 +410,20 @@ export class Agent {
     this.provider.setModel(model);
   }
 
-  // ponytail: single "quick" bucket — the old code distinguished a test/cleanup/lint
-  // bucket from a generic one but routed both to hardcoded, unverified model names.
-  // Capability routing now picks a real, available small model instead; add a second
-  // bucket only if a task type actually needs different capabilities (e.g. vision).
+  // ponytail: keyword classification, not an LLM intent classifier — cheap and
+  // deterministic. Falls back to the primary model whenever the catalog has no
+  // candidate for the detected capability (e.g. no vision model installed), so
+  // a wrong or missed classification never breaks the turn, only skips routing.
+  private static readonly VISION_PATTERN = /\b(screenshot|diagram|image|photo|picture)\b|\.(png|jpe?g|gif|webp)\b/;
+  private static readonly REASONING_PATTERN =
+    /\b(architecture|trade-?offs?|root cause|design decision|why does|why is|think through|deep dive)\b/;
+
   private classifyCapability(priority?: string, text?: string): Capability | null {
     const desc = (text || "").toLowerCase();
+
+    if (Agent.VISION_PATTERN.test(desc)) return "vision";
+    if (Agent.REASONING_PATTERN.test(desc)) return "reasoning";
+
     const isNonCritical =
       priority === "low" ||
       priority === "medium" ||
