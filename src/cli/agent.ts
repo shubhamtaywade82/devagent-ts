@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig } from "./config.js";
-import { Provider, ChatMessage } from "../provider/provider.js";
+import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
 import { Capability, ModelCatalog } from "../provider/catalog.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
@@ -115,13 +115,12 @@ export class Agent {
     this.conversation = new AgentConversation();
 
     this.tools = new AgentToolManager();
-    this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) =>
-      this.emit("onShellOutput", stream, chunk),
-    );
+    this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) => this.emit("onShellOutput", stream, chunk));
 
     this.intelligence = new AgentIntelligence({
       workspaceRoot: cfg.workspaceRoot,
-      languages: cfg.languages as Record<string, Partial<import("../lsp/registry.js").LanguageProviderConfig>> | undefined,
+      languages: cfg.languages as
+        Record<string, Partial<import("../lsp/registry.js").LanguageProviderConfig>> | undefined,
       lspConfig: cfg.lsp as import("../lsp/config.js").LspGlobalConfig | undefined,
       prewarm: (cfg.lsp as { prewarm?: string[] } | undefined)?.prewarm,
       onDiagnostics: (filePath, diagnostics) => {
@@ -173,6 +172,10 @@ export class Agent {
       mode: cfg.toolSelectionMode,
       maxActiveTools: cfg.maxActiveTools,
       provider: this.provider,
+      // LLM-mode tool selection is a classification task, not a coding one — route it
+      // through the "quick" capability (an always-resident local model, falling back
+      // to cloud per Router.route/routeWithFallback) instead of the primary model.
+      chat: (messages) => this.routeWithFallback("quick", messages, { stream: false }),
     });
   }
 
@@ -214,7 +217,16 @@ export class Agent {
     if (activatedSkills.length) {
       this.emit(
         "onSkillsActivated",
-        activatedSkills.map((s) => ({ id: s.id, name: s.name, description: s.description, tags: s.tags, version: s.version, scope: s.scope, dir: s.dir, path: s.path })),
+        activatedSkills.map((s) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          tags: s.tags,
+          version: s.version,
+          scope: s.scope,
+          dir: s.dir,
+          path: s.path,
+        })),
       );
     }
 
@@ -242,10 +254,12 @@ export class Agent {
     };
 
     const capability = this.classifyCapability(priority, userMessage);
-    if (capability) await this.ensureCatalog();
-    const delegateCandidates = capability ? this.catalog.modelsFor(capability) : [];
-    if (delegateCandidates.length) {
-      this.emit("onStatus", `delegating task to ${delegateCandidates[0].tier}/${delegateCandidates[0].name}`);
+    if (capability) {
+      await this.ensureCatalog();
+      const candidates = this.catalog.modelsFor(capability);
+      if (candidates.length) {
+        this.emit("onStatus", `delegating task to ${candidates[0].tier}/${candidates[0].name}`);
+      }
     }
 
     try {
@@ -274,8 +288,8 @@ export class Agent {
             }
           },
         };
-        const chatResponse = delegateCandidates.length
-          ? await this.router.route(capability!, this.conversation.getMessages(), chatOpts)
+        const chatResponse = capability
+          ? await this.routeWithFallback(capability, this.conversation.getMessages(), chatOpts)
           : await this.provider.chat(this.conversation.getMessages(), chatOpts);
 
         const assistantMessage = chatResponse.message as {
@@ -342,9 +356,7 @@ export class Agent {
 
             this.emit("onToolResult", name, result);
             this.intelligence.feedRailsIndex(name, args, result);
-            this.conversation.pushToolResult(
-              typeof result === "string" ? result : JSON.stringify(result, null, 2),
-            );
+            this.conversation.pushToolResult(typeof result === "string" ? result : JSON.stringify(result, null, 2));
 
             if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
               return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
@@ -438,6 +450,11 @@ export class Agent {
   private static readonly VISION_PATTERN = /\b(screenshot|diagram|image|photo|picture)\b|\.(png|jpe?g|gif|webp)\b/;
   private static readonly REASONING_PATTERN =
     /\b(architecture|trade-?offs?|root cause|design decision|why does|why is|think through|deep dive)\b/;
+  // Read-only lookup/classification phrasing — no code-writing verb (implement/refactor/
+  // fix/add/write/generate/...) matches this, so a plain "where is X" or "list the Y"
+  // routes to "quick" without risking a real edit task landing on a small model.
+  private static readonly LOOKUP_PATTERN =
+    /\b(where is|where's|find the|show me|list the|which file|how many|what does .* do)\b/;
 
   private classifyCapability(priority?: string, text?: string): Capability | null {
     const desc = (text || "").toLowerCase();
@@ -453,7 +470,8 @@ export class Agent {
       desc.includes("comment") ||
       desc.includes("test") ||
       desc.includes("cleanup") ||
-      desc.includes("lint");
+      desc.includes("lint") ||
+      Agent.LOOKUP_PATTERN.test(desc);
 
     return isNonCritical ? "quick" : null;
   }
@@ -464,6 +482,28 @@ export class Agent {
       this.catalogRefreshed = this.catalog.refresh().then(() => undefined);
     }
     return this.catalogRefreshed;
+  }
+
+  /**
+   * Routes through Router.route for the given capability (which already
+   * widens "quick" to any cloud candidate when no local one is available —
+   * see Router.route), and falls back to the primary provider/model if
+   * routing still fails outright (e.g. neither local nor cloud has any
+   * candidate at all). This is the guarantee that a capability-delegated
+   * turn — e.g. the always-resident local "quick" model being unpulled,
+   * unreachable, or crashed — never breaks the turn, only skips delegation.
+   */
+  private async routeWithFallback(
+    capability: Capability,
+    messages: ChatMessage[],
+    opts?: ChatOptions,
+  ): Promise<ChatResponse> {
+    await this.ensureCatalog();
+    try {
+      return await this.router.route(capability, messages, opts);
+    } catch {
+      return this.provider.chat(messages, opts);
+    }
   }
 
   addLearning(category: string, context: string, lesson: string): void {
