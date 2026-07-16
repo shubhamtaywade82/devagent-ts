@@ -1,5 +1,5 @@
-import React, { useCallback } from "react";
-import { Box, Text, useInput } from "ink";
+import React from "react";
+import { Box, Text } from "ink";
 import { StatusChip } from "./StatusChip.js";
 
 interface CollapsibleSectionProps {
@@ -11,14 +11,7 @@ interface CollapsibleSectionProps {
   width: number;
 }
 
-export function CollapsibleSection({
-  title,
-  status,
-  collapsed,
-  onToggle,
-  children,
-  width,
-}: CollapsibleSectionProps): JSX.Element {
+export function CollapsibleSection({ title, status, collapsed, children }: CollapsibleSectionProps): JSX.Element {
   const header = (
     <Box>
       <Text>

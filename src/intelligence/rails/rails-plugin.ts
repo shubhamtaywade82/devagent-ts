@@ -53,7 +53,6 @@ export class RailsSemanticPlugin implements SemanticPlugin {
       });
     };
 
-    const entities = this.index.graph.allEntities();
     switch (query.kind) {
       case "route":
         this.index.graph.findByName(query.term, "route").forEach(addEntity);

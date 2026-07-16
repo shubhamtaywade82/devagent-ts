@@ -1,5 +1,3 @@
-import type { Location, SymbolInformation, Hover, Diagnostic, CodeAction, CompletionItem, SignatureHelp, TextEdit } from "vscode-languageserver-protocol";
-
 export type SemanticOperation =
   | "definition" | "references" | "documentSymbols" | "workspaceSymbols"
   | "hover" | "diagnostics" | "codeActions" | "rename"
