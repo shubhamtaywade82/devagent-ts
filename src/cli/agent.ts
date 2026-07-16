@@ -175,7 +175,14 @@ export class Agent {
       // LLM-mode tool selection is a classification task, not a coding one — route it
       // through the "quick" capability (an always-resident local model, falling back
       // to cloud per Router.route/routeWithFallback) instead of the primary model.
-      chat: (messages) => this.routeWithFallback("quick", messages, { stream: false }),
+      chat: async (messages) => {
+        await this.ensureCatalog();
+        const candidates = this.catalog.modelsFor("quick");
+        if (candidates.length) {
+          this.emit("onStatus", `delegating task to ${candidates[0].tier}/${candidates[0].name} (tool selection)`);
+        }
+        return this.routeWithFallback("quick", messages, { stream: false });
+      },
     });
   }
 
@@ -254,6 +261,11 @@ export class Agent {
     };
 
     const capability = this.classifyCapability(priority, userMessage);
+    // Lookup-style prompts ("where is X defined?") are only classified "quick"
+    // because they read as non-critical — but they NEED a tool call (search/read)
+    // to answer correctly; a small model that just prose-answers instead is wrong,
+    // not merely low-quality. Verified below: escalate once if that happens.
+    const requiresToolEvidence = capability === "quick" && Agent.LOOKUP_PATTERN.test(userMessage.toLowerCase());
     if (capability) {
       await this.ensureCatalog();
       const candidates = this.catalog.modelsFor(capability);
@@ -273,29 +285,58 @@ export class Agent {
           this.tools.registry.getTools(),
         );
 
-        const chatOpts = {
+        // Buffer the first attempt's streamed text instead of emitting it live, so a
+        // quick-model answer that skips the required tool call can be discarded and
+        // re-run on the primary model without the wrong answer ever hitting the UI.
+        const verifying = requiresToolEvidence && toolTurn === 0;
+        let buffered: string[] | null = verifying ? [] : null;
+        const makeChatOpts = () => ({
           stream: true,
           tools: activeTools.length > 0 ? activeTools.map((t) => t.schema) : undefined,
           onChunk: (chunk: any) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
-              lastAssistantText += delta;
-              this.emit("onAssistantText", delta);
+              if (buffered) buffered.push(delta);
+              else {
+                lastAssistantText += delta;
+                this.emit("onAssistantText", delta);
+              }
             }
             const thinking = (chunk.message as any)?.thinking;
             if (typeof thinking === "string" && thinking) {
               this.emit("onThinking", thinking);
             }
           },
-        };
-        const chatResponse = capability
+        });
+        let chatOpts = makeChatOpts();
+        let chatResponse = capability
           ? await this.routeWithFallback(capability, this.conversation.getMessages(), chatOpts)
           : await this.provider.chat(this.conversation.getMessages(), chatOpts);
 
-        const assistantMessage = chatResponse.message as {
+        let assistantMessage = chatResponse.message as {
           content?: string;
           tool_calls?: Array<{ function: { name: string; arguments: any } }>;
         };
+
+        if (verifying && !(assistantMessage.tool_calls ?? []).length) {
+          this.emit(
+            "onStatus",
+            "escalating to primary model: quick model answered a lookup query without calling a tool",
+          );
+          buffered = null;
+          chatOpts = makeChatOpts();
+          chatResponse = await this.provider.chat(this.conversation.getMessages(), chatOpts);
+          assistantMessage = chatResponse.message as {
+            content?: string;
+            tool_calls?: Array<{ function: { name: string; arguments: any } }>;
+          };
+        } else if (buffered) {
+          for (const delta of buffered) {
+            lastAssistantText += delta;
+            this.emit("onAssistantText", delta);
+          }
+        }
+
         this.conversation.pushAssistantMessage(assistantMessage.content ?? "", assistantMessage.tool_calls);
 
         const toolCalls = assistantMessage.tool_calls ?? [];

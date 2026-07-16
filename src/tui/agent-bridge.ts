@@ -54,6 +54,11 @@ export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   });
   agent.on("onStatus", (status: string) => {
     bus.publish({ type: "status.changed", status });
+    // Model-routing decisions (which tier/model handled this turn) matter after
+    // the spinner clears — persist them to Logs instead of only flashing by.
+    if (status.startsWith("delegating task to") || status.startsWith("escalating to")) {
+      bus.publish({ type: "logs.appended", level: "info", source: "model", message: status });
+    }
   });
   agent.on("onError", (error: Error) => {
     bus.publish({ type: "error", message: error.message });
