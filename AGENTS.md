@@ -16,6 +16,7 @@
 - A **plugin‑style tool registry** (`src/tools/`, 35+ tools) for safely exposing filesystem, git, docker, github, sqlite, shell, LSP, and Rails capabilities to the LLM, with `DynamicToolSelector` (`src/tools/discovery.ts`) pruning which tools are exposed per turn.
 - **Learning + memory** (`src/learning/`, `src/memory/`) — episode recording, grading, reflection, skill synthesis, and a SQLite conversation store.
 - An **MCP client** (`src/mcp/`) for registering external MCP servers' tools into the same registry.
+- **Documentation index** (`src/docs/`) — `npm run docs:ingest -- <id...>` fetches DevDocs' pre-built per-library JSON bundles (no live scraping) and indexes them into a local SQLite FTS5 store (`.devagent/docs.db`); `search_docs`/`get_doc`/`list_doc_sources` tools expose it, auto-scoped to doc sources relevant to the current workspace (`src/docs/workspace-detect.ts` — reuses the Rails module's `discoverWorkspace` for Ruby/Rails, plus `package.json`/`tsconfig.json`/`go.mod`/`Cargo.toml`/Python markers for the rest).
 
 The repository contains the full runtime, CLI, TUI, provider, and a large suite of unit tests that validate core behaviour.
 
@@ -49,7 +50,7 @@ The project uses **Jest** with the `ts-jest` preset.
 ### Run the test suite
 
 ```bash
-npm test          # runs jest — 580 tests across 84 suites
+npm test          # runs jest — 702 tests across 96 suites
 ```
 
 You can also watch tests during development with the standard Jest `--watch` flag (e.g. `npx jest --watch`).
@@ -94,6 +95,7 @@ You can also watch tests during development with the standard Jest `--watch` fla
 ├── src/                     # Core library
 │   ├── benchmark/           # Model scoring harness (cases, runner, score, report, cli)
 │   ├── cli/                 # Agent class, conversation, config, agent-tools wiring
+│   ├── docs/                # DevDocs-backed documentation index (catalog, ingest, FTS5 store, workspace detection)
 │   ├── intelligence/        # LSP intelligence router + Rails semantic index/scanners
 │   ├── interaction/         # Interaction layer — keybindings, slash commands, history, search
 │   ├── layout/               # Ink layout components (header, activity strip, density, etc.)
@@ -107,7 +109,7 @@ You can also watch tests during development with the standard Jest `--watch` fla
 │   ├── skills/                   # Skill loader/registry/resolver
 │   ├── tools/                     # Tool base class + 35+ concrete tools + dynamic selector
 │   └── tui/                        # Ink TUI components (main UI, status bar, etc.)
-├── tests/                   # Jest test suite mirroring src layout — 580 tests / 84 suites
+├── tests/                   # Jest test suite mirroring src layout — 702 tests / 96 suites
 ├── package.json             # npm scripts, dependencies, runtime config
 ├── tsconfig*.json           # Typescript compiler config (main + eslint)
 ├── .eslintrc.cjs            # ESLint configuration

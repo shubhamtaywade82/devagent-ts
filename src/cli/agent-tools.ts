@@ -41,6 +41,8 @@ import { PaperTradingManager } from "../exchange/paper-trading.js";
 import { SemanticIndex, createRailsTools } from "../intelligence/rails/index.js";
 import { connectMcpServer } from "../mcp/client.js";
 import { Tool } from "../tools/tool.js";
+import { SearchDocsTool, GetDocTool, ListDocSourcesTool } from "../tools/docs-tools.js";
+import { DocsStore } from "../docs/store.js";
 
 export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
 
@@ -132,6 +134,13 @@ export class AgentToolManager {
     for (const tool of createRailsTools(rails)) {
       this.registry.register(tool);
     }
+  }
+
+  registerDocsTools(store: DocsStore, workspaceRoot: string): void {
+    this.registry
+      .register(new SearchDocsTool(store, workspaceRoot))
+      .register(new GetDocTool(store))
+      .register(new ListDocSourcesTool(store, workspaceRoot));
   }
 
   registerTool(tool: Tool): void {

@@ -13,6 +13,7 @@ import { PlanStep, Planner } from "../orchestrator/types.js";
 import { SkillMeta } from "../skills/types.js";
 import { LspServerState } from "../lsp/protocol.js";
 import { MemoryStore } from "../memory/store.js";
+import { DocsStore } from "../docs/store.js";
 import { generateSummary } from "../memory/summarizer.js";
 import { AgentConversation } from "./agent-conversation.js";
 import { AgentToolManager } from "./agent-tools.js";
@@ -50,6 +51,7 @@ export class Agent {
   readonly intelligence: AgentIntelligence;
   readonly learning: AgentLearning;
   readonly memory: MemoryStore;
+  readonly docs: DocsStore;
   readonly lspManager: AgentIntelligence["lspManager"];
   readonly railsIndex: AgentIntelligence["railsIndex"];
   readonly browser: BrowserManager;
@@ -147,6 +149,9 @@ export class Agent {
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
     this.planCheckpoint = new CheckpointStore(join(devagentDir, "checkpoint.json"));
     this.sessionStore = new SessionStore(join(devagentDir, "session.json"));
+
+    this.docs = new DocsStore(join(devagentDir, "docs.db"));
+    this.tools.registerDocsTools(this.docs, cfg.workspaceRoot);
 
     const projectLanguage = this.intelligence.railsIndex.enabled
       ? this.intelligence.railsIndex.workspace.isRails

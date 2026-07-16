@@ -14,6 +14,7 @@ src/
 ├── lsp/            Language server pool/manager — 14 languages configured
 ├── intelligence/   LSP-backed code intelligence router + Rails semantic index (12 scanners)
 ├── memory/         SQLite-backed conversation memory + summarizer
+├── docs/           DevDocs-backed documentation index (ingest, FTS5 store, workspace detection)
 ├── learning/       Episode recording, grading, reflection, skill synthesis
 ├── skills/         Skill loader/registry/resolver (Markdown skill packages)
 ├── mcp/            MCP client + tool adapter (external MCP servers as tools)
@@ -32,6 +33,7 @@ src/
 - **Rails semantic index** — 12 scanners (controller, model, job, mailer, policy, concern, migration, schema, view, rspec, routes, gem) feeding a graph store and query engine, exposed as `find_model`/`find_route`/`find_controller`/etc. tools.
 - **Benchmark harness** — `npm run benchmark` runs built-in cases (JSON validity, tool-calling correctness) against every discovered local + cloud model, reporting pass rate, latency, and tokens/sec.
 - **Learning + memory** — episode recording, grading, reflection, and skill synthesis (`src/learning/`) backed by a SQLite conversation store (`src/memory/`).
+- **Offline documentation search** — `npm run docs:ingest -- <id...>` fetches [DevDocs](https://github.com/freeCodeCamp/devdocs)'s pre-built per-library JSON bundles (no scraping at runtime) and indexes them into a local SQLite FTS5 store (`.devagent/docs.db`). `search_docs`/`get_doc`/`list_doc_sources` tools expose it to the agent; `search_docs` auto-scopes to doc sources relevant to the current workspace (detected from `package.json`/`tsconfig.json`/`Gemfile`/`go.mod`/etc. — Rails, React, Node, TypeScript, Python, Go, Rust, ...) unless a `source` is given explicitly.
 - **Docker-sandboxed shell** — `--network=none`, `--pids-limit=128`, memory/CPU capped; buffer-overflow SIGKILL, hard timeout with kill escalation.
 - **Path-contained filesystem tools** — every path resolved and checked against workspace root before I/O; atomic writes via temp+rename.
 - **Loop detection** — flags repeated (tool, args, error) signatures to prevent infinite retry cycles.
@@ -45,6 +47,7 @@ Quant research: `binance_backtest` (rule-based strategy vs real history — win 
 Project: `run_tests`, `run_lint`, `run_format`, `run_build`, `rubocop`, `rspec`, `shell` (Docker-sandboxed).
 Code intelligence (LSP-backed): `get_definition`, `find_references`, `rename_symbol`, `workspace_symbols`, `document_symbols`, `hover`, `diagnostics`, `code_actions`, `format_document`, `signature_help`, `completion`, `semantic_tokens`.
 Rails semantic: `find_model`, `find_route`, `find_controller`, `find_service`, `find_spec`, `find_association`, `find_callback`, `rails_context`, and more.
+Documentation: `search_docs` (workspace-scoped full-text search over ingested DevDocs sources), `get_doc` (fetch one section by source+path), `list_doc_sources` (ingested sources + workspace defaults).
 Plus anything registered via MCP servers (`agent.registerMcpServer(command, args)`).
 
 ## Usage
@@ -103,10 +106,20 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 
 ```bash
 npm install
-npm test          # jest — 664 tests across 92 suites
+npm test          # jest — 702 tests across 96 suites
 npm run build     # TypeScript → dist/
 npm run benchmark # score installed models on JSON validity + tool-calling
 ```
+
+## Documentation Index
+
+Ingest one or more [DevDocs](https://devdocs.io) sources (MPL-2.0 — generated docs retain DevDocs attribution) into the local FTS5 index at `.devagent/docs.db`:
+
+```bash
+npm run docs:ingest -- node typescript react rails
+```
+
+Re-running for the same id atomically replaces its sections (safe to re-run to pick up upstream updates — DevDocs rebuilds monthly). See `src/docs/catalog.ts` for the full list of supported ids. Ingestion is a one-off/periodic step — the `search_docs`/`get_doc` tools never hit the network at inference time, only the local index.
 
 ## Docker Sandbox
 
