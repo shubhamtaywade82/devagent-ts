@@ -99,7 +99,7 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("delegating task to local/minicpm5-1b"));
   });
 
-  it("attempts the local quick model first even for a code-writing request (no pre-filter gate anymore)", async () => {
+  it("escalates immediately via the heuristic pre-filter for an implementation request, skipping the quick attempt", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     let call = 0;
     (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
@@ -115,6 +115,34 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     const onStatus = jest.fn();
     const agent = new Agent({
       config: { workspaceRoot: dir, tier: "local", model: "test-model" },
+      events: { onStatus },
+    });
+
+    const reply = await agent.runUserMessage("implement JWT authentication in AuthController");
+
+    expect(reply).toBe("implemented");
+    expect(onStatus).toHaveBeenCalledWith(
+      expect.stringContaining('escalating to primary model: heuristic pre-filter matched "algorithm"'),
+    );
+    expect(chatBodies()[0].model).toBe("test-model");
+  });
+
+  it("skips the heuristic pre-filter when enableHeuristicGate is false, trying the quick model first as before", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    let call = 0;
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+      call += 1;
+      if (call === 1) {
+        return modelsListResponse([
+          { name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } },
+        ]);
+      }
+      return chatResponse("implemented");
+    });
+
+    const onStatus = jest.fn();
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "test-model", enableHeuristicGate: false },
       events: { onStatus },
     });
 
@@ -192,7 +220,7 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
       events: { onStatus },
     });
 
-    const reply = await agent.runUserMessage("implement a complex multi-file refactor");
+    const reply = await agent.runUserMessage("reorganize the user settings module so it matches the rest of the codebase");
 
     expect(reply).toBe("done by primary");
     expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("escalating to the primary model"));
@@ -204,7 +232,7 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     // Context preservation: the escalated call sees the original ask, plus
     // minicpm5's escalate_task call and its result — same shared history, nothing reset.
     const turn1Messages = bodies[1].messages;
-    expect(turn1Messages.some((m) => m.role === "user" && String(m.content).includes("complex multi-file refactor"))).toBe(true);
+    expect(turn1Messages.some((m) => m.role === "user" && String(m.content).includes("user settings module"))).toBe(true);
     expect(
       turn1Messages.some(
         (m) => m.role === "assistant" && JSON.stringify((m as any).tool_calls ?? "").includes("escalate_task"),
@@ -309,7 +337,7 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     expect(bodies[1].model).toBe("qwen-vl:8b");
   });
 
-  it("routes escalation to the installed reasoning model when the original message hinted at reasoning", async () => {
+  it("routes straight to the installed reasoning model when the heuristic gate and the reasoning hint both match", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     let call = 0;
     (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
@@ -320,17 +348,25 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
           { name: "deepseek-r1:8b", capabilities: ["thinking", "completion", "tools"], details: { parameter_size: "8B" } },
         ]);
       }
-      if (call === 2) return toolCallResponse("escalate_task", { reason: "needs deep architectural reasoning" });
       return chatResponse("here are the trade-offs");
     });
 
-    const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "primary-model" } });
+    const onStatus = jest.fn();
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "primary-model" },
+      events: { onStatus },
+    });
 
-    await agent.runUserMessage("What are the trade-offs of this architecture before we commit to it?");
+    const reply = await agent.runUserMessage("What are the trade-offs of this architecture before we commit to it?");
 
-    const bodies = chatBodies();
-    expect(bodies[0].model).toBe("minicpm5-1b");
-    expect(bodies[1].model).toBe("deepseek-r1:8b");
+    expect(reply).toBe("here are the trade-offs");
+    expect(onStatus).toHaveBeenCalledWith(
+      expect.stringContaining('escalating to primary model: heuristic pre-filter matched "design"'),
+    );
+    // escalationHint (vision/reasoning) is computed from the raw message regardless
+    // of which mechanism triggered escalation, so a heuristic-triggered turn still
+    // routes to the installed reasoning model, not just the primary/default model.
+    expect(chatBodies()[0].model).toBe("deepseek-r1:8b");
   });
 
   it("force-includes escalate_task in the tool schemas sent to the quick model even under a tight maxActiveTools cap", async () => {

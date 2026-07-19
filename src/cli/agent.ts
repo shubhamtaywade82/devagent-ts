@@ -29,6 +29,7 @@ import { HeuristicRouter } from "../provider/heuristic-router.js";
 import { LocalWorker } from "../provider/local-worker.js";
 import { Verifier } from "../provider/verifier.js";
 import { SelfConsistency } from "../provider/self-consistency.js";
+import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -77,7 +78,7 @@ export class Agent {
   private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
   // ── Hybrid local-cloud architecture ─────────────────────────────────
-  readonly heuristicRouter: HeuristicRouter;
+  readonly heuristicRouter: HeuristicRouter | undefined;
   readonly localWorker: LocalWorker | undefined;
   readonly verifier: Verifier | undefined;
   readonly selfConsistency: SelfConsistency | undefined;
@@ -127,7 +128,9 @@ export class Agent {
     });
 
     // ── Hybrid local-cloud architecture: instantiate all components ─────────
-    this.heuristicRouter = new HeuristicRouter();
+    // Layer-1 gate: undefined when disabled, mirroring the other optional
+    // hybrid components below (localWorker/verifier/selfConsistency).
+    this.heuristicRouter = cfg.enableHeuristicGate ? new HeuristicRouter() : undefined;
 
     // Availability checker: pre-validate cloud model access per API key at startup.
     this.availabilityChecker =
@@ -333,6 +336,29 @@ export class Agent {
     // across plan steps and retries, each via a fresh runUserMessage call — a class
     // field would leak escalation state across unrelated steps/retries.
     let escalated = false;
+    let delegationAddendumInjected = false;
+    const injectDelegationAddendum = () => {
+      if (this.localWorker && !delegationAddendumInjected) {
+        this.conversation.pushSystemMessage(LOCAL_DELEGATION_SYSTEM_ADDENDUM);
+        delegationAddendumInjected = true;
+      }
+    };
+
+    // Layer-1 heuristic gate: an explicit complexity trigger (debug/architecture/
+    // proof/multi-step/etc.) skips the quick-model attempt entirely instead of
+    // waiting for the quick model to discover it's out of its depth and call
+    // escalate_task.
+    if (this.heuristicRouter) {
+      const heuristic = this.heuristicRouter.classify(userMessage);
+      if (heuristic.decision === "cloud") {
+        escalated = true;
+        injectDelegationAddendum();
+        this.emit(
+          "onStatus",
+          `escalating to primary model: heuristic pre-filter matched "${heuristic.trigger}"`,
+        );
+      }
+    }
 
     await this.ensureCatalog();
     const quickCandidates = this.catalog.modelsFor("quick");
