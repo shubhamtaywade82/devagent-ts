@@ -21,8 +21,19 @@ export interface BenchmarkProgressEvent {
   total: number;
   status: "running" | "done";
   pass?: boolean;
+  reason?: string;
   latencyMs?: number;
   error?: string;
+}
+
+export interface BenchmarkToolCallEvent {
+  model: string;
+  tier: Tier;
+  caseId: string;
+  turn: number;
+  name: string;
+  args: Record<string, unknown>;
+  result: Record<string, unknown>;
 }
 
 export interface RunBenchmarkOptions {
@@ -35,6 +46,9 @@ export interface RunBenchmarkOptions {
    */
   timeoutMs?: number;
   onProgress?: (event: BenchmarkProgressEvent) => void;
+  /** Fires per tool call inside an agentic case, as it resolves — the only way
+   * to see what's happening mid-case before it either finishes or times out. */
+  onToolCall?: (event: BenchmarkToolCallEvent) => void;
 }
 
 const DEFAULT_CASE_TIMEOUT_MS = 120_000;
@@ -66,7 +80,9 @@ export async function runBenchmark(
       const start = Date.now();
       try {
         const outcome = await withTimeout(
-          testCase.kind === "agentic" ? runAgenticTurn(target, testCase) : runSingleTurn(target, testCase),
+          testCase.kind === "agentic"
+            ? runAgenticTurn(target, testCase, opts.onToolCall)
+            : runSingleTurn(target, testCase),
           timeoutMs,
         );
         const latencyMs = Date.now() - start;
@@ -78,7 +94,17 @@ export async function runBenchmark(
           latencyMs,
           ...outcome,
         });
-        opts.onProgress?.({ model: target.model, tier: target.tier, caseId: testCase.id, index, total, status: "done", pass: outcome.pass, latencyMs });
+        opts.onProgress?.({
+          model: target.model,
+          tier: target.tier,
+          caseId: testCase.id,
+          index,
+          total,
+          status: "done",
+          pass: outcome.pass,
+          reason: outcome.reason,
+          latencyMs,
+        });
       } catch (e) {
         const latencyMs = Date.now() - start;
         const error = e instanceof Error ? e.message : String(e);
@@ -135,7 +161,11 @@ async function runSingleTurn(target: BenchmarkTarget, testCase: SingleTurnBenchm
 // no conversation pruning, no capability routing, no tool registry side effects
 // beyond what the case's own `resolveTool` does. Mirrors the shape of the real
 // agent loop (src/cli/agent.ts) closely enough that findings here transfer.
-async function runAgenticTurn(target: BenchmarkTarget, testCase: AgenticBenchmarkCase): Promise<CaseRunOutcome> {
+async function runAgenticTurn(
+  target: BenchmarkTarget,
+  testCase: AgenticBenchmarkCase,
+  onToolCall?: (event: BenchmarkToolCallEvent) => void,
+): Promise<CaseRunOutcome> {
   const start = Date.now();
   const messages: ChatMessage[] = [...testCase.messages];
   const toolCallsMade: AgenticTrajectory["toolCallsMade"] = [];
@@ -176,6 +206,7 @@ async function runAgenticTurn(target: BenchmarkTarget, testCase: AgenticBenchmar
       const result = await testCase.resolveTool(name, args);
       toolCallsMade.push({ name, args, result });
       messages.push({ role: "tool", content: JSON.stringify(result) });
+      onToolCall?.({ model: target.model, tier: target.tier, caseId: testCase.id, turn: turns, name, args, result });
     }
   }
 

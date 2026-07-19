@@ -17,9 +17,11 @@ async function main() {
       model: { type: "string", short: "m" },
       category: { type: "string", short: "c" },
       timeout: { type: "string", short: "t" },
+      verbose: { type: "boolean", short: "v" },
     },
   });
   const timeoutMs = values.timeout ? Number(values.timeout) : undefined;
+  const verbose = values.verbose ?? false;
 
   const cfg = loadConfig();
 
@@ -78,9 +80,15 @@ async function main() {
         console.log(`  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} ...`);
       } else {
         const outcome = e.error ? `ERROR: ${e.error}` : e.pass ? "pass" : "fail";
-        console.log(`  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} -> ${outcome} (${e.latencyMs}ms)`);
+        const reasonSuffix = verbose && e.reason ? ` — ${e.reason}` : "";
+        console.log(`  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} -> ${outcome} (${e.latencyMs}ms)${reasonSuffix}`);
       }
     },
+    onToolCall: verbose
+      ? (e) => {
+          console.log(`      turn ${e.turn + 1}: ${e.name}(${JSON.stringify(e.args)}) -> ${JSON.stringify(e.result)}`);
+        }
+      : undefined,
   });
   console.log();
   const failures = results.filter((r) => !r.pass);
