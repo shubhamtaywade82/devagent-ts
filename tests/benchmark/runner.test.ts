@@ -181,3 +181,56 @@ describe("runBenchmark — agentic cases", () => {
     expect(results.every((r) => r.pass)).toBe(true);
   });
 });
+
+describe("runBenchmark — progress events and timeouts", () => {
+  it("emits a running event before and a done event after each case", async () => {
+    const provider = new Provider({ tier: "local", model: "x" });
+    jest.spyOn(provider, "chat").mockResolvedValue(response("ok"));
+
+    const events: Array<{ caseId: string; index: number; total: number; status: string; pass?: boolean }> = [];
+    await runBenchmark([{ model: "qwen3:8b", tier: "local", provider }], [passingCase, failingCase], {
+      onProgress: (e) => events.push(e),
+    });
+
+    expect(events).toEqual([
+      expect.objectContaining({ caseId: "always-pass", index: 0, total: 2, status: "running" }),
+      expect.objectContaining({ caseId: "always-pass", index: 0, total: 2, status: "done", pass: true }),
+      expect.objectContaining({ caseId: "always-fail", index: 1, total: 2, status: "running" }),
+      expect.objectContaining({ caseId: "always-fail", index: 1, total: 2, status: "done", pass: false }),
+    ]);
+  });
+
+  it("records a timeout as a failing result and reports it via onProgress instead of hanging", async () => {
+    const provider = new Provider({ tier: "local", model: "x" });
+    // Never resolves — simulates a stalled local Ollama server (no built-in timeout on that tier).
+    jest.spyOn(provider, "chat").mockImplementation(() => new Promise(() => {}));
+
+    const events: Array<{ status: string; error?: string }> = [];
+    const results = await runBenchmark([{ model: "qwen3:8b", tier: "local", provider }], [passingCase], {
+      timeoutMs: 20,
+      onProgress: (e) => events.push(e),
+    });
+
+    expect(results[0].pass).toBe(false);
+    expect(results[0].error).toMatch(/timed out after 20ms/);
+    expect(events[events.length - 1]).toEqual(expect.objectContaining({ status: "done", error: expect.stringMatching(/timed out/) }));
+  });
+
+  it("moves on to the next case after one times out, rather than blocking the run", async () => {
+    const provider = new Provider({ tier: "local", model: "x" });
+    let call = 0;
+    jest.spyOn(provider, "chat").mockImplementation(() => {
+      call += 1;
+      if (call === 1) return new Promise(() => {}); // first case's call never resolves
+      return Promise.resolve(response("ok"));
+    });
+
+    const results = await runBenchmark([{ model: "qwen3:8b", tier: "local", provider }], [passingCase, passingCase], {
+      timeoutMs: 20,
+    });
+
+    expect(results).toHaveLength(2);
+    expect(results[0].error).toMatch(/timed out/);
+    expect(results[1].pass).toBe(true); // second case ran to completion, unaffected
+  });
+});

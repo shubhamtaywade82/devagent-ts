@@ -13,6 +13,32 @@ interface CaseRunOutcome {
   tokensPerSec: number | null;
 }
 
+export interface BenchmarkProgressEvent {
+  model: string;
+  tier: Tier;
+  caseId: string;
+  index: number;
+  total: number;
+  status: "running" | "done";
+  pass?: boolean;
+  latencyMs?: number;
+  error?: string;
+}
+
+export interface RunBenchmarkOptions {
+  /**
+   * Per-case wall-clock ceiling. Local-tier requests have no built-in timeout
+   * (Provider's timeoutMs defaults to 0/disabled for local — a stalled Ollama
+   * server or a stuck model load hangs forever with zero signal otherwise).
+   * Default 2 minutes — generous for a single real local inference call,
+   * including a multi-turn agentic case's several sequential calls.
+   */
+  timeoutMs?: number;
+  onProgress?: (event: BenchmarkProgressEvent) => void;
+}
+
+const DEFAULT_CASE_TIMEOUT_MS = 120_000;
+
 // A plain array is reused as-is for every target. A factory is called fresh
 // per target — required for any case whose `resolveTool` closes over mutable
 // state (e.g. "error on the first call, succeed after"): without a fresh
@@ -21,45 +47,78 @@ interface CaseRunOutcome {
 export async function runBenchmark(
   targets: BenchmarkTarget[],
   cases: BenchmarkCase[] | (() => BenchmarkCase[]),
+  opts: RunBenchmarkOptions = {},
 ): Promise<BenchmarkResult[]> {
   const results: BenchmarkResult[] = [];
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_CASE_TIMEOUT_MS;
 
   for (const target of targets) {
     target.provider.setModel(target.model);
     target.provider.setTier(target.tier);
 
     const caseList = typeof cases === "function" ? cases() : cases;
-    for (const testCase of caseList) {
+    const total = caseList.length;
+
+    for (let index = 0; index < caseList.length; index++) {
+      const testCase = caseList[index];
+      opts.onProgress?.({ model: target.model, tier: target.tier, caseId: testCase.id, index, total, status: "running" });
+
       const start = Date.now();
       try {
-        const outcome =
-          testCase.kind === "agentic"
-            ? await runAgenticTurn(target, testCase)
-            : await runSingleTurn(target, testCase);
+        const outcome = await withTimeout(
+          testCase.kind === "agentic" ? runAgenticTurn(target, testCase) : runSingleTurn(target, testCase),
+          timeoutMs,
+        );
+        const latencyMs = Date.now() - start;
         results.push({
           model: target.model,
           tier: target.tier,
           caseId: testCase.id,
           category: testCase.category,
-          latencyMs: Date.now() - start,
+          latencyMs,
           ...outcome,
         });
+        opts.onProgress?.({ model: target.model, tier: target.tier, caseId: testCase.id, index, total, status: "done", pass: outcome.pass, latencyMs });
       } catch (e) {
+        const latencyMs = Date.now() - start;
+        const error = e instanceof Error ? e.message : String(e);
         results.push({
           model: target.model,
           tier: target.tier,
           caseId: testCase.id,
           category: testCase.category,
           pass: false,
-          latencyMs: Date.now() - start,
+          latencyMs,
           tokensPerSec: null,
-          error: e instanceof Error ? e.message : String(e),
+          error,
         });
+        opts.onProgress?.({ model: target.model, tier: target.tier, caseId: testCase.id, index, total, status: "done", pass: false, latencyMs, error });
       }
     }
   }
 
   return results;
+}
+
+// ponytail: doesn't abort the underlying request on timeout, just stops
+// waiting on it — the real fetch keeps running in the background until it
+// finishes or errors on its own. Plumb an AbortSignal through Provider.chat
+// if wasted background requests become a real problem (e.g. rate limits).
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`timed out after ${ms}ms`)), ms);
+    timer.unref?.();
+    promise.then(
+      (v) => {
+        clearTimeout(timer);
+        resolve(v);
+      },
+      (e) => {
+        clearTimeout(timer);
+        reject(e);
+      },
+    );
+  });
 }
 
 async function runSingleTurn(target: BenchmarkTarget, testCase: SingleTurnBenchmarkCase): Promise<CaseRunOutcome> {

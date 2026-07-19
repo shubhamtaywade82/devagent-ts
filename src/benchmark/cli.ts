@@ -16,8 +16,10 @@ async function main() {
     options: {
       model: { type: "string", short: "m" },
       category: { type: "string", short: "c" },
+      timeout: { type: "string", short: "t" },
     },
   });
+  const timeoutMs = values.timeout ? Number(values.timeout) : undefined;
 
   const cfg = loadConfig();
 
@@ -69,7 +71,18 @@ async function main() {
 
   console.log(`Benchmarking ${models.length} model(s) across ${caseCount} case(s)...\n`);
 
-  const results = await runBenchmark(targets, buildCases);
+  const results = await runBenchmark(targets, buildCases, {
+    timeoutMs,
+    onProgress: (e) => {
+      if (e.status === "running") {
+        console.log(`  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} ...`);
+      } else {
+        const outcome = e.error ? `ERROR: ${e.error}` : e.pass ? "pass" : "fail";
+        console.log(`  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} -> ${outcome} (${e.latencyMs}ms)`);
+      }
+    },
+  });
+  console.log();
   const failures = results.filter((r) => !r.pass);
 
   console.log(formatReport(scoreByModel(results)));
@@ -84,7 +97,14 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e);
-  process.exitCode = 1;
-});
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exitCode = 1;
+  })
+  .finally(() => {
+    // A timed-out case's underlying fetch may still be in flight (withTimeout
+    // stops waiting on it but doesn't abort it) — force exit instead of
+    // letting a dangling request/socket keep the process alive indefinitely.
+    process.exit(process.exitCode ?? 0);
+  });
