@@ -465,4 +465,48 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     // chatBodies()[0..2] are the 3 diverging samples; [3] is the escalated primary-model turn.
     expect(chatBodies()[3].model).toBe("primary-model");
   });
+
+  it("offers delegate_to_local and injects the delegation system prompt once escalated, and executes a real delegation round-trip", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    let call = 0;
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+      call += 1;
+      if (call === 1) {
+        return modelsListResponse([
+          { name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } },
+        ]);
+      }
+      if (call === 2) return toolCallResponse("escalate_task", { reason: "needs real logic" });
+      if (call === 3) {
+        return toolCallResponse("delegate_to_local", {
+          task_type: "ts_interface",
+          prompt: "Generate an interface for User with name:string",
+          expected_output: "typescript",
+        });
+      }
+      // Turn 4: LocalWorker's own generate() call, dispatched to the quick provider.
+      if (call === 4) return chatResponse("interface User { name: string; }");
+      return chatResponse("done, used the delegated interface");
+    });
+
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "primary-model", quickModel: "minicpm5-1b" },
+    });
+
+    const reply = await agent.runUserMessage(
+      "reorganize the user settings module so it matches the rest of the codebase",
+    );
+
+    expect(reply).toBe("done, used the delegated interface");
+
+    const bodies = chatBodies();
+    // turn 0: quick model, escalates via escalate_task.
+    expect(bodies[0].model).toBe("minicpm5-1b");
+    // turn 1: primary model, now offered delegate_to_local and the delegation
+    // system-prompt addendum, calls it.
+    expect(bodies[1].tools?.some((t: any) => t.function.name === "delegate_to_local")).toBe(true);
+    expect(
+      bodies[1].messages.some((m: any) => String(m.content ?? "").includes("delegate_to_local")),
+    ).toBe(true);
+  });
 });

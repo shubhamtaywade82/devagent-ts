@@ -180,6 +180,7 @@ export class Agent {
 
     this.tools = new AgentToolManager();
     this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) => this.emit("onShellOutput", stream, chunk));
+    this.tools.registerHybridTools(this.localWorker);
 
     this.intelligence = new AgentIntelligence({
       workspaceRoot: cfg.workspaceRoot,
@@ -403,6 +404,13 @@ export class Agent {
           const escalateTool = this.tools.registry.getTools().find((t) => t.name === "escalate_task");
           if (escalateTool) activeTools.push(escalateTool);
         }
+        // Symmetric: delegate_to_local must always be offered once escalated —
+        // it's the primary model's way to push boilerplate back down instead of
+        // spending its own tokens on it.
+        if (escalated && this.localWorker && !activeTools.some((t) => t.name === "delegate_to_local")) {
+          const delegateTool = this.tools.registry.getTools().find((t) => t.name === "delegate_to_local");
+          if (delegateTool) activeTools.push(delegateTool);
+        }
 
         // Buffer the attempt's streamed text instead of emitting it live, so a bad
         // quick-model answer can be discarded and re-run on the primary model
@@ -463,6 +471,7 @@ export class Agent {
               : "escalating to primary model: quick model answered a lookup query without calling a tool",
           );
           escalated = true;
+          injectDelegationAddendum();
           buffered = null;
           chatOpts = makeChatOpts();
           chatResponse = await this.provider.chat(this.conversation.getMessages(), chatOpts);
@@ -542,6 +551,7 @@ export class Agent {
 
             if (name === "escalate_task" && result.escalate === true) {
               escalated = true;
+              injectDelegationAddendum();
               this.emit("onStatus", `escalating to ${escalationHint ?? "the primary model"}: ${result.reason}`);
             }
 

@@ -44,6 +44,8 @@ import { connectMcpServer } from "../mcp/client.js";
 import { Tool } from "../tools/tool.js";
 import { SearchDocsTool, GetDocTool, ListDocSourcesTool } from "../tools/docs-tools.js";
 import { DocsStore } from "../docs/store.js";
+import { DelegateToLocalTool } from "../tools/delegate-tool.js";
+import type { LocalWorker } from "../provider/local-worker.js";
 
 export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
 
@@ -92,6 +94,11 @@ export class AgentToolManager {
       .register(new BinanceWalkForwardTool())
       .register(new BinanceMonteCarloTool())
       .register(new BinanceParamSweepTool());
+  }
+
+  registerHybridTools(localWorker: LocalWorker | undefined): void {
+    if (!localWorker) return;
+    this.registry.register(new DelegateToLocalTool(localWorker));
   }
 
   registerBinanceStreamTools(stream: BinanceStreamManager): void {
