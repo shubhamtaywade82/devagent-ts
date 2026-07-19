@@ -6,11 +6,17 @@ export class EscalateTaskTool extends Tool {
   }
 
   get description(): string {
-    return "Call this instead of guessing when the current task is beyond what you can reliably " +
-      "handle: complex multi-file changes, architecture or design decisions, deep reasoning, " +
-      "ambiguous requirements, or anything you are not confident you can do correctly and safely. " +
-      "A stronger model will take over with your full conversation history, including everything " +
-      "you've already done. Do not call this for simple lookups, small edits, or tasks you're confident about.";
+    return "MANDATORY call, not optional, whenever you are stuck. Call this instead of guessing, " +
+      "instead of inventing a tool or command that does not exist, instead of apologizing, and " +
+      "instead of giving up: complex multi-file changes, architecture or design decisions, deep " +
+      "reasoning, ambiguous requirements, a tool call that failed and you don't know how to fix it, " +
+      "or any point where your next message would start with something like \"I'm sorry\", \"I " +
+      "cannot\", \"is not supported\", or otherwise explain why you can't do the task instead of " +
+      "doing it. If you notice yourself about to write an apology or an explanation of your own " +
+      "limitations, call this tool instead of writing that message. A stronger model will take over " +
+      "with your full conversation history, including everything you've already done — you lose " +
+      "nothing by calling it. Do not call this for simple lookups, small edits, or tasks you're " +
+      "actually confident about and can complete.";
   }
 
   get tags(): string[] {

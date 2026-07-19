@@ -280,6 +280,11 @@ export class Agent {
       this.emit("onStatus", `delegating task to ${quickCandidates[0].tier}/${quickCandidates[0].name}`);
     }
 
+    // Set at the end of a turn's tool dispatch when any tool call in that turn
+    // errored; read at the top of the NEXT turn's buffering decision, then reset —
+    // see the "recoveredFromError"/verifying logic below.
+    let previousTurnHadToolError = false;
+
     try {
       for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
         this.conversation.pruneContext();
@@ -299,10 +304,28 @@ export class Agent {
           if (escalateTool) activeTools.push(escalateTool);
         }
 
-        // Buffer the first attempt's streamed text instead of emitting it live, so a
-        // quick-model answer that skips the required tool call can be discarded and
-        // re-run on the primary model without the wrong answer ever hitting the UI.
-        const verifying = requiresToolEvidence && toolTurn === 0 && !escalated;
+        // Buffer the attempt's streamed text instead of emitting it live, so a bad
+        // quick-model answer can be discarded and re-run on the primary model
+        // without ever hitting the UI. Two triggers: (1) a lookup-phrased question
+        // answered without the required tool call, turn 0 only; (2) the PREVIOUS
+        // turn's tool call errored and the quick model — instead of retrying or
+        // calling escalate_task — is about to answer anyway (observed in practice:
+        // a 1B model inventing an unrelated "fix" or apologizing instead of
+        // escalating). Only while still unescalated; the recovery check consumes
+        // and resets previousTurnHadToolError so it never leaks past this turn.
+        //
+        // Deliberately NOT extended to a general "self-confidence probe" for
+        // plain wrong-but-confident final answers (e.g. a hard task answered
+        // wrong in one shot, no error, no loop) — tried it, tested it live
+        // against real minicpm5-1b: the model just says "yes I'm confident" to
+        // its own garbage. A weak model's self-assessment of its own output
+        // isn't trustworthy, so there's no cheap fix for that failure mode here;
+        // it's an accepted residual risk (see escalate-on-hard-task benchmark
+        // case in src/benchmark/cases-agentic.ts, which stays red on purpose).
+        const verifyingLookup = requiresToolEvidence && toolTurn === 0 && !escalated;
+        const verifyingRecovery = !escalated && previousTurnHadToolError;
+        previousTurnHadToolError = false;
+        const verifying = verifyingLookup || verifyingRecovery;
         let buffered: string[] | null = verifying ? [] : null;
         const makeChatOpts = () => ({
           stream: true,
@@ -335,7 +358,9 @@ export class Agent {
         if (verifying && !(assistantMessage.tool_calls ?? []).length) {
           this.emit(
             "onStatus",
-            "escalating to primary model: quick model answered a lookup query without calling a tool",
+            verifyingRecovery
+              ? "escalating to primary model: previous tool call failed and the quick model answered instead of retrying or escalating"
+              : "escalating to primary model: quick model answered a lookup query without calling a tool",
           );
           escalated = true;
           buffered = null;
@@ -400,6 +425,7 @@ export class Agent {
               this.conversation.pushSystemMessage(
                 "[system] The previous tool call escaped the workspace root. Retry with a path under the current workspace root.",
               );
+              previousTurnHadToolError = true;
 
               if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
                 return finish(
@@ -419,8 +445,11 @@ export class Agent {
               this.emit("onStatus", `escalating to ${escalationHint ?? "the primary model"}: ${result.reason}`);
             }
 
-            if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
-              return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
+            if (typeof result.error === "string") {
+              previousTurnHadToolError = true;
+              if (this.loopDetector.record(name, args, result.error)) {
+                return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
+              }
             }
             if (toolTurn === this.maxToolTurns - 1) {
               return finish("turn_budget", lastAssistantText || "(no response)");
@@ -431,6 +460,7 @@ export class Agent {
             this.conversation.pushToolResult(
               JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
             );
+            previousTurnHadToolError = true;
           }
         }
       }

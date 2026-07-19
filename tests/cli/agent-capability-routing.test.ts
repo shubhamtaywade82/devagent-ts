@@ -213,6 +213,44 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     expect(turn1Messages.some((m) => m.role === "tool" && String(m.content).includes("needs a real multi-file refactor"))).toBe(true);
   });
 
+  it("auto-escalates when a tool call errors and the quick model answers instead of retrying or calling escalate_task", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    let call = 0;
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+      call += 1;
+      if (call === 1) {
+        return modelsListResponse([
+          { name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } },
+        ]);
+      }
+      // Turn 0: calls read_file on a path that doesn't exist — a real tool error.
+      if (call === 2) return toolCallResponse("read_file", { path: "does/not/exist.txt" });
+      // Turn 1: instead of retrying or calling escalate_task, invents an unrelated
+      // "fix" as plain content — the exact failure mode observed in practice.
+      if (call === 3) return chatResponse("touch /todo_comments");
+      return chatResponse("a real answer from the primary model");
+    });
+
+    const onStatus = jest.fn();
+    const onAssistantText = jest.fn();
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "primary-model" },
+      events: { onStatus, onAssistantText },
+    });
+
+    const reply = await agent.runUserMessage("do something that will fail");
+
+    expect(reply).toBe("a real answer from the primary model");
+    expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("previous tool call failed"));
+    // The discarded "touch /todo_comments" guess must never reach the UI.
+    expect(onAssistantText).not.toHaveBeenCalledWith(expect.stringContaining("touch"));
+
+    const bodies = chatBodies();
+    expect(bodies[0].model).toBe("minicpm5-1b"); // turn 0: quick, tool errors
+    expect(bodies[1].model).toBe("minicpm5-1b"); // turn 1: still quick, buffered/discarded
+    expect(bodies[2].model).toBe("primary-model"); // immediate re-run on primary
+  });
+
   it("stays escalated for the rest of the call, but resets to quick on the next runUserMessage call", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     let call = 0;
