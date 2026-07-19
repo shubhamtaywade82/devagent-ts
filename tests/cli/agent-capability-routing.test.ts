@@ -391,4 +391,78 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     const tools = (chatBodies()[0].tools ?? []) as Array<{ function: { name: string } }>;
     expect(tools.some((t) => t.function.name === "escalate_task")).toBe(true);
   });
+
+  it("stays on the quick model when self-consistency samples agree on an ambiguous prompt", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    let call = 0;
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+      call += 1;
+      // Self-consistency samples run before the catalog is ever refreshed
+      // (it doesn't need the catalog — it talks to the quick provider directly),
+      // so the 3 samples are calls 1-3 and the catalog GET is call 4.
+      if (call === 4) {
+        return modelsListResponse([
+          { name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } },
+        ]);
+      }
+      return chatResponse("call it Account");
+    });
+
+    const onStatus = jest.fn();
+    const agent = new Agent({
+      config: {
+        workspaceRoot: dir,
+        tier: "local",
+        model: "primary-model",
+        quickModel: "minicpm5-1b",
+        enableSelfConsistency: true,
+      },
+      events: { onStatus },
+    });
+
+    const reply = await agent.runUserMessage("should I call this a UserAccount or an Account");
+
+    expect(reply).toBe("call it Account");
+    expect(onStatus).not.toHaveBeenCalledWith(expect.stringContaining("low self-consistency agreement"));
+    // chatBodies()[0..2] are the 3 self-consistency samples; [3] is the real quick turn.
+    expect(chatBodies()[3].model).toBe("minicpm5-1b");
+  });
+
+  it("escalates to the primary model when self-consistency samples diverge on an ambiguous prompt", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    let call = 0;
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+      call += 1;
+      // Self-consistency samples (1-3) run before the catalog GET (4) — see
+      // the comment in the "agree" test above for why.
+      if (call === 1) return chatResponse("call it Account");
+      if (call === 2) return chatResponse("call it UserProfile");
+      if (call === 3) return chatResponse("neither, use Customer");
+      if (call === 4) {
+        return modelsListResponse([
+          { name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } },
+        ]);
+      }
+      return chatResponse("here's my recommendation");
+    });
+
+    const onStatus = jest.fn();
+    const agent = new Agent({
+      config: {
+        workspaceRoot: dir,
+        tier: "local",
+        model: "primary-model",
+        quickModel: "minicpm5-1b",
+        enableSelfConsistency: true,
+      },
+      events: { onStatus },
+    });
+
+    const reply = await agent.runUserMessage("should I call this a UserAccount or an Account");
+
+    expect(reply).toBe("here's my recommendation");
+    expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("low self-consistency agreement"));
+    // chatBodies()[0..2] are the 3 diverging samples; [3] is the escalated primary-model turn.
+    expect(chatBodies()[3].model).toBe("primary-model");
+  });
 });

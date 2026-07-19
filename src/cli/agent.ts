@@ -357,6 +357,20 @@ export class Agent {
           "onStatus",
           `escalating to primary model: heuristic pre-filter matched "${heuristic.trigger}"`,
         );
+      } else if (heuristic.decision === "unknown" && !requiresToolEvidence && this.selfConsistency) {
+        // Self-consistency, not verbalized self-confidence: measures agreement
+        // across independent samples rather than asking the model to judge its
+        // own output (that approach was tried and rejected — see the comment
+        // above requiresToolEvidence's verifyingLookup/verifyingRecovery usage).
+        const sc = await this.selfConsistency.evaluate(userMessage);
+        if (sc.shouldEscalate) {
+          escalated = true;
+          injectDelegationAddendum();
+          this.emit(
+            "onStatus",
+            `escalating to primary model: low self-consistency agreement (${sc.score.toFixed(2)})`,
+          );
+        }
       }
     }
 
