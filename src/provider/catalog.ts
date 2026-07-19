@@ -1,6 +1,7 @@
 import { Provider, Tier } from "./provider.js";
+import type { ModelAvailabilityChecker } from "./availability.js";
 
-export type Capability = "coding" | "vision" | "reasoning" | "quick" | "tools";
+export type Capability = "coding" | "vision" | "reasoning" | "quick" | "tools" | "agentic";
 
 export interface ModelInfo {
   name: string;
@@ -17,8 +18,9 @@ export function inferCapabilities(name: string): Capability[] {
   const caps: Capability[] = ["tools"];
 
   if (/(^|[^a-z])(vl|vision)([^a-z]|$)/.test(n)) caps.push("vision");
-  if (/(r1|reason|thinking)/.test(n)) caps.push("reasoning");
+  if (/(r1|reason|thinking|qwq)/.test(n)) caps.push("reasoning");
   if (/(0\.5b|1b|2b|3b|4b|nano|mini|hermes|opencode)/.test(n)) caps.push("quick");
+  if (/(hermes|openhermes|nous-hermes)/.test(n)) caps.push("agentic");
   if (!caps.includes("vision") && !caps.includes("reasoning")) caps.push("coding");
 
   return caps;
@@ -79,6 +81,16 @@ function namesFromCloudModels(data: unknown): string[] {
   return items.map((m) => m.id).filter((n): n is string => !!n);
 }
 
+// Ordered preference lists per capability — first-matching substring wins.
+// Applied as a secondary sort after local-first tier ordering.
+const CURATED_PREFERENCES: Partial<Record<Capability, string[]>> = {
+  reasoning: ["qwq", "llama3.3:70b", "hermes3:70b", "qwen3:8b", "qwen3"],
+  coding: ["qwen2.5-coder:32b", "qwen2.5-coder:7b", "llama3.3", "qwen3.5", "granite4"],
+  agentic: ["hermes3:70b", "llama3.3:70b", "qwq", "qwen3:8b", "llama3.1:70b"],
+  tools: ["granite4", "llama3.1:8b", "qwen2.5:7b", "hermes3:8b"],
+  quick: ["minicpm5", "llama3.2:3b", "qwen2.5:0.5b", "llama3.2:1b"],
+};
+
 export class ModelCatalog {
   private models: ModelInfo[] = [];
 
@@ -129,16 +141,56 @@ export class ModelCatalog {
 
   // Local-first: local candidates before cloud candidates. Within "quick",
   // quickPreferredName (if set) additionally wins the tie within its tier.
+  // Curated preference ordering applied as a secondary sort within each tier.
   modelsFor(capability: Capability): ModelInfo[] {
     const preferred = capability === "quick" ? this.quickPreferredName?.toLowerCase() : undefined;
+    const prefs = CURATED_PREFERENCES[capability];
     return this.models
       .filter((m) => m.capabilities.includes(capability))
       .sort((a, b) => {
+        // Tier: local always before cloud
         if (a.tier !== b.tier) return a.tier === "local" ? -1 : 1;
-        if (!preferred) return 0;
-        const aMatch = a.name.toLowerCase().includes(preferred);
-        const bMatch = b.name.toLowerCase().includes(preferred);
-        return aMatch === bMatch ? 0 : aMatch ? -1 : 1;
+        // quickPreferredName wins within the quick capability
+        if (capability === "quick" && preferred) {
+          const aMatch = a.name.toLowerCase().includes(preferred);
+          const bMatch = b.name.toLowerCase().includes(preferred);
+          if (aMatch !== bMatch) return aMatch ? -1 : 1;
+        }
+        // Curated preference order within tier
+        if (!prefs) return 0;
+        const rank = (m: ModelInfo): number => {
+          const idx = prefs.findIndex((p) => m.name.toLowerCase().includes(p.toLowerCase()));
+          return idx === -1 ? 999 : idx;
+        };
+        return rank(a) - rank(b);
       });
+  }
+
+  /**
+   * Like `modelsFor`, but filters out cloud models whose availability has not
+   * been confirmed by the given `ModelAvailabilityChecker`. Local models are
+   * always included. Falls back to `modelsFor` when checker/apiKeys are absent.
+   */
+  async availableModelsFor(
+    capability: Capability,
+    checker?: ModelAvailabilityChecker,
+    apiKeys?: string[],
+  ): Promise<ModelInfo[]> {
+    const all = this.modelsFor(capability);
+    if (!checker || !apiKeys?.length) return all;
+    const result: ModelInfo[] = [];
+    for (const m of all) {
+      if (m.tier === "local") {
+        result.push(m);
+        continue;
+      }
+      for (const key of apiKeys) {
+        if (await checker.isAvailable(key, m.name)) {
+          result.push(m);
+          break;
+        }
+      }
+    }
+    return result;
   }
 }

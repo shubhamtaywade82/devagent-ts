@@ -22,6 +22,13 @@ import { AgentLearning } from "./agent-learning.js";
 import { DynamicToolSelector } from "../tools/discovery.js";
 import { BrowserManager } from "../browser/manager.js";
 import { BinanceStreamManager } from "../exchange/binance-stream.js";
+// ── Hybrid local-cloud architecture ────────────────────────────────────
+import { ModelAvailabilityChecker } from "../provider/availability.js";
+import { KeyManager } from "../provider/key-manager.js";
+import { HeuristicRouter } from "../provider/heuristic-router.js";
+import { LocalWorker } from "../provider/local-worker.js";
+import { Verifier } from "../provider/verifier.js";
+import { SelfConsistency } from "../provider/self-consistency.js";
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -69,6 +76,14 @@ export class Agent {
   readonly events: AgentEvents;
   private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
+  // ── Hybrid local-cloud architecture ─────────────────────────────────
+  readonly heuristicRouter: HeuristicRouter;
+  readonly localWorker: LocalWorker | undefined;
+  readonly verifier: Verifier | undefined;
+  readonly selfConsistency: SelfConsistency | undefined;
+  readonly availabilityChecker: ModelAvailabilityChecker | undefined;
+  readonly keyManager: KeyManager | undefined;
+
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
 
@@ -110,6 +125,51 @@ export class Agent {
       catalog: this.catalog,
       logger: { warn: (msg: string) => this.emit("onStatus", msg) },
     });
+
+    // ── Hybrid local-cloud architecture: instantiate all components ─────────
+    this.heuristicRouter = new HeuristicRouter();
+
+    // Availability checker: pre-validate cloud model access per API key at startup.
+    this.availabilityChecker =
+      cfg.enableAvailabilityCheck && cfg.apiKeys?.length
+        ? new ModelAvailabilityChecker(cfg.apiKeys, { ttlMs: cfg.availabilityCheckTtlMs })
+        : undefined;
+
+    // KeyManager: bind API keys to models to keep them warm in Ollama Cloud VRAM.
+    this.keyManager =
+      this.availabilityChecker && cfg.apiKeys?.length
+        ? new KeyManager(cfg.apiKeys, this.availabilityChecker)
+        : undefined;
+
+    // LocalWorker: executes boilerplate tasks on the local quick model.
+    // Uses a dedicated quick-model provider so the primary model/tier is never mutated.
+    const quickLocalProvider = cfg.quickModel
+      ? new Provider({
+          tier: "local",
+          model: cfg.quickModel,
+          host: cfg.tier === "local" ? cfg.host : undefined,
+        })
+      : localProvider;
+    this.localWorker = cfg.enableLocalWorker ? new LocalWorker(quickLocalProvider) : undefined;
+
+    // Verifier: critic pass after local generation (off by default).
+    this.verifier = cfg.enableVerifier && this.localWorker ? new Verifier(quickLocalProvider) : undefined;
+
+    // Self-consistency: agreement signal for borderline prompts (off by default).
+    this.selfConsistency =
+      cfg.enableSelfConsistency
+        ? new SelfConsistency(quickLocalProvider, {
+            n: cfg.selfConsistencyN,
+            threshold: cfg.selfConsistencyThreshold,
+          })
+        : undefined;
+
+    // Trigger availability refresh non-blocking at startup.
+    if (this.availabilityChecker) {
+      this.availabilityChecker.refreshAll().catch((e: Error) =>
+        this.emit("onStatus", `[Availability] refresh error: ${e.message}`),
+      );
+    }
 
     this.events = opts.events ?? {};
 

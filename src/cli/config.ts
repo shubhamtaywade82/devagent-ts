@@ -34,6 +34,26 @@ export interface CliConfig {
   /** Preferred local model name (substring match) for the "quick" capability,
    * e.g. "minicpm5" — see ModelCatalog.modelsFor. */
   quickModel?: string;
+
+  // ── Hybrid local-cloud architecture ──────────────────────────────────────
+  /** Route trivial boilerplate tasks to the local quick model before calling cloud.
+   * Default true when quickModel is set. Disable with DEVAGENT_LOCAL_WORKER=false. */
+  enableLocalWorker?: boolean;
+  /** After local generation, run a critic pass to catch confident-wrong answers.
+   * Off by default (experimental). Enable with DEVAGENT_VERIFIER=true. */
+  enableVerifier?: boolean;
+  /** For 'unknown' heuristic decisions, draw N samples and check agreement.
+   * Off by default. Enable with DEVAGENT_SELF_CONSISTENCY=true. */
+  enableSelfConsistency?: boolean;
+  /** Number of self-consistency samples. Default 3. */
+  selfConsistencyN?: number;
+  /** Agreement threshold below which to escalate. Default 0.5. */
+  selfConsistencyThreshold?: number;
+  /** TTL (ms) for the ModelAvailabilityChecker cache. Default 86_400_000 (24 h). */
+  availabilityCheckTtlMs?: number;
+  /** Pre-check cloud model subscription access at startup.
+   * Default true when apiKeys are configured. Disable with DEVAGENT_AVAIL_CHECK=false. */
+  enableAvailabilityCheck?: boolean;
 }
 
 interface ConfigFile {
@@ -49,6 +69,13 @@ interface ConfigFile {
   maxActiveTools?: number;
   apiKeys?: string[];
   quickModel?: string;
+  enableLocalWorker?: boolean;
+  enableVerifier?: boolean;
+  enableSelfConsistency?: boolean;
+  selfConsistencyN?: number;
+  selfConsistencyThreshold?: number;
+  availabilityCheckTtlMs?: number;
+  enableAvailabilityCheck?: boolean;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
@@ -146,6 +173,14 @@ export function loadConfig(): CliConfig {
   const envKeys = (fromEnv("OLLAMA_API_KEYS") ?? "").split(",").map((k) => k.trim()).filter(Boolean);
   const apiKeys = [...new Set([...(primaryApiKey ? [primaryApiKey] : []), ...envKeys, ...(file.apiKeys ?? [])])];
 
+  const selfConsistencyN = Number(fromEnv("DEVAGENT_SC_N") || String(file.selfConsistencyN ?? "3"));
+  const selfConsistencyThreshold = Number(
+    fromEnv("DEVAGENT_SC_THRESHOLD") || String(file.selfConsistencyThreshold ?? "0.5"),
+  );
+  const availabilityCheckTtlMs = Number(
+    fromEnv("DEVAGENT_AVAIL_TTL_MS") || String(file.availabilityCheckTtlMs ?? "86400000"),
+  );
+
   return {
     model: fromEnv("DEVAGENT_MODEL") || file.model || "qwen3.5:4b",
     workspaceRoot,
@@ -160,5 +195,15 @@ export function loadConfig(): CliConfig {
     maxActiveTools,
     apiKeys: apiKeys.length ? apiKeys : undefined,
     quickModel: fromEnv("DEVAGENT_QUICK_MODEL") || file.quickModel,
+    // Hybrid architecture flags
+    enableLocalWorker: fromEnv("DEVAGENT_LOCAL_WORKER") !== "false" && (file.enableLocalWorker ?? true),
+    enableVerifier: fromEnv("DEVAGENT_VERIFIER") === "true" || (file.enableVerifier ?? false),
+    enableSelfConsistency:
+      fromEnv("DEVAGENT_SELF_CONSISTENCY") === "true" || (file.enableSelfConsistency ?? false),
+    selfConsistencyN,
+    selfConsistencyThreshold,
+    availabilityCheckTtlMs,
+    enableAvailabilityCheck:
+      fromEnv("DEVAGENT_AVAIL_CHECK") !== "false" && (file.enableAvailabilityCheck ?? true),
   };
 }
