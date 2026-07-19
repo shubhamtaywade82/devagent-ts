@@ -94,6 +94,10 @@ export class Router {
     // model still gets picked that rejects tool schemas outright, that's a
     // wrong-candidate problem, not a fatal one — try the next candidate.
     if (e instanceof ProviderError && /does not support tools/i.test(e.message)) return true;
+    // Same reasoning for a candidate gated behind a paid subscription tier —
+    // ModelAvailabilityChecker should ideally have filtered it out already,
+    // but if it slips through, don't fail the whole turn over it.
+    if (e instanceof ProviderError && /subscription/i.test(e.message)) return true;
     return false;
   }
 }

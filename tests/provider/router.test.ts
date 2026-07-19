@@ -125,6 +125,29 @@ describe("Router.route", () => {
     expect(result.message.content).toBe("from cloud");
   });
 
+  it("treats a subscription-required ProviderError as recoverable and falls through to the next cloud candidate", async () => {
+    const local = new Provider({ tier: "local", model: "x" });
+    const cloud = new Provider({ tier: "cloud", model: "x", apiKey: "k" });
+    const catalog = new ModelCatalog(local, cloud);
+
+    jest.spyOn(local, "availableModels").mockResolvedValue({ models: [] });
+    jest.spyOn(cloud, "availableModels").mockResolvedValue({
+      data: [{ id: "llama3.3:70b" }, { id: "qwen3.5:8b" }],
+    });
+    await catalog.refresh();
+
+    const cloudChat = jest
+      .spyOn(cloud, "chat")
+      .mockRejectedValueOnce(new ProviderError("Ollama cloud 403: subscription required for llama3.3:70b"))
+      .mockResolvedValueOnce(okResponse("from second cloud model"));
+
+    const router = new Router({ local, cloud, catalog, logger: { warn: jest.fn() } });
+    const result = await router.route("coding", [{ role: "user", content: "hi" }]);
+
+    expect(result.message.content).toBe("from second cloud model");
+    expect(cloudChat).toHaveBeenCalledTimes(2);
+  });
+
   it("throws when no model in the catalog has the requested capability", async () => {
     const local = new Provider({ tier: "local", model: "x" });
     const catalog = new ModelCatalog(local);
