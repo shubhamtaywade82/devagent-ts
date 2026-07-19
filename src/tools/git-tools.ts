@@ -14,6 +14,7 @@ const ALLOWED_SUBCOMMANDS = new Set([
   "blame",
   "rev-parse",
   "cherry-pick",
+  "pull",
 ]);
 
 const DISALLOWED_FLAG_PATTERNS = [/^--hard$/, /^--force$/, /^-f$/, /^-D$/];
@@ -28,7 +29,7 @@ export class GitTool extends Tool {
   }
 
   get description(): string {
-    return "Run a read/local-write git subcommand (status, diff, log, branch, add, commit, checkout, stash, show, blame, rev-parse, cherry-pick). Push, force operations, and hard resets are blocked — ask the user to run those manually.";
+    return "Run a read/local-write git subcommand (status, diff, log, branch, add, commit, checkout, stash, show, blame, rev-parse, cherry-pick, pull). Push, force operations, and hard resets are blocked — ask the user to run those manually.";
   }
 
   get parameters(): Record<string, unknown> {

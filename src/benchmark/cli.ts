@@ -1,13 +1,24 @@
 #!/usr/bin/env node
+import { parseArgs } from "node:util";
 import { Provider } from "../provider/provider.js";
 import { ModelCatalog } from "../provider/catalog.js";
 import { loadConfig } from "../cli/config.js";
 import { runBenchmark, BenchmarkTarget } from "./runner.js";
 import { BUILTIN_CASES } from "./cases.js";
-import { scoreByModel } from "./score.js";
-import { formatReport } from "./report.js";
+import { buildAgenticCases } from "./cases-agentic.js";
+import { buildExecutionCases } from "./cases-execution.js";
+import { BenchmarkCase } from "./types.js";
+import { scoreByModel, scoreByCategory } from "./score.js";
+import { formatReport, formatCategoryReport } from "./report.js";
 
 async function main() {
+  const { values } = parseArgs({
+    options: {
+      model: { type: "string", short: "m" },
+      category: { type: "string", short: "c" },
+    },
+  });
+
   const cfg = loadConfig();
 
   const local = new Provider({ tier: "local", model: cfg.model, host: cfg.tier === "local" ? cfg.host : undefined });
@@ -16,15 +27,21 @@ async function main() {
     : undefined;
 
   const catalog = new ModelCatalog(local, cloud);
-  const models = await catalog.refresh();
+  const allModels = await catalog.refresh();
 
-  if (models.length === 0) {
+  const modelFilter = values.model?.toLowerCase();
+  const models = modelFilter ? allModels.filter((m) => m.name.toLowerCase().includes(modelFilter)) : allModels;
+
+  if (allModels.length === 0) {
     console.error("No models discovered (local Ollama unreachable and no cloud API key configured).");
     process.exitCode = 1;
     return;
   }
-
-  console.log(`Benchmarking ${models.length} model(s) across ${BUILTIN_CASES.length} case(s)...\n`);
+  if (models.length === 0) {
+    console.error(`No discovered model matches --model "${values.model}". Available: ${allModels.map((m) => m.name).join(", ")}`);
+    process.exitCode = 1;
+    return;
+  }
 
   const targets: BenchmarkTarget[] = models.map((m) => ({
     model: m.name,
@@ -32,10 +49,32 @@ async function main() {
     provider: m.tier === "local" ? local : (cloud as Provider),
   }));
 
-  const results = await runBenchmark(targets, BUILTIN_CASES);
+  // Execution cases spin up a real (shared, read-only) temp workspace once —
+  // safe to reuse across targets since they don't mutate state, unlike the
+  // agentic cases' error-recovery case, which needs a fresh call-count
+  // closure per target (see buildAgenticCases/runBenchmark's factory note).
+  const executionCases = await buildExecutionCases();
+  const categoryFilter = values.category;
+  const buildCases = (): BenchmarkCase[] => {
+    const all = [...BUILTIN_CASES, ...buildAgenticCases(), ...executionCases];
+    return categoryFilter ? all.filter((c) => c.category === categoryFilter) : all;
+  };
+
+  const caseCount = buildCases().length;
+  if (caseCount === 0) {
+    console.error(`No case matches --category "${values.category}".`);
+    process.exitCode = 1;
+    return;
+  }
+
+  console.log(`Benchmarking ${models.length} model(s) across ${caseCount} case(s)...\n`);
+
+  const results = await runBenchmark(targets, buildCases);
   const failures = results.filter((r) => !r.pass);
 
   console.log(formatReport(scoreByModel(results)));
+  console.log("\nBy category:\n");
+  console.log(formatCategoryReport(scoreByCategory(results)));
 
   if (failures.length) {
     console.log("\nFailures:");

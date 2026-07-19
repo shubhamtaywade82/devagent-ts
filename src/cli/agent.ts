@@ -1,7 +1,7 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig } from "./config.js";
-import { Provider, ChatMessage } from "../provider/provider.js";
+import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
 import { Capability, ModelCatalog } from "../provider/catalog.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
@@ -13,6 +13,7 @@ import { PlanStep, Planner } from "../orchestrator/types.js";
 import { SkillMeta } from "../skills/types.js";
 import { LspServerState } from "../lsp/protocol.js";
 import { MemoryStore } from "../memory/store.js";
+import { DocsStore } from "../docs/store.js";
 import { generateSummary } from "../memory/summarizer.js";
 import { AgentConversation } from "./agent-conversation.js";
 import { AgentToolManager } from "./agent-tools.js";
@@ -50,6 +51,7 @@ export class Agent {
   readonly intelligence: AgentIntelligence;
   readonly learning: AgentLearning;
   readonly memory: MemoryStore;
+  readonly docs: DocsStore;
   readonly lspManager: AgentIntelligence["lspManager"];
   readonly railsIndex: AgentIntelligence["railsIndex"];
   readonly browser: BrowserManager;
@@ -79,9 +81,10 @@ export class Agent {
       ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
     });
 
-    // Separate provider pool for capability-routed delegation (see classifyCapability),
-    // kept independent of `this.provider` so the primary conversation's model/tier is
-    // never mutated. Cloud provider is omitted entirely when no API key is configured.
+    // Separate provider pool for capability-routed delegation (see runUserMessage /
+    // detectEscalationHint), kept independent of `this.provider` so the primary
+    // conversation's model/tier is never mutated. Cloud provider is omitted
+    // entirely when no API key is configured.
     const localProvider = new Provider({
       tier: "local",
       model: cfg.model,
@@ -100,7 +103,7 @@ export class Agent {
         })
       : undefined;
 
-    this.catalog = new ModelCatalog(localProvider, cloudProvider);
+    this.catalog = new ModelCatalog(localProvider, cloudProvider, cfg.quickModel);
     this.router = new Router({
       local: localProvider,
       cloud: cloudProvider,
@@ -113,13 +116,12 @@ export class Agent {
     this.conversation = new AgentConversation();
 
     this.tools = new AgentToolManager();
-    this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) =>
-      this.emit("onShellOutput", stream, chunk),
-    );
+    this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) => this.emit("onShellOutput", stream, chunk));
 
     this.intelligence = new AgentIntelligence({
       workspaceRoot: cfg.workspaceRoot,
-      languages: cfg.languages as Record<string, Partial<import("../lsp/registry.js").LanguageProviderConfig>> | undefined,
+      languages: cfg.languages as
+        Record<string, Partial<import("../lsp/registry.js").LanguageProviderConfig>> | undefined,
       lspConfig: cfg.lsp as import("../lsp/config.js").LspGlobalConfig | undefined,
       prewarm: (cfg.lsp as { prewarm?: string[] } | undefined)?.prewarm,
       onDiagnostics: (filePath, diagnostics) => {
@@ -148,6 +150,9 @@ export class Agent {
     this.planCheckpoint = new CheckpointStore(join(devagentDir, "checkpoint.json"));
     this.sessionStore = new SessionStore(join(devagentDir, "session.json"));
 
+    this.docs = new DocsStore(join(devagentDir, "docs.db"));
+    this.tools.registerDocsTools(this.docs, cfg.workspaceRoot);
+
     const projectLanguage = this.intelligence.railsIndex.enabled
       ? this.intelligence.railsIndex.workspace.isRails
         ? "ruby"
@@ -168,6 +173,17 @@ export class Agent {
       mode: cfg.toolSelectionMode,
       maxActiveTools: cfg.maxActiveTools,
       provider: this.provider,
+      // LLM-mode tool selection is a classification task, not a coding one — route it
+      // through the "quick" capability (an always-resident local model, falling back
+      // to cloud per Router.route/routeWithFallback) instead of the primary model.
+      chat: async (messages) => {
+        await this.ensureCatalog();
+        const candidates = this.catalog.modelsFor("quick");
+        if (candidates.length) {
+          this.emit("onStatus", `delegating task to ${candidates[0].tier}/${candidates[0].name} (tool selection)`);
+        }
+        return this.routeWithFallback("quick", messages, { stream: false });
+      },
     });
   }
 
@@ -191,7 +207,7 @@ export class Agent {
     this.listeners.get(event)?.forEach((h) => h(...args));
   }
 
-  async runUserMessage(userMessage: string, priority?: PlanStep["priority"]): Promise<string> {
+  async runUserMessage(userMessage: string, _priority?: PlanStep["priority"]): Promise<string> {
     const learnings = this.learning.getLearnings();
     const activatedSkills = this.learning.resolveForPrompt(userMessage);
 
@@ -209,7 +225,16 @@ export class Agent {
     if (activatedSkills.length) {
       this.emit(
         "onSkillsActivated",
-        activatedSkills.map((s) => ({ id: s.id, name: s.name, description: s.description, tags: s.tags, version: s.version, scope: s.scope, dir: s.dir, path: s.path })),
+        activatedSkills.map((s) => ({
+          id: s.id,
+          name: s.name,
+          description: s.description,
+          tags: s.tags,
+          version: s.version,
+          scope: s.scope,
+          dir: s.dir,
+          path: s.path,
+        })),
       );
     }
 
@@ -236,47 +261,122 @@ export class Agent {
       return text;
     };
 
-    const capability = this.classifyCapability(priority, userMessage);
-    if (capability) await this.ensureCatalog();
-    const delegateCandidates = capability ? this.catalog.modelsFor(capability) : [];
-    if (delegateCandidates.length) {
-      this.emit("onStatus", `delegating task to ${delegateCandidates[0].tier}/${delegateCandidates[0].name}`);
+    // priority no longer feeds routing (every turn now attempts "quick" first,
+    // see below) — kept as a runUserMessage param for AgentStepRunner/Orchestrator
+    // interface compatibility.
+    const escalationHint = this.detectEscalationHint(userMessage);
+    // Lookup-style prompts ("where is X defined?") NEED a tool call (search/read)
+    // to answer correctly; a small model that just prose-answers instead is wrong,
+    // not merely low-quality. Verified below: escalate once if that happens.
+    const requiresToolEvidence = Agent.LOOKUP_PATTERN.test(userMessage.toLowerCase());
+    // Local to this call, not a class field: AgentStepRunner reuses the same Agent
+    // across plan steps and retries, each via a fresh runUserMessage call — a class
+    // field would leak escalation state across unrelated steps/retries.
+    let escalated = false;
+
+    await this.ensureCatalog();
+    const quickCandidates = this.catalog.modelsFor("quick");
+    if (quickCandidates.length) {
+      this.emit("onStatus", `delegating task to ${quickCandidates[0].tier}/${quickCandidates[0].name}`);
     }
+
+    // Set at the end of a turn's tool dispatch when any tool call in that turn
+    // errored; read at the top of the NEXT turn's buffering decision, then reset —
+    // see the "recoveredFromError"/verifying logic below.
+    let previousTurnHadToolError = false;
 
     try {
       for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
         this.conversation.pruneContext();
         this.emit("onStatus", `turn ${toolTurn + 1}`);
 
+        const capability: Capability | null = escalated ? escalationHint : "quick";
+
         const activeTools = await this.toolSelector.selectTools(
           userMessage,
           this.conversation.getMessages(),
           this.tools.registry.getTools(),
         );
+        // escalate_task must always be offered while still on the local model —
+        // heuristic/LLM tool-selection scoring could otherwise leave it out.
+        if (!escalated && !activeTools.some((t) => t.name === "escalate_task")) {
+          const escalateTool = this.tools.registry.getTools().find((t) => t.name === "escalate_task");
+          if (escalateTool) activeTools.push(escalateTool);
+        }
 
-        const chatOpts = {
+        // Buffer the attempt's streamed text instead of emitting it live, so a bad
+        // quick-model answer can be discarded and re-run on the primary model
+        // without ever hitting the UI. Two triggers: (1) a lookup-phrased question
+        // answered without the required tool call, turn 0 only; (2) the PREVIOUS
+        // turn's tool call errored and the quick model — instead of retrying or
+        // calling escalate_task — is about to answer anyway (observed in practice:
+        // a 1B model inventing an unrelated "fix" or apologizing instead of
+        // escalating). Only while still unescalated; the recovery check consumes
+        // and resets previousTurnHadToolError so it never leaks past this turn.
+        //
+        // Deliberately NOT extended to a general "self-confidence probe" for
+        // plain wrong-but-confident final answers (e.g. a hard task answered
+        // wrong in one shot, no error, no loop) — tried it, tested it live
+        // against real minicpm5-1b: the model just says "yes I'm confident" to
+        // its own garbage. A weak model's self-assessment of its own output
+        // isn't trustworthy, so there's no cheap fix for that failure mode here;
+        // it's an accepted residual risk (see escalate-on-hard-task benchmark
+        // case in src/benchmark/cases-agentic.ts, which stays red on purpose).
+        const verifyingLookup = requiresToolEvidence && toolTurn === 0 && !escalated;
+        const verifyingRecovery = !escalated && previousTurnHadToolError;
+        previousTurnHadToolError = false;
+        const verifying = verifyingLookup || verifyingRecovery;
+        let buffered: string[] | null = verifying ? [] : null;
+        const makeChatOpts = () => ({
           stream: true,
           tools: activeTools.length > 0 ? activeTools.map((t) => t.schema) : undefined,
           onChunk: (chunk: any) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
-              lastAssistantText += delta;
-              this.emit("onAssistantText", delta);
+              if (buffered) buffered.push(delta);
+              else {
+                lastAssistantText += delta;
+                this.emit("onAssistantText", delta);
+              }
             }
             const thinking = (chunk.message as any)?.thinking;
             if (typeof thinking === "string" && thinking) {
               this.emit("onThinking", thinking);
             }
           },
-        };
-        const chatResponse = delegateCandidates.length
-          ? await this.router.route(capability!, this.conversation.getMessages(), chatOpts)
+        });
+        let chatOpts = makeChatOpts();
+        let chatResponse = capability
+          ? await this.routeWithFallback(capability, this.conversation.getMessages(), chatOpts)
           : await this.provider.chat(this.conversation.getMessages(), chatOpts);
 
-        const assistantMessage = chatResponse.message as {
+        let assistantMessage = chatResponse.message as {
           content?: string;
           tool_calls?: Array<{ function: { name: string; arguments: any } }>;
         };
+
+        if (verifying && !(assistantMessage.tool_calls ?? []).length) {
+          this.emit(
+            "onStatus",
+            verifyingRecovery
+              ? "escalating to primary model: previous tool call failed and the quick model answered instead of retrying or escalating"
+              : "escalating to primary model: quick model answered a lookup query without calling a tool",
+          );
+          escalated = true;
+          buffered = null;
+          chatOpts = makeChatOpts();
+          chatResponse = await this.provider.chat(this.conversation.getMessages(), chatOpts);
+          assistantMessage = chatResponse.message as {
+            content?: string;
+            tool_calls?: Array<{ function: { name: string; arguments: any } }>;
+          };
+        } else if (buffered) {
+          for (const delta of buffered) {
+            lastAssistantText += delta;
+            this.emit("onAssistantText", delta);
+          }
+        }
+
         this.conversation.pushAssistantMessage(assistantMessage.content ?? "", assistantMessage.tool_calls);
 
         const toolCalls = assistantMessage.tool_calls ?? [];
@@ -325,6 +425,7 @@ export class Agent {
               this.conversation.pushSystemMessage(
                 "[system] The previous tool call escaped the workspace root. Retry with a path under the current workspace root.",
               );
+              previousTurnHadToolError = true;
 
               if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
                 return finish(
@@ -337,12 +438,18 @@ export class Agent {
 
             this.emit("onToolResult", name, result);
             this.intelligence.feedRailsIndex(name, args, result);
-            this.conversation.pushToolResult(
-              typeof result === "string" ? result : JSON.stringify(result, null, 2),
-            );
+            this.conversation.pushToolResult(typeof result === "string" ? result : JSON.stringify(result, null, 2));
 
-            if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
-              return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
+            if (name === "escalate_task" && result.escalate === true) {
+              escalated = true;
+              this.emit("onStatus", `escalating to ${escalationHint ?? "the primary model"}: ${result.reason}`);
+            }
+
+            if (typeof result.error === "string") {
+              previousTurnHadToolError = true;
+              if (this.loopDetector.record(name, args, result.error)) {
+                return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
+              }
             }
             if (toolTurn === this.maxToolTurns - 1) {
               return finish("turn_budget", lastAssistantText || "(no response)");
@@ -353,6 +460,7 @@ export class Agent {
             this.conversation.pushToolResult(
               JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
             );
+            previousTurnHadToolError = true;
           }
         }
       }
@@ -427,30 +535,24 @@ export class Agent {
   }
 
   // ponytail: keyword classification, not an LLM intent classifier — cheap and
-  // deterministic. Falls back to the primary model whenever the catalog has no
-  // candidate for the detected capability (e.g. no vision model installed), so
-  // a wrong or missed classification never breaks the turn, only skips routing.
+  // deterministic. No longer gates whether the local "quick" model gets tried
+  // at all (every turn attempts it first, see runUserMessage) — these patterns
+  // only pick the ESCALATION TARGET for when the model self-escalates via the
+  // escalate_task tool, reusing Router's existing vision/reasoning routing.
   private static readonly VISION_PATTERN = /\b(screenshot|diagram|image|photo|picture)\b|\.(png|jpe?g|gif|webp)\b/;
   private static readonly REASONING_PATTERN =
     /\b(architecture|trade-?offs?|root cause|design decision|why does|why is|think through|deep dive)\b/;
+  // Read-only lookup/classification phrasing — still used below to require tool
+  // evidence on quick-routed lookup turns (a prose-only answer is wrong, not
+  // just low quality).
+  private static readonly LOOKUP_PATTERN =
+    /\b(where is|where's|find the|show me|list the|which file|how many|what does .* do)\b/;
 
-  private classifyCapability(priority?: string, text?: string): Capability | null {
-    const desc = (text || "").toLowerCase();
-
+  private detectEscalationHint(text: string): "vision" | "reasoning" | null {
+    const desc = text.toLowerCase();
     if (Agent.VISION_PATTERN.test(desc)) return "vision";
     if (Agent.REASONING_PATTERN.test(desc)) return "reasoning";
-
-    const isNonCritical =
-      priority === "low" ||
-      priority === "medium" ||
-      desc.includes("document") ||
-      desc.includes("readme") ||
-      desc.includes("comment") ||
-      desc.includes("test") ||
-      desc.includes("cleanup") ||
-      desc.includes("lint");
-
-    return isNonCritical ? "quick" : null;
+    return null;
   }
 
   // Refreshed once, on first delegation attempt, and cached for the Agent's lifetime.
@@ -459,6 +561,28 @@ export class Agent {
       this.catalogRefreshed = this.catalog.refresh().then(() => undefined);
     }
     return this.catalogRefreshed;
+  }
+
+  /**
+   * Routes through Router.route for the given capability (which already
+   * widens "quick" to any cloud candidate when no local one is available —
+   * see Router.route), and falls back to the primary provider/model if
+   * routing still fails outright (e.g. neither local nor cloud has any
+   * candidate at all). This is the guarantee that a capability-delegated
+   * turn — e.g. the always-resident local "quick" model being unpulled,
+   * unreachable, or crashed — never breaks the turn, only skips delegation.
+   */
+  private async routeWithFallback(
+    capability: Capability,
+    messages: ChatMessage[],
+    opts?: ChatOptions,
+  ): Promise<ChatResponse> {
+    await this.ensureCatalog();
+    try {
+      return await this.router.route(capability, messages, opts);
+    } catch {
+      return this.provider.chat(messages, opts);
+    }
   }
 
   addLearning(category: string, context: string, lesson: string): void {

@@ -168,6 +168,7 @@ function useRuntimeState(store: Store): RuntimeState {
 // whenever the app is in raw mode, even though DevAgent never requests mouse
 // tracking. Format: ESC [ < button ; col ; row (M press or m release). Without
 // this filter the raw escape sequence gets typed into the prompt literally.
+// eslint-disable-next-line no-control-regex
 const MOUSE_SGR_PATTERN = /\x1b?\[<\d+;\d+;\d+[Mm]/;
 
 export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): JSX.Element {

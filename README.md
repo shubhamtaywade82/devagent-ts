@@ -14,6 +14,7 @@ src/
 ├── lsp/            Language server pool/manager — 14 languages configured
 ├── intelligence/   LSP-backed code intelligence router + Rails semantic index (12 scanners)
 ├── memory/         SQLite-backed conversation memory + summarizer
+├── docs/           DevDocs-backed documentation index (ingest, FTS5 store, workspace detection)
 ├── learning/       Episode recording, grading, reflection, skill synthesis
 ├── skills/         Skill loader/registry/resolver (Markdown skill packages)
 ├── mcp/            MCP client + tool adapter (external MCP servers as tools)
@@ -23,15 +24,16 @@ src/
 
 ## Key Features
 
-- **Capability-based model routing** — `ModelCatalog` discovers installed local + Ollama Cloud models and tags them (`coding`/`vision`/`reasoning`/`quick`/`tools`) by name heuristic; `Router` picks a local-first candidate per capability and falls back through the rest on rate-limit/timeout/network errors. Non-critical turns (low/medium priority, doc/test/lint keywords) delegate to a `quick` model; screenshot/image mentions route to `vision`; architecture/trade-off questions route to `reasoning` — all gracefully no-op back to the primary model when no matching model is installed.
+- **Capability-based model routing, local-first with self-escalation** — `ModelCatalog` discovers installed local + Ollama Cloud models and tags them (`coding`/`vision`/`reasoning`/`quick`/`tools`) by name heuristic; `Router` picks a local-first candidate per capability and falls back through the rest on rate-limit/timeout/network errors. Every turn attempts the `quick` model (an always-resident small local model, e.g. minicpm5-1b, pinned by name via `quickModel`/`DEVAGENT_QUICK_MODEL`) first — there is no content-based pre-filter. The model itself decides when it's out of its depth by calling the `escalate_task` tool; once called, the rest of that turn routes to a stronger model (a vision/reasoning-tagged one if the original message hinted at it, otherwise the primary/cloud model), reusing the exact same conversation history so nothing done so far is lost. There's also a heuristic backstop for when a small model doesn't self-escalate: if a tool call errors and the very next turn answers with plain text instead of retrying or calling `escalate_task`, that answer is discarded (never shown) and the turn is silently re-run on the primary model. Escalation is scoped to a single turn — the next user message starts back on the quick model.
 - **Checkpoint/resume** — the orchestrator persists plan state (`CheckpointStore`, atomic JSON) after every step transition; `Agent.resumePlannedTask()` picks a crashed run back up, resetting only non-terminal step statuses so completed work is never re-run. Separately, `SessionStore` persists the full LLM conversation transcript after every turn; `Agent.resumeSession()` / the `/resume` slash command restore it in a fresh process, verified to correctly re-send prior context to the model.
 - **Browser tool** — `src/browser/manager.ts` wraps a lazily-launched headless Chromium (Playwright) with one reused page; `browser_navigate`/`click`/`fill`/`get_text`/`screenshot`/`evaluate`/`close` tools expose it to the agent.
 - **Parallel step execution** — independent plan steps (no dependency between them) run concurrently via `Promise.all` each round; dependents still wait for their dependency's batch to finish.
 - **Tool-first architecture** — the LLM never searches files, greps, or runs git/docker/gh by itself; every such action is a deterministic `Tool` with a JSON-schema signature. `DynamicToolSelector` prunes which tool schemas are exposed per turn instead of dumping the full registry.
 - **LSP intelligence** — 14 languages configured (TypeScript, Ruby, Python, Go, Rust, Java, C#, C/C++, PHP, Swift, Kotlin, Dart, YAML, Docker), with definition/references/hover/diagnostics/rename/completion/etc. exposed as tools.
 - **Rails semantic index** — 12 scanners (controller, model, job, mailer, policy, concern, migration, schema, view, rspec, routes, gem) feeding a graph store and query engine, exposed as `find_model`/`find_route`/`find_controller`/etc. tools.
-- **Benchmark harness** — `npm run benchmark` runs built-in cases (JSON validity, tool-calling correctness) against every discovered local + cloud model, reporting pass rate, latency, and tokens/sec.
+- **Benchmark harness** — `npm run benchmark` runs built-in cases against every discovered local + cloud model (or one, via `--model <substring>`; a category, via `--category <name>`), reporting pass rate, latency, and tokens/sec per model plus a pass-rate breakdown per category. Cases span 8 categories: `output-format`/`tool-calling` (JSON validity, correct tool selection among distractors, typed arguments, not over-calling tools), `reasoning`/`thinking` (multi-step word problems, logic deduction, chain-of-thought), `agentic-looping` (multi-turn ReAct-style tool chains), `error-recovery` (retrying after a scripted tool failure instead of giving up), `escalation` (the real `escalate_task` tool: does the model self-escalate on a genuinely hard task, and does it avoid escalating an easy one), and `execution` (real end-to-end tool calls — actual filesystem reads and ripgrep-backed search against a throwaway workspace, not mocked). Single-turn cases (`src/benchmark/cases.ts`) hit the model once; agentic cases (`src/benchmark/cases-agentic.ts`, `cases-execution.ts`) run a standalone bounded ReAct loop (`runner.ts`) mirroring `Agent.runUserMessage`'s tool-turn loop, independent of the real agent/conversation/routing machinery.
 - **Learning + memory** — episode recording, grading, reflection, and skill synthesis (`src/learning/`) backed by a SQLite conversation store (`src/memory/`).
+- **Offline documentation search** — `npm run docs:ingest -- <id...>` fetches [DevDocs](https://github.com/freeCodeCamp/devdocs)'s pre-built per-library JSON bundles (no scraping at runtime) and indexes them into a local SQLite FTS5 store (`.devagent/docs.db`). `search_docs`/`get_doc`/`list_doc_sources` tools expose it to the agent; `search_docs` auto-scopes to doc sources relevant to the current workspace (detected from `package.json`/`tsconfig.json`/`Gemfile`/`go.mod`/etc. — Rails, React, Node, TypeScript, Python, Go, Rust, ...) unless a `source` is given explicitly.
 - **Docker-sandboxed shell** — `--network=none`, `--pids-limit=128`, memory/CPU capped; buffer-overflow SIGKILL, hard timeout with kill escalation.
 - **Path-contained filesystem tools** — every path resolved and checked against workspace root before I/O; atomic writes via temp+rename.
 - **Loop detection** — flags repeated (tool, args, error) signatures to prevent infinite retry cycles.
@@ -45,6 +47,7 @@ Quant research: `binance_backtest` (rule-based strategy vs real history — win 
 Project: `run_tests`, `run_lint`, `run_format`, `run_build`, `rubocop`, `rspec`, `shell` (Docker-sandboxed).
 Code intelligence (LSP-backed): `get_definition`, `find_references`, `rename_symbol`, `workspace_symbols`, `document_symbols`, `hover`, `diagnostics`, `code_actions`, `format_document`, `signature_help`, `completion`, `semantic_tokens`.
 Rails semantic: `find_model`, `find_route`, `find_controller`, `find_service`, `find_spec`, `find_association`, `find_callback`, `rails_context`, and more.
+Documentation: `search_docs` (workspace-scoped full-text search over ingested DevDocs sources), `get_doc` (fetch one section by source+path), `list_doc_sources` (ingested sources + workspace defaults).
 Plus anything registered via MCP servers (`agent.registerMcpServer(command, args)`).
 
 ## Usage
@@ -103,10 +106,20 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 
 ```bash
 npm install
-npm test          # jest — 664 tests across 92 suites
+npm test          # jest — 702 tests across 96 suites
 npm run build     # TypeScript → dist/
 npm run benchmark # score installed models on JSON validity + tool-calling
 ```
+
+## Documentation Index
+
+Ingest one or more [DevDocs](https://devdocs.io) sources (MPL-2.0 — generated docs retain DevDocs attribution) into the local FTS5 index at `.devagent/docs.db`:
+
+```bash
+npm run docs:ingest -- node typescript react rails
+```
+
+Re-running for the same id atomically replaces its sections (safe to re-run to pick up upstream updates — DevDocs rebuilds monthly). See `src/docs/catalog.ts` for the full list of supported ids. Ingestion is a one-off/periodic step — the `search_docs`/`get_doc` tools never hit the network at inference time, only the local index.
 
 ## Docker Sandbox
 

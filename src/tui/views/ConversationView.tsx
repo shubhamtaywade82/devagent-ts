@@ -240,11 +240,13 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
         } else {
           // assistant
           const lines = renderSimpleMarkdown(entry.text, bodyWidth - 2);
+          const tagRow = entry.model ? lines.length : -1;
           b.push({
             key: `asst-${entry.at}`,
-            height: lines.length,
+            height: lines.length + (entry.model ? 1 : 0),
             render: (startRow, endRow) => {
               const visibleLines = lines.slice(startRow, endRow);
+              const showTag = tagRow >= startRow && tagRow < endRow;
               return (
                 <Box key={`asst-${entry.at}`} flexDirection="column">
                   {visibleLines.map((line, li) => (
@@ -254,6 +256,14 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                       <SpanText spans={line.spans} />
                     </Box>
                   ))}
+                  {showTag ? (
+                    <Box height={1}>
+                      <Box width={2} />
+                      <Text color="gray" dimColor>
+                        ↳ {entry.model}
+                      </Text>
+                    </Box>
+                  ) : null}
                 </Box>
               );
             },

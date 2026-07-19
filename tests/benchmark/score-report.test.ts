@@ -1,5 +1,5 @@
-import { scoreByModel } from "../../src/benchmark/score.js";
-import { formatReport } from "../../src/benchmark/report.js";
+import { scoreByModel, scoreByCategory } from "../../src/benchmark/score.js";
+import { formatReport, formatCategoryReport } from "../../src/benchmark/report.js";
 import { BenchmarkResult } from "../../src/benchmark/types.js";
 
 function result(overrides: Partial<BenchmarkResult>): BenchmarkResult {
@@ -58,5 +58,47 @@ describe("formatReport", () => {
 
   it("handles no results", () => {
     expect(formatReport([])).toBe("(no benchmark results)");
+  });
+});
+
+describe("scoreByCategory", () => {
+  it("groups results by category (flat across models) and computes pass rate", () => {
+    const results = [
+      result({ category: "tool-calling", pass: true }),
+      result({ category: "tool-calling", pass: false }),
+      result({ model: "b", category: "reasoning", pass: true }),
+    ];
+
+    const scores = scoreByCategory(results);
+    const toolCalling = scores.find((s) => s.category === "tool-calling")!;
+    const reasoning = scores.find((s) => s.category === "reasoning")!;
+
+    expect(toolCalling.cases).toBe(2);
+    expect(toolCalling.passRate).toBe(0.5);
+    expect(reasoning.passRate).toBe(1);
+  });
+
+  it("groups uncategorized results together", () => {
+    const scores = scoreByCategory([result({ category: undefined, pass: true })]);
+    expect(scores).toEqual([{ category: "uncategorized", cases: 1, passRate: 1 }]);
+  });
+
+  it("returns an empty array for no results", () => {
+    expect(scoreByCategory([])).toEqual([]);
+  });
+});
+
+describe("formatCategoryReport", () => {
+  it("ranks by pass rate, highest first", () => {
+    const report = formatCategoryReport([
+      { category: "tool-calling", cases: 4, passRate: 0.5 },
+      { category: "reasoning", cases: 2, passRate: 1 },
+    ]);
+    const lines = report.split("\n");
+    expect(lines.findIndex((l) => l.includes("reasoning"))).toBeLessThan(lines.findIndex((l) => l.includes("tool-calling")));
+  });
+
+  it("handles no results", () => {
+    expect(formatCategoryReport([])).toBe("(no category results)");
   });
 });

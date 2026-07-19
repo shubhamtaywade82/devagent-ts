@@ -2,7 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { CollapsibleSection } from "./CollapsibleSection.js";
 import { StatusChip } from "./StatusChip.js";
-import { ChatEntry, ExecutionStep } from "../../runtime/types.js";
+import { ChatEntry } from "../../runtime/types.js";
 
 interface PlanCardProps {
   entry: ChatEntry;

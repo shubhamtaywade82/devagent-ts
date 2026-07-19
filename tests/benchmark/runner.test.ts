@@ -1,6 +1,6 @@
 import { Provider, ChatResponse } from "../../src/provider/provider.js";
 import { runBenchmark } from "../../src/benchmark/runner.js";
-import { BenchmarkCase } from "../../src/benchmark/types.js";
+import { AgenticBenchmarkCase, BenchmarkCase } from "../../src/benchmark/types.js";
 
 function response(content: string, extra: Partial<ChatResponse> = {}): ChatResponse {
   return { message: { role: "assistant", content }, done: true, ...extra };
@@ -79,5 +79,105 @@ describe("runBenchmark", () => {
 
     expect(results[0].tokensPerSec).not.toBeNull();
     expect(results[0].tokensPerSec).toBeGreaterThan(0);
+  });
+});
+
+function toolCallResponse(name: string, args: Record<string, unknown>): ChatResponse {
+  return { message: { role: "assistant", content: "", tool_calls: [{ function: { name, arguments: args } }] }, done: true };
+}
+
+describe("runBenchmark — agentic cases", () => {
+  it("loops through scripted tool calls and validates the final trajectory", async () => {
+    const provider = new Provider({ tier: "local", model: "x" });
+    let call = 0;
+    jest.spyOn(provider, "chat").mockImplementation(async () => {
+      call += 1;
+      if (call === 1) return toolCallResponse("step_one", { x: 1 });
+      if (call === 2) return toolCallResponse("step_two", { y: 2 });
+      return response("done: 42");
+    });
+
+    const agenticCase: AgenticBenchmarkCase = {
+      id: "two-step",
+      kind: "agentic",
+      description: "two scripted tool calls then a final answer",
+      messages: [{ role: "user", content: "go" }],
+      tools: [],
+      maxTurns: 5,
+      resolveTool: async (name) => ({ ok: true, from: name }),
+      validate: (trajectory) => {
+        const names = trajectory.toolCallsMade.map((c) => c.name);
+        if (names.join(",") !== "step_one,step_two") return { pass: false, reason: `wrong tool order: ${names.join(",")}` };
+        if (!trajectory.finalContent.includes("42")) return { pass: false, reason: "final content missing 42" };
+        if (trajectory.hitMaxTurns) return { pass: false, reason: "should not have hit max turns" };
+        return { pass: true };
+      },
+    };
+
+    const results = await runBenchmark([{ model: "qwen3:8b", tier: "local", provider }], [agenticCase]);
+
+    expect(results[0].pass).toBe(true);
+    expect(results[0].category).toBeUndefined();
+  });
+
+  it("marks hitMaxTurns when the model never stops calling tools", async () => {
+    const provider = new Provider({ tier: "local", model: "x" });
+    jest.spyOn(provider, "chat").mockResolvedValue(toolCallResponse("loop_forever", {}));
+
+    const agenticCase: AgenticBenchmarkCase = {
+      id: "never-ends",
+      kind: "agentic",
+      description: "the model keeps calling a tool and never answers",
+      messages: [{ role: "user", content: "go" }],
+      tools: [],
+      maxTurns: 3,
+      resolveTool: async () => ({ ok: true }),
+      validate: (trajectory) => ({ pass: !trajectory.hitMaxTurns, reason: trajectory.hitMaxTurns ? "hit max turns" : undefined }),
+    };
+
+    const results = await runBenchmark([{ model: "qwen3:8b", tier: "local", provider }], [agenticCase]);
+
+    expect(results[0].pass).toBe(false);
+    expect(results[0].reason).toBe("hit max turns");
+  });
+
+  it("calls a case factory fresh per target, so per-target closure state doesn't leak across models", async () => {
+    const providerA = new Provider({ tier: "local", model: "a" });
+    const providerB = new Provider({ tier: "local", model: "b" });
+    jest.spyOn(providerA, "chat").mockImplementation(async () => response("first call always"));
+    jest.spyOn(providerB, "chat").mockImplementation(async () => response("first call always"));
+
+    let factoryCalls = 0;
+    const buildCases = (): BenchmarkCase[] => {
+      factoryCalls += 1;
+      let callCount = 0;
+      const stateful: AgenticBenchmarkCase = {
+        id: "stateful",
+        kind: "agentic",
+        description: "tracks its own call count via a per-target-fresh closure",
+        messages: [{ role: "user", content: "go" }],
+        tools: [],
+        maxTurns: 2,
+        resolveTool: async () => ({ ok: true }),
+        validate: () => {
+          callCount += 1;
+          // If the factory weren't called fresh per target, callCount would
+          // keep incrementing across targets instead of always starting at 1.
+          return { pass: callCount === 1, reason: `callCount was ${callCount}` };
+        },
+      };
+      return [stateful];
+    };
+
+    const results = await runBenchmark(
+      [
+        { model: "a", tier: "local", provider: providerA },
+        { model: "b", tier: "local", provider: providerB },
+      ],
+      buildCases,
+    );
+
+    expect(factoryCalls).toBe(2);
+    expect(results.every((r) => r.pass)).toBe(true);
   });
 });

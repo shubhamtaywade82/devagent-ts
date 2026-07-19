@@ -25,6 +25,44 @@ describe("store reducer", () => {
     expect(s.actors.conversation.health).toBe("active");
   });
 
+  it("tags an assistant entry with the primary model by default", () => {
+    let s = fresh();
+    s = reduce(s, { type: "conversation.message", role: "user", text: "hi" });
+    s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "hello" });
+    expect(s.conversation[1]).toMatchObject({ model: "local/qwen3:30b" });
+  });
+
+  it("tags an assistant entry with the delegated model after a 'delegating task to' status", () => {
+    let s = fresh();
+    s = reduce(s, { type: "conversation.message", role: "user", text: "where is X?" });
+    s = reduce(s, { type: "status.changed", status: "delegating task to local/minicpm5-1b" });
+    s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "found it" });
+    expect(s.lastTurnModel).toBe("local/minicpm5-1b");
+    expect(s.conversation[1]).toMatchObject({ model: "local/minicpm5-1b" });
+  });
+
+  it("falls back to the primary model after an 'escalating to' status clears the delegation", () => {
+    let s = fresh();
+    s = reduce(s, { type: "conversation.message", role: "user", text: "where is X?" });
+    s = reduce(s, { type: "status.changed", status: "delegating task to local/minicpm5-1b" });
+    s = reduce(s, { type: "status.changed", status: "escalating to primary model: no tool call" });
+    s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "found it" });
+    expect(s.lastTurnModel).toBeNull();
+    expect(s.conversation[1]).toMatchObject({ model: "local/qwen3:30b" });
+  });
+
+  it("does not leak a prior turn's delegated model into a new undelegated turn", () => {
+    let s = fresh();
+    s = reduce(s, { type: "conversation.message", role: "user", text: "where is X?" });
+    s = reduce(s, { type: "status.changed", status: "delegating task to local/minicpm5-1b" });
+    s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "found it" });
+
+    s = reduce(s, { type: "conversation.message", role: "user", text: "implement JWT auth" });
+    expect(s.lastTurnModel).toBeNull();
+    s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "done" });
+    expect(s.conversation[3]).toMatchObject({ model: "local/qwen3:30b" });
+  });
+
   it("clears conversation", () => {
     let s = fresh();
     s = reduce(s, { type: "conversation.message", role: "user", text: "hi" });

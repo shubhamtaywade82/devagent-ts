@@ -9,6 +9,7 @@ import { SnapshotBackupTool } from "../tools/backup-tools.js";
 import { WatchTool } from "../tools/watch-tool.js";
 import { SearchCodeTool } from "../tools/search-tools.js";
 import { GitTool } from "../tools/git-tools.js";
+import { EscalateTaskTool } from "../tools/escalate-tool.js";
 import { DockerTool } from "../tools/docker-tools.js";
 import { GitHubTool } from "../tools/github-tools.js";
 import { SqliteQueryTool } from "../tools/database-tools.js";
@@ -41,6 +42,8 @@ import { PaperTradingManager } from "../exchange/paper-trading.js";
 import { SemanticIndex, createRailsTools } from "../intelligence/rails/index.js";
 import { connectMcpServer } from "../mcp/client.js";
 import { Tool } from "../tools/tool.js";
+import { SearchDocsTool, GetDocTool, ListDocSourcesTool } from "../tools/docs-tools.js";
+import { DocsStore } from "../docs/store.js";
 
 export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
 
@@ -70,6 +73,7 @@ export class AgentToolManager {
       .register(new WatchTool(root))
       .register(new SearchCodeTool(root))
       .register(new GitTool(root))
+      .register(new EscalateTaskTool())
       .register(new DockerTool(root))
       .register(new GitHubTool(root))
       .register(new SqliteQueryTool(root))
@@ -132,6 +136,13 @@ export class AgentToolManager {
     for (const tool of createRailsTools(rails)) {
       this.registry.register(tool);
     }
+  }
+
+  registerDocsTools(store: DocsStore, workspaceRoot: string): void {
+    this.registry
+      .register(new SearchDocsTool(store, workspaceRoot))
+      .register(new GetDocTool(store))
+      .register(new ListDocSourcesTool(store, workspaceRoot));
   }
 
   registerTool(tool: Tool): void {

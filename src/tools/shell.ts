@@ -14,7 +14,10 @@ export interface ShellToolOptions {
 }
 
 export class ShellTool extends Tool {
-  static readonly MAX_OUTPUT_BYTES = 2 * 1024 * 1024;
+  // Output feeds straight into the chat context as a tool-result message —
+  // capped well below a byte size that alone could blow a model's context
+  // window on a single tool call (unlike raw capture, this isn't for storage).
+  static readonly MAX_OUTPUT_BYTES = 32 * 1024;
   static readonly DEFAULT_TIMEOUT_SEC = 30;
   static readonly DEFAULT_IMAGE = "devagent-sandbox:latest";
   static readonly KILL_POLL_INTERVAL_MS = 300;

@@ -19,12 +19,61 @@ describe("AgentConversation context pruning", () => {
     convo.pruneContext(25);
 
     const messages = convo.getMessages();
+    // The last pushUserMessage ("Message 29") is both the tracked "current turn"
+    // message AND already within the last-10 window, so nothing extra is preserved.
     expect(messages.length).toBe(12); // 1 system + 1 bypass notice + 10 recent
     expect(messages[0].role).toBe("system");
     expect(messages[1].role).toBe("system");
     expect(messages[1].content).toContain("Bypassed 20 intermediate turns");
     expect(messages[2].content).toBe("Message 20");
     expect(messages[11].content).toBe("Message 29");
+  });
+
+  it("preserves the current turn's own request even after it ages out of the last-10 window", () => {
+    const convo = new AgentConversation();
+    convo.init({ model: "test", workspaceRoot: ".", tier: "local" }, [], []);
+
+    // The task's own ask, then a long run of tool-turn chatter (assistant/tool
+    // pairs) that pushes it well outside the last-10 messages.
+    convo.pushUserMessage("implement the thing");
+    for (let i = 0; i < 30; i++) {
+      convo.pushAssistantMessage(`assistant step ${i}`);
+      convo.pushToolResult(`tool result ${i}`);
+    }
+
+    convo.pruneContext(25);
+
+    const messages = convo.getMessages();
+    expect(messages.some((m) => m.role === "user" && m.content === "implement the thing")).toBe(true);
+    // Preserved exactly once, not duplicated across repeated prunes.
+    convo.pushAssistantMessage("more chatter");
+    convo.pruneContext(25);
+    const afterSecondPrune = convo.getMessages();
+    expect(afterSecondPrune.filter((m) => m.role === "user" && m.content === "implement the thing")).toHaveLength(1);
+  });
+
+  it("does not duplicate the current turn's message when it's already within the recent window", () => {
+    const convo = new AgentConversation();
+    convo.init({ model: "test", workspaceRoot: ".", tier: "local" }, [], []);
+
+    for (let i = 0; i < 20; i++) convo.pushUserMessage(`filler ${i}`);
+    convo.pushUserMessage("the real ask");
+    convo.pruneContext(25);
+
+    const messages = convo.getMessages();
+    expect(messages.filter((m) => m.role === "user" && m.content === "the real ask")).toHaveLength(1);
+  });
+
+  it("clears the tracked current-turn message on reset() and loadMessages(), without crashing a later prune", () => {
+    const convo = new AgentConversation();
+    convo.init({ model: "test", workspaceRoot: ".", tier: "local" }, [], []);
+    convo.pushUserMessage("will be cleared");
+
+    convo.reset();
+    convo.loadMessages([{ role: "system", content: "sys" }, ...Array.from({ length: 30 }, (_, i) => ({ role: "user" as const, content: `m${i}` }))]);
+
+    expect(() => convo.pruneContext(25)).not.toThrow();
+    expect(convo.getMessages().some((m) => m.content === "will be cleared")).toBe(false);
   });
 });
 
@@ -58,7 +107,10 @@ describe("AgentConversation.loadMessages", () => {
   });
 });
 
-describe("Agent non-critical task model delegation", () => {
+// Priority no longer gates routing (see tests/cli/agent-capability-routing.test.ts —
+// every turn attempts "quick" first regardless of content/priority); these two
+// cases just confirm the first-candidate-in-catalog-order pick still works.
+describe("Agent quick-model delegation picks the first catalog candidate", () => {
   let tempDir: string;
 
   beforeEach(async () => {
@@ -97,14 +149,14 @@ describe("Agent non-critical task model delegation", () => {
     });
   });
 
-  it("delegates low priority text/doc tasks to hermes", async () => {
+  it("delegates to the first quick candidate in catalog order", async () => {
     const agent = new Agent({
       config: { workspaceRoot: tempDir, tier: "local", model: "original-model" },
     });
 
     expect(agent.currentModel).toBe("original-model");
 
-    await agent.runUserMessage("Write a README file", "low");
+    await agent.runUserMessage("Write a README file");
 
     expect(agent.currentModel).toBe("original-model");
     // Verify it was switched to hermes during execution by checking the mock fetch history
@@ -115,7 +167,7 @@ describe("Agent non-critical task model delegation", () => {
     expect(firstCallBody.model).toBe("hermes3:latest");
   });
 
-  it("delegates low priority code/test tasks to opencode", async () => {
+  it("delegates to the first quick candidate when catalog order differs", async () => {
     const encoder = new TextEncoder();
     (globalThis as any).fetch = jest.fn().mockImplementation(async (url) => {
       const urlStr = String(url);
@@ -155,7 +207,7 @@ describe("Agent non-critical task model delegation", () => {
 
     expect(agent.currentModel).toBe("original-model");
 
-    await agent.runUserMessage("Run unit tests", "medium");
+    await agent.runUserMessage("Run unit tests");
 
     expect(agent.currentModel).toBe("original-model");
     const calls = (globalThis.fetch as jest.Mock).mock.calls;
@@ -166,79 +218,6 @@ describe("Agent non-critical task model delegation", () => {
   });
 });
 
-describe("Agent vision/reasoning capability routing", () => {
-  let tempDir: string;
-
-  function mockFetchWithModels(models: string[]) {
-    const encoder = new TextEncoder();
-    (globalThis as any).fetch = jest.fn().mockImplementation(async (url) => {
-      const urlStr = String(url);
-      if (urlStr.includes("/api/tags") || urlStr.includes("/v1/models")) {
-        return { ok: true, status: 200, json: async () => ({ models: models.map((name) => ({ name })) }) };
-      }
-      const line = JSON.stringify({ message: { role: "assistant", content: "ok" }, done: true }) + "\n";
-      let delivered = false;
-      const reader = {
-        read: async () => {
-          if (delivered) return { done: true, value: undefined };
-          delivered = true;
-          return { done: false, value: encoder.encode(line) };
-        },
-      };
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ message: { role: "assistant", content: "ok" }, done: true }),
-        body: { getReader: () => reader },
-      };
-    });
-  }
-
-  function chatCallBody(): { model: string } {
-    const calls = (globalThis.fetch as jest.Mock).mock.calls;
-    const postCall = calls.find((c) => c[1] && c[1].body);
-    expect(postCall).toBeDefined();
-    return JSON.parse(postCall![1].body);
-  }
-
-  beforeEach(async () => {
-    tempDir = await mkdtemp(join(tmpdir(), "agent-test-"));
-  });
-
-  it("routes a screenshot-mentioning task to the installed vision model", async () => {
-    mockFetchWithModels(["qwen3-vl:4b", "qwen3:8b"]);
-    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "original-model" } });
-
-    await agent.runUserMessage("Look at this screenshot and tell me what's wrong with the layout");
-
-    expect(chatCallBody().model).toBe("qwen3-vl:4b");
-    expect(agent.currentModel).toBe("original-model");
-  });
-
-  it("routes an architecture question to the installed reasoning model", async () => {
-    mockFetchWithModels(["deepseek-r1:8b", "qwen3:8b"]);
-    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "original-model" } });
-
-    await agent.runUserMessage("What are the trade-offs of this architecture before we commit to it?");
-
-    expect(chatCallBody().model).toBe("deepseek-r1:8b");
-  });
-
-  it("falls back to the primary model when no vision model is installed", async () => {
-    mockFetchWithModels(["qwen3:8b"]); // no vision-capable model in the catalog
-    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "original-model" } });
-
-    await agent.runUserMessage("Look at this screenshot and tell me what's wrong");
-
-    expect(chatCallBody().model).toBe("original-model");
-  });
-
-  it("does not route a plain coding task to vision or reasoning", async () => {
-    mockFetchWithModels(["qwen3-vl:4b", "deepseek-r1:8b"]);
-    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "original-model" } });
-
-    await agent.runUserMessage("Add a null check to the parser");
-
-    expect(chatCallBody().model).toBe("original-model");
-  });
-});
+// Vision/reasoning escalation-target routing moved to
+// tests/cli/agent-capability-routing.test.ts (turn 1 is always "quick" now;
+// vision/reasoning only apply as the escalate_task handoff target).

@@ -31,6 +31,9 @@ export interface CliConfig {
   /** Pool of Ollama Cloud API keys (e.g. separate accounts) — Provider rotates to the
    * next key on a 429 before giving up. Ollama Cloud only, not a multi-vendor router. */
   apiKeys?: string[];
+  /** Preferred local model name (substring match) for the "quick" capability,
+   * e.g. "minicpm5" — see ModelCatalog.modelsFor. */
+  quickModel?: string;
 }
 
 interface ConfigFile {
@@ -45,6 +48,7 @@ interface ConfigFile {
   toolSelectionMode?: string;
   maxActiveTools?: number;
   apiKeys?: string[];
+  quickModel?: string;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
@@ -155,5 +159,6 @@ export function loadConfig(): CliConfig {
     toolSelectionMode,
     maxActiveTools,
     apiKeys: apiKeys.length ? apiKeys : undefined,
+    quickModel: fromEnv("DEVAGENT_QUICK_MODEL") || file.quickModel,
   };
 }

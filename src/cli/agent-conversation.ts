@@ -9,6 +9,11 @@ interface LearningEntry {
 
 export class AgentConversation {
   private messages: ChatMessage[] = [];
+  // The current task's own request — set only by pushUserMessage (once per
+  // runUserMessage call), never by pushSystemMessage's synthetic nudges (which
+  // also push role:"user"). pruneContext keeps this even once it ages out of
+  // the "last 10" window, so a long tool-loop never silently loses the ask.
+  private currentTurnUserMessage: ChatMessage | null = null;
 
   buildSystemPrompt(config: CliConfig, learnings: LearningEntry[], _skills: SkillContent[]): string {
     const learningsBlock = learnings.length > 0
@@ -49,7 +54,9 @@ export class AgentConversation {
   }
 
   pushUserMessage(content: string): void {
-    this.messages.push({ role: "user", content });
+    const message: ChatMessage = { role: "user", content };
+    this.messages.push(message);
+    this.currentTurnUserMessage = message;
   }
 
   pushAssistantMessage(content: string, tool_calls?: ChatMessage["tool_calls"]): void {
@@ -73,6 +80,7 @@ export class AgentConversation {
    * place via refreshSystemPrompt, so a stale saved prompt self-heals. */
   loadMessages(messages: ChatMessage[]): void {
     this.messages = messages;
+    this.currentTurnUserMessage = null;
   }
 
   pruneContext(maxMessages = 25): void {
@@ -85,15 +93,22 @@ export class AgentConversation {
     const toolRunCount = middle.filter((m) => m.role === "tool").length;
     const summaryText = `[system] Bypassed ${middle.length} intermediate turns (${toolRunCount} tool calls) to save context window.`;
 
+    const preserved =
+      this.currentTurnUserMessage && !recent.includes(this.currentTurnUserMessage)
+        ? [this.currentTurnUserMessage]
+        : [];
+
     this.messages = [
       systemPrompt,
       { role: "system", content: summaryText },
+      ...preserved,
       ...recent,
     ];
   }
 
   reset(): void {
     this.messages = [];
+    this.currentTurnUserMessage = null;
   }
 
   isEmpty(): boolean {

@@ -182,7 +182,9 @@ export interface CardItem {
 }
 
 export type ChatEntry =
-  | { kind: "text"; role: ChatRole; text: string; at: number }
+  // model: "tier/name" of whichever model actually answered this entry (e.g.
+  // "local/minicpm5-1b" or "cloud/gpt-oss:120b") — only set for assistant text.
+  | { kind: "text"; role: ChatRole; text: string; at: number; model?: string }
   | { kind: "plan"; role: "assistant"; steps: ExecutionStep[]; status: "pending" | "running" | "completed"; at: number }
   | { kind: "decision"; role: "assistant"; options: string[]; selected: string; reason: string; confidence: number; at: number }
   | { kind: "tool_call"; role: "assistant"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string; at: number }
@@ -247,6 +249,10 @@ export interface RuntimeState {
   mode: RuntimeMode;
   agentMode: AgentMode;
   status: string;
+  // "tier/name" of the model delegated-to for the turn in progress, or null when
+  // the primary model is answering. Reset to null on each new user message,
+  // set by "delegating task to X" status lines, cleared by "escalating to..." ones.
+  lastTurnModel: string | null;
   actors: Record<ActorId, ActorState>;
   conversation: ChatEntry[];
   execution: ExecutionState;

@@ -155,4 +155,39 @@ describe("ModelCatalog.refresh", () => {
 
     expect(models[0].capabilities).toEqual(expect.arrayContaining(["vision"]));
   });
+
+  it("quickPreferredName wins over another local quick candidate", async () => {
+    const local = new Provider({ tier: "local", model: "x" });
+    jest.spyOn(local, "availableModels").mockResolvedValue({
+      models: [
+        { name: "hermes3:latest", details: { parameter_size: "3B" }, capabilities: ["tools", "completion"] },
+        {
+          name: "openbmb/minicpm5:fp16",
+          details: { parameter_size: "1.08B" },
+          capabilities: ["tools", "completion"],
+        },
+      ],
+    });
+
+    const catalog = new ModelCatalog(local, undefined, "minicpm5");
+    await catalog.refresh();
+
+    const candidates = catalog.modelsFor("quick");
+    expect(candidates[0].name).toBe("openbmb/minicpm5:fp16");
+  });
+
+  it("quickPreferredName still puts local ahead of cloud when the preferred model isn't installed", async () => {
+    const local = new Provider({ tier: "local", model: "x" });
+    const cloud = new Provider({ tier: "cloud", model: "x", apiKey: "k" });
+    jest.spyOn(local, "availableModels").mockResolvedValue({
+      models: [{ name: "hermes3:latest", details: { parameter_size: "3B" }, capabilities: ["tools", "completion"] }],
+    });
+    jest.spyOn(cloud, "availableModels").mockResolvedValue({ data: [{ id: "minicpm5:cloud" }] });
+
+    const catalog = new ModelCatalog(local, cloud, "minicpm5");
+    await catalog.refresh();
+
+    const candidates = catalog.modelsFor("quick");
+    expect(candidates[0].name).toBe("hermes3:latest");
+  });
 });

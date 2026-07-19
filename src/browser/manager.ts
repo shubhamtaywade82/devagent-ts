@@ -1,4 +1,24 @@
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { chromium, Browser, Page } from "playwright";
+
+/**
+ * Resolves a Chromium binary to launch without going through Playwright's
+ * version-fingerprinted auto-download resolution, which breaks whenever the
+ * installed `playwright` package expects a browser revision that wasn't
+ * pre-fetched (common in sandboxed/offline environments). If
+ * `PLAYWRIGHT_BROWSERS_PATH` points at a directory with a `chromium`
+ * executable/symlink directly inside it, use that; otherwise fall back to
+ * Playwright's normal resolution unchanged.
+ */
+export function resolveChromiumExecutablePath(): string | undefined {
+  const override = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  if (override) return override;
+  const browsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (!browsersPath) return undefined;
+  const candidate = join(browsersPath, "chromium");
+  return existsSync(candidate) ? candidate : undefined;
+}
 
 /** Owns a single lazily-launched headless Chromium instance + one page,
  * reused across tool calls — mirrors LspManager's one-process-per-workspace
@@ -12,7 +32,8 @@ export class BrowserManager {
   private async ensurePage(): Promise<Page> {
     if (this.page && !this.page.isClosed()) return this.page;
     if (!this.browser || !this.browser.isConnected()) {
-      this.browser = await chromium.launch({ headless: true });
+      const executablePath = resolveChromiumExecutablePath();
+      this.browser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
     }
     this.page = await this.browser.newPage();
     return this.page;

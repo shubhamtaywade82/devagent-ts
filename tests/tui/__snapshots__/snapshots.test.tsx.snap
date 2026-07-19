@@ -8,7 +8,7 @@ exports[`layout snapshots same structure, density-only changes at 80x24 1`] = `
   Analyzing project structure and existing patterns...
     • Reading package.json
     • Found TypeScript project
-
+  ↳ local/qwen3:30b
 
 
 
@@ -35,7 +35,7 @@ exports[`layout snapshots same structure, density-only changes at 100x30 1`] = `
   Analyzing project structure and existing patterns...
     • Reading package.json
     • Found TypeScript project
-
+  ↳ local/qwen3:30b
 
 
 
@@ -68,7 +68,7 @@ exports[`layout snapshots same structure, density-only changes at 120x30 1`] = `
   Analyzing project structure and existing patterns...
     • Reading package.json
     • Found TypeScript project
-
+  ↳ local/qwen3:30b
 
 
 
@@ -101,7 +101,7 @@ exports[`layout snapshots same structure, density-only changes at 160x45 1`] = `
   Analyzing project structure and existing patterns...
     • Reading package.json
     • Found TypeScript project
-
+  ↳ local/qwen3:30b
 
 
 
@@ -149,7 +149,7 @@ exports[`layout snapshots same structure, density-only changes at 220x60 1`] = `
   Analyzing project structure and existing patterns...
     • Reading package.json
     • Found TypeScript project
-
+  ↳ local/qwen3:30b
 
 
 

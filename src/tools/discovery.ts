@@ -1,5 +1,5 @@
 import { Tool } from "./tool.js";
-import { Provider, ChatMessage } from "../provider/provider.js";
+import { Provider, ChatMessage, ChatResponse } from "../provider/provider.js";
 
 export type SelectionMode = "heuristic" | "llm" | "hybrid";
 
@@ -7,17 +7,26 @@ export interface SelectorOptions {
   mode?: SelectionMode;
   maxActiveTools?: number;
   provider?: Provider;
+  /**
+   * Optional override for the LLM-mode chat call, used in place of
+   * `provider.chat` when given — e.g. route through the capability-routed
+   * "quick" tier (a small always-resident model) instead of calling a fixed
+   * Provider directly. Falls back to `provider.chat` when omitted.
+   */
+  chat?: (messages: ChatMessage[]) => Promise<ChatResponse>;
 }
 
 export class DynamicToolSelector {
   private readonly mode: SelectionMode;
   private readonly maxActiveTools: number;
   private readonly provider?: Provider;
+  private readonly chatOverride?: (messages: ChatMessage[]) => Promise<ChatResponse>;
 
   constructor(opts: SelectorOptions = {}) {
     this.mode = opts.mode ?? "heuristic";
     this.maxActiveTools = opts.maxActiveTools ?? 8;
     this.provider = opts.provider;
+    this.chatOverride = opts.chat;
   }
 
   async selectTools(prompt: string, history: ChatMessage[], availableTools: Tool[]): Promise<Tool[]> {
@@ -28,7 +37,7 @@ export class DynamicToolSelector {
     }
 
     if (this.mode === "llm") {
-      if (!this.provider) {
+      if (!this.provider && !this.chatOverride) {
         return this.heuristicSelect(prompt, history, availableTools);
       }
       try {
@@ -44,11 +53,11 @@ export class DynamicToolSelector {
     const topScore = heuristicResults.length > 0 ? heuristicResults[0].score : 0;
 
     // If we have clear matches (score >= 3) and it contains basic shell/file operations, use heuristic
-    if (topScore >= 3.0 && this.hasBasicTools(heuristicResults.map(r => r.tool))) {
-      return heuristicResults.map(r => r.tool).slice(0, this.maxActiveTools);
+    if (topScore >= 3.0 && this.hasBasicTools(heuristicResults.map((r) => r.tool))) {
+      return heuristicResults.map((r) => r.tool).slice(0, this.maxActiveTools);
     }
 
-    if (this.provider) {
+    if (this.provider || this.chatOverride) {
       try {
         return await this.llmSelect(prompt, history, availableTools);
       } catch (err) {
@@ -56,29 +65,33 @@ export class DynamicToolSelector {
       }
     }
 
-    return heuristicResults.map(r => r.tool).slice(0, this.maxActiveTools);
+    return heuristicResults.map((r) => r.tool).slice(0, this.maxActiveTools);
   }
 
   private heuristicSelect(prompt: string, history: ChatMessage[], tools: Tool[]): Tool[] {
     return this.heuristicSelectWithScores(prompt, history, tools)
-      .map(r => r.tool)
+      .map((r) => r.tool)
       .slice(0, this.maxActiveTools);
   }
 
-  private heuristicSelectWithScores(prompt: string, history: ChatMessage[], tools: Tool[]): Array<{ tool: Tool; score: number }> {
+  private heuristicSelectWithScores(
+    prompt: string,
+    history: ChatMessage[],
+    tools: Tool[],
+  ): Array<{ tool: Tool; score: number }> {
     const textToAnalyze = (
       prompt +
       " " +
       history
         .slice(-3)
-        .map(m => m.content ?? "")
+        .map((m) => m.content ?? "")
         .join(" ")
     ).toLowerCase();
-    
+
     const queryTokens = new Set(textToAnalyze.match(/[a-z0-9]+/g) ?? []);
 
     return tools
-      .map(tool => {
+      .map((tool) => {
         let score = 0;
 
         // 1. Match tool name tokens
@@ -126,14 +139,14 @@ export class DynamicToolSelector {
 
         return { tool, score };
       })
-      .filter(r => r.score > 0.5)
+      .filter((r) => r.score > 0.5)
       .sort((a, b) => b.score - a.score);
   }
 
   private async llmSelect(prompt: string, history: ChatMessage[], tools: Tool[]): Promise<Tool[]> {
-    if (!this.provider) throw new Error("No provider specified for LLM tool selection");
+    if (!this.provider && !this.chatOverride) throw new Error("No provider specified for LLM tool selection");
 
-    const toolDescriptions = tools.map(t => `- ${t.name}: ${t.description}`).join("\n");
+    const toolDescriptions = tools.map((t) => `- ${t.name}: ${t.description}`).join("\n");
     const systemPrompt = `You are an expert developer coordinator. Analyze the user request and history and identify the subset of tools required for the immediate next step.
 Available Tools:
 ${toolDescriptions}
@@ -143,18 +156,24 @@ Example: ["read_file", "run_shell"]`;
 
     const userMsg = `User Request: ${prompt}\nLast History Context: ${history.slice(-1)[0]?.content ?? "(None)"}`;
 
-    const res = await this.provider.chat([
+    const messages: ChatMessage[] = [
       { role: "system", content: systemPrompt },
-      { role: "user", content: userMsg }
-    ], { stream: false });
+      { role: "user", content: userMsg },
+    ];
+    const res = this.chatOverride
+      ? await this.chatOverride(messages)
+      : await this.provider!.chat(messages, { stream: false });
 
     const content = res.message.content.trim();
-    const jsonStr = content.replace(/^```json\s*/i, "").replace(/```$/, "").trim();
-    
+    const jsonStr = content
+      .replace(/^```json\s*/i, "")
+      .replace(/```$/, "")
+      .trim();
+
     try {
       const toolNames = JSON.parse(jsonStr) as string[];
       if (Array.isArray(toolNames)) {
-        const selected = tools.filter(t => toolNames.includes(t.name));
+        const selected = tools.filter((t) => toolNames.includes(t.name));
         if (selected.length > 0) {
           return selected.slice(0, this.maxActiveTools);
         }
@@ -164,10 +183,10 @@ Example: ["read_file", "run_shell"]`;
     }
 
     // Default fallback
-    return tools.filter(t => ["read_file", "run_shell", "patch_file"].includes(t.name)).slice(0, this.maxActiveTools);
+    return tools.filter((t) => ["read_file", "run_shell", "patch_file"].includes(t.name)).slice(0, this.maxActiveTools);
   }
 
   private hasBasicTools(tools: Tool[]): boolean {
-    return tools.some(t => ["read_file", "run_shell"].includes(t.name));
+    return tools.some((t) => ["read_file", "run_shell"].includes(t.name));
   }
 }

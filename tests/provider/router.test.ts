@@ -114,7 +114,9 @@ describe("Router.route", () => {
     jest.spyOn(cloud, "availableModels").mockResolvedValue({ data: [{ id: "qwen3.5:8b" }] });
     await catalog.refresh();
 
-    jest.spyOn(local, "chat").mockRejectedValue(new ProviderError('Ollama local 400: {"error":"model does not support tools"}'));
+    jest
+      .spyOn(local, "chat")
+      .mockRejectedValue(new ProviderError('Ollama local 400: {"error":"model does not support tools"}'));
     jest.spyOn(cloud, "chat").mockResolvedValue(okResponse("from cloud"));
 
     const router = new Router({ local, cloud, catalog, logger: { warn: jest.fn() } });
@@ -132,5 +134,60 @@ describe("Router.route", () => {
     const router = new Router({ local, catalog, logger: { warn: jest.fn() } });
 
     await expect(router.route("vision", [{ role: "user", content: "hi" }])).rejects.toThrow(/no model available/);
+  });
+
+  it("falls back to any cloud model for 'quick' when no local model is available at all (e.g. a local finetune not pulled/unreachable)", async () => {
+    const local = new Provider({ tier: "local", model: "x" });
+    const cloud = new Provider({ tier: "cloud", model: "x", apiKey: "k" });
+    const catalog = new ModelCatalog(local, cloud);
+
+    // Local Ollama unreachable/empty — no "quick"-tagged (or any) local candidate.
+    jest.spyOn(local, "availableModels").mockRejectedValue(new Error("ECONNREFUSED"));
+    // Cloud has only a large model, not name-matched as "quick" by inferCapabilities.
+    jest.spyOn(cloud, "availableModels").mockResolvedValue({ data: [{ id: "qwen3.5:32b" }] });
+    await catalog.refresh();
+
+    const localChat = jest.spyOn(local, "chat");
+    const cloudChat = jest.spyOn(cloud, "chat").mockResolvedValue(okResponse("from cloud"));
+
+    const router = new Router({ local, cloud, catalog, logger: { warn: jest.fn() } });
+    const result = await router.route("quick", [{ role: "user", content: "hi" }]);
+
+    expect(result.message.content).toBe("from cloud");
+    expect(localChat).not.toHaveBeenCalled();
+    expect(cloudChat).toHaveBeenCalled();
+  });
+
+  it("still throws for 'quick' when neither local nor cloud has any candidate", async () => {
+    const local = new Provider({ tier: "local", model: "x" });
+    const catalog = new ModelCatalog(local);
+    jest.spyOn(local, "availableModels").mockResolvedValue({ models: [] });
+    await catalog.refresh();
+
+    const router = new Router({ local, catalog, logger: { warn: jest.fn() } });
+
+    await expect(router.route("quick", [{ role: "user", content: "hi" }])).rejects.toThrow(/no model available/);
+  });
+
+  it("prefers a local 'quick' candidate over cloud when one is actually available", async () => {
+    const local = new Provider({ tier: "local", model: "x" });
+    const cloud = new Provider({ tier: "cloud", model: "x", apiKey: "k" });
+    const catalog = new ModelCatalog(local, cloud);
+
+    jest.spyOn(local, "availableModels").mockResolvedValue({
+      models: [{ name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } }],
+    });
+    jest.spyOn(cloud, "availableModels").mockResolvedValue({ data: [{ id: "qwen3.5:32b" }] });
+    await catalog.refresh();
+
+    const localChat = jest.spyOn(local, "chat").mockResolvedValue(okResponse("from local"));
+    const cloudChat = jest.spyOn(cloud, "chat");
+
+    const router = new Router({ local, cloud, catalog, logger: { warn: jest.fn() } });
+    const result = await router.route("quick", [{ role: "user", content: "hi" }]);
+
+    expect(result.message.content).toBe("from local");
+    expect(cloudChat).not.toHaveBeenCalled();
+    expect(localChat).toHaveBeenCalled();
   });
 });

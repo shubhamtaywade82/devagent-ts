@@ -1,4 +1,7 @@
-import { BrowserManager } from "../../src/browser/manager.js";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { BrowserManager, resolveChromiumExecutablePath } from "../../src/browser/manager.js";
 
 // Real Chromium, real navigation — data: URLs keep it offline/deterministic,
 // same spirit as the real-process LSP client tests (verify the actual
@@ -78,4 +81,43 @@ describe("BrowserManager", () => {
     const result = await browser.navigate(PAGE);
     expect(result.title).toBe("Test Page");
   }, 30000);
+});
+
+describe("resolveChromiumExecutablePath", () => {
+  const originalOverride = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+  const originalBrowsersPath = process.env.PLAYWRIGHT_BROWSERS_PATH;
+
+  afterEach(() => {
+    if (originalOverride === undefined) delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    else process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = originalOverride;
+    if (originalBrowsersPath === undefined) delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    else process.env.PLAYWRIGHT_BROWSERS_PATH = originalBrowsersPath;
+  });
+
+  it("returns undefined when neither env var is set", () => {
+    delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    delete process.env.PLAYWRIGHT_BROWSERS_PATH;
+    expect(resolveChromiumExecutablePath()).toBeUndefined();
+  });
+
+  it("prefers an explicit PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH override", () => {
+    process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = "/custom/chromium";
+    process.env.PLAYWRIGHT_BROWSERS_PATH = "/should/be/ignored";
+    expect(resolveChromiumExecutablePath()).toBe("/custom/chromium");
+  });
+
+  it("resolves a chromium binary directly under PLAYWRIGHT_BROWSERS_PATH when present", async () => {
+    delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    const dir = await mkdtemp(join(tmpdir(), "pw-browsers-"));
+    await writeFile(join(dir, "chromium"), "");
+    process.env.PLAYWRIGHT_BROWSERS_PATH = dir;
+    expect(resolveChromiumExecutablePath()).toBe(join(dir, "chromium"));
+  });
+
+  it("returns undefined when PLAYWRIGHT_BROWSERS_PATH has no chromium entry", async () => {
+    delete process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    const dir = await mkdtemp(join(tmpdir(), "pw-browsers-"));
+    process.env.PLAYWRIGHT_BROWSERS_PATH = dir;
+    expect(resolveChromiumExecutablePath()).toBeUndefined();
+  });
 });

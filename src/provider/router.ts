@@ -1,4 +1,12 @@
-import { Provider, ChatMessage, ChatResponse, ChatOptions, ProviderError, RateLimitError, TimeoutError } from "./provider.js";
+import {
+  Provider,
+  ChatMessage,
+  ChatResponse,
+  ChatOptions,
+  ProviderError,
+  RateLimitError,
+  TimeoutError,
+} from "./provider.js";
 import { Capability, ModelCatalog } from "./catalog.js";
 
 export interface RouterOptions {
@@ -23,13 +31,31 @@ export class Router {
 
   async route(capability: Capability, messages: ChatMessage[], opts?: ChatOptions): Promise<ChatResponse> {
     let candidates = this.catalog.modelsFor(capability);
+
+    // "quick" exists to route latency-sensitive turns to an always-resident local
+    // model (e.g. a small finetune kept warm for intent classification/tool routing/
+    // summarization). That's a local-latency optimization, not a capability cloud
+    // models need to carry too — once nothing local can serve it (not installed,
+    // Ollama unreachable), require the routed capability to also be tagged "quick"
+    // on cloud candidates would just as easily leave zero candidates. Fall back to
+    // any available cloud model instead, so a missing/unreachable local quick model
+    // degrades to cloud rather than failing the turn.
+    if (capability === "quick" && !candidates.some((c) => c.tier === "local") && this.cloud) {
+      const cloudCandidates = this.catalog.all().filter((c) => c.tier === "cloud");
+      if (cloudCandidates.length > 0) candidates = cloudCandidates;
+    }
+
     // A candidate tagged for the routed capability (e.g. "quick" by size, or
     // "reasoning" by name) is not necessarily tool-capable — routing solely
     // on the content-classified capability while ignoring whether this turn
     // actually sends tool schemas sends real requests to models that reject
     // them outright (e.g. Ollama 400 "does not support tools"), with no
     // fallback to a model that does. Require "tools" too whenever this turn needs it.
-    if (opts?.tools && opts.tools.length > 0) {
+    // Gated on candidates already being non-empty: if the capability itself has no
+    // candidate at all (e.g. no vision model installed), don't invent a substitute
+    // from an unrelated capability just because it happens to support tools — throw
+    // below instead and let the caller's own fallback (e.g. the primary model) handle it.
+    if (candidates.length > 0 && opts?.tools && opts.tools.length > 0) {
       const toolCapable = candidates.filter((c) => c.capabilities.includes("tools"));
       // If nothing tagged for the routed capability also supports tools,
       // widen to any tool-capable model in the catalog rather than handing
