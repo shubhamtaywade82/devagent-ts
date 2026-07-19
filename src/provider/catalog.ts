@@ -85,6 +85,11 @@ export class ModelCatalog {
   constructor(
     private readonly local?: Provider,
     private readonly cloud?: Provider,
+    // Preferred name (substring match, case-insensitive) for the "quick" capability,
+    // e.g. "minicpm5" — wins over any other locally-installed quick-tagged model,
+    // so a specific always-resident model is always tried before any other local
+    // candidate or cloud fallback.
+    private readonly quickPreferredName?: string,
   ) {}
 
   async refresh(): Promise<ModelInfo[]> {
@@ -122,10 +127,18 @@ export class ModelCatalog {
     return this.models;
   }
 
-  // Local-first: local candidates before cloud candidates.
+  // Local-first: local candidates before cloud candidates. Within "quick",
+  // quickPreferredName (if set) additionally wins the tie within its tier.
   modelsFor(capability: Capability): ModelInfo[] {
+    const preferred = capability === "quick" ? this.quickPreferredName?.toLowerCase() : undefined;
     return this.models
       .filter((m) => m.capabilities.includes(capability))
-      .sort((a, b) => (a.tier === b.tier ? 0 : a.tier === "local" ? -1 : 1));
+      .sort((a, b) => {
+        if (a.tier !== b.tier) return a.tier === "local" ? -1 : 1;
+        if (!preferred) return 0;
+        const aMatch = a.name.toLowerCase().includes(preferred);
+        const bMatch = b.name.toLowerCase().includes(preferred);
+        return aMatch === bMatch ? 0 : aMatch ? -1 : 1;
+      });
   }
 }

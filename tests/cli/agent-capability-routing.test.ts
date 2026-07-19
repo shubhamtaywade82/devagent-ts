@@ -93,4 +93,43 @@ describe("Agent capability routing — 'quick' delegation and fallback", () => {
 
     expect(onStatus).not.toHaveBeenCalledWith(expect.stringContaining("delegating task to"));
   });
+
+  it("classifies a plain conversational question as 'quick' by default", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    let call = 0;
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+      call += 1;
+      if (call === 1) {
+        return modelsListResponse([
+          { name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } },
+        ]);
+      }
+      return chatResponse("dependency injection is...");
+    });
+
+    const onStatus = jest.fn();
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "test-model" },
+      events: { onStatus },
+    });
+
+    await agent.runUserMessage("what is dependency injection?");
+
+    expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("delegating task to local/minicpm5-1b"));
+  });
+
+  it("does not classify a 'high' priority turn as 'quick' even without a code-writing verb", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => chatResponse("done"));
+
+    const onStatus = jest.fn();
+    const agent = new Agent({
+      config: { workspaceRoot: dir, tier: "local", model: "test-model" },
+      events: { onStatus },
+    });
+
+    await agent.runUserMessage("summarize the current state of the release", "high");
+
+    expect(onStatus).not.toHaveBeenCalledWith(expect.stringContaining("delegating task to"));
+  });
 });

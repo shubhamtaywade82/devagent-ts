@@ -102,7 +102,7 @@ export class Agent {
         })
       : undefined;
 
-    this.catalog = new ModelCatalog(localProvider, cloudProvider);
+    this.catalog = new ModelCatalog(localProvider, cloudProvider, cfg.quickModel);
     this.router = new Router({
       local: localProvider,
       cloud: cloudProvider,
@@ -486,14 +486,25 @@ export class Agent {
 
   // ponytail: keyword classification, not an LLM intent classifier — cheap and
   // deterministic. Falls back to the primary model whenever the catalog has no
-  // candidate for the detected capability (e.g. no vision model installed), so
-  // a wrong or missed classification never breaks the turn, only skips routing.
+  // candidate for the detected capability, so a wrong/missed classification
+  // never breaks the turn, only skips routing.
   private static readonly VISION_PATTERN = /\b(screenshot|diagram|image|photo|picture)\b|\.(png|jpe?g|gif|webp)\b/;
   private static readonly REASONING_PATTERN =
     /\b(architecture|trade-?offs?|root cause|design decision|why does|why is|think through|deep dive)\b/;
-  // Read-only lookup/classification phrasing — no code-writing verb (implement/refactor/
-  // fix/add/write/generate/...) matches this, so a plain "where is X" or "list the Y"
-  // routes to "quick" without risking a real edit task landing on a small model.
+  // Real edit/build verbs — anything matching here skips "quick" even though
+  // everything else now defaults to it, so a small model never lands a real
+  // code change. Not exhaustive: widen this list (or the priority override)
+  // if a code-writing turn is ever seen delegating to quick.
+  private static readonly CODE_WRITE_PATTERN =
+    /\b(implement|refactor|fix|add|write|generate|create|build|delete|remove|rename|migrate|update|install|upgrade|optimize|integrate|replace|extract|deploy|configure|debug|modify|edit|rewrite|change|patch|convert|revert|insert|append)\b/;
+  // Doc/test/lint-ish tasks stay "quick" even when a generic write/add/update
+  // verb is also present (e.g. "write a README", "add a test") — these are
+  // low-risk text edits, not the real source-code changes CODE_WRITE_PATTERN
+  // exists to keep off the small model.
+  private static readonly DOC_PATTERN = /\b(document|readme|comment|test|cleanup|lint)\b/;
+  // Read-only lookup/classification phrasing — still used below to require tool
+  // evidence on quick-routed lookup turns (a prose-only answer is wrong, not
+  // just low quality).
   private static readonly LOOKUP_PATTERN =
     /\b(where is|where's|find the|show me|list the|which file|how many|what does .* do)\b/;
 
@@ -502,19 +513,10 @@ export class Agent {
 
     if (Agent.VISION_PATTERN.test(desc)) return "vision";
     if (Agent.REASONING_PATTERN.test(desc)) return "reasoning";
+    if (priority === "high" || priority === "critical") return null;
+    if (Agent.CODE_WRITE_PATTERN.test(desc) && !Agent.DOC_PATTERN.test(desc)) return null;
 
-    const isNonCritical =
-      priority === "low" ||
-      priority === "medium" ||
-      desc.includes("document") ||
-      desc.includes("readme") ||
-      desc.includes("comment") ||
-      desc.includes("test") ||
-      desc.includes("cleanup") ||
-      desc.includes("lint") ||
-      Agent.LOOKUP_PATTERN.test(desc);
-
-    return isNonCritical ? "quick" : null;
+    return "quick";
   }
 
   // Refreshed once, on first delegation attempt, and cached for the Agent's lifetime.

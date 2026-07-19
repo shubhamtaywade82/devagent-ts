@@ -53,6 +53,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
     mode: "idle",
     agentMode: "code",
     status: "",
+    lastTurnModel: null,
     actors,
     conversation: [],
     execution: {
@@ -96,12 +97,18 @@ function withActor(state: RuntimeState, id: ActorId, patch: Partial<Omit<ActorSt
   return { ...state, actors: { ...state.actors, [id]: { ...state.actors[id], ...patch } } };
 }
 
-function appendChunk(conversation: ChatEntry[], role: "assistant" | "thinking", chunk: string): ChatEntry[] {
+function appendChunk(
+  conversation: ChatEntry[],
+  role: "assistant" | "thinking",
+  chunk: string,
+  model?: string,
+): ChatEntry[] {
   const last = conversation[conversation.length - 1];
   if (last && last.kind === "text" && last.role === role) {
     return conversation.slice(0, -1).concat({ ...last, text: last.text + chunk });
   }
-  return bounded([...conversation, { kind: "text", role, text: chunk, at: Date.now() }], MAX_CONVERSATION);
+  // Stamped once, at entry creation — a turn's answering model doesn't change mid-stream.
+  return bounded([...conversation, { kind: "text", role, text: chunk, at: Date.now(), model }], MAX_CONVERSATION);
 }
 
 function taskDetail(tasks: Task[]): string {
@@ -113,14 +120,21 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   switch (event.type) {
     case "conversation.message": {
       const entry: ChatEntry = { kind: "text", role: event.role, text: sanitizeText(event.text), at: Date.now() };
+      // A new user turn starts fresh — any prior turn's delegation label must not
+      // bleed into this one if classifyCapability doesn't delegate this time.
+      const lastTurnModel = event.role === "user" ? null : state.lastTurnModel;
       return withActor(
-        { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        { ...state, lastTurnModel, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
         "conversation",
         { health: "healthy" },
       );
     }
     case "conversation.chunk": {
-      const next = { ...state, conversation: appendChunk(state.conversation, event.role, sanitizeText(event.chunk)) };
+      const modelLabel = state.lastTurnModel ?? `${state.model.provider}/${state.model.name}`;
+      const next = {
+        ...state,
+        conversation: appendChunk(state.conversation, event.role, sanitizeText(event.chunk), modelLabel),
+      };
       return withActor(next, "conversation", { health: event.role === "thinking" ? "thinking" : "active" });
     }
     case "conversation.clear":
@@ -433,8 +447,14 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       return { ...state, mode: event.mode };
     case "mode.agent":
       return { ...state, agentMode: event.mode };
-    case "status.changed":
+    case "status.changed": {
+      // Track which model is answering the turn in progress, so the next
+      // conversation.chunk entry can be tagged with it (see appendChunk).
+      const delegated = event.status.match(/^delegating task to (.+)$/);
+      if (delegated) return { ...state, status: event.status, lastTurnModel: delegated[1] };
+      if (event.status.startsWith("escalating to")) return { ...state, status: event.status, lastTurnModel: null };
       return { ...state, status: event.status };
+    }
     case "notification": {
       const note = {
         id: `n${Date.now()}-${state.notifications.length}`,
