@@ -81,9 +81,10 @@ export class Agent {
       ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
     });
 
-    // Separate provider pool for capability-routed delegation (see classifyCapability),
-    // kept independent of `this.provider` so the primary conversation's model/tier is
-    // never mutated. Cloud provider is omitted entirely when no API key is configured.
+    // Separate provider pool for capability-routed delegation (see runUserMessage /
+    // detectEscalationHint), kept independent of `this.provider` so the primary
+    // conversation's model/tier is never mutated. Cloud provider is omitted
+    // entirely when no API key is configured.
     const localProvider = new Provider({
       tier: "local",
       model: cfg.model,
@@ -206,7 +207,7 @@ export class Agent {
     this.listeners.get(event)?.forEach((h) => h(...args));
   }
 
-  async runUserMessage(userMessage: string, priority?: PlanStep["priority"]): Promise<string> {
+  async runUserMessage(userMessage: string, _priority?: PlanStep["priority"]): Promise<string> {
     const learnings = this.learning.getLearnings();
     const activatedSkills = this.learning.resolveForPrompt(userMessage);
 
@@ -260,18 +261,23 @@ export class Agent {
       return text;
     };
 
-    const capability = this.classifyCapability(priority, userMessage);
-    // Lookup-style prompts ("where is X defined?") are only classified "quick"
-    // because they read as non-critical — but they NEED a tool call (search/read)
+    // priority no longer feeds routing (every turn now attempts "quick" first,
+    // see below) — kept as a runUserMessage param for AgentStepRunner/Orchestrator
+    // interface compatibility.
+    const escalationHint = this.detectEscalationHint(userMessage);
+    // Lookup-style prompts ("where is X defined?") NEED a tool call (search/read)
     // to answer correctly; a small model that just prose-answers instead is wrong,
     // not merely low-quality. Verified below: escalate once if that happens.
-    const requiresToolEvidence = capability === "quick" && Agent.LOOKUP_PATTERN.test(userMessage.toLowerCase());
-    if (capability) {
-      await this.ensureCatalog();
-      const candidates = this.catalog.modelsFor(capability);
-      if (candidates.length) {
-        this.emit("onStatus", `delegating task to ${candidates[0].tier}/${candidates[0].name}`);
-      }
+    const requiresToolEvidence = Agent.LOOKUP_PATTERN.test(userMessage.toLowerCase());
+    // Local to this call, not a class field: AgentStepRunner reuses the same Agent
+    // across plan steps and retries, each via a fresh runUserMessage call — a class
+    // field would leak escalation state across unrelated steps/retries.
+    let escalated = false;
+
+    await this.ensureCatalog();
+    const quickCandidates = this.catalog.modelsFor("quick");
+    if (quickCandidates.length) {
+      this.emit("onStatus", `delegating task to ${quickCandidates[0].tier}/${quickCandidates[0].name}`);
     }
 
     try {
@@ -279,16 +285,24 @@ export class Agent {
         this.conversation.pruneContext();
         this.emit("onStatus", `turn ${toolTurn + 1}`);
 
+        const capability: Capability | null = escalated ? escalationHint : "quick";
+
         const activeTools = await this.toolSelector.selectTools(
           userMessage,
           this.conversation.getMessages(),
           this.tools.registry.getTools(),
         );
+        // escalate_task must always be offered while still on the local model —
+        // heuristic/LLM tool-selection scoring could otherwise leave it out.
+        if (!escalated && !activeTools.some((t) => t.name === "escalate_task")) {
+          const escalateTool = this.tools.registry.getTools().find((t) => t.name === "escalate_task");
+          if (escalateTool) activeTools.push(escalateTool);
+        }
 
         // Buffer the first attempt's streamed text instead of emitting it live, so a
         // quick-model answer that skips the required tool call can be discarded and
         // re-run on the primary model without the wrong answer ever hitting the UI.
-        const verifying = requiresToolEvidence && toolTurn === 0;
+        const verifying = requiresToolEvidence && toolTurn === 0 && !escalated;
         let buffered: string[] | null = verifying ? [] : null;
         const makeChatOpts = () => ({
           stream: true,
@@ -323,6 +337,7 @@ export class Agent {
             "onStatus",
             "escalating to primary model: quick model answered a lookup query without calling a tool",
           );
+          escalated = true;
           buffered = null;
           chatOpts = makeChatOpts();
           chatResponse = await this.provider.chat(this.conversation.getMessages(), chatOpts);
@@ -398,6 +413,11 @@ export class Agent {
             this.emit("onToolResult", name, result);
             this.intelligence.feedRailsIndex(name, args, result);
             this.conversation.pushToolResult(typeof result === "string" ? result : JSON.stringify(result, null, 2));
+
+            if (name === "escalate_task" && result.escalate === true) {
+              escalated = true;
+              this.emit("onStatus", `escalating to ${escalationHint ?? "the primary model"}: ${result.reason}`);
+            }
 
             if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
               return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
@@ -485,38 +505,24 @@ export class Agent {
   }
 
   // ponytail: keyword classification, not an LLM intent classifier — cheap and
-  // deterministic. Falls back to the primary model whenever the catalog has no
-  // candidate for the detected capability, so a wrong/missed classification
-  // never breaks the turn, only skips routing.
+  // deterministic. No longer gates whether the local "quick" model gets tried
+  // at all (every turn attempts it first, see runUserMessage) — these patterns
+  // only pick the ESCALATION TARGET for when the model self-escalates via the
+  // escalate_task tool, reusing Router's existing vision/reasoning routing.
   private static readonly VISION_PATTERN = /\b(screenshot|diagram|image|photo|picture)\b|\.(png|jpe?g|gif|webp)\b/;
   private static readonly REASONING_PATTERN =
     /\b(architecture|trade-?offs?|root cause|design decision|why does|why is|think through|deep dive)\b/;
-  // Real edit/build verbs — anything matching here skips "quick" even though
-  // everything else now defaults to it, so a small model never lands a real
-  // code change. Not exhaustive: widen this list (or the priority override)
-  // if a code-writing turn is ever seen delegating to quick.
-  private static readonly CODE_WRITE_PATTERN =
-    /\b(implement|refactor|fix|add|write|generate|create|build|delete|remove|rename|migrate|update|install|upgrade|optimize|integrate|replace|extract|deploy|configure|debug|modify|edit|rewrite|change|patch|convert|revert|insert|append)\b/;
-  // Doc/test/lint-ish tasks stay "quick" even when a generic write/add/update
-  // verb is also present (e.g. "write a README", "add a test") — these are
-  // low-risk text edits, not the real source-code changes CODE_WRITE_PATTERN
-  // exists to keep off the small model.
-  private static readonly DOC_PATTERN = /\b(document|readme|comment|test|cleanup|lint)\b/;
   // Read-only lookup/classification phrasing — still used below to require tool
   // evidence on quick-routed lookup turns (a prose-only answer is wrong, not
   // just low quality).
   private static readonly LOOKUP_PATTERN =
     /\b(where is|where's|find the|show me|list the|which file|how many|what does .* do)\b/;
 
-  private classifyCapability(priority?: string, text?: string): Capability | null {
-    const desc = (text || "").toLowerCase();
-
+  private detectEscalationHint(text: string): "vision" | "reasoning" | null {
+    const desc = text.toLowerCase();
     if (Agent.VISION_PATTERN.test(desc)) return "vision";
     if (Agent.REASONING_PATTERN.test(desc)) return "reasoning";
-    if (priority === "high" || priority === "critical") return null;
-    if (Agent.CODE_WRITE_PATTERN.test(desc) && !Agent.DOC_PATTERN.test(desc)) return null;
-
-    return "quick";
+    return null;
   }
 
   // Refreshed once, on first delegation attempt, and cached for the Agent's lifetime.

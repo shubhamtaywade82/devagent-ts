@@ -9,6 +9,7 @@ import { SnapshotBackupTool } from "../tools/backup-tools.js";
 import { WatchTool } from "../tools/watch-tool.js";
 import { SearchCodeTool } from "../tools/search-tools.js";
 import { GitTool } from "../tools/git-tools.js";
+import { EscalateTaskTool } from "../tools/escalate-tool.js";
 import { DockerTool } from "../tools/docker-tools.js";
 import { GitHubTool } from "../tools/github-tools.js";
 import { SqliteQueryTool } from "../tools/database-tools.js";
@@ -72,6 +73,7 @@ export class AgentToolManager {
       .register(new WatchTool(root))
       .register(new SearchCodeTool(root))
       .register(new GitTool(root))
+      .register(new EscalateTaskTool())
       .register(new DockerTool(root))
       .register(new GitHubTool(root))
       .register(new SqliteQueryTool(root))
