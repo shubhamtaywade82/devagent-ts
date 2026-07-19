@@ -1,32 +1,35 @@
-import type { OllamaToolSchema } from "../provider/provider.js";
-import type { LocalTaskType, LocalOutputType } from "../provider/local-worker.js";
-
-export interface DelegateToolArgs {
-  task_type: LocalTaskType;
-  prompt: string;
-  expected_output: LocalOutputType;
-  examples?: Array<{ input: string; output: string }>;
-}
+import { Tool } from "./tool.js";
+import { LocalWorker, LocalTask, LocalTaskType, LocalOutputType } from "../provider/local-worker.js";
 
 /**
- * Tool schema exposed to the cloud (orchestrator) model, allowing it to
- * delegate simple, stateless coding tasks to the local worker model.
- *
- * The cloud model calls this tool when it wants to generate boilerplate,
- * TypeScript interfaces, regex patterns, test skeletons, or parse logs
- * without spending cloud tokens on deterministic generation.
+ * Exposed to the primary/cloud model once a turn has escalated, letting it
+ * delegate simple, stateless boilerplate back down to the local quick model
+ * instead of spending primary-model tokens generating it itself.
  */
-export const DELEGATE_TO_LOCAL_TOOL: OllamaToolSchema = {
-  type: "function",
-  function: {
-    name: "delegate_to_local",
-    description: [
-      "Delegates a simple, stateless coding task to a fast local model (MiniCPM5).",
+export class DelegateToLocalTool extends Tool {
+  constructor(private readonly worker: LocalWorker) {
+    super();
+  }
+
+  get name(): string {
+    return "delegate_to_local";
+  }
+
+  get description(): string {
+    return [
+      "Delegates a simple, stateless coding task to a fast local model.",
       "USE for: TypeScript interface generation, regex patterns, Jest test skeletons, data format conversion, log/error extraction.",
       "DO NOT use for: complex logic, debugging, multi-step reasoning, framework APIs, or anything requiring cross-file context.",
       "If this tool returns { success: false }, handle the task yourself — do not call it again.",
-    ].join(" "),
-    parameters: {
+    ].join(" ");
+  }
+
+  get tags(): string[] {
+    return ["meta", "delegation"];
+  }
+
+  get parameters(): Record<string, unknown> {
+    return {
       type: "object",
       properties: {
         task_type: {
@@ -49,36 +52,35 @@ export const DELEGATE_TO_LOCAL_TOOL: OllamaToolSchema = {
           description: "Optional few-shot examples to guide the local model.",
           items: {
             type: "object",
-            properties: {
-              input: { type: "string" },
-              output: { type: "string" },
-            },
+            properties: { input: { type: "string" }, output: { type: "string" } },
             required: ["input", "output"],
           },
         },
       },
       required: ["task_type", "prompt", "expected_output"],
-    },
-  },
-};
+    };
+  }
 
-/** Parses the raw tool-call arguments from the cloud model into a typed object. */
-export function parseDelegateArgs(raw: unknown): DelegateToolArgs {
-  const args = raw as Record<string, unknown>;
-  return {
-    task_type: args.task_type as LocalTaskType,
-    prompt: String(args.prompt ?? ""),
-    expected_output: args.expected_output as LocalOutputType,
-    examples: Array.isArray(args.examples)
-      ? (args.examples as Array<{ input: string; output: string }>)
-      : undefined,
-  };
+  async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+    const task: LocalTask = {
+      type: args.task_type as LocalTaskType,
+      prompt: String(args.prompt ?? ""),
+      expectedOutput: args.expected_output as LocalOutputType,
+      examples: Array.isArray(args.examples)
+        ? (args.examples as Array<{ input: string; output: string }>)
+        : undefined,
+    };
+
+    const result = await this.worker.execute(task);
+    if (result.success) {
+      return { success: true, output: result.output };
+    }
+    return { success: false, error: result.error ?? result.validationError ?? "local generation failed" };
+  }
 }
 
-/**
- * System-prompt addendum injected when the LocalWorker is active.
- * Prepend this to the cloud model's system prompt.
- */
+/** System-prompt addendum injected once a turn escalates, telling the primary
+ * model it can delegate boilerplate back down instead of writing it itself. */
 export const LOCAL_DELEGATION_SYSTEM_ADDENDUM = `
 You have access to the \`delegate_to_local\` tool for generating boilerplate, TypeScript interfaces, regex patterns, test skeletons, and parsing logs.
 Use it to save tokens on deterministic tasks. If it returns { "success": false }, handle the task yourself without calling it again.
