@@ -54,6 +54,11 @@ export interface CliConfig {
   /** Pre-check cloud model subscription access at startup.
    * Default true when apiKeys are configured. Disable with DEVAGENT_AVAIL_CHECK=false. */
   enableAvailabilityCheck?: boolean;
+  /** Layer-1 heuristic gate: skip the quick-model attempt entirely when the
+   * prompt matches an explicit complexity trigger (debug/architecture/proof/
+   * multi-step/etc.), escalating straight to the primary model instead.
+   * Default true. Disable with DEVAGENT_HEURISTIC_GATE=false. */
+  enableHeuristicGate?: boolean;
 }
 
 interface ConfigFile {
@@ -76,6 +81,7 @@ interface ConfigFile {
   selfConsistencyThreshold?: number;
   availabilityCheckTtlMs?: number;
   enableAvailabilityCheck?: boolean;
+  enableHeuristicGate?: boolean;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
@@ -205,5 +211,6 @@ export function loadConfig(): CliConfig {
     availabilityCheckTtlMs,
     enableAvailabilityCheck:
       fromEnv("DEVAGENT_AVAIL_CHECK") !== "false" && (file.enableAvailabilityCheck ?? true),
+    enableHeuristicGate: fromEnv("DEVAGENT_HEURISTIC_GATE") !== "false" && (file.enableHeuristicGate ?? true),
   };
 }

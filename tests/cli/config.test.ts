@@ -114,3 +114,27 @@ describe("workspace root resolution (git-root, like most editor tooling)", () =>
     expect(loadConfig().workspaceRoot).toBe(override);
   });
 });
+
+describe("enableHeuristicGate flag", () => {
+  const originalEnv = { ...process.env };
+  let workspaceRoot: string;
+
+  beforeEach(async () => {
+    workspaceRoot = await mkdtemp(join(tmpdir(), "config-test-"));
+    process.env.DEVAGENT_WORKSPACE = workspaceRoot;
+    delete process.env.DEVAGENT_HEURISTIC_GATE;
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("defaults to true", () => {
+    expect(loadConfig().enableHeuristicGate).toBe(true);
+  });
+
+  it("is false when DEVAGENT_HEURISTIC_GATE=false", () => {
+    process.env.DEVAGENT_HEURISTIC_GATE = "false";
+    expect(loadConfig().enableHeuristicGate).toBe(false);
+  });
+});
