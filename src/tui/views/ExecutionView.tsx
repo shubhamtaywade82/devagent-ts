@@ -13,7 +13,7 @@ const STEP_GLYPH: Record<ExecutionStep["status"], { glyph: string; color: string
 };
 
 /** Execution: goal, steps, active tool, queue, ETA, reasoning summary. */
-export function ExecutionView({ state, width, rows, detail }: ViewProps): JSX.Element {
+export function ExecutionView({ state, width, rows, detail }: ViewProps): React.JSX.Element {
   const { execution } = state;
   const headerRows = execution.goal ? 1 : 0;
   const toolRow = execution.activeTool || execution.queue.length > 0 ? 1 : 0;

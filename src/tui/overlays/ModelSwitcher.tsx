@@ -13,7 +13,7 @@ export interface ModelSwitcherProps {
 }
 
 /** Ctrl+M — switch model via the universal picker. */
-export function ModelSwitcher({ current, models, width, rows, active, onSelect }: ModelSwitcherProps): JSX.Element {
+export function ModelSwitcher({ current, models, width, rows, active, onSelect }: ModelSwitcherProps): React.JSX.Element {
   if (models === null) {
     return (
       <OverlayFrame title="Switch Model" width={width} rows={rows}>

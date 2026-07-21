@@ -9,7 +9,7 @@ export interface TokenLineProps {
 }
 
 /** Renders a strip of status tokens packed to width, colors preserved. */
-export function TokenLine({ tokens, width }: TokenLineProps): JSX.Element {
+export function TokenLine({ tokens, width }: TokenLineProps): React.JSX.Element {
   const packed = packTokens(tokens, width);
   return (
     <Box height={1} minHeight={1}>

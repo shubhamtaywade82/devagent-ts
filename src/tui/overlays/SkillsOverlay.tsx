@@ -14,7 +14,7 @@ export interface SkillsOverlayProps {
 }
 
 /** Browse installed skills and pin one — reached via /skills or the command palette. */
-export function SkillsOverlay({ skills, usage, width, rows, active, onSelect }: SkillsOverlayProps): JSX.Element {
+export function SkillsOverlay({ skills, usage, width, rows, active, onSelect }: SkillsOverlayProps): React.JSX.Element {
   if (skills.length === 0) {
     return (
       <OverlayFrame title="Skills" width={width} rows={rows}>

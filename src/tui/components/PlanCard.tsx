@@ -11,7 +11,7 @@ interface PlanCardProps {
   width: number;
 }
 
-export function PlanCard({ entry, collapsed, onToggle, width }: PlanCardProps): JSX.Element | null {
+export function PlanCard({ entry, collapsed, onToggle, width }: PlanCardProps): React.JSX.Element | null {
   if (entry.kind !== "plan") return null;
   const { steps, status } = entry;
 

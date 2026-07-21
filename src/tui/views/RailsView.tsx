@@ -2,7 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
 
-export function RailsView({ state, width, rows }: ViewProps): JSX.Element {
+export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element {
   const rails = state.rails;
 
   if (!rails || rails.status === "disabled") {

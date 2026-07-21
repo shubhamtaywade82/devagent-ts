@@ -11,7 +11,7 @@ interface ToolCallCardProps {
   width: number;
 }
 
-export function ToolCallCard({ entry, collapsed, onToggle, width }: ToolCallCardProps): JSX.Element | null {
+export function ToolCallCard({ entry, collapsed, onToggle, width }: ToolCallCardProps): React.JSX.Element | null {
   if (entry.kind !== "tool_call") return null;
   const { name, status, result, error } = entry;
 

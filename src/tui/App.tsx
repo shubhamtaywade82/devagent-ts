@@ -67,7 +67,7 @@ export interface AppProps {
   workspaceRoot?: string;
 }
 
-const VIEWS: Record<ViewId, (props: ViewProps) => JSX.Element> = {
+const VIEWS: Record<ViewId, (props: ViewProps) => React.JSX.Element> = {
   conversation: ConversationView,
   execution: ExecutionView,
   tasks: TasksView,
@@ -171,7 +171,7 @@ function useRuntimeState(store: Store): RuntimeState {
 // eslint-disable-next-line no-control-regex
 const MOUSE_SGR_PATTERN = /\x1b?\[<\d+;\d+;\d+[Mm]/;
 
-export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): JSX.Element {
+export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const state = useRuntimeState(store);
   const { width, height } = useTerminalSize(columns, rows);

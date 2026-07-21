@@ -12,7 +12,7 @@ const LEVEL_COLOR: Record<LogLevel, string> = {
 };
 
 /** Logs: structured tool/model/system logs, newest at the bottom. */
-export function LogsView({ state, width, rows, detail }: ViewProps): JSX.Element {
+export function LogsView({ state, width, rows, detail }: ViewProps): React.JSX.Element {
   const logs = tail(state.logs, rows);
   if (logs.length === 0) {
     return (

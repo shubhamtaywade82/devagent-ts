@@ -19,7 +19,7 @@ const KEYS: [string, string][] = [
   ["q", "Quit"],
 ];
 
-export function HelpOverlay({ width, rows }: { width: number; rows: number }): JSX.Element {
+export function HelpOverlay({ width, rows }: { width: number; rows: number }): React.JSX.Element {
   return (
     <OverlayFrame title="Help — Keys" width={width} rows={rows}>
       {KEYS.slice(0, Math.max(3, rows - 4)).map(([key, description]) => (

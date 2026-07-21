@@ -9,6 +9,6 @@ export interface HeaderProps {
   now?: number;
 }
 
-export function Header({ state, width, now }: HeaderProps): JSX.Element {
+export function Header({ state, width, now }: HeaderProps): React.JSX.Element {
   return <TokenLine tokens={headerTokens(state, now)} width={width} />;
 }

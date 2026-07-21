@@ -12,7 +12,7 @@ export interface OverlayFrameProps {
  * Overlays are ephemeral: they render inside the Active View zone, never
  * replace runtime state, and always close with Esc.
  */
-export function OverlayFrame({ title, width, rows, children }: OverlayFrameProps): JSX.Element {
+export function OverlayFrame({ title, width, rows, children }: OverlayFrameProps): React.JSX.Element {
   const innerWidth = Math.max(20, Math.min(width - 4, 100));
   return (
     <Box flexDirection="column" height={rows} alignItems="center" justifyContent="center">

@@ -42,7 +42,7 @@ export class DynamicToolSelector {
       }
       try {
         return await this.llmSelect(prompt, history, availableTools);
-      } catch (err) {
+      } catch {
         return this.heuristicSelect(prompt, history, availableTools);
       }
     }
@@ -60,7 +60,7 @@ export class DynamicToolSelector {
     if (this.provider || this.chatOverride) {
       try {
         return await this.llmSelect(prompt, history, availableTools);
-      } catch (err) {
+      } catch {
         // Fallback to heuristic on LLM failure
       }
     }

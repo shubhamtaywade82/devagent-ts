@@ -10,7 +10,7 @@ export interface ActorsOverlayProps {
   rows: number;
 }
 
-export function ActorsOverlay({ state, width, rows }: ActorsOverlayProps): JSX.Element {
+export function ActorsOverlay({ state, width, rows }: ActorsOverlayProps): React.JSX.Element {
   return (
     <OverlayFrame title="Actors — all alive" width={width} rows={rows}>
       {ACTOR_IDS.map((id) => {

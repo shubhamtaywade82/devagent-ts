@@ -23,7 +23,7 @@ interface StatusChipProps {
   label?: string;
 }
 
-export function StatusChip({ status, label }: StatusChipProps): JSX.Element {
+export function StatusChip({ status, label }: StatusChipProps): React.JSX.Element {
   const s = STATUS_GLYPH[status] ?? { glyph: "?", color: "gray" };
   return (
     <Text color={s.color}>

@@ -12,7 +12,7 @@ const STATUS_GLYPH: Record<GitFileChange["status"], { glyph: string; color: stri
 };
 
 /** Git: branch state, ahead/behind, staged and modified files, diff stat. */
-export function GitView({ state, width, rows, detail }: ViewProps): JSX.Element {
+export function GitView({ state, width, rows, detail }: ViewProps): React.JSX.Element {
   const { git } = state;
   const fileRows = Math.max(0, rows - 1);
   const files = tail(git.files, fileRows);

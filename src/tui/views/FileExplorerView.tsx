@@ -15,7 +15,7 @@ const MOCK_TREE = [
   { name: "tsconfig.json", depth: 0, type: "file" },
 ];
 
-export function FileExplorerView({ rows }: ViewProps): JSX.Element {
+export function FileExplorerView({ rows }: ViewProps): React.JSX.Element {
   return (
     <Box flexDirection="column" height={rows}>
       <Box height={1} marginBottom={1}>

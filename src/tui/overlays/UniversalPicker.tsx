@@ -34,7 +34,7 @@ export function UniversalPicker({
   emptyText = "No matches.",
   initialSelected = [],
   onSubmit,
-}: UniversalPickerProps): JSX.Element {
+}: UniversalPickerProps): React.JSX.Element {
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const [checked, setChecked] = useState<Set<string>>(() => new Set(initialSelected));

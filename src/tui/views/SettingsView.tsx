@@ -3,7 +3,7 @@ import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
 import { AGENT_MODE_LABELS } from "../../runtime/types.js";
 
-export function SettingsView({ state, rows }: ViewProps): JSX.Element {
+export function SettingsView({ state, rows }: ViewProps): React.JSX.Element {
   const am = AGENT_MODE_LABELS[state.agentMode];
 
   return (

@@ -35,7 +35,7 @@ export interface CommandPaletteProps {
 }
 
 /** Ctrl+P — global searchable action palette (actions, not commands). */
-export function CommandPalette({ registry, width, rows, active, onAction }: CommandPaletteProps): JSX.Element {
+export function CommandPalette({ registry, width, rows, active, onAction }: CommandPaletteProps): React.JSX.Element {
   const actions = paletteActions(registry);
   return (
     <UniversalPicker

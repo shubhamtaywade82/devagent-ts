@@ -19,7 +19,7 @@ function progressBar(progress: number, width: number): string {
 }
 
 /** Tasks: the task graph — dependencies, states, workers, progress. */
-export function TasksView({ state, width, rows, detail }: ViewProps): JSX.Element {
+export function TasksView({ state, width, rows, detail }: ViewProps): React.JSX.Element {
   const tasks = tail(state.tasks, rows);
   if (tasks.length === 0) {
     return (

@@ -11,7 +11,7 @@ interface StatusCardProps {
   width: number;
 }
 
-export function StatusCard({ entry, collapsed, onToggle, width }: StatusCardProps): JSX.Element | null {
+export function StatusCard({ entry, collapsed, onToggle, width }: StatusCardProps): React.JSX.Element | null {
   if (entry.kind !== "card") return null;
   const { title, status, items } = entry;
 

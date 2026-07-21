@@ -20,7 +20,7 @@ export function ContextStrip({
   activeView,
   completionItems,
   completionIndex,
-}: ContextStripProps): JSX.Element {
+}: ContextStripProps): React.JSX.Element {
   if (completionItems && completionItems.length > 0) {
     return (
       <Box height={1}>

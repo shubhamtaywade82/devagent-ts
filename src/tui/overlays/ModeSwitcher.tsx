@@ -11,7 +11,7 @@ interface ModeSwitcherProps {
   onSelect: (mode: AgentMode) => void;
 }
 
-export function ModeSwitcher({ current, width, rows }: ModeSwitcherProps): JSX.Element {
+export function ModeSwitcher({ current, width, rows }: ModeSwitcherProps): React.JSX.Element {
   const [filter] = useState("");
   const [selectedIndex] = useState(AGENT_MODES.indexOf(current));
 

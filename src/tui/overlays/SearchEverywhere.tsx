@@ -21,7 +21,7 @@ export function SearchEverywhere({
   rows,
   active,
   onSelect,
-}: SearchEverywhereProps): JSX.Element {
+}: SearchEverywhereProps): React.JSX.Element {
   const items = searchItems(state, registry);
   return (
     <UniversalPicker

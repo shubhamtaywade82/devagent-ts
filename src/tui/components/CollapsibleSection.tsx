@@ -11,7 +11,7 @@ interface CollapsibleSectionProps {
   width: number;
 }
 
-export function CollapsibleSection({ title, status, collapsed, children }: CollapsibleSectionProps): JSX.Element {
+export function CollapsibleSection({ title, status, collapsed, children }: CollapsibleSectionProps): React.JSX.Element {
   const header = (
     <Box>
       <Text>

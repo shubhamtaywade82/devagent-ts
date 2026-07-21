@@ -2,7 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
 
-function row(label: string, value: React.ReactNode): JSX.Element {
+function row(label: string, value: React.ReactNode): React.JSX.Element {
   return (
     <Text key={label} wrap="truncate">
       <Text color="gray">{label.padEnd(14)}</Text>
@@ -12,7 +12,7 @@ function row(label: string, value: React.ReactNode): JSX.Element {
 }
 
 /** Models: provider, model, latency, throughput, context, stream state. */
-export function ModelsView({ state, rows }: ViewProps): JSX.Element {
+export function ModelsView({ state, rows }: ViewProps): React.JSX.Element {
   const { model } = state;
   const ctxPct = model.contextLimit > 0 ? Math.round((model.contextUsed / model.contextLimit) * 100) : null;
   return (

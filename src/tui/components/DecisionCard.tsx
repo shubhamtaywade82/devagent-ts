@@ -10,7 +10,7 @@ interface DecisionCardProps {
   width: number;
 }
 
-export function DecisionCard({ entry, collapsed, onToggle, width }: DecisionCardProps): JSX.Element | null {
+export function DecisionCard({ entry, collapsed, onToggle, width }: DecisionCardProps): React.JSX.Element | null {
   if (entry.kind !== "decision") return null;
   const { options, selected, reason, confidence } = entry;
 

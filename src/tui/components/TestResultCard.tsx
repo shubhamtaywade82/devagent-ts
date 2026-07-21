@@ -12,7 +12,7 @@ interface TestResultCardProps {
 
 const statusForResult = (failed: number): string => (failed > 0 ? "failed" : "completed");
 
-export function TestResultCard({ entry, collapsed, onToggle, width }: TestResultCardProps): JSX.Element | null {
+export function TestResultCard({ entry, collapsed, onToggle, width }: TestResultCardProps): React.JSX.Element | null {
   if (entry.kind !== "test_result") return null;
   const { command, passed, failed, failures, durationMs } = entry;
 

@@ -12,7 +12,7 @@ export interface ApprovalOverlayProps {
 }
 
 /** Approval: review and confirm. Enter/a Approve, n Reject, d Diff. */
-export function ApprovalOverlay({ request, width, rows, showDiff }: ApprovalOverlayProps): JSX.Element {
+export function ApprovalOverlay({ request, width, rows, showDiff }: ApprovalOverlayProps): React.JSX.Element {
   const innerWidth = Math.max(20, Math.min(width - 8, 96));
   const diffLines = showDiff && request.diff ? tail(request.diff.split("\n"), Math.max(3, rows - 8)) : [];
   return (

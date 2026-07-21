@@ -12,7 +12,7 @@ const KIND_LABEL: Record<MemoryItem["kind"], string> = {
 };
 
 /** Memory: repo knowledge, coding style, preferences, architecture notes. */
-export function MemoryView({ state, width, rows }: ViewProps): JSX.Element {
+export function MemoryView({ state, width, rows }: ViewProps): React.JSX.Element {
   const summaryLines = state.memorySummary ? wrapText(state.memorySummary, Math.max(10, width)) : [];
   const summaryRows = Math.min(summaryLines.length, Math.max(1, Math.floor(rows / 2)));
   const itemRows = Math.max(0, rows - summaryRows);

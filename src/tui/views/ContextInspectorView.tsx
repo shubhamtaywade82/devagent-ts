@@ -2,7 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
 
-export function ContextInspectorView({ state, width, rows }: ViewProps): JSX.Element {
+export function ContextInspectorView({ state, width, rows }: ViewProps): React.JSX.Element {
   const { model, memory, execution } = state;
 
   const contextPercent = model.contextLimit > 0 ? Math.round((model.contextUsed / model.contextLimit) * 100) : 0;

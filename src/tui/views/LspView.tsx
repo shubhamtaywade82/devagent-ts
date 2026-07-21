@@ -19,7 +19,7 @@ const STATUS_GLYPH: Record<string, string> = {
   error: " ● ",
 };
 
-export function LspView({ state, rows }: ViewProps): JSX.Element {
+export function LspView({ state, rows }: ViewProps): React.JSX.Element {
   const servers = tail(state.lspServers ?? [], rows);
   if (servers.length === 0) {
     return (

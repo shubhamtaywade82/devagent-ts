@@ -9,6 +9,7 @@ jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
 const { spawn } = await import("node:child_process");
 const { Agent } = await import("../../src/cli/agent.js");
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- used below via `typeof ShellTool`, can't be `import type` since it's a dynamic mocked-module import
 const { ShellTool } = await import("../../src/tools/shell.js");
 const { MemoryStore } = await import("../../src/memory/store.js");
 

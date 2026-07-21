@@ -10,7 +10,7 @@ interface DiffPreviewProps {
   width: number;
 }
 
-export function DiffPreview({ entry, collapsed, onToggle, width }: DiffPreviewProps): JSX.Element | null {
+export function DiffPreview({ entry, collapsed, onToggle, width }: DiffPreviewProps): React.JSX.Element | null {
   if (entry.kind !== "diff_preview") return null;
   const { filePath, diff, status } = entry;
 

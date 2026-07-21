@@ -17,49 +17,39 @@ class TextFallbackProvider implements LanguageIntelligenceProvider {
     return op === "diagnostics" || op === "documentSymbols" || op === "workspaceSymbols";
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async findDefinition(_filePath: string, _line: number, _character: number): Promise<Location[]> {
     return [];
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async findReferences(_filePath: string, _line: number, _character: number, _includeDeclaration?: boolean): Promise<Location[]> {
     return [];
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async listDocumentSymbols(_filePath: string): Promise<SymbolInformation[]> {
     return [];
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async listWorkspaceSymbols(_query: string): Promise<SymbolInformation[]> {
     return [];
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getHover(_filePath: string, _line: number, _character: number): Promise<Hover | null> {
     return null;
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getDiagnostics(_filePath: string): Promise<Diagnostic[]> {
     return [];
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getCodeActions(_filePath: string, _line: number, _character: number): Promise<CodeAction[]> {
     return [];
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getCompletion(_filePath: string, _line: number, _character: number): Promise<CompletionItem[]> {
     return [];
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getSignatureHelp(_filePath: string, _line: number, _character: number): Promise<SignatureHelp | null> {
     return null;
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async formatDocument(_filePath: string): Promise<TextEdit[]> {
     return [];
   }
 
   async buildFileContext(filePath: string): Promise<FileContext> {
-    let content = "";
+    let content: string;
     try {
       content = readFileSync(filePath, "utf-8");
     } catch {

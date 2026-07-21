@@ -68,7 +68,6 @@ export class BrowserManager {
 
   async evaluate(script: string): Promise<unknown> {
     const page = await this.ensurePage();
-    // eslint-disable-next-line @typescript-eslint/no-implied-eval
     return page.evaluate(script);
   }
 

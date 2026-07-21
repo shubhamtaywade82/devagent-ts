@@ -2,7 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
 
-export function ToolTimelineView({ state, rows }: ViewProps): JSX.Element {
+export function ToolTimelineView({ state, rows }: ViewProps): React.JSX.Element {
   const { toolCalls } = state;
   const maxRows = Math.max(1, rows - 2);
   const visible = toolCalls.slice(-maxRows);
@@ -26,7 +26,7 @@ export function ToolTimelineView({ state, rows }: ViewProps): JSX.Element {
         const isLast = idx === visible.length - 1;
         const connector = isLast ? "└─" : "├─";
 
-        let statusText = "";
+        let statusText: string;
         let statusColor = "gray";
         if (call.status === "running") {
           statusText = " ⏳ running";

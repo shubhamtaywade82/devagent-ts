@@ -18,7 +18,7 @@ function formatArgs(args: Record<string, unknown>): string {
     .join(", ");
 }
 
-function SpanText({ spans }: { spans: Span[] }): JSX.Element {
+function SpanText({ spans }: { spans: Span[] }): React.JSX.Element {
   return (
     <Text wrap="truncate">
       {spans.map((s, j) => {
@@ -107,7 +107,7 @@ function renderSimpleMarkdown(text: string, bodyWidth: number): { spans: Span[];
   return result;
 }
 
-function TurnSeparator({ width }: { width: number }): JSX.Element {
+function TurnSeparator({ width }: { width: number }): React.JSX.Element {
   return (
     <Box height={1}>
       <Text color="gray" dimColor wrap="truncate">
@@ -125,7 +125,7 @@ function ToolCallBlock({
   entry: ChatEntry & { kind: "tool_call" };
   collapsed: boolean;
   width: number;
-}): JSX.Element {
+}): React.JSX.Element {
   const args = formatArgs(entry.args);
   const isRunning = entry.status === "running";
   const isFailed = entry.status === "failed";
@@ -170,10 +170,10 @@ function ToolCallBlock({
 interface RenderedBlock {
   key: string;
   height: number;
-  render: (startRow: number, endRow: number) => JSX.Element;
+  render: (startRow: number, endRow: number) => React.JSX.Element;
 }
 
-export function ConversationView({ state, width, rows, detail: _detail }: ViewProps): JSX.Element {
+export function ConversationView({ state, width, rows, detail: _detail }: ViewProps): React.JSX.Element {
   const [collapsed] = useState<Set<number>>(new Set());
   const bodyWidth = Math.max(10, width);
   const [scrollOffset, setScrollOffset] = useState(0);
