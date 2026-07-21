@@ -3,14 +3,20 @@ import { OllamaToolSchema } from "../provider/provider.js";
 
 export class Registry {
   private readonly tools = new Map<string, Tool>();
+  private readonly categories = new Map<string, string>();
 
-  register(tool: Tool): this {
+  register(tool: Tool, category = "General"): this {
     this.tools.set(tool.name, tool);
+    this.categories.set(tool.name, category);
     return this;
   }
 
   getTools(): Tool[] {
     return [...this.tools.values()];
+  }
+
+  categoryOf(name: string): string {
+    return this.categories.get(name) ?? "General";
   }
 
   schemas(): OllamaToolSchema[] {

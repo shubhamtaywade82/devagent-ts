@@ -26,6 +26,8 @@ export const ACTOR_IDS: readonly ActorId[] = [
 /** Semantic health of an actor, mapped 1:1 to theme colors. */
 export type ActorHealth = "healthy" | "active" | "waiting" | "error" | "thinking" | "muted";
 
+export type ThemeName = "default" | "midnight" | "solarized";
+
 export interface ActorState {
   id: ActorId;
   health: ActorHealth;
@@ -133,6 +135,12 @@ export interface ModelState {
   latencyMs: number;
   contextUsed: number;
   contextLimit: number;
+}
+
+/** Running totals across the whole TUI process, not just the current turn. */
+export interface UsageState {
+  totalPromptTokens: number;
+  totalCompletionTokens: number;
 }
 
 export interface McpServerState {
@@ -263,6 +271,7 @@ export interface RuntimeState {
   memorySummary: string;
   git: GitState;
   model: ModelState;
+  usage: UsageState;
   mcpServers: McpServerState[];
   lspServers: LspServerState[];
   rails?: RailsIndexState;
@@ -270,4 +279,9 @@ export interface RuntimeState {
   approval: ApprovalRequest | null;
   notifications: Notification[];
   lastError: string | null;
+  theme: ThemeName;
+  /** Only set when the user configures a real rate (config.pricing / env vars)
+   * — Ollama has no published per-token price, so this stays unset by
+   * default rather than showing an invented cost. */
+  pricing?: { inputPerMillion: number; outputPerMillion: number };
 }

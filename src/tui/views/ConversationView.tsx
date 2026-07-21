@@ -121,17 +121,19 @@ function ToolCallBlock({
   entry,
   collapsed,
   width,
+  isLast,
 }: {
   entry: ChatEntry & { kind: "tool_call" };
   collapsed: boolean;
   width: number;
+  isLast: boolean;
 }): React.JSX.Element {
   const args = formatArgs(entry.args);
   const isRunning = entry.status === "running";
   const isFailed = entry.status === "failed";
   const statusColor = isRunning ? "yellow" : isFailed ? "red" : "green";
   const statusLabel = isRunning ? "running" : isFailed ? "failed" : "done";
-  const connector = "  ├─ ";
+  const connector = isLast ? "  └─ " : "  ├─ ";
 
   return (
     <Box flexDirection="column">
@@ -183,7 +185,8 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
     const b: RenderedBlock[] = [];
     let isFirst = true;
 
-    for (const entry of state.conversation) {
+    for (let idx = 0; idx < state.conversation.length; idx++) {
+      const entry = state.conversation[idx];
       if (!isFirst) {
         if (entry.role === "user") {
           b.push({
@@ -251,7 +254,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                 <Box key={`asst-${entry.at}`} flexDirection="column">
                   {visibleLines.map((line, li) => (
                     <Box key={startRow + li} height={1}>
-                      <Box width={2} />
+                      {startRow + li === 0 ? <Text color="cyan">{"• "}</Text> : <Box width={2} />}
                       {line.indent ? <Box width={line.indent} /> : null}
                       <SpanText spans={line.spans} />
                     </Box>
@@ -272,10 +275,11 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
       } else if (entry.kind === "tool_call") {
         const isCollapsed = collapsed.has(entry.at);
         const extraHeight = isCollapsed ? 0 : (entry.result ? 1 : 0) + (entry.error ? 1 : 0);
+        const isLast = state.conversation[idx + 1]?.kind !== "tool_call";
         b.push({
           key: `tool-${entry.at}`,
           height: 1 + extraHeight,
-          render: () => <ToolCallBlock entry={entry} collapsed={isCollapsed} width={bodyWidth} />,
+          render: () => <ToolCallBlock entry={entry} collapsed={isCollapsed} width={bodyWidth} isLast={isLast} />,
         });
       } else if (entry.kind === "plan") {
         const headerText = `📋 Plan (${entry.steps.length} steps) [${entry.status}]`;

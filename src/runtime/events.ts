@@ -19,6 +19,7 @@ import {
   SkillState,
   Task,
   TestFailure,
+  ThemeName,
   ToolCallStatus,
 } from "./types.js";
 
@@ -40,7 +41,9 @@ export type RuntimeEvent =
   | { type: "tool.failed"; id: string; error: string }
   | { type: "model.streaming"; streaming: boolean; tokensPerSecond?: number }
   | { type: "model.changed"; provider?: string; name: string }
-  | { type: "context.changed"; used: number; limit: number }
+  | { type: "context.changed"; used: number; limit: number; latencyMs?: number }
+  | { type: "usage.changed"; promptTokens: number; completionTokens: number }
+  | { type: "theme.changed"; theme: ThemeName }
   | { type: "git.changed"; git: GitState }
   | { type: "logs.appended"; level: LogLevel; source: string; message: string }
   | { type: "memory.updated"; items?: MemoryItem[]; summary?: string }

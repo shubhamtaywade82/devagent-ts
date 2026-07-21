@@ -15,6 +15,7 @@ import { ACTOR_IDS, ActorId, ActorState, ChatEntry, RuntimeState, Task, ToolCall
 // Moving the constants out of this file keeps the reducer pure and makes it easy
 // for CI or callers to adjust limits without recompiling.
 import { MAX_LOGS, MAX_CONVERSATION, MAX_TOOL_CALLS, MAX_NOTIFICATIONS } from "./config.js";
+import { setActiveTheme } from "../layout/theme-map.js";
 
 // Strips ANSI/C0/C1 control sequences from text before it lands in state,
 // so tool or shell output emitting screen-clear/cursor-addressing/title-set
@@ -36,6 +37,7 @@ export interface InitialStateOptions {
   model?: string;
   provider?: string;
   contextLimit?: number;
+  pricing?: { inputPerMillion: number; outputPerMillion: number };
 }
 
 export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeState {
@@ -80,12 +82,15 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
       contextUsed: 0,
       contextLimit: opts.contextLimit ?? 0,
     },
+    usage: { totalPromptTokens: 0, totalCompletionTokens: 0 },
     mcpServers: [],
     lspServers: [],
     skills: [],
     approval: null,
     notifications: [],
     lastError: null,
+    theme: "default",
+    pricing: opts.pricing,
   };
 }
 
@@ -330,7 +335,26 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       return withActor({ ...state, model }, "models", { health: "healthy" });
     }
     case "context.changed":
-      return { ...state, model: { ...state.model, contextUsed: event.used, contextLimit: event.limit } };
+      return {
+        ...state,
+        model: {
+          ...state.model,
+          contextUsed: event.used,
+          contextLimit: event.limit,
+          latencyMs: event.latencyMs ?? state.model.latencyMs,
+        },
+      };
+    case "usage.changed":
+      return {
+        ...state,
+        usage: {
+          totalPromptTokens: state.usage.totalPromptTokens + event.promptTokens,
+          totalCompletionTokens: state.usage.totalCompletionTokens + event.completionTokens,
+        },
+      };
+    case "theme.changed":
+      setActiveTheme(event.theme);
+      return { ...state, theme: event.theme };
     case "git.changed":
       return withActor({ ...state, git: event.git }, "git", {
         health: event.git.files.length > 0 ? "waiting" : "healthy",

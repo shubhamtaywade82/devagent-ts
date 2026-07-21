@@ -46,12 +46,44 @@ export function activityStripTokens(state: RuntimeState): StatusToken[] {
       color: semanticColor(actor.health),
     };
   });
+  // Below all actor priorities (1-11): useful, but actor health always wins
+  // the last slot when the terminal is narrow.
   if (state.model.contextLimit > 0) {
     tokens.push({
       text: `Tok${formatK(state.model.contextUsed)}/${formatK(state.model.contextLimit)}`,
-      priority: 10,
+      priority: 12,
       color: semanticColor("muted"),
     });
+  } else if (state.model.contextUsed > 0) {
+    // No known context window for this model — still show the real count.
+    tokens.push({
+      text: `Tok${formatK(state.model.contextUsed)}`,
+      priority: 12,
+      color: semanticColor("muted"),
+    });
+  }
+  const totalTokens = state.usage.totalPromptTokens + state.usage.totalCompletionTokens;
+  if (totalTokens > 0) {
+    tokens.push({
+      text: `Session${formatK(totalTokens)}`,
+      priority: 13,
+      color: semanticColor("muted"),
+    });
+  }
+  // Only rendered when the user has configured a real rate (config.pricing /
+  // DEVAGENT_PRICE_*_PER_M) — Ollama has no published per-token price, so
+  // there is no default rate to compute this from.
+  if (state.pricing) {
+    const cost =
+      (state.usage.totalPromptTokens / 1_000_000) * state.pricing.inputPerMillion +
+      (state.usage.totalCompletionTokens / 1_000_000) * state.pricing.outputPerMillion;
+    if (cost > 0) {
+      tokens.push({
+        text: `$${cost.toFixed(3)}`,
+        priority: 14,
+        color: semanticColor("muted"),
+      });
+    }
   }
   return tokens;
 }
@@ -65,7 +97,14 @@ function contextPercent(state: RuntimeState): string | null {
   return `ctx${Math.round((state.model.contextUsed / state.model.contextLimit) * 100)}%`;
 }
 
-export function contextStripTokens(state: RuntimeState, activeView?: ViewId): StatusToken[] {
+function formatElapsed(ms: number): string {
+  const totalMinutes = Math.max(0, Math.floor(ms / 60_000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  return hours > 0 ? `${hours}h${minutes}m` : `${minutes}m`;
+}
+
+export function contextStripTokens(state: RuntimeState, activeView?: ViewId, now: number = Date.now()): StatusToken[] {
   const tokens: StatusToken[] = [];
   const push = (text: string, priority: number, health?: ActorHealth) =>
     tokens.push({ text, priority, color: health ? semanticColor(health) : undefined });
@@ -99,7 +138,9 @@ export function contextStripTokens(state: RuntimeState, activeView?: ViewId): St
       push(`Mode:${am.label}`, 1, "active");
       push(`Model:${state.model.name || "-"}`, 2, "active");
       if (state.session.workspace) push(`Workspace:${state.session.workspace}`, 3);
-      push("Ctrl+P Palette", 4, "muted");
+      if (state.model.latencyMs > 0) push(`${state.model.latencyMs}ms`, 4);
+      if (state.session.startedAt > 0) push(`⏱ ${formatElapsed(now - state.session.startedAt)}`, 5);
+      push("Ctrl+P Palette", 6, "muted");
       break;
     }
     case "planning": {
@@ -162,54 +203,86 @@ const MODE_LABELS: Record<RuntimeState["mode"], string> = {
   streaming: "STREAMING",
 };
 
+// Deliberate, distinct priority per token — lower sheds later on a narrow
+// terminal. Previously several unrelated tokens shared a number (model/cloud
+// tag/agent-mode all at 2; workspace/runtime-mode both at 3; rails/skills
+// both at 10), so which one survived a width squeeze came down to array
+// insertion order rather than an actual importance call. Ranked here by what
+// you'd miss most first: identity > what's answering > what it's doing right
+// now > where > secondary code-intelligence status > clock.
+const HEADER_PRIORITY = {
+  product: 1,
+  model: 2,
+  agentMode: 3,
+  runtimeMode: 4,
+  workspace: 5,
+  cloudTag: 6,
+  branch: 7,
+  contextPct: 8,
+  gitDirty: 9,
+  memory: 10,
+  lsp: 11,
+  rails: 12,
+  skills: 13,
+  clock: 14,
+} as const;
+
 /** Header zone: product, workspace, model, branch, context usage, mode, state, clock. */
 export function headerTokens(state: RuntimeState, now: number = Date.now()): StatusToken[] {
-  const tokens: StatusToken[] = [{ text: "DevAgent", priority: 1, color: semanticColor("thinking") }];
-  if (state.session.workspace) tokens.push({ text: state.session.workspace, priority: 3 });
-  if (state.model.name) tokens.push({ text: state.model.name, priority: 2, color: semanticColor("active") });
-  if (state.model.provider === "cloud") {
-    tokens.push({ text: "☁ cloud", priority: 2, color: semanticColor("thinking") });
+  const tokens: StatusToken[] = [
+    { text: "DevAgent", priority: HEADER_PRIORITY.product, color: semanticColor("thinking") },
+  ];
+  if (state.model.name) {
+    tokens.push({ text: state.model.name, priority: HEADER_PRIORITY.model, color: semanticColor("active") });
   }
-  const branch = state.git.branch || state.session.branch;
-  if (branch) tokens.push({ text: `⎇ ${branch}`, priority: 4 });
-  const ctx = contextPercent(state);
-  if (ctx) tokens.push({ text: ctx, priority: 5 });
   const am = AGENT_MODE_LABELS[state.agentMode];
-  tokens.push({ text: am.label, priority: 2, color: semanticColor("active") });
+  tokens.push({ text: am.label, priority: HEADER_PRIORITY.agentMode, color: semanticColor("active") });
   tokens.push({
     text: MODE_LABELS[state.mode],
-    priority: 3,
+    priority: HEADER_PRIORITY.runtimeMode,
     color: semanticColor(state.mode === "idle" ? "healthy" : state.mode === "approval" ? "waiting" : "thinking"),
   });
+  if (state.session.workspace) tokens.push({ text: state.session.workspace, priority: HEADER_PRIORITY.workspace });
+  if (state.model.provider === "cloud") {
+    tokens.push({ text: "☁ cloud", priority: HEADER_PRIORITY.cloudTag, color: semanticColor("thinking") });
+  }
+  const branch = state.git.branch || state.session.branch;
+  if (branch) tokens.push({ text: `⎇ ${branch}`, priority: HEADER_PRIORITY.branch });
+  const ctx = contextPercent(state);
+  if (ctx) tokens.push({ text: ctx, priority: HEADER_PRIORITY.contextPct });
   // Git status
   if (state.git.files.length > 0) {
-    tokens.push({ text: `Git:${state.git.files.length}m`, priority: 6, color: semanticColor("waiting") });
+    tokens.push({ text: `Git:${state.git.files.length}m`, priority: HEADER_PRIORITY.gitDirty, color: semanticColor("waiting") });
   }
   // Memory status
   if (state.memory.length > 0) {
-    tokens.push({ text: `Mem:${state.memory.length}`, priority: 8, color: semanticColor("healthy") });
+    tokens.push({ text: `Mem:${state.memory.length}`, priority: HEADER_PRIORITY.memory, color: semanticColor("healthy") });
   }
   // LSP status
   const runningLsp = state.lspServers.filter((s) => s.status === "running");
   if (runningLsp.length > 0) {
     tokens.push({
       text: `LSP:${runningLsp.map((s) => s.language.slice(0, 2)).join(",")}`,
-      priority: 9,
+      priority: HEADER_PRIORITY.lsp,
       color: semanticColor("healthy"),
     });
   }
   // Rails status
   if (state.rails && state.rails.status !== "disabled") {
-    tokens.push({ text: `Rails:${state.rails.status}`, priority: 10, color: semanticColor(state.rails.status === "ready" ? "healthy" : "thinking") });
+    tokens.push({
+      text: `Rails:${state.rails.status}`,
+      priority: HEADER_PRIORITY.rails,
+      color: semanticColor(state.rails.status === "ready" ? "healthy" : "thinking"),
+    });
   }
   // Skills
   const activeSkills = state.skills.filter((s) => s.active).length;
   if (activeSkills > 0) {
-    tokens.push({ text: `Skills:${activeSkills}`, priority: 10, color: semanticColor("active") });
+    tokens.push({ text: `Skills:${activeSkills}`, priority: HEADER_PRIORITY.skills, color: semanticColor("active") });
   }
   const clock = new Date(now);
   const hh = String(clock.getHours()).padStart(2, "0");
   const mm = String(clock.getMinutes()).padStart(2, "0");
-  tokens.push({ text: `${hh}:${mm}`, priority: 11, color: semanticColor("muted") });
+  tokens.push({ text: `${hh}:${mm}`, priority: HEADER_PRIORITY.clock, color: semanticColor("muted") });
   return tokens;
 }

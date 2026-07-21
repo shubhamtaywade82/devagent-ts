@@ -59,6 +59,10 @@ export interface CliConfig {
    * multi-step/etc.), escalating straight to the primary model instead.
    * Default true. Disable with DEVAGENT_HEURISTIC_GATE=false. */
   enableHeuristicGate?: boolean;
+  /** Ollama itself has no published per-token price (subscription/GPU-time
+   * billing) — this only computes a cost estimate if you supply your own
+   * real rate. Omit to leave cost tracking off (the honest default). */
+  pricing?: { inputPerMillion: number; outputPerMillion: number };
 }
 
 interface ConfigFile {
@@ -82,6 +86,10 @@ interface ConfigFile {
   availabilityCheckTtlMs?: number;
   enableAvailabilityCheck?: boolean;
   enableHeuristicGate?: boolean;
+  /** Ollama itself has no published per-token price (subscription/GPU-time
+   * billing) — this only computes a cost estimate if you supply your own
+   * real rate. Omit to leave cost tracking off (the honest default). */
+  pricing?: { inputPerMillion: number; outputPerMillion: number };
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
@@ -187,6 +195,13 @@ export function loadConfig(): CliConfig {
     fromEnv("DEVAGENT_AVAIL_TTL_MS") || String(file.availabilityCheckTtlMs ?? "86400000"),
   );
 
+  const inputPerMillion = Number(fromEnv("DEVAGENT_PRICE_INPUT_PER_M") || String(file.pricing?.inputPerMillion ?? ""));
+  const outputPerMillion = Number(fromEnv("DEVAGENT_PRICE_OUTPUT_PER_M") || String(file.pricing?.outputPerMillion ?? ""));
+  const pricing =
+    Number.isFinite(inputPerMillion) && Number.isFinite(outputPerMillion) && (inputPerMillion > 0 || outputPerMillion > 0)
+      ? { inputPerMillion, outputPerMillion }
+      : undefined;
+
   return {
     model: fromEnv("DEVAGENT_MODEL") || file.model || "qwen3.5:4b",
     workspaceRoot,
@@ -212,5 +227,6 @@ export function loadConfig(): CliConfig {
     enableAvailabilityCheck:
       fromEnv("DEVAGENT_AVAIL_CHECK") !== "false" && (file.enableAvailabilityCheck ?? true),
     enableHeuristicGate: fromEnv("DEVAGENT_HEURISTIC_GATE") !== "false" && (file.enableHeuristicGate ?? true),
+    pricing,
   };
 }

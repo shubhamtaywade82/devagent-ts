@@ -17,6 +17,11 @@ export type CommandEffect =
   | { kind: "activate-skill"; id: string }
   | { kind: "reset-context" }
   | { kind: "resume-session" }
+  | { kind: "resume-session-by-id"; id: string }
+  | { kind: "show-tool-info"; name: string }
+  | { kind: "set-theme"; theme: "default" | "midnight" | "solarized" }
+  | { kind: "next-theme" }
+  | { kind: "toggle-sidebar" }
   | { kind: "init-workspace" }
   | { kind: "set-agent-mode"; mode: string }
   | { kind: "run-shell"; command: string }
@@ -31,6 +36,9 @@ export interface SlashCommand {
   aliases: string[];
   description: string;
   execute(args: string): CommandEffect;
+  /** Static first-argument values, for subcommand autocomplete (e.g.
+   * "/mode a" -> "ask"). Commands that take free-form text omit this. */
+  argValues?: string[];
 }
 
 export class SlashCommandRegistry {
@@ -98,6 +106,39 @@ export function builtinCommands(): SlashCommandRegistry {
     execute: () => ({ kind: "resume-session" }),
   });
   registry.register({
+    name: "history",
+    aliases: ["sessions"],
+    description: "Browse and reload past conversations",
+    execute: () => ({ kind: "open-overlay", overlay: "sessions" }),
+  });
+  registry.register({
+    name: "theme",
+    aliases: [],
+    description: "Switch color theme: /theme [default|midnight|solarized]",
+    execute: (args) => {
+      const valid = ["default", "midnight", "solarized"] as const;
+      const t = args.trim().toLowerCase();
+      if (!t) return { kind: "next-theme" };
+      if (!(valid as readonly string[]).includes(t)) {
+        return { kind: "error", text: "Usage: /theme [default|midnight|solarized]" };
+      }
+      return { kind: "set-theme", theme: t as (typeof valid)[number] };
+    },
+    argValues: ["default", "midnight", "solarized"],
+  });
+  registry.register({
+    name: "sidebar",
+    aliases: [],
+    description: "Toggle the sessions/tools/skills sidebar",
+    execute: () => ({ kind: "toggle-sidebar" }),
+  });
+  registry.register({
+    name: "tools",
+    aliases: [],
+    description: "Browse registered tools by name or category",
+    execute: () => ({ kind: "open-overlay", overlay: "tools" }),
+  });
+  registry.register({
     name: "model",
     aliases: [],
     description: "Switch model: /model [name]",
@@ -114,6 +155,7 @@ export function builtinCommands(): SlashCommandRegistry {
       }
       return { kind: "set-tier", tier };
     },
+    argValues: ["local", "cloud"],
   });
   registry.register({
     name: "skills",
@@ -163,6 +205,7 @@ export function builtinCommands(): SlashCommandRegistry {
       }
       return mode ? { kind: "set-agent-mode", mode } : { kind: "next-mode" };
     },
+    argValues: ["ask", "code", "architect", "review", "debug", "autonomous"],
   });
   registry.register({
     name: "search",

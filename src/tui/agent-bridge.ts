@@ -86,4 +86,12 @@ export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   agent.on("onLspStateChange", (servers: LspServerState[]) => {
     bus.publish({ type: "lsp.changed", servers });
   });
+  agent.on(
+    "onUsage",
+    (info: { promptTokens: number; completionTokens: number; tokensPerSecond: number; latencyMs: number }) => {
+      const used = info.promptTokens + info.completionTokens;
+      bus.publish({ type: "context.changed", used, limit: 0, latencyMs: info.latencyMs });
+      bus.publish({ type: "usage.changed", promptTokens: info.promptTokens, completionTokens: info.completionTokens });
+    },
+  );
 }

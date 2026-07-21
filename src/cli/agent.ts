@@ -5,7 +5,7 @@ import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/pr
 import { Router } from "../provider/router.js";
 import { Capability, ModelCatalog } from "../provider/catalog.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
-import { SessionStore } from "../runtime/session.js";
+import { SessionStore, SessionMeta } from "../runtime/session.js";
 import { LoopDetector } from "../orchestrator/loop-detector.js";
 import { Orchestrator } from "../orchestrator/orchestrator.js";
 import { AgentStepRunner } from "../orchestrator/agent-planner.js";
@@ -42,6 +42,7 @@ export interface AgentEvents {
   onMemorySummary?: (summary: string) => void;
   onSkillsActivated?: (skills: SkillMeta[]) => void;
   onLspStateChange?: (servers: LspServerState[]) => void;
+  onUsage?: (info: { promptTokens: number; completionTokens: number; tokensPerSecond: number; latencyMs: number }) => void;
 }
 
 type AgentEventName = keyof AgentEvents;
@@ -72,6 +73,7 @@ export class Agent {
   private catalogRefreshed: Promise<void> | null = null;
   private readonly planCheckpoint: CheckpointStore;
   private readonly sessionStore: SessionStore;
+  private currentSessionId = "";
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
   readonly events: AgentEvents;
@@ -212,7 +214,8 @@ export class Agent {
 
     this.memory = new MemoryStore(join(devagentDir, "memory.db"));
     this.planCheckpoint = new CheckpointStore(join(devagentDir, "checkpoint.json"));
-    this.sessionStore = new SessionStore(join(devagentDir, "session.json"));
+    this.sessionStore = new SessionStore(join(devagentDir, "sessions"));
+    this.currentSessionId = this.sessionStore.startNew();
 
     this.docs = new DocsStore(join(devagentDir, "docs.db"));
     this.tools.registerDocsTools(this.docs, cfg.workspaceRoot);
@@ -321,7 +324,7 @@ export class Agent {
       // Persist the transcript after every turn (not just success) so a
       // killed/restarted process can resume with the model still remembering
       // this turn — mirrors the plan checkpoint's "save progress as you go".
-      this.sessionStore.save(this.conversation.getMessages());
+      this.sessionStore.save(this.currentSessionId, this.conversation.getMessages());
       return text;
     };
 
@@ -454,6 +457,7 @@ export class Agent {
           },
         });
         let chatOpts = makeChatOpts();
+        const turnStart = Date.now();
         let chatResponse = capability
           ? await this.routeWithFallback(capability, this.conversation.getMessages(), chatOpts)
           : await this.provider.chat(this.conversation.getMessages(), chatOpts);
@@ -486,6 +490,7 @@ export class Agent {
           }
         }
 
+        this.emitUsage(chatResponse, Date.now() - turnStart);
         this.conversation.pushAssistantMessage(assistantMessage.content ?? "", assistantMessage.tool_calls);
 
         const toolCalls = assistantMessage.tool_calls ?? [];
@@ -740,21 +745,56 @@ export class Agent {
 
   resetContext(): void {
     this.conversation.reset();
-    this.sessionStore.clear();
+    this.sessionStore.clear(this.currentSessionId);
+    this.currentSessionId = this.sessionStore.startNew();
   }
 
   hasResumableSession(): boolean {
-    return this.sessionStore.load() !== null;
+    return this.sessionStore.mostRecentId() !== null;
   }
 
-  /** Restores a persisted conversation transcript, e.g. after a crash/restart.
-   * Returns the restored messages (for replaying into the TUI's visible chat
-   * log) or null if there was nothing to resume. */
+  /** Lists past conversations, most recently updated first, for a session
+   * history picker. */
+  listSessions(): SessionMeta[] {
+    return this.sessionStore.listSessions();
+  }
+
+  /** Restores the most recently persisted conversation transcript, e.g. after
+   * a crash/restart. Returns the restored messages (for replaying into the
+   * TUI's visible chat log) or null if there was nothing to resume. */
   resumeSession(): ChatMessage[] | null {
-    const saved = this.sessionStore.load();
+    const id = this.sessionStore.mostRecentId();
+    return id ? this.resumeSessionById(id) : null;
+  }
+
+  /** Restores a specific past conversation by session id, e.g. from the
+   * session history picker. */
+  resumeSessionById(id: string): ChatMessage[] | null {
+    const saved = this.sessionStore.load(id);
     if (!saved) return null;
+    this.currentSessionId = id;
     this.conversation.loadMessages(saved);
     return saved;
+  }
+
+  // Ollama's /api/chat response carries eval_count/prompt_eval_count/eval_duration
+  // (nanoseconds) untyped through ChatResponse's index signature — read them here
+  // rather than widening the shared type for fields only this call site needs.
+  private emitUsage(response: { [key: string]: unknown }, latencyMs: number): void {
+    const promptTokens = response.prompt_eval_count as number | undefined;
+    const completionTokens = response.eval_count as number | undefined;
+    const evalDurationNs = response.eval_duration as number | undefined;
+    if (typeof promptTokens !== "number" && typeof completionTokens !== "number") return;
+    const tokensPerSecond =
+      typeof completionTokens === "number" && typeof evalDurationNs === "number" && evalDurationNs > 0
+        ? completionTokens / (evalDurationNs / 1e9)
+        : 0;
+    this.emit("onUsage", {
+      promptTokens: promptTokens ?? 0,
+      completionTokens: completionTokens ?? 0,
+      tokensPerSecond,
+      latencyMs,
+    });
   }
 
   private isSummarizing = false;

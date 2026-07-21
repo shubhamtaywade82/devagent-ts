@@ -9,6 +9,7 @@ export interface ContextStripProps {
   state: RuntimeState;
   width: number;
   activeView: ViewId;
+  now?: number;
   /** When the prompt is completing a slash command, hints replace the strip. */
   completionItems?: CompletionItem[];
   completionIndex?: number;
@@ -18,6 +19,7 @@ export function ContextStrip({
   state,
   width,
   activeView,
+  now,
   completionItems,
   completionIndex,
 }: ContextStripProps): React.JSX.Element {
@@ -37,5 +39,5 @@ export function ContextStrip({
       </Box>
     );
   }
-  return <TokenLine tokens={contextStripTokens(state, activeView)} width={width} />;
+  return <TokenLine tokens={contextStripTokens(state, activeView, now)} width={width} />;
 }

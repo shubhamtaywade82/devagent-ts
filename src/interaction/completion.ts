@@ -46,11 +46,27 @@ export function completions(
   templates: PromptTemplate[] = BUILTIN_TEMPLATES,
 ): CompletionItem[] {
   if (input.startsWith("@")) return templateCompletions(input, templates);
-  if (!input.startsWith("/") || input.includes(" ")) return [];
-  const prefix = input.slice(1);
-  return registry.complete(prefix).map((c) => ({
-    label: `/${c.name}`,
-    detail: c.description,
-    insert: `/${c.name} `,
-  }));
+  if (!input.startsWith("/")) return [];
+
+  const spaceIdx = input.indexOf(" ");
+  if (spaceIdx === -1) {
+    const prefix = input.slice(1);
+    return registry.complete(prefix).map((c) => ({
+      label: `/${c.name}`,
+      detail: c.description,
+      insert: `/${c.name} `,
+    }));
+  }
+
+  // Subcommand/argument completion, e.g. "/mode a" -> "ask". Only the first
+  // argument token is completed — commands take one value, not a tree.
+  const argText = input.slice(spaceIdx + 1);
+  if (argText.includes(" ")) return [];
+  const name = input.slice(1, spaceIdx);
+  const command = registry.find(name);
+  if (!command?.argValues) return [];
+  const argPrefix = argText.toLowerCase();
+  return command.argValues
+    .filter((v) => v.startsWith(argPrefix))
+    .map((v) => ({ label: v, detail: command.description, insert: `/${name} ${v}` }));
 }

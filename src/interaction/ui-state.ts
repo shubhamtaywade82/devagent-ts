@@ -7,16 +7,20 @@
 import { VIEW_ORDER, ViewId } from "../runtime/types.js";
 import { UiCommand } from "./keybindings.js";
 
-export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode";
+export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode" | "sessions" | "tools";
 
 export interface UiState {
   activeView: ViewId;
   overlay: OverlayId | null;
   zoom: boolean;
+  /** Persistent left sidebar (sessions/tools/skills at a glance). Starts
+   * hidden — opt-in via Ctrl+N, and only rendered above a minimum width so
+   * it never fights the existing narrow-terminal strip-shedding behavior. */
+  sidebarVisible: boolean;
 }
 
 export function initialUiState(): UiState {
-  return { activeView: "conversation", overlay: null, zoom: false };
+  return { activeView: "conversation", overlay: null, zoom: false, sidebarVisible: false };
 }
 
 function cycleView(current: ViewId, delta: number): ViewId {
@@ -39,6 +43,8 @@ export function uiReduce(state: UiState, command: UiCommand): UiState {
       return { ...state, overlay: null };
     case "toggle-zoom":
       return { ...state, zoom: !state.zoom };
+    case "toggle-sidebar":
+      return { ...state, sidebarVisible: !state.sidebarVisible };
     case "view-diff":
       return { ...state, overlay: state.overlay === "diff" ? null : "diff" };
     case "clear-conversation":

@@ -38,6 +38,10 @@ import { ModelSwitcher } from "./overlays/ModelSwitcher.js";
 import { ModeSwitcher } from "./overlays/ModeSwitcher.js";
 import { SearchEverywhere } from "./overlays/SearchEverywhere.js";
 import { SkillsOverlay } from "./overlays/SkillsOverlay.js";
+import { SessionHistory } from "./overlays/SessionHistory.js";
+import { SessionMeta } from "../runtime/session.js";
+import { ToolPaletteOverlay, ToolInfo } from "./overlays/ToolPaletteOverlay.js";
+import { Sidebar, ToolCategoryCount } from "./zones/Sidebar.js";
 import { SkillsRegistry } from "../skills/registry.js";
 
 export interface ShellAgent {
@@ -46,7 +50,10 @@ export interface ShellAgent {
   setTier?(tier: string): void;
   resetContext?(): void;
   resumeSession?(): Array<{ role: string; content: string }> | null;
+  resumeSessionById?(id: string): Array<{ role: string; content: string }> | null;
   hasResumableSession?(): boolean;
+  listSessions?(): SessionMeta[];
+  getTools?(): ToolInfo[];
   listModels?(): Promise<string[]>;
   /** Round-trips a real request through the new model; true, or an error string. */
   validateModel?(): Promise<true | string>;
@@ -445,8 +452,10 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           agent?.resetContext?.();
           bus.publish({ type: "notification", kind: "info", text: "Context reset" });
           break;
-        case "resume-session": {
-          const restored = agent?.resumeSession?.();
+        case "resume-session":
+        case "resume-session-by-id": {
+          const restored =
+            effect.kind === "resume-session-by-id" ? agent?.resumeSessionById?.(effect.id) : agent?.resumeSession?.();
           if (!restored || restored.length === 0) {
             bus.publish({ type: "notification", kind: "info", text: "No previous session to resume" });
             break;
@@ -461,6 +470,29 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             type: "notification",
             kind: "success",
             text: `Resumed session (${restored.length} messages)`,
+          });
+          break;
+        }
+        case "toggle-sidebar":
+          uiDispatch({ type: "toggle-sidebar" });
+          break;
+        case "set-theme":
+          bus.publish({ type: "theme.changed", theme: effect.theme });
+          bus.publish({ type: "notification", kind: "info", text: `Theme: ${effect.theme}` });
+          break;
+        case "next-theme": {
+          const order = ["default", "midnight", "solarized"] as const;
+          const next = order[(order.indexOf(state.theme) + 1) % order.length];
+          bus.publish({ type: "theme.changed", theme: next });
+          bus.publish({ type: "notification", kind: "info", text: `Theme: ${next}` });
+          break;
+        }
+        case "show-tool-info": {
+          const tool = agent?.getTools?.().find((t) => t.name === effect.name);
+          bus.publish({
+            type: "notification",
+            kind: "info",
+            text: tool ? `${tool.name} (${tool.category}): ${tool.description}` : `Unknown tool: ${effect.name}`,
           });
           break;
         }
@@ -712,6 +744,23 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const title = ` ${viewIndex} ${VIEW_LABELS[ui.activeView]} `;
   const rule = "─".repeat(Math.max(0, width - title.length - 2));
 
+  // Sidebar only competes for space with the plain view — overlays and the
+  // approval flow stay full-bleed (they're ephemeral by design, see
+  // OverlayFrame). Gated on width so it never fights the strips' narrow-
+  // terminal token-shedding behavior.
+  const SIDEBAR_WIDTH = 24;
+  const MIN_WIDTH_FOR_SIDEBAR = 90;
+  const showSidebar =
+    ui.sidebarVisible && !showApproval && ui.overlay === null && width >= MIN_WIDTH_FOR_SIDEBAR;
+  const activeViewWidth = showSidebar ? width - SIDEBAR_WIDTH - 1 : width;
+  const toolCategoryCounts: ToolCategoryCount[] = showSidebar
+    ? (() => {
+        const counts = new Map<string, number>();
+        for (const t of agent?.getTools?.() ?? []) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
+        return [...counts.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count);
+      })()
+    : [];
+
   return (
     <Box flexDirection="column" width={width} height={height}>
       <ErrorBoundary>
@@ -790,8 +839,41 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
                 applyEffect({ kind: "activate-skill", id });
               }}
             />
+          ) : ui.overlay === "sessions" ? (
+            <SessionHistory
+              sessions={agent?.listSessions?.() ?? []}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(id) => {
+                uiDispatch({ type: "close-overlay" });
+                applyEffect({ kind: "resume-session-by-id", id });
+              }}
+            />
+          ) : ui.overlay === "tools" ? (
+            <ToolPaletteOverlay
+              tools={agent?.getTools?.() ?? []}
+              width={width}
+              rows={contentRows}
+              active={true}
+              onSelect={(name) => {
+                uiDispatch({ type: "close-overlay" });
+                applyEffect({ kind: "show-tool-info", name });
+              }}
+            />
+          ) : showSidebar ? (
+            <Box flexDirection="row">
+              <Sidebar
+                state={state}
+                sessions={agent?.listSessions?.() ?? []}
+                toolCategories={toolCategoryCounts}
+                width={SIDEBAR_WIDTH}
+                rows={contentRows}
+              />
+              <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />
+            </Box>
           ) : (
-            <ActiveView state={state} width={width} rows={contentRows} detail={detail} />
+            <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />
           )}
         </Box>
         <Box height={1}>
@@ -810,6 +892,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           state={state}
           width={width}
           activeView={ui.activeView}
+          now={now}
           completionItems={activeCompletion ? completionItems : undefined}
           completionIndex={completionIndex}
         />

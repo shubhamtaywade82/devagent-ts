@@ -42,7 +42,13 @@ export function UniversalPicker({
   const filtered = filterPickerItems(items, query);
   const clampedIndex = Math.min(index, Math.max(0, filtered.length - 1));
   const listRows = Math.max(3, rows - 5);
-  const { start, items: visible } = visibleWindow(filtered, clampedIndex, listRows);
+  // Reserve a row on each end for scroll indicators whenever the list can't
+  // fit — without this there's no way to tell more items exist off-screen.
+  const needsScrollIndicators = filtered.length > listRows;
+  const effectiveListRows = needsScrollIndicators ? Math.max(1, listRows - 2) : listRows;
+  const { start, items: visible } = visibleWindow(filtered, clampedIndex, effectiveListRows);
+  const aboveCount = start;
+  const belowCount = filtered.length - (start + visible.length);
 
   useInput(
     (input, key) => {
@@ -85,6 +91,7 @@ export function UniversalPicker({
         <Text inverse> </Text>
         {!query && placeholder && <Text color="gray">{placeholder}</Text>}
       </Text>
+      {aboveCount > 0 && <Text color="gray">{`▲ ${aboveCount} more above`}</Text>}
       {visible.map((item, i) => {
         const absolute = start + i;
         const highlighted = absolute === clampedIndex;
@@ -102,7 +109,7 @@ export function UniversalPicker({
               {item.label}
             </Text>
             {item.detail ? (
-              <Text color="gray" wrap="truncate">
+              <Text color={highlighted ? "blue" : "gray"} inverse={highlighted} wrap="truncate">
                 {"  "}
                 {item.detail}
               </Text>
@@ -110,6 +117,7 @@ export function UniversalPicker({
           </Box>
         );
       })}
+      {belowCount > 0 && <Text color="gray">{`▼ ${belowCount} more below`}</Text>}
       {filtered.length === 0 && <Text color="gray">{emptyText}</Text>}
       <Text color="gray">{multi ? "Space Toggle  Enter Confirm" : "↑/↓ Navigate  Enter Select"}</Text>
     </OverlayFrame>

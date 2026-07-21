@@ -74,6 +74,7 @@ const cfg = loadConfig();
       branch: currentBranch(cfg.workspaceRoot),
       model: cfg.model,
       provider: cfg.tier,
+      pricing: cfg.pricing,
     }),
   );
   store.attach(bus);
@@ -92,6 +93,15 @@ const cfg = loadConfig();
     setModel: (model: string) => agent.setModel(model),
     setTier: (tier: string) => agent.setTier(tier),
     resetContext: () => agent.resetContext(),
+    resumeSession: () => agent.resumeSession(),
+    resumeSessionById: (id: string) => agent.resumeSessionById(id),
+    hasResumableSession: () => agent.hasResumableSession(),
+    listSessions: () => agent.listSessions(),
+    getTools: () =>
+      agent
+        .getRegistry()
+        .getTools()
+        .map((t) => ({ name: t.name, description: t.description, category: agent.getRegistry().categoryOf(t.name) })),
     listModels: () => agent.listModels(),
     validateModel: () => agent.validateModel(),
     getSkillsRegistry: () => agent.getSkillsRegistry(),

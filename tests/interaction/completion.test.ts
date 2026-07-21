@@ -32,8 +32,21 @@ describe("completions", () => {
     expect(items[0].insert.startsWith("/")).toBe(true);
   });
 
-  it("offers nothing for plain text or after a space", () => {
+  it("offers nothing for plain text, or after a space for free-form commands", () => {
     expect(completions("model", registry)).toEqual([]);
     expect(completions("/model qwen", registry)).toEqual([]);
+  });
+
+  it("offers subcommand values for commands that declare argValues", () => {
+    const modeItems = completions("/mode a", registry);
+    expect(modeItems.map((i) => i.label)).toEqual(["ask", "architect", "autonomous"]);
+    expect(modeItems[0].insert).toBe("/mode ask");
+
+    expect(completions("/theme mid", registry).map((i) => i.label)).toEqual(["midnight"]);
+    expect(completions("/tier c", registry).map((i) => i.label)).toEqual(["cloud"]);
+  });
+
+  it("stops completing once a second argument token starts", () => {
+    expect(completions("/mode ask ", registry)).toEqual([]);
   });
 });

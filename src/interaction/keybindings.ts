@@ -8,7 +8,9 @@
  *   Ctrl+M    model switcher        Ctrl+E          mode switcher
  *   Ctrl+F    search everywhere     Ctrl+K          semantic search (same as Ctrl+F)
  *   Ctrl+L    clear conversation    Ctrl+D          view diff
- *   Ctrl+G    focus Git view        z               zoom active view
+ *   Ctrl+G    focus Git view        Ctrl+H          session history
+ *   Ctrl+O    tool palette          Ctrl+N          toggle sidebar
+ *   z         zoom active view
  *   Esc       close overlay / cancel  ?             help
  *   q         quit                  F1              help
  *   F2        switch model          F3              switch mode
@@ -43,6 +45,7 @@ export type UiCommand =
   | { type: "open-overlay"; overlay: OverlayId }
   | { type: "close-overlay" }
   | { type: "toggle-zoom" }
+  | { type: "toggle-sidebar" }
   | { type: "cancel" }
   | { type: "quit" }
   | { type: "approve" }
@@ -69,6 +72,9 @@ export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiComm
   if (key.ctrl && input === "g") return { type: "focus-view", view: "git" };
   if (key.ctrl && input === "e") return { type: "open-mode" };
   if (key.ctrl && input === "t") return { type: "focus-view", view: "tasks" };
+  if (key.ctrl && input === "h") return { type: "open-overlay", overlay: "sessions" };
+  if (key.ctrl && input === "o") return { type: "open-overlay", overlay: "tools" };
+  if (key.ctrl && input === "n") return { type: "toggle-sidebar" };
 
   // Tab cycles views only when the prompt is empty — while typing it
   // belongs to the prompt (ghost-text / completion accept).

@@ -1,37 +1,87 @@
 /**
- * The single frozen theme. Colors are semantic only:
- * green = healthy/done, blue = active/focused, yellow = waiting/warning,
- * red = error/blocked, purple = thinking/model activity, gray = muted.
+ * Colors are semantic only: healthy = done, active = focused, waiting =
+ * warning, error = blocked, thinking = model activity, muted = de-emphasized.
+ * Three palettes ship; which one is active is driven by the store's
+ * "theme.changed" event (see runtime/store.ts) and mirrored here into
+ * `activeThemeName` so the ~15 semanticColor() call sites across the TUI
+ * don't each need `state.theme` threaded through as a parameter.
  */
 
-import { ActorHealth } from "../runtime/types.js";
+import { ActorHealth, ThemeName } from "../runtime/types.js";
 
-export type SemanticColor = "green" | "blue" | "yellow" | "red" | "magenta" | "gray";
+interface SemanticPalette {
+  healthy: string;
+  active: string;
+  waiting: string;
+  error: string;
+  thinking: string;
+  muted: string;
+  border: string;
+  focusBorder: string;
+}
 
-export function semanticColor(health: ActorHealth): SemanticColor {
+const THEMES: Record<ThemeName, SemanticPalette> = {
+  default: {
+    healthy: "green",
+    active: "blue",
+    waiting: "yellow",
+    error: "red",
+    thinking: "magenta",
+    muted: "gray",
+    border: "gray",
+    focusBorder: "blue",
+  },
+  midnight: {
+    healthy: "#98c379",
+    active: "#61afef",
+    waiting: "#e5c07b",
+    error: "#e06c75",
+    thinking: "#c678dd",
+    muted: "#5c6370",
+    border: "#3e4451",
+    focusBorder: "#61afef",
+  },
+  solarized: {
+    healthy: "#859900",
+    active: "#268bd2",
+    waiting: "#b58900",
+    error: "#dc322f",
+    thinking: "#d33682",
+    muted: "#657b83",
+    border: "#073642",
+    focusBorder: "#268bd2",
+  },
+};
+
+let activeThemeName: ThemeName = "default";
+
+/** Only the store's reducer calls this, in lockstep with "theme.changed". */
+export function setActiveTheme(name: ThemeName): void {
+  activeThemeName = name;
+}
+
+export function getActiveTheme(): ThemeName {
+  return activeThemeName;
+}
+
+export function semanticColor(health: ActorHealth): string {
+  const p = THEMES[activeThemeName];
   switch (health) {
     case "healthy":
-      return "green";
+      return p.healthy;
     case "active":
-      return "blue";
+      return p.active;
     case "waiting":
-      return "yellow";
+      return p.waiting;
     case "error":
-      return "red";
+      return p.error;
     case "thinking":
-      return "magenta";
+      return p.thinking;
     case "muted":
-      return "gray";
+      return p.muted;
   }
 }
 
-export const theme = {
-  healthy: "green",
-  active: "blue",
-  waiting: "yellow",
-  error: "red",
-  thinking: "magenta",
-  muted: "gray",
-  border: "gray",
-  focusBorder: "blue",
-} as const;
+export function themeColors(name: ThemeName = activeThemeName): SemanticPalette {
+  return THEMES[name];
+}
