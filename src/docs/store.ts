@@ -6,11 +6,32 @@ export interface SearchOptions {
   limit?: number;
 }
 
+// Filler words that add nothing to a doc search but, joined with plain
+// AND (FTS5's default for space-separated phrases), turn a 3-concept query
+// into a 5+-way AND that almost never matches — e.g. "flatMap vs flat in
+// TypeScript" required "vs" AND "in" to literally appear in the same
+// section as "flatMap"/"flat", which real doc prose rarely does.
+const STOPWORDS = new Set([
+  "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with",
+  "this", "that", "what", "which", "who", "whom", "how", "why", "when",
+  "where", "does", "do", "did", "is", "are", "was", "were", "be", "been",
+  "vs", "versus", "s", "it", "its", "as", "at", "by", "from", "into", "if",
+  "than", "then",
+]);
+
 /** Wraps each whitespace-delimited token in an FTS5 phrase so user input can never break MATCH syntax. */
 function buildMatchQuery(query: string): string {
-  const tokens = query.trim().split(/\s+/).filter(Boolean);
-  if (tokens.length === 0) return '""';
-  return tokens.map((t) => `"${t.replace(/"/g, '""')}"`).join(" ");
+  const rawTokens = query.trim().split(/\s+/).filter(Boolean);
+  if (rawTokens.length === 0) return '""';
+
+  const contentTokens = rawTokens.filter((t) => !STOPWORDS.has(t.toLowerCase()));
+  const tokens = contentTokens.length > 0 ? contentTokens : rawTokens;
+
+  // OR, not AND: a natural-language multi-word query should surface
+  // sections matching ANY of the real terms, ranked by bm25 — requiring
+  // every single word present (plain space = AND in FTS5) made anything
+  // but a single-word query fail almost always.
+  return tokens.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ");
 }
 
 export class DocsStore {

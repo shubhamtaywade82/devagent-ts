@@ -69,6 +69,26 @@ describe("DocsStore", () => {
     expect(store.getSection("node", "missing")).toBeUndefined();
   });
 
+  it("finds a match for a natural-language multi-word query with filler words (regression)", () => {
+    // Real bug: buildMatchQuery used to join tokens with plain space, which
+    // FTS5 treats as AND — "flatMap vs flat in TypeScript" required "vs" AND
+    // "in" to literally appear in the same section as "flatMap"/"flat",
+    // which real doc prose never does, so the search returned zero results
+    // despite the docs being ingested and topically relevant.
+    store.upsertSource({ slug: "javascript", name: "JavaScript", ingestedAt: 1000 });
+    store.replaceSections("javascript", [
+      {
+        path: "array#flatmap",
+        title: "Array.prototype.flatMap()",
+        body: "flatMap maps each element and flattens the result into a new array, unlike flat which only flattens.",
+      },
+      { path: "array#push", title: "Array.prototype.push()", body: "push adds elements to the end of an array" },
+    ]);
+
+    const results = store.search("flatMap vs flat in TypeScript");
+    expect(results).toEqual([expect.objectContaining({ source: "javascript", path: "array#flatmap" })]);
+  });
+
   it("does not throw on FTS5-special characters in the query", () => {
     store.upsertSource({ slug: "node", name: "Node.js", ingestedAt: 1000 });
     store.replaceSections("node", [{ path: "cli", title: "cli", body: "the --allow-fs-read flag" }]);
