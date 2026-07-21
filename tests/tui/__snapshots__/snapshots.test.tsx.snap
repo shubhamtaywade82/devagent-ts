@@ -30,29 +30,29 @@ Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P P
 exports[`layout snapshots same structure, density-only changes at 100x30 1`] = `
 "DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
 ─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────
-> create filesystem tool
-
-• Analyzing project structure and existing patterns...
-    • Reading package.json
-    • Found TypeScript project
-  ↳ local/qwen3:30b
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+> create filesystem tool                                                   ┌──────────────────────┐
+                                                                           │ Sessions             │
+• Analyzing project structure and existing patterns...                     │ (none yet)           │
+    • Reading package.json                                                 │                      │
+    • Found TypeScript project                                             │ Tools                │
+  ↳ local/qwen3:30b                                                        │ (none registered)    │
+                                                                           │                      │
+                                                                           │ Skills               │
+                                                                           │ (none active)        │
+                                                                           │                      │
+                                                                           │ Ctrl+H / Ctrl+O /    │
+                                                                           │ /skills              │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           │                      │
+                                                                           └──────────────────────┘
 ───────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
 ───────────────────────────────────────────────────────────────────────────────────────────────────
@@ -63,29 +63,29 @@ Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P P
 exports[`layout snapshots same structure, density-only changes at 120x30 1`] = `
 "DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
 ─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────
-> create filesystem tool
-
-• Analyzing project structure and existing patterns...
-    • Reading package.json
-    • Found TypeScript project
-  ↳ local/qwen3:30b
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+> create filesystem tool                                                                       ┌──────────────────────┐
+                                                                                               │ Sessions│
+• Analyzing project structure and existing patterns...                                         │ (none yet)│
+    • Reading package.json                                                                     │    │
+    • Found TypeScript project                                                                 │ Tools│
+  ↳ local/qwen3:30b                                                                            │ (none registered)│
+                                                                                               │    │
+                                                                                               │ Skills│
+                                                                                               │ (none active)│
+                                                                                               │    │
+                                                                                               │ Ctrl+H / Ctrl+O / │
+                                                                                               │ /skills│
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               │    │
+                                                                                               └──────────────────────┘
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -96,44 +96,44 @@ Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P P
 exports[`layout snapshots same structure, density-only changes at 160x45 1`] = `
 "DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
 ─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-> create filesystem tool
-
-• Analyzing project structure and existing patterns...
-    • Reading package.json
-    • Found TypeScript project
-  ↳ local/qwen3:30b
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+> create filesystem tool                                                                            ┌──────────────────────┐
+                                                                                                    │Sessions│
+• Analyzing project structure and existing patterns...                                              │(none yet)│
+    • Reading package.json                                                                          ││
+    • Found TypeScript project                                                                      │Tools│
+  ↳ local/qwen3:30b                                                                                 │(none registered)│
+                                                                                                    ││
+                                                                                                    │Skills│
+                                                                                                    │(none active)│
+                                                                                                    ││
+                                                                                                    │Ctrl+H / Ctrl+O / │
+                                                                                                    │/skills│
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    └──────────────────────┘
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -144,59 +144,59 @@ Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P P
 exports[`layout snapshots same structure, density-only changes at 220x60 1`] = `
 "DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
 ─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-> create filesystem tool
-
-• Analyzing project structure and existing patterns...
-    • Reading package.json
-    • Found TypeScript project
-  ↳ local/qwen3:30b
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+> create filesystem tool                                                                            ┌──────────────────────┐
+                                                                                                    │Sessions│
+• Analyzing project structure and existing patterns...                                              │(none yet)│
+    • Reading package.json                                                                          ││
+    • Found TypeScript project                                                                      │Tools│
+  ↳ local/qwen3:30b                                                                                 │(none registered)│
+                                                                                                    ││
+                                                                                                    │Skills│
+                                                                                                    │(none active)│
+                                                                                                    ││
+                                                                                                    │Ctrl+H / Ctrl+O / │
+                                                                                                    │/skills│
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    ││
+                                                                                                    └──────────────────────┘
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────

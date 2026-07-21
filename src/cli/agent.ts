@@ -419,6 +419,13 @@ export class Agent {
       }
     }
 
+    // Needed regardless of which capability answers this turn — e.g. a
+    // direct this.provider.chat call (capability null) never goes through
+    // routeWithFallback's own ensureCatalog, but DynamicToolSelector's
+    // hybrid-mode tool-selection classification (line ~284) still reads
+    // this.catalog.modelsFor("quick").
+    await this.ensureCatalog();
+
     // Set at the end of a turn's tool dispatch when any tool call in that turn
     // errored; read at the top of the NEXT turn's buffering decision, then reset —
     // see the "recoveredFromError"/verifying logic below.

@@ -27,6 +27,12 @@ describe("Router.route", () => {
     expect(localChat).toHaveBeenCalled();
     expect(cloudChat).not.toHaveBeenCalled();
     expect(local.currentModel).toBe("qwen3:8b");
+    // Stamped so callers can know which candidate actually served the
+    // request, since the candidate pool can silently widen past whatever
+    // capability was originally requested (see the tool-capability-widening
+    // tests below) — this locks in that contract for the simple case too.
+    expect(result.routedTier).toBe("local");
+    expect(result.routedModel).toBe("qwen3:8b");
   });
 
   it("falls back to the next candidate on a recoverable error", async () => {
@@ -87,6 +93,11 @@ describe("Router.route", () => {
 
     expect(result.message.content).toBe("from cloud");
     expect(localChat).not.toHaveBeenCalled();
+    // The whole point: capability "quick" was requested, but tool-capability
+    // widening silently resolved to cloud — routedTier/routedModel must
+    // reflect that real outcome, not the originally-requested capability.
+    expect(result.routedTier).toBe("cloud");
+    expect(result.routedModel).toBe("qwen3.5:8b");
   });
 
   it("does not filter by tools capability when this turn sends no tool schemas", async () => {

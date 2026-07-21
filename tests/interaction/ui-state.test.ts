@@ -6,7 +6,7 @@ describe("uiReduce", () => {
       activeView: "conversation",
       overlay: null,
       zoom: false,
-      sidebarVisible: false,
+      sidebarVisible: true,
     });
   });
 

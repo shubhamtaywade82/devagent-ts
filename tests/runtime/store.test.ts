@@ -32,29 +32,34 @@ describe("store reducer", () => {
     expect(s.conversation[1]).toMatchObject({ model: "local/qwen3:30b" });
   });
 
-  it("tags an assistant entry with the delegated model after a 'delegating task to' status", () => {
+  it("tags an assistant entry with the model from a 'model.answered' event", () => {
     let s = fresh();
     s = reduce(s, { type: "conversation.message", role: "user", text: "where is X?" });
-    s = reduce(s, { type: "status.changed", status: "delegating task to local/minicpm5-1b" });
+    s = reduce(s, { type: "model.answered", tier: "local", model: "minicpm5-1b" });
     s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "found it" });
     expect(s.lastTurnModel).toBe("local/minicpm5-1b");
     expect(s.conversation[1]).toMatchObject({ model: "local/minicpm5-1b" });
   });
 
-  it("falls back to the primary model after an 'escalating to' status clears the delegation", () => {
+  it("tags an assistant entry with whichever model actually answered, even a different one mid-turn", () => {
+    // Regression intent: the old status-string-parsing approach computed the
+    // tag BEFORE routing happened, so it could show the wrong model if
+    // Router.route widened to a different candidate. model.answered is
+    // emitted from the actually-resolved response, so whatever it says is
+    // definitionally correct — this just proves the tag isn't hardcoded to
+    // the session's primary/default model.
     let s = fresh();
     s = reduce(s, { type: "conversation.message", role: "user", text: "where is X?" });
-    s = reduce(s, { type: "status.changed", status: "delegating task to local/minicpm5-1b" });
-    s = reduce(s, { type: "status.changed", status: "escalating to primary model: no tool call" });
+    s = reduce(s, { type: "model.answered", tier: "cloud", model: "gpt-oss:120b" });
     s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "found it" });
-    expect(s.lastTurnModel).toBeNull();
-    expect(s.conversation[1]).toMatchObject({ model: "local/qwen3:30b" });
+    expect(s.lastTurnModel).toBe("cloud/gpt-oss:120b");
+    expect(s.conversation[1]).toMatchObject({ model: "cloud/gpt-oss:120b" });
   });
 
-  it("does not leak a prior turn's delegated model into a new undelegated turn", () => {
+  it("does not leak a prior turn's model into a new turn where model.answered hasn't fired yet", () => {
     let s = fresh();
     s = reduce(s, { type: "conversation.message", role: "user", text: "where is X?" });
-    s = reduce(s, { type: "status.changed", status: "delegating task to local/minicpm5-1b" });
+    s = reduce(s, { type: "model.answered", tier: "local", model: "minicpm5-1b" });
     s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "found it" });
 
     s = reduce(s, { type: "conversation.message", role: "user", text: "implement JWT auth" });

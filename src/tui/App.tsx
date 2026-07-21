@@ -887,7 +887,10 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
               }}
             />
           ) : showSidebar ? (
-            <Box flexDirection="row">
+            <Box flexDirection="row" width={width} height={contentRows}>
+              <Box width={activeViewWidth} height={contentRows}>
+                <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />
+              </Box>
               <Sidebar
                 state={state}
                 sessions={agent?.listSessions?.() ?? []}
@@ -895,7 +898,6 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
                 width={SIDEBAR_WIDTH}
                 rows={contentRows}
               />
-              <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />
             </Box>
           ) : (
             <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />

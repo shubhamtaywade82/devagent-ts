@@ -72,6 +72,7 @@ export type RuntimeEvent =
   | { type: "mode.changed"; mode: RuntimeMode }
   | { type: "mode.agent"; mode: AgentMode }
   | { type: "status.changed"; status: string }
+  | { type: "model.answered"; tier: string; model: string }
   | { type: "notification"; text: string; kind: "info" | "success" | "warning" | "error" }
   | { type: "error"; message: string };
 

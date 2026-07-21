@@ -1,6 +1,7 @@
 import { ChatMessage } from "../provider/provider.js";
 import { CliConfig } from "./config.js";
 import { SkillContent } from "../skills/types.js";
+import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 
 interface LearningEntry {
   category: string;
@@ -21,9 +22,19 @@ export class AgentConversation {
         learnings.map((l) => `- [${l.category}] Lesson: ${l.lesson}`).join("\n")
       : "";
 
+    // Cloud-primary sessions start already-escalated (see agent.ts's
+    // `escalated` initializer), so the per-turn escalation-triggered
+    // injection of this addendum never fires for them — bake it into the
+    // persistent prompt instead, gated on the same enableLocalWorker flag
+    // the constructor uses to decide whether LocalWorker/delegate_to_local
+    // even exist this session.
+    const delegationBlock =
+      config.tier === "cloud" && config.enableLocalWorker !== false ? `\n\n${LOCAL_DELEGATION_SYSTEM_ADDENDUM}` : "";
+
     return (
       (config.systemPrompt ?? "") +
       learningsBlock +
+      delegationBlock +
       "\n\nTool contract:\n" +
       "1) Call exactly one tool per assistant turn when appropriate.\n" +
       "2) If read_file returns `truncated`, that is a content ceiling, not an instruction to stop.\n" +

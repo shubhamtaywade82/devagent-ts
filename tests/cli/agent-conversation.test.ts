@@ -221,3 +221,30 @@ describe("Agent quick-model delegation picks the first catalog candidate", () =>
 // Vision/reasoning escalation-target routing moved to
 // tests/cli/agent-capability-routing.test.ts (turn 1 is always "quick" now;
 // vision/reasoning only apply as the escalate_task handoff target).
+
+describe("AgentConversation.buildSystemPrompt delegation addendum", () => {
+  it("includes the local-delegation addendum for cloud-tier sessions with local delegation enabled", () => {
+    const convo = new AgentConversation();
+    const prompt = convo.buildSystemPrompt({ model: "gpt-oss:120b", workspaceRoot: ".", tier: "cloud" }, [], []);
+
+    expect(prompt).toContain("delegate_to_local");
+  });
+
+  it("omits the addendum for local-tier sessions (escalation-triggered injection covers it there instead)", () => {
+    const convo = new AgentConversation();
+    const prompt = convo.buildSystemPrompt({ model: "qwen3.5:4b", workspaceRoot: ".", tier: "local" }, [], []);
+
+    expect(prompt).not.toContain("delegate_to_local");
+  });
+
+  it("omits the addendum for cloud-tier sessions with local delegation explicitly disabled", () => {
+    const convo = new AgentConversation();
+    const prompt = convo.buildSystemPrompt(
+      { model: "gpt-oss:120b", workspaceRoot: ".", tier: "cloud", enableLocalWorker: false },
+      [],
+      [],
+    );
+
+    expect(prompt).not.toContain("delegate_to_local");
+  });
+});

@@ -471,14 +471,16 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       return { ...state, mode: event.mode };
     case "mode.agent":
       return { ...state, agentMode: event.mode };
-    case "status.changed": {
-      // Track which model is answering the turn in progress, so the next
-      // conversation.chunk entry can be tagged with it (see appendChunk).
-      const delegated = event.status.match(/^delegating task to (.+)$/);
-      if (delegated) return { ...state, status: event.status, lastTurnModel: delegated[1] };
-      if (event.status.startsWith("escalating to")) return { ...state, status: event.status, lastTurnModel: null };
+    case "status.changed":
       return { ...state, status: event.status };
-    }
+    case "model.answered":
+      // Which model actually answered the turn in progress, so the next
+      // conversation.chunk entry can be tagged with it (see appendChunk).
+      // Sourced from Router.route's own resolved candidate (or the direct
+      // provider fallback) — not parsed from a status string, since that
+      // string is emitted before routing's own capability-tier widening
+      // could change which model actually served the request.
+      return { ...state, lastTurnModel: `${event.tier}/${event.model}` };
     case "notification": {
       const note = {
         id: `n${Date.now()}-${state.notifications.length}`,

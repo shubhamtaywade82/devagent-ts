@@ -88,15 +88,22 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     });
 
     const onStatus = jest.fn();
+    const onModelUsed = jest.fn();
     const agent = new Agent({
       config: { workspaceRoot: dir, tier: "local", model: "test-model" },
-      events: { onStatus },
+      events: { onStatus, onModelUsed },
     });
 
     const reply = await agent.runUserMessage("where is the User model defined?");
 
     expect(reply).toBe("found it");
-    expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("delegating task to local/minicpm5-1b"));
+    // The quick model answered a lookup question without calling a tool —
+    // verifyingLookup discards that and escalates to the primary model, so
+    // the CORRECT final attribution is the primary model, not quick. (This
+    // is the exact bug the attribution fix targets: the old pre-computed
+    // "delegating to X" tag would have said minicpm5-1b here even though
+    // the actual answer came from test-model.)
+    expect(onModelUsed).toHaveBeenCalledWith("local", "test-model");
   });
 
   it("escalates immediately via the heuristic pre-filter for an implementation request, skipping the quick attempt", async () => {
@@ -140,15 +147,15 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
       return chatResponse("implemented");
     });
 
-    const onStatus = jest.fn();
+    const onModelUsed = jest.fn();
     const agent = new Agent({
       config: { workspaceRoot: dir, tier: "local", model: "test-model", enableHeuristicGate: false },
-      events: { onStatus },
+      events: { onModelUsed },
     });
 
     await agent.runUserMessage("implement JWT authentication in AuthController");
 
-    expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("delegating task to local/minicpm5-1b"));
+    expect(onModelUsed).toHaveBeenCalledWith("local", "minicpm5-1b");
     expect(chatBodies()[0].model).toBe("minicpm5-1b");
   });
 
@@ -165,15 +172,15 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
       return chatResponse("done");
     });
 
-    const onStatus = jest.fn();
+    const onModelUsed = jest.fn();
     const agent = new Agent({
       config: { workspaceRoot: dir, tier: "local", model: "test-model" },
-      events: { onStatus },
+      events: { onModelUsed },
     });
 
     await agent.runUserMessage("summarize the current state of the release", "high");
 
-    expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("delegating task to local/minicpm5-1b"));
+    expect(onModelUsed).toHaveBeenCalledWith("local", "minicpm5-1b");
   });
 
   it("keeps routing plain conversational turns to quick by default", async () => {
@@ -189,15 +196,15 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
       return chatResponse("dependency injection is...");
     });
 
-    const onStatus = jest.fn();
+    const onModelUsed = jest.fn();
     const agent = new Agent({
       config: { workspaceRoot: dir, tier: "local", model: "test-model" },
-      events: { onStatus },
+      events: { onModelUsed },
     });
 
     await agent.runUserMessage("what is dependency injection?");
 
-    expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("delegating task to local/minicpm5-1b"));
+    expect(onModelUsed).toHaveBeenCalledWith("local", "minicpm5-1b");
   });
 
   it("escalates to the primary model when the quick model calls escalate_task, preserving full conversation history", async () => {
@@ -508,5 +515,40 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     expect(
       bodies[1].messages.some((m: any) => String(m.content ?? "").includes("delegate_to_local")),
     ).toBe(true);
+  });
+
+  it("goes straight to the configured cloud primary model by default — no quick-model attempt, no self-consistency sampling", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => chatResponse("answered by cloud primary"));
+
+    const onModelUsed = jest.fn();
+    const agent = new Agent({
+      config: {
+        workspaceRoot: dir,
+        tier: "cloud",
+        apiKey: "k",
+        model: "gpt-oss:120b",
+        enableSelfConsistency: true, // would sample 3x on an ambiguous prompt if this ever reached the quick path
+      },
+      events: { onModelUsed },
+    });
+
+    const reply = await agent.runUserMessage("should I call this a UserAccount or an Account");
+
+    expect(reply).toBe("answered by cloud primary");
+    // The turn's own chat call goes straight to the configured primary — no
+    // catalog refresh (no /api/tags or /v1/models call), no self-consistency
+    // sampling, no quick-model attempt beforehand. (A second call follows:
+    // the always-on post-completion summarization every answered turn
+    // triggers — unrelated to routing, same as the other tests in this file.)
+    expect(chatBodies()[0].model).toBe("gpt-oss:120b");
+    expect(chatBodies().every((b) => b.model === "gpt-oss:120b")).toBe(true);
+    expect(onModelUsed).toHaveBeenCalledWith("cloud", "gpt-oss:120b");
+
+    // delegate_to_local is still offered to the cloud primary, so it can
+    // correctly hand off narrow subtasks to local instead of never having
+    // the option (the whole point of "delegates, doesn't just try quick").
+    const tools = (chatBodies()[0].tools ?? []) as Array<{ function: { name: string } }>;
+    expect(tools.some((t) => t.function.name === "delegate_to_local")).toBe(true);
   });
 });

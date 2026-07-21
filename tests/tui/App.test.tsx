@@ -208,6 +208,7 @@ describe("App shell", () => {
     await tick();
     r.stdin.write("\r");
     await tick();
+    await tick();
     const frame = stripAnsi(r.lastFrame() ?? "");
     expect(frame).toContain("earlier question");
     expect(frame).toContain("earlier answer");

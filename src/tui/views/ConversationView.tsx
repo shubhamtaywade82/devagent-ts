@@ -468,14 +468,14 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
 
   if (blocks.length === 0) {
     return (
-      <Box height={rows}>
+      <Box height={rows} width={width}>
         <Text color="gray">No conversation yet — type below to begin.</Text>
       </Box>
     );
   }
 
   return (
-    <Box flexDirection="column" height={rows}>
+    <Box flexDirection="column" height={rows} width={width}>
       {visibleBlocks.map(({ block, startRow, endRow }) => block.render(startRow, endRow))}
     </Box>
   );

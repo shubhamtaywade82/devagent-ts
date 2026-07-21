@@ -115,6 +115,9 @@ export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   agent.on("onApprovalRequested", (request: ApprovalRequest) => {
     bus.publish({ type: "approval.requested", request });
   });
+  agent.on("onModelUsed", (tier: string, model: string) => {
+    bus.publish({ type: "model.answered", tier, model });
+  });
   agent.on("onPlanUpdate", (goal: string, steps: PlanStep[], status: "running" | "completed" | "failed") => {
     bus.publish({ type: "conversation.plan", goal, steps: toExecutionSteps(steps), status });
   });
