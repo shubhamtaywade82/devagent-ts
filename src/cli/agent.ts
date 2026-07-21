@@ -363,9 +363,10 @@ export class Agent {
       return text;
     };
 
-    // priority no longer feeds routing (every turn now attempts "quick" first,
-    // see below) — kept as a runUserMessage param for AgentStepRunner/Orchestrator
-    // interface compatibility.
+    // priority no longer feeds routing (every turn now attempts "quick" first
+    // unless the configured primary is cloud, see below) — kept as a
+    // runUserMessage param for AgentStepRunner/Orchestrator interface
+    // compatibility.
     const escalationHint = this.detectEscalationHint(userMessage);
     // Lookup-style prompts ("where is X defined?") NEED a tool call (search/read)
     // to answer correctly; a small model that just prose-answers instead is wrong,
@@ -374,7 +375,11 @@ export class Agent {
     // Local to this call, not a class field: AgentStepRunner reuses the same Agent
     // across plan steps and retries, each via a fresh runUserMessage call — a class
     // field would leak escalation state across unrelated steps/retries.
-    let escalated = false;
+    // cfg.tier is never a silent default (config.ts falls back to "local" only
+    // when nothing configures it) — "cloud" here always means the user
+    // explicitly configured a cloud primary, which should be the real default
+    // for the turn rather than trying "quick" first and hoping it's enough.
+    let escalated = this.provider.currentTier === "cloud";
     let delegationAddendumInjected = false;
     const injectDelegationAddendum = () => {
       if (this.localWorker && !delegationAddendumInjected) {
@@ -387,7 +392,7 @@ export class Agent {
     // proof/multi-step/etc.) skips the quick-model attempt entirely instead of
     // waiting for the quick model to discover it's out of its depth and call
     // escalate_task.
-    if (this.heuristicRouter) {
+    if (this.heuristicRouter && !escalated) {
       const heuristic = this.heuristicRouter.classify(userMessage);
       if (heuristic.decision === "cloud") {
         escalated = true;
@@ -411,12 +416,6 @@ export class Agent {
           );
         }
       }
-    }
-
-    await this.ensureCatalog();
-    const quickCandidates = this.catalog.modelsFor("quick");
-    if (quickCandidates.length) {
-      this.emit("onStatus", `delegating task to ${quickCandidates[0].tier}/${quickCandidates[0].name}`);
     }
 
     // Set at the end of a turn's tool dispatch when any tool call in that turn
@@ -524,6 +523,16 @@ export class Agent {
             this.emit("onAssistantText", delta);
           }
         }
+
+        // Router.route can silently widen its candidate pool past whatever
+        // capability was requested (e.g. "quick" resolving to a cloud model
+        // when no local model reports tool support) — routedTier/routedModel
+        // reflect what actually answered; the direct this.provider.chat path
+        // (capability null) has no Router involved, so fall back to the
+        // provider's own current tier/model there.
+        const routedTier = (chatResponse.routedTier as string | undefined) ?? this.provider.currentTier;
+        const routedModel = (chatResponse.routedModel as string | undefined) ?? this.provider.currentModel;
+        this.emit("onModelUsed", routedTier, routedModel);
 
         this.emitUsage(chatResponse, Date.now() - turnStart);
         this.conversation.pushAssistantMessage(assistantMessage.content ?? "", assistantMessage.tool_calls);
@@ -740,7 +749,8 @@ export class Agent {
 
   // ponytail: keyword classification, not an LLM intent classifier — cheap and
   // deterministic. No longer gates whether the local "quick" model gets tried
-  // at all (every turn attempts it first, see runUserMessage) — these patterns
+  // at all (every turn attempts it first, unless the configured primary is
+  // cloud — see runUserMessage's `escalated` initializer) — these patterns
   // only pick the ESCALATION TARGET for when the model self-escalates via the
   // escalate_task tool, reusing Router's existing vision/reasoning routing.
   private static readonly VISION_PATTERN = /\b(screenshot|diagram|image|photo|picture)\b|\.(png|jpe?g|gif|webp)\b/;

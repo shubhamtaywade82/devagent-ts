@@ -73,7 +73,10 @@ export class Router {
 
       provider.setModel(candidate.name);
       try {
-        return await provider.chat(messages, opts);
+        const response = await provider.chat(messages, opts);
+        response.routedTier = candidate.tier;
+        response.routedModel = candidate.name;
+        return response;
       } catch (e) {
         lastError = e;
         if (!this.isRecoverable(e)) throw e;

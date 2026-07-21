@@ -120,7 +120,11 @@ describe("SearchDocsTool", () => {
     const store = await seededStore(dir); // react is seeded; javascript/html/css are not
     const tool = new SearchDocsTool(store, dir);
 
-    const result = await tool.call({ query: "stub content for css" });
+    // "css" is the one word distinguishing this section's mock body from the
+    // near-identical "stub content for X" boilerplate the other lazily-
+    // fetched sources share — a shared-boilerplate word would now (correctly)
+    // OR-match all of them instead of picking out just this one.
+    const result = await tool.call({ query: "css" });
 
     expect(result.scope).toBe("workspace");
     expect(result.sources).toEqual(expect.arrayContaining(["react", "javascript", "html", "css"]));

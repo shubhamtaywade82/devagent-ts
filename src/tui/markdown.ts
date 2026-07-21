@@ -1,3 +1,4 @@
+import { marked } from "marked";
 import { highlight, supportsLanguage } from "cli-highlight";
 import chalk from "chalk";
 import { wrapText } from "../layout/truncate.js";
@@ -27,6 +28,38 @@ export interface RichLine {
   indent?: number;
 }
 
+// Bounded LRU Cache for Code Block Highlighting
+const CODE_CACHE = new Map<string, string[]>();
+const MAX_CACHE_SIZE = 200;
+
+export function highlightCodeBlock(code: string, lang?: string): string[] {
+  const trimmedLang = lang?.trim().toLowerCase();
+  const validLang = trimmedLang && supportsLanguage(trimmedLang) ? trimmedLang : undefined;
+  const cacheKey = `${validLang || "none"}:${code}`;
+
+  if (CODE_CACHE.has(cacheKey)) {
+    return CODE_CACHE.get(cacheKey)!;
+  }
+
+  let result: string[];
+  try {
+    const highlighted = highlight(code, {
+      language: validLang,
+      ignoreIllegals: true,
+    });
+    result = highlighted.split("\n");
+  } catch {
+    result = code.split("\n");
+  }
+
+  if (CODE_CACHE.size >= MAX_CACHE_SIZE) {
+    const firstKey = CODE_CACHE.keys().next().value;
+    if (firstKey) CODE_CACHE.delete(firstKey);
+  }
+  CODE_CACHE.set(cacheKey, result);
+  return result;
+}
+
 const INLINE_RE = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`([^`]+)`)|(~~(.+?)~~)|(\[(.+?)\]\((.+?)\))/g;
 
 export function parseInline(text: string): Span[] {
@@ -49,20 +82,6 @@ export function parseInline(text: string): Span[] {
   return spans;
 }
 
-export function highlightCodeBlock(code: string, lang?: string): string[] {
-  const trimmedLang = lang?.trim().toLowerCase();
-  const validLang = trimmedLang && supportsLanguage(trimmedLang) ? trimmedLang : undefined;
-  try {
-    const highlighted = highlight(code, {
-      language: validLang,
-      ignoreIllegals: true,
-    });
-    return highlighted.split("\n");
-  } catch {
-    return code.split("\n");
-  }
-}
-
 export interface TableData {
   headers: string[];
   alignments: Array<"left" | "center" | "right">;
@@ -74,14 +93,14 @@ export function parseTable(lines: string[]): TableData | null {
 
   const parseRow = (line: string): string[] => {
     const trimmed = line.trim().replace(/^\||\|$/g, "");
-    return trimmed.split("|").map((cell) => cell.trim());
+    return trimmed.split(/(?<!\\)\|/).map((cell) => cell.trim().replace(/\\\|/g, "|"));
   };
 
   const headers = parseRow(lines[0]);
   if (headers.length === 0) return null;
 
-  const delimiterLine = lines[1];
-  if (!delimiterLine.includes("-")) return null;
+  const delimiterLine = lines[1].trim();
+  if (!/^[\s|:-]+$/.test(delimiterLine)) return null;
 
   const delimiterCells = parseRow(delimiterLine);
   const alignments: Array<"left" | "center" | "right"> = headers.map((_, idx) => {
@@ -170,165 +189,147 @@ export function renderTable(table: TableData, maxWidth: number): string[] {
 }
 
 export function renderSimpleMarkdown(text: string, bodyWidth: number): FormattedLine[] {
-  const rawLines = text.split("\n");
-  const result: FormattedLine[] = [];
   const width = Math.max(10, bodyWidth);
+  const result: FormattedLine[] = [];
 
-  let idx = 0;
-  while (idx < rawLines.length) {
-    const raw = rawLines[idx];
-    const trimmed = raw.trim();
-
-    // 1. Fenced Code Blocks (```lang ... ```)
-    if (trimmed.startsWith("```")) {
-      const lang = trimmed.slice(3).trim();
-      const codeLines: string[] = [];
-      idx++;
-      while (idx < rawLines.length && !rawLines[idx].trim().startsWith("```")) {
-        codeLines.push(rawLines[idx]);
-        idx++;
+  let tokens: any[];
+  try {
+    tokens = marked.lexer(text);
+  } catch {
+    for (const raw of text.split("\n")) {
+      for (const line of wrapText(raw, width)) {
+        result.push({ spans: parseInline(line) });
       }
-      if (idx < rawLines.length) idx++; // skip closing ```
-
-      const langLabel = lang ? ` ${lang} ` : " code ";
-      const headerBar = chalk.gray(
-        `┌──${chalk.bold.yellow(langLabel)}${"─".repeat(Math.max(0, width - 4 - langLabel.length))}┐`,
-      );
-      const footerBar = chalk.gray(`└${"─".repeat(Math.max(0, width - 2))}┘`);
-
-      result.push({ spans: [{ text: headerBar, ansi: true }] });
-
-      const highlighted = highlightCodeBlock(codeLines.join("\n"), lang);
-      for (const line of highlighted) {
-        const borderLine = chalk.gray("│ ") + line;
-        result.push({ spans: [{ text: borderLine, ansi: true }] });
-      }
-
-      result.push({ spans: [{ text: footerBar, ansi: true }] });
-      continue;
     }
+    return result;
+  }
 
-    // 2. Markdown Tables (| Col 1 | Col 2 |)
-    if (trimmed.startsWith("|") && trimmed.endsWith("|")) {
-      const tableLines: string[] = [];
-      while (idx < rawLines.length && rawLines[idx].trim().startsWith("|")) {
-        tableLines.push(rawLines[idx]);
-        idx++;
+  for (const token of tokens) {
+    switch (token.type) {
+      case "code": {
+        const lang = token.lang ? token.lang.trim() : "";
+        const langLabel = lang ? ` ${lang} ` : " code ";
+        const headerBar = chalk.gray(
+          `┌──${chalk.bold.yellow(langLabel)}${"─".repeat(Math.max(0, width - 4 - langLabel.length))}┐`,
+        );
+        const footerBar = chalk.gray(`└${"─".repeat(Math.max(0, width - 2))}┘`);
+
+        result.push({ spans: [{ text: headerBar, ansi: true }] });
+
+        const highlighted = highlightCodeBlock(token.text, lang);
+        for (const line of highlighted) {
+          const borderLine = chalk.gray("│ ") + line;
+          result.push({ spans: [{ text: borderLine, ansi: true }] });
+        }
+
+        result.push({ spans: [{ text: footerBar, ansi: true }] });
+        break;
       }
-      const tableData = parseTable(tableLines);
-      if (tableData) {
-        const rendered = renderTable(tableData, width - 2);
+
+      case "table": {
+        const headers = (token.header || []).map((h: any) => (typeof h === "string" ? h : h.text || ""));
+        const alignments: Array<"left" | "center" | "right"> = (token.align || []).map((a: any) =>
+          a === "center" || a === "right" ? a : "left",
+        );
+        while (alignments.length < headers.length) alignments.push("left");
+
+        const rows = (token.rows || []).map((row: any) =>
+          row.map((cell: any) => (typeof cell === "string" ? cell : cell.text || "")),
+        );
+
+        const rendered = renderTable({ headers, alignments, rows }, width - 2);
         for (const line of rendered) {
           result.push({ spans: [{ text: line, ansi: true }], indent: 1 });
         }
-        continue;
-      }
-    }
-
-    // 3. Empty lines
-    if (!trimmed) {
-      result.push({ spans: [{ text: "" }] });
-      idx++;
-      continue;
-    }
-
-    // 4. Headings (#, ##, ###, ####)
-    if (raw.startsWith("#")) {
-      const level = raw.match(/^#+/)?.[0].length || 1;
-      const content = raw.replace(/^#+\s*/, "");
-      let prefix = "◈ ";
-      let prefixColor = chalk.bold.cyan;
-
-      if (level === 2) {
-        prefix = "▸ ";
-        prefixColor = chalk.bold.yellow;
-      } else if (level === 3) {
-        prefix = "• ";
-        prefixColor = chalk.bold.green;
-      } else if (level >= 4) {
-        prefix = "◦ ";
-        prefixColor = chalk.bold.magenta;
+        break;
       }
 
-      for (const line of wrapText(content, width - 4)) {
-        result.push({
-          spans: [
-            { text: prefixColor(prefix), ansi: true },
-            ...parseInline(line).map((s) => ({ ...s, bold: true })),
-          ],
+      case "heading": {
+        const level = token.depth;
+        const content = token.text;
+        let prefix = "◈ ";
+        let prefixColor = chalk.bold.cyan;
+
+        if (level === 2) {
+          prefix = "▸ ";
+          prefixColor = chalk.bold.yellow;
+        } else if (level === 3) {
+          prefix = "• ";
+          prefixColor = chalk.bold.green;
+        } else if (level >= 4) {
+          prefix = "◦ ";
+          prefixColor = chalk.bold.magenta;
+        }
+
+        for (const line of wrapText(content, width - 4)) {
+          result.push({
+            spans: [{ text: prefixColor(prefix), ansi: true }, ...parseInline(line).map((s) => ({ ...s, bold: true }))],
+          });
+        }
+        break;
+      }
+
+      case "list": {
+        const isOrdered = token.ordered;
+        (token.items || []).forEach((item: any, idx: number) => {
+          let glyph = isOrdered ? chalk.cyan(`${idx + 1}. `) : chalk.cyan("• ");
+          if (item.task) {
+            glyph = item.checked ? chalk.green("✓ ") : chalk.gray("○ ");
+          }
+
+          const itemText = item.text.replace(/^\[[ xX]\]\s*/, "");
+          const wrapped = wrapText(itemText, width - 4);
+          wrapped.forEach((line) => {
+            result.push({
+              spans: [{ text: glyph, ansi: true }, ...parseInline(line)],
+              indent: 2,
+            });
+          });
         });
+        break;
       }
-      idx++;
-      continue;
-    }
 
-    // 5. Task list items (- [ ] / - [x])
-    if (raw.match(/^[-*]\s+\[([ xX])\]\s/)) {
-      const isChecked = raw.includes("[x]") || raw.includes("[X]");
-      const content = raw.replace(/^[-*]\s+\[([ xX])\]\s/, "");
-      const checkGlyph = isChecked ? chalk.green("✓ ") : chalk.gray("○ ");
-      for (const line of wrapText(content, width - 4)) {
-        result.push({
-          spans: [{ text: checkGlyph, ansi: true }, ...parseInline(line)],
-          indent: 2,
-        });
+      case "blockquote": {
+        const content = token.text;
+        const quoteBar = chalk.gray("│ ");
+        for (const line of wrapText(content, width - 4)) {
+          result.push({
+            spans: [
+              { text: quoteBar, ansi: true },
+              ...parseInline(line).map((s) => ({ ...s, italic: true, color: "gray" })),
+            ],
+            indent: 1,
+          });
+        }
+        break;
       }
-      idx++;
-      continue;
-    }
 
-    // 6. Bullet lists (- / *)
-    if (raw.match(/^[-*]\s/)) {
-      const content = raw.replace(/^[-*]\s/, "");
-      const bulletGlyph = chalk.cyan("• ");
-      for (const line of wrapText(content, width - 4)) {
-        result.push({
-          spans: [{ text: bulletGlyph, ansi: true }, ...parseInline(line)],
-          indent: 2,
-        });
+      case "hr": {
+        const hrLine = chalk.gray("─".repeat(Math.max(1, width - 2)));
+        result.push({ spans: [{ text: hrLine, ansi: true }] });
+        break;
       }
-      idx++;
-      continue;
-    }
 
-    // 7. Numbered lists (1., 2.)
-    const numMatch = raw.match(/^(\d+)\.\s/);
-    if (numMatch) {
-      const numStr = numMatch[1];
-      const content = raw.replace(/^\d+\.\s/, "");
-      const numGlyph = chalk.cyan(`${numStr}. `);
-      for (const line of wrapText(content, width - 4)) {
-        result.push({
-          spans: [{ text: numGlyph, ansi: true }, ...parseInline(line)],
-          indent: 2,
-        });
+      case "space": {
+        result.push({ spans: [{ text: "" }] });
+        break;
       }
-      idx++;
-      continue;
-    }
 
-    // 8. Blockquotes (> )
-    if (raw.startsWith("> ")) {
-      const content = raw.replace(/^>\s*/, "");
-      const quoteBar = chalk.gray("│ ");
-      for (const line of wrapText(content, width - 4)) {
-        result.push({
-          spans: [
-            { text: quoteBar, ansi: true },
-            ...parseInline(line).map((s) => ({ ...s, italic: true, color: "gray" })),
-          ],
-          indent: 1,
-        });
+      case "paragraph":
+      default: {
+        const rawContent = (token as any).text || (token as any).raw || "";
+        for (const rawLine of rawContent.split("\n")) {
+          if (!rawLine.trim()) {
+            result.push({ spans: [{ text: "" }] });
+          } else {
+            for (const line of wrapText(rawLine, width)) {
+              result.push({ spans: parseInline(line) });
+            }
+          }
+        }
+        break;
       }
-      idx++;
-      continue;
     }
-
-    // 9. Standard body text
-    for (const line of wrapText(raw, width)) {
-      result.push({ spans: parseInline(line) });
-    }
-    idx++;
   }
 
   return result;

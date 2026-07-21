@@ -31,6 +31,13 @@ export interface OllamaToolSchema {
 export interface ChatResponse {
   message: { role: string; content: string; tool_calls?: unknown[] };
   done: boolean;
+  /** Which tier/model actually served this response — stamped by Router.route,
+   * since its candidate list can silently widen past whatever capability was
+   * requested (e.g. "quick" resolving to a cloud model when no local model
+   * reports tool support). Absent for calls made directly via Provider.chat
+   * with no Router involved. */
+  routedTier?: Tier;
+  routedModel?: string;
   [key: string]: unknown;
 }
 
