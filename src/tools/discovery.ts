@@ -132,8 +132,13 @@ export class DynamicToolSelector {
           if (queryTokens.has(token)) score += 0.5;
         }
 
-        // Baseline boost for critical tools
-        if (["read_file", "write_file", "run_shell"].includes(tool.name)) {
+        // Baseline boost for critical tools — only reinforces a tool that
+        // already has some real signal. Applying it unconditionally used to
+        // manufacture relevance from zero matches, so a bare "hi" (nothing
+        // matched at all) still surfaced read_file/write_file/run_shell as
+        // "active tools" and an eager model would use one just because it
+        // was offered.
+        if (score > 0 && ["read_file", "write_file", "run_shell"].includes(tool.name)) {
           score += 1.0;
         }
 

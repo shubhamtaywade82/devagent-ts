@@ -61,12 +61,23 @@ describe("DynamicToolSelector", () => {
       expect(selected.map((t) => t.name)).toContain("run_shell");
     });
 
-    it("includes baseline tools if matches are scarce", async () => {
+    it("does not surface read_file/run_shell when nothing in the message matches anything", async () => {
+      // Regression test: the baseline boost for these tools used to apply
+      // unconditionally, so even a bare greeting with zero real signal would
+      // still surface them as "active tools" and an eager model would use
+      // one just because it was offered.
       const selector = new DynamicToolSelector({ mode: "heuristic" });
-      const selected = await selector.selectTools("completely unrelated text", [], tools);
+      const selected = await selector.selectTools("hi", [], tools);
+
+      expect(selected.map((t) => t.name)).not.toContain("read_file");
+      expect(selected.map((t) => t.name)).not.toContain("run_shell");
+    });
+
+    it("still boosts read_file/run_shell above the floor once they have some real signal", async () => {
+      const selector = new DynamicToolSelector({ mode: "heuristic" });
+      const selected = await selector.selectTools("read something from a file", [], tools);
 
       expect(selected.map((t) => t.name)).toContain("read_file");
-      expect(selected.map((t) => t.name)).toContain("run_shell");
     });
   });
 
