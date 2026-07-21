@@ -7,6 +7,32 @@
 import { EventBus } from "../runtime/events.js";
 import { LspServerState } from "../lsp/protocol.js";
 import { SkillMeta } from "../skills/types.js";
+import { PlanStep, StepStatus } from "../orchestrator/types.js";
+import { ApprovalRequest, ExecutionStep } from "../runtime/types.js";
+
+// PlanStep tracks a fine-grained ASL (analyzing/planning/implementing/
+// testing/reviewing/...); the TUI only renders the coarse 5-state model.
+const STEP_STATUS_MAP: Record<StepStatus, ExecutionStep["status"]> = {
+  pending: "pending",
+  analyzing: "running",
+  planning: "running",
+  implementing: "running",
+  testing: "running",
+  reviewing: "running",
+  running: "running",
+  completed: "completed",
+  failed: "failed",
+  blocked: "failed",
+  rejected: "failed",
+  paused: "failed",
+  cancelled: "failed",
+  rolledback: "failed",
+  skipped: "skipped",
+};
+
+function toExecutionSteps(steps: PlanStep[]): ExecutionStep[] {
+  return steps.map((s) => ({ id: s.id, description: s.description, status: STEP_STATUS_MAP[s.status] }));
+}
 
 export interface BridgeableAgent {
   on<E extends string>(event: E, handler: (...args: any[]) => void): unknown;
@@ -85,6 +111,12 @@ export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   });
   agent.on("onLspStateChange", (servers: LspServerState[]) => {
     bus.publish({ type: "lsp.changed", servers });
+  });
+  agent.on("onApprovalRequested", (request: ApprovalRequest) => {
+    bus.publish({ type: "approval.requested", request });
+  });
+  agent.on("onPlanUpdate", (goal: string, steps: PlanStep[], status: "running" | "completed" | "failed") => {
+    bus.publish({ type: "conversation.plan", goal, steps: toExecutionSteps(steps), status });
   });
   agent.on(
     "onUsage",

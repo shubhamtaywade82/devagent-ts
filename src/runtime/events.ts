@@ -27,7 +27,7 @@ export type RuntimeEvent =
   | { type: "conversation.message"; role: ChatRole; text: string }
   | { type: "conversation.chunk"; role: "assistant" | "thinking"; chunk: string }
   | { type: "conversation.clear" }
-  | { type: "conversation.plan"; goal: string; steps: ExecutionStep[]; status: "pending" | "running" | "completed" }
+  | { type: "conversation.plan"; goal: string; steps: ExecutionStep[]; status: "pending" | "running" | "completed" | "failed" }
   | { type: "conversation.decision"; options: string[]; selected: string; reason: string; confidence: number }
   | { type: "conversation.tool_call"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string }
   | { type: "conversation.diff"; filePath: string; diff: string; status: "pending_review" | "approved" | "rejected" }

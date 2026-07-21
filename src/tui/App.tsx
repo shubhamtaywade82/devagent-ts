@@ -54,6 +54,9 @@ export interface ShellAgent {
   hasResumableSession?(): boolean;
   listSessions?(): SessionMeta[];
   getTools?(): ToolInfo[];
+  runPlan?(goal: string): Promise<unknown>;
+  hasResumablePlan?(): boolean;
+  resolveApproval?(id: string, approved: boolean): void;
   listModels?(): Promise<string[]>;
   /** Round-trips a real request through the new model; true, or an error string. */
   validateModel?(): Promise<true | string>;
@@ -476,6 +479,27 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         case "toggle-sidebar":
           uiDispatch({ type: "toggle-sidebar" });
           break;
+        case "run-plan": {
+          if (!effect.goal && !agent?.hasResumablePlan?.()) {
+            bus.publish({ type: "notification", kind: "error", text: "Usage: /plan <task description>" });
+            break;
+          }
+          bus.publish({
+            type: "notification",
+            kind: "info",
+            text: effect.goal ? `Planning: ${effect.goal}` : "Resuming interrupted plan…",
+          });
+          agent
+            ?.runPlan?.(effect.goal)
+            .catch((e: unknown) =>
+              bus.publish({
+                type: "notification",
+                kind: "error",
+                text: `Plan failed: ${e instanceof Error ? e.message : String(e)}`,
+              }),
+            );
+          break;
+        }
         case "set-theme":
           bus.publish({ type: "theme.changed", theme: effect.theme });
           bus.publish({ type: "notification", kind: "info", text: `Theme: ${effect.theme}` });
@@ -613,6 +637,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         case "reject": {
           const approval = store.getState().approval;
           if (approval) {
+            agent?.resolveApproval?.(approval.id, command.type === "approve");
             bus.publish({ type: "approval.resolved", id: approval.id, approved: command.type === "approve" });
             bus.publish({
               type: "notification",

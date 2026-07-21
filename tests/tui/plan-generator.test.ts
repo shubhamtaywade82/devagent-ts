@@ -1,5 +1,6 @@
-import { generatePlan, PlanGenerationError } from "../../src/tui/plan-generator.js";
+import { generatePlan, replanSteps, PlanGenerationError } from "../../src/tui/plan-generator.js";
 import { Provider } from "../../src/provider/provider.js";
+import { PlanStep, HistoryEntry } from "../../src/orchestrator/types.js";
 
 function fakeProvider(content: string) {
   return {
@@ -48,5 +49,33 @@ describe("generatePlan", () => {
     const provider = fakeProvider(JSON.stringify([{ id: "s1", description: "step one", dependencies: [1, 2, null] }]));
 
     await expect(generatePlan("do it", provider)).rejects.toThrow(PlanGenerationError);
+  });
+});
+
+describe("replanSteps", () => {
+  it("asks the model to revise the remaining steps and parses its response", async () => {
+    const provider = fakeProvider(
+      JSON.stringify([{ id: "s2-retry", description: "try a different approach", dependencies: [] }]),
+    );
+    const remaining: PlanStep[] = [
+      { id: "s2", description: "original approach", status: "pending", dependencies: [], retryCount: 1 },
+    ];
+    const history: HistoryEntry[] = [
+      { stepId: "s2", outcome: { kind: "blocking", error: "permission denied" }, at: 1 },
+    ];
+
+    const revised = await replanSteps(remaining, history, provider);
+
+    expect(revised).toEqual([
+      { id: "s2-retry", description: "try a different approach", dependencies: [], status: "pending", retryCount: 0 },
+    ]);
+    const [, userMessage] = (provider.chat as jest.Mock).mock.calls[0][0];
+    expect(userMessage.content).toContain("permission denied");
+    expect(userMessage.content).toContain("original approach");
+  });
+
+  it("throws PlanGenerationError on malformed JSON, same as generatePlan", async () => {
+    const provider = fakeProvider("not json");
+    await expect(replanSteps([], [], provider)).rejects.toThrow(PlanGenerationError);
   });
 });

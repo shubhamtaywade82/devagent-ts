@@ -88,6 +88,14 @@ const cfg = loadConfig();
   // string. Cast at this single bootstrap boundary.
   wireAgentBridge(agent as unknown as BridgeableAgent, bus);
 
+  // Non-blocking: connecting spawns a subprocess per configured MCP server,
+  // which shouldn't hold up the TUI's first paint. Publishes even an empty
+  // list so the MCP actor moves out of "muted" once startup settles.
+  agent
+    .connectConfiguredMcpServers()
+    .then((servers) => bus.publish({ type: "mcp.changed", servers }))
+    .catch((e) => bus.publish({ type: "logs.appended", level: "error", source: "mcp", message: String(e) }));
+
   const shellAgent = {
     runUserMessage: (message: string) => agent.runUserMessage(message),
     setModel: (model: string) => agent.setModel(model),
@@ -103,6 +111,9 @@ const cfg = loadConfig();
         .getTools()
         .map((t) => ({ name: t.name, description: t.description, category: agent.getRegistry().categoryOf(t.name) })),
     listModels: () => agent.listModels(),
+    runPlan: (goal: string) => agent.runPlan(goal),
+    hasResumablePlan: () => agent.hasResumablePlan(),
+    resolveApproval: (id: string, approved: boolean) => agent.resolveApproval(id, approved),
     validateModel: () => agent.validateModel(),
     getSkillsRegistry: () => agent.getSkillsRegistry(),
     pinSkill: (id: string | null) => agent.pinSkill(id),

@@ -156,8 +156,9 @@ export class AgentToolManager {
     this.registry.register(tool, category);
   }
 
-  async registerMcpServer(command: string, args: string[] = []): Promise<void> {
+  async registerMcpServer(command: string, args: string[] = []): Promise<Tool[]> {
     const tools = await connectMcpServer(command, args);
     for (const tool of tools) this.registry.register(tool, "MCP");
+    return tools;
   }
 }

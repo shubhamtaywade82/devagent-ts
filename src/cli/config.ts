@@ -63,6 +63,10 @@ export interface CliConfig {
    * billing) — this only computes a cost estimate if you supply your own
    * real rate. Omit to leave cost tracking off (the honest default). */
   pricing?: { inputPerMillion: number; outputPerMillion: number };
+  /** External MCP (Model Context Protocol) servers to connect at startup —
+   * each spawns `command args...` over stdio and registers its tools.
+   * Configure in .devagent/config.json; there is no in-session "/mcp add". */
+  mcpServers?: Array<{ name: string; command: string; args?: string[] }>;
 }
 
 interface ConfigFile {
@@ -90,6 +94,7 @@ interface ConfigFile {
    * billing) — this only computes a cost estimate if you supply your own
    * real rate. Omit to leave cost tracking off (the honest default). */
   pricing?: { inputPerMillion: number; outputPerMillion: number };
+  mcpServers?: Array<{ name: string; command: string; args?: string[] }>;
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
@@ -228,5 +233,6 @@ export function loadConfig(): CliConfig {
       fromEnv("DEVAGENT_AVAIL_CHECK") !== "false" && (file.enableAvailabilityCheck ?? true),
     enableHeuristicGate: fromEnv("DEVAGENT_HEURISTIC_GATE") !== "false" && (file.enableHeuristicGate ?? true),
     pricing,
+    mcpServers: file.mcpServers,
   };
 }

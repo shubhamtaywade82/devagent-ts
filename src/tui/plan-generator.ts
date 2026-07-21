@@ -1,5 +1,5 @@
 import { Provider, ChatMessage } from "../provider/provider.js";
-import { PlanStep } from "../orchestrator/types.js";
+import { HistoryEntry, PlanStep } from "../orchestrator/types.js";
 
 export class PlanGenerationError extends Error {}
 
@@ -59,4 +59,34 @@ export async function generatePlan(userRequest: string, provider: Provider): Pro
   const content = response.message?.content ?? "";
   const parsed = extractJsonArray(content);
   return validateSteps(parsed);
+}
+
+/** Orchestrator.Planner backed by the model: on a step failure, asks it to
+ * revise the remaining steps around what went wrong. Reuses the same JSON
+ * step format as the initial plan. */
+export async function replanSteps(
+  remaining: PlanStep[],
+  history: HistoryEntry[],
+  provider: Provider,
+): Promise<PlanStep[]> {
+  const failures = history
+    .filter((h) => h.outcome.kind !== "success")
+    .map((h) => `- ${h.stepId}: ${h.outcome.kind === "success" ? "" : h.outcome.error}`)
+    .join("\n");
+  const remainingSummary = JSON.stringify(
+    remaining.map((s) => ({ id: s.id, description: s.description, dependencies: s.dependencies })),
+  );
+  const messages: ChatMessage[] = [
+    { role: "system", content: PLAN_PROMPT },
+    {
+      role: "user",
+      content:
+        `Some steps in this plan failed. Remaining steps:\n${remainingSummary}\n\n` +
+        `Failures so far:\n${failures}\n\n` +
+        `Revise the remaining steps to work around these failures (different approach, split a step, or drop what's no longer needed). Respond with ONLY the revised JSON array in the same shape.`,
+    },
+  ];
+  const response = await provider.chat(messages, { stream: false });
+  const content = response.message?.content ?? "";
+  return validateSteps(extractJsonArray(content));
 }

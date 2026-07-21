@@ -22,6 +22,7 @@ export type CommandEffect =
   | { kind: "set-theme"; theme: "default" | "midnight" | "solarized" }
   | { kind: "next-theme" }
   | { kind: "toggle-sidebar" }
+  | { kind: "run-plan"; goal: string }
   | { kind: "init-workspace" }
   | { kind: "set-agent-mode"; mode: string }
   | { kind: "run-shell"; command: string }
@@ -216,11 +217,8 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register({
     name: "plan",
     aliases: [],
-    description: "Generate a plan: /plan [task description]",
-    execute: (args) =>
-      args.trim()
-        ? { kind: "message", text: `Create a plan to: ${args}` }
-        : { kind: "error", text: "Usage: /plan <task description>" },
+    description: "Decompose and execute a task via the orchestrator: /plan [task description] (no args resumes an interrupted plan)",
+    execute: (args) => ({ kind: "run-plan", goal: args.trim() }),
   });
   registry.register({
     name: "commit",

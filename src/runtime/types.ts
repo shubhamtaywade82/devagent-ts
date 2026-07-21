@@ -193,7 +193,7 @@ export type ChatEntry =
   // model: "tier/name" of whichever model actually answered this entry (e.g.
   // "local/minicpm5-1b" or "cloud/gpt-oss:120b") — only set for assistant text.
   | { kind: "text"; role: ChatRole; text: string; at: number; model?: string }
-  | { kind: "plan"; role: "assistant"; steps: ExecutionStep[]; status: "pending" | "running" | "completed"; at: number }
+  | { kind: "plan"; role: "assistant"; steps: ExecutionStep[]; status: "pending" | "running" | "completed" | "failed"; at: number }
   | { kind: "decision"; role: "assistant"; options: string[]; selected: string; reason: string; confidence: number; at: number }
   | { kind: "tool_call"; role: "assistant"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string; at: number }
   | { kind: "diff_preview"; role: "assistant"; filePath: string; diff: string; status: "pending_review" | "approved" | "rejected"; at: number }

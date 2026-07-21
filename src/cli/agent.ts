@@ -10,8 +10,10 @@ import { LoopDetector } from "../orchestrator/loop-detector.js";
 import { Orchestrator } from "../orchestrator/orchestrator.js";
 import { AgentStepRunner } from "../orchestrator/agent-planner.js";
 import { PlanStep, Planner } from "../orchestrator/types.js";
+import { generatePlan, replanSteps } from "../tui/plan-generator.js";
 import { SkillMeta } from "../skills/types.js";
 import { LspServerState } from "../lsp/protocol.js";
+import { ApprovalRequest, McpServerState } from "../runtime/types.js";
 import { MemoryStore } from "../memory/store.js";
 import { DocsStore } from "../docs/store.js";
 import { generateSummary } from "../memory/summarizer.js";
@@ -31,6 +33,34 @@ import { Verifier } from "../provider/verifier.js";
 import { SelfConsistency } from "../provider/self-consistency.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 
+// Confirmation gate for irreversible actions — a UX safety net, not a
+// security boundary (Docker sandboxing already bounds worst-case blast
+// radius for run_shell). Deliberately targets the common, obvious cases
+// rather than trying to be an exhaustive destructive-command detector.
+const DESTRUCTIVE_SHELL_PATTERNS: RegExp[] = [
+  /\brm\s+(-[a-z]*\s+)*-[a-z]*[rf][a-z]*[rf]?[a-z]*(\s|$)/i, // rm -rf / -fr / -r -f, any flag order
+  /\bgit\s+push\b.*(--force\b|-f\b)/i,
+  /\bdrop\s+(table|database|schema)\b/i,
+  /\btruncate\s+table\b/i,
+  /\bmkfs\./i,
+  />\s*\/dev\/sd[a-z]/i,
+  /:\(\)\s*\{\s*:\|:&\s*\}\s*;\s*:/, // fork bomb
+];
+
+function classifyDestructive(name: string, args: Record<string, unknown>): { title: string; summary: string } | null {
+  if (name === "delete_file") {
+    const path = typeof args.path === "string" ? args.path : "(unknown path)";
+    return { title: `Delete ${path}`, summary: `The agent wants to delete "${path}". This cannot be undone.` };
+  }
+  if (name === "run_shell") {
+    const command = typeof args.command === "string" ? args.command : "";
+    if (DESTRUCTIVE_SHELL_PATTERNS.some((p) => p.test(command))) {
+      return { title: "Run destructive shell command", summary: command };
+    }
+  }
+  return null;
+}
+
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
   onThinking?: (text: string) => void;
@@ -43,6 +73,8 @@ export interface AgentEvents {
   onSkillsActivated?: (skills: SkillMeta[]) => void;
   onLspStateChange?: (servers: LspServerState[]) => void;
   onUsage?: (info: { promptTokens: number; completionTokens: number; tokensPerSecond: number; latencyMs: number }) => void;
+  onPlanUpdate?: (goal: string, steps: PlanStep[], status: "running" | "completed" | "failed") => void;
+  onApprovalRequested?: (request: ApprovalRequest) => void;
 }
 
 type AgentEventName = keyof AgentEvents;
@@ -86,9 +118,12 @@ export class Agent {
   readonly selfConsistency: SelfConsistency | undefined;
   readonly availabilityChecker: ModelAvailabilityChecker | undefined;
   readonly keyManager: KeyManager | undefined;
+  private readonly mcpServerConfigs: Array<{ name: string; command: string; args?: string[] }>;
+  private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
+    this.mcpServerConfigs = cfg.mcpServers ?? [];
 
     this.provider = new Provider({
       tier: cfg.tier,
@@ -528,6 +563,15 @@ export class Agent {
 
           this.emit("onToolCall", name, args);
 
+          const destructive = classifyDestructive(name, args);
+          if (destructive && !(await this.requestApproval(destructive.title, destructive.summary))) {
+            const rejected = { error: "ApprovalRejected", message: "The user rejected this action." };
+            this.conversation.pushToolResult(JSON.stringify(rejected, null, 2));
+            this.emit("onToolResult", name, rejected);
+            previousTurnHadToolError = true;
+            continue;
+          }
+
           try {
             const result = await this.tools.registry.invoke(name, args);
 
@@ -638,6 +682,51 @@ export class Agent {
 
   hasResumablePlan(): boolean {
     return this.planCheckpoint.load() !== null;
+  }
+
+  /** Pauses until the TUI resolves the request (approve/reject keypress).
+   * The ApprovalOverlay/approval.requested plumbing already existed on the
+   * TUI side but had no producer — this is that producer. */
+  private async requestApproval(title: string, summary: string): Promise<boolean> {
+    const id = `appr${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
+    const request: ApprovalRequest = { id, title, summary, filesChanged: 0, additions: 0, deletions: 0 };
+    const approved = await new Promise<boolean>((resolve) => {
+      this.pendingApprovals.set(id, resolve);
+      this.emit("onApprovalRequested", request);
+    });
+    this.pendingApprovals.delete(id);
+    return approved;
+  }
+
+  /** Called by the TUI when the user presses approve/reject on a pending request. */
+  resolveApproval(id: string, approved: boolean): void {
+    this.pendingApprovals.get(id)?.(approved);
+  }
+
+  /** Entry point for /plan: decomposes `goal` into steps via the model, then
+   * runs them through the real Orchestrator (topological + concurrent
+   * execution, retry, model-driven replan on failure, rollback) — not a
+   * canned "write me a plan" chat message. Resumes an interrupted plan
+   * instead of starting a new one when `goal` is empty and a checkpoint
+   * exists. */
+  async runPlan(goal: string): Promise<PlanStep[]> {
+    const planner: Planner = { replan: (remaining, history) => replanSteps(remaining, history, this.provider) };
+
+    if (!goal.trim() && this.hasResumablePlan()) {
+      const resumed = await this.resumePlannedTask(planner);
+      if (resumed) {
+        const failed = resumed.some((s) => s.status === "failed");
+        this.emit("onPlanUpdate", "(resumed plan)", resumed, failed ? "failed" : "completed");
+        return resumed;
+      }
+    }
+
+    const steps = await generatePlan(goal, this.provider);
+    this.emit("onPlanUpdate", goal, steps, "running");
+    const finalSteps = await this.runPlannedTask(steps, planner);
+    const failed = finalSteps.some((s) => s.status === "failed");
+    this.emit("onPlanUpdate", goal, finalSteps, failed ? "failed" : "completed");
+    return finalSteps;
   }
 
   setModel(model: string): void {
@@ -816,5 +905,29 @@ export class Agent {
 
   async registerMcpServer(command: string, args: string[] = []): Promise<void> {
     await this.tools.registerMcpServer(command, args);
+  }
+
+  /** Connects every MCP server listed in config.mcpServers, one at a time
+   * (each spawns a subprocess). Never throws — a server that fails to start
+   * shows up as `connected: false` rather than aborting the others or the
+   * TUI's own startup. */
+  async connectConfiguredMcpServers(): Promise<McpServerState[]> {
+    const results: McpServerState[] = [];
+    for (const server of this.mcpServerConfigs) {
+      const start = Date.now();
+      try {
+        const tools = await this.tools.registerMcpServer(server.command, server.args ?? []);
+        results.push({
+          name: server.name,
+          connected: true,
+          latencyMs: Date.now() - start,
+          tools: tools.map((t) => t.name),
+          errors: 0,
+        });
+      } catch {
+        results.push({ name: server.name, connected: false, latencyMs: Date.now() - start, tools: [], errors: 1 });
+      }
+    }
+    return results;
   }
 }
