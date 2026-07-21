@@ -79,6 +79,36 @@ describe("DynamicToolSelector", () => {
 
       expect(selected.map((t) => t.name)).toContain("read_file");
     });
+
+    it("does not accumulate score for a description word repeated multiple times", async () => {
+      // Regression test: pre-fix, each raw occurrence of a matching word in
+      // the description added +0.5 uncapped, so a description repeating one
+      // shared word 3x scored 1.5 (clears the >0.5 filter) purely from
+      // repetition, not topical relevance. Deduped, it's one +0.5 hit — 0.5,
+      // which does not clear the filter.
+      const repeats = new MockTool("noisy_tool", "process data data data quickly", [], []);
+      const selector = new DynamicToolSelector({ mode: "heuristic" });
+      const selected = await selector.selectTools("data", [], [repeats]);
+
+      expect(selected.map((t) => t.name)).not.toContain("noisy_tool");
+    });
+
+    it("does not select a tool on stopword overlap alone, even with several matching filler words", async () => {
+      // Regression test for the real bug this fix targets: this tool shares
+      // zero real content words with the query, only "the"/"and"/"this" —
+      // pre-fix this scored 2.0 (three uncapped filler-word hits) and was a
+      // false-positive "active tool" for a completely unrelated question.
+      const unrelated = new MockTool(
+        "some_tool",
+        "Handles the request and the response for this task",
+        [],
+        [],
+      );
+      const selector = new DynamicToolSelector({ mode: "heuristic" });
+      const selected = await selector.selectTools("what is the difference between this and that", [], [unrelated]);
+
+      expect(selected.map((t) => t.name)).not.toContain("some_tool");
+    });
   });
 
   describe("LLM Selection", () => {

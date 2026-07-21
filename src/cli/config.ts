@@ -184,7 +184,15 @@ export function loadConfig(): CliConfig {
 
   const rawMaxActiveTools = fromEnv("DEVAGENT_MAX_ACTIVE_TOOLS") || String(file.maxActiveTools ?? "");
   const maxActiveTools = rawMaxActiveTools && Number.isFinite(Number(rawMaxActiveTools)) ? Number(rawMaxActiveTools) : undefined;
-  const toolSelectionMode = (fromEnv("DEVAGENT_TOOL_SELECTION_MODE") || file.toolSelectionMode) as "heuristic" | "llm" | "hybrid" | undefined;
+  // Default to "hybrid": pure heuristic keyword/tag scoring can't tell that
+  // e.g. "what does the map method do" needs search_docs — its content words
+  // ("map", "method") don't appear in any tool's own name/tags/description.
+  // Hybrid tries heuristic first and falls back to a real quick-tier model
+  // classification call when heuristic is weak/ambiguous.
+  const toolSelectionMode = (fromEnv("DEVAGENT_TOOL_SELECTION_MODE") || file.toolSelectionMode || "hybrid") as
+    | "heuristic"
+    | "llm"
+    | "hybrid";
 
   // Pool of Ollama Cloud keys: primary single key, comma-separated OLLAMA_API_KEYS,
   // and any keys listed in the config file, deduped in that priority order.

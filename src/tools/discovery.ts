@@ -74,6 +74,13 @@ export class DynamicToolSelector {
       .slice(0, this.maxActiveTools);
   }
 
+  private static readonly STOPWORDS = new Set([
+    "the", "a", "an", "and", "or", "of", "to", "in", "on", "for", "with",
+    "this", "that", "what", "which", "who", "whom", "how", "why", "when",
+    "where", "does", "do", "did", "is", "are", "was", "were", "be", "been",
+    "s", "it", "its", "as", "at", "by", "from", "into", "if", "than", "then",
+  ]);
+
   private heuristicSelectWithScores(
     prompt: string,
     history: ChatMessage[],
@@ -88,7 +95,14 @@ export class DynamicToolSelector {
         .join(" ")
     ).toLowerCase();
 
-    const queryTokens = new Set(textToAnalyze.match(/[a-z0-9]+/g) ?? []);
+    // Filler-word overlap ("the", "what", "s" from "what's", etc.) used to be
+    // able to outscore a genuinely relevant tool — a verbose description
+    // repeating "the" a few times could beat a tool whose only match was one
+    // real content word. Stopwords are excluded on both sides so they can
+    // never contribute score.
+    const queryTokens = new Set(
+      (textToAnalyze.match(/[a-z0-9]+/g) ?? []).filter((t) => !DynamicToolSelector.STOPWORDS.has(t)),
+    );
 
     return tools
       .map((tool) => {
@@ -126,8 +140,10 @@ export class DynamicToolSelector {
           }
         }
 
-        // 5. Match description words
-        const descTokens = tool.description.toLowerCase().match(/[a-z0-9]+/g) ?? [];
+        // 5. Match description words — deduped, so a description repeating
+        // the same word several times can't inflate score past a genuine
+        // one-word match elsewhere.
+        const descTokens = new Set(tool.description.toLowerCase().match(/[a-z0-9]+/g) ?? []);
         for (const token of descTokens) {
           if (queryTokens.has(token)) score += 0.5;
         }
