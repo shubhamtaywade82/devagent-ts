@@ -2,6 +2,7 @@ import { Tool } from "./tool.js";
 import { DocsStore } from "../docs/store.js";
 import { DOC_CATALOG, findCatalogEntry } from "../docs/catalog.js";
 import { detectWorkspaceDocSources } from "../docs/workspace-detect.js";
+import { ingestDocSource } from "../docs/ingest.js";
 
 const MAX_BODY_CHARS = 6000;
 
@@ -13,6 +14,22 @@ function resolveSlugs(ids: string[], store: DocsStore): string[] {
     if (ingested.has(slug) && !slugs.includes(slug)) slugs.push(slug);
   }
   return slugs;
+}
+
+/** Lazy-auto-fetch: ingest whichever of `ids` aren't in the store yet, so a
+ * doc lookup works on first use instead of requiring `npm run docs:ingest`
+ * ahead of time. Best-effort — a bad id or network failure is swallowed
+ * here and just leaves that source unavailable; the caller falls back to
+ * whatever it does have. */
+async function ensureIngested(ids: string[], store: DocsStore): Promise<void> {
+  const missing = ids.filter((id) => resolveSlugs([id], store).length === 0);
+  for (const id of missing) {
+    try {
+      await ingestDocSource(store, id);
+    } catch {
+      // unknown doc id or offline — leave it out of the resolved set
+    }
+  }
 }
 
 export class SearchDocsTool extends Tool {
@@ -29,9 +46,9 @@ export class SearchDocsTool extends Tool {
 
   get description(): string {
     return (
-      "Full-text search over locally-ingested library/framework documentation (DevDocs). " +
-      "By default scopes to sources relevant to this workspace (auto-detected from package.json/Gemfile/etc); " +
-      "pass `source` to search a specific doc set instead. Use `list_doc_sources` to see what's ingested."
+      "Full-text search over library/framework documentation (DevDocs), fetched on first use if not already " +
+      "cached locally. By default scopes to sources relevant to this workspace (auto-detected from package.json/" +
+      "Gemfile/etc); pass `source` to search a specific doc set instead. Use `list_doc_sources` to see what's ingested."
     );
   }
 
@@ -66,16 +83,19 @@ export class SearchDocsTool extends Tool {
     let scope: "explicit" | "workspace" | "all" = "all";
 
     if (typeof args.source === "string" && args.source.trim()) {
-      slugs = resolveSlugs([args.source], this.store);
+      const source = args.source.trim();
+      await ensureIngested([source], this.store);
+      slugs = resolveSlugs([source], this.store);
       scope = "explicit";
       if (slugs.length === 0) {
         return {
           error: "UnknownSourceError",
-          message: `"${args.source}" is not an ingested doc source. Run \`npm run docs:ingest -- ${args.source}\` first, or check list_doc_sources.`,
+          message: `"${source}" isn't a recognized DevDocs source and couldn't be fetched. Check list_doc_sources for available ids.`,
         };
       }
     } else {
       const workspaceIds = detectWorkspaceDocSources(this.workspaceRoot);
+      if (workspaceIds.length > 0) await ensureIngested(workspaceIds, this.store);
       const workspaceSlugs = resolveSlugs(workspaceIds, this.store);
       if (workspaceSlugs.length > 0) {
         slugs = workspaceSlugs;
