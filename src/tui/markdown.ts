@@ -191,7 +191,9 @@ export function renderSimpleMarkdown(text: string, bodyWidth: number): Formatted
       if (idx < rawLines.length) idx++; // skip closing ```
 
       const langLabel = lang ? ` ${lang} ` : " code ";
-      const headerBar = chalk.gray(`┌──${chalk.bold.yellow(langLabel)}${"─".repeat(Math.max(0, width - 4 - langLabel.length))}┐`);
+      const headerBar = chalk.gray(
+        `┌──${chalk.bold.yellow(langLabel)}${"─".repeat(Math.max(0, width - 4 - langLabel.length))}┐`,
+      );
       const footerBar = chalk.gray(`└${"─".repeat(Math.max(0, width - 2))}┘`);
 
       result.push({ spans: [{ text: headerBar, ansi: true }] });
@@ -235,23 +237,23 @@ export function renderSimpleMarkdown(text: string, bodyWidth: number): Formatted
       const level = raw.match(/^#+/)?.[0].length || 1;
       const content = raw.replace(/^#+\s*/, "");
       let prefix = "◈ ";
-      let styledContent = chalk.bold.cyan(content);
+      let prefixColor = chalk.bold.cyan;
 
       if (level === 2) {
         prefix = "▸ ";
-        styledContent = chalk.bold.yellow(content);
+        prefixColor = chalk.bold.yellow;
       } else if (level === 3) {
         prefix = "• ";
-        styledContent = chalk.bold.green(content);
+        prefixColor = chalk.bold.green;
       } else if (level >= 4) {
         prefix = "◦ ";
-        styledContent = chalk.bold.magenta(content);
+        prefixColor = chalk.bold.magenta;
       }
 
       for (const line of wrapText(content, width - 4)) {
         result.push({
           spans: [
-            { text: chalk.bold.cyan(prefix), ansi: true },
+            { text: prefixColor(prefix), ansi: true },
             ...parseInline(line).map((s) => ({ ...s, bold: true })),
           ],
         });

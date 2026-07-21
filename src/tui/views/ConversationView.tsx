@@ -73,12 +73,15 @@ function ToolCallBlock({
     <Box flexDirection="column">
       <Box height={1}>
         <Text color="gray">{connector}</Text>
-        <Text bold color="cyan">{entry.name} </Text>
+        <Text bold color="cyan">
+          {entry.name}{" "}
+        </Text>
         <Text color="gray" wrap="truncate">
           {truncate(args, Math.max(10, width - 20 - entry.name.length))}
         </Text>
         <Text color={statusColor} dimColor={!isRunning}>
-          {" "}[{statusLabel}]
+          {" "}
+          [{statusLabel}]
         </Text>
       </Box>
       {!collapsed && (entry.result || entry.error) && (
@@ -230,17 +233,17 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           render: () => (
             <Box key={`plan-${entry.at}`} flexDirection="column">
               <Box height={1}>
-                <Text bold color="blue">{headerText}</Text>
+                <Text bold color="blue">
+                  {headerText}
+                </Text>
               </Box>
               {entry.steps.map((step, idx) => {
                 const s = stepGlyphs[step.status] || stepGlyphs.pending;
                 return (
                   <Box key={step.id} height={1}>
-                    <Text color="gray">  {idx + 1}) </Text>
+                    <Text color="gray"> {idx + 1}) </Text>
                     <Text color={s.color}>{s.char} </Text>
-                    <Text color={step.status === "completed" ? "gray" : "white"}>
-                      {step.description}
-                    </Text>
+                    <Text color={step.status === "completed" ? "gray" : "white"}>{step.description}</Text>
                   </Box>
                 );
               })}
@@ -255,13 +258,17 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           render: () => (
             <Box key={`decision-${entry.at}`} flexDirection="column">
               <Box height={1}>
-                <Text bold color="cyan">🧠 Strategy Selection</Text>
+                <Text bold color="cyan">
+                  🧠 Strategy Selection
+                </Text>
                 <Text color="gray"> (Options: {optionList})</Text>
               </Box>
               <Box height={1} marginLeft={2}>
                 <Text>
                   <Text color="gray">Selected: </Text>
-                  <Text bold color="green">{entry.selected}</Text>
+                  <Text bold color="green">
+                    {entry.selected}
+                  </Text>
                   <Text color="gray"> (Confidence: {Math.round(entry.confidence * 100)}%)</Text>
                 </Text>
               </Box>
@@ -291,7 +298,10 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
             }
           }
         }
-        const hasMore = diffLines.filter((l) => (l.startsWith("+") && !l.startsWith("+++")) || (l.startsWith("-") && !l.startsWith("---"))).length > changes.length;
+        const hasMore =
+          diffLines.filter(
+            (l) => (l.startsWith("+") && !l.startsWith("+++")) || (l.startsWith("-") && !l.startsWith("---")),
+          ).length > changes.length;
 
         b.push({
           key: `diff-${entry.at}`,
@@ -299,7 +309,9 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           render: () => (
             <Box key={`diff-${entry.at}`} flexDirection="column">
               <Box height={1}>
-                <Text bold color="yellow">📄 {entry.filePath}</Text>
+                <Text bold color="yellow">
+                  📄 {entry.filePath}
+                </Text>
                 <Text color="gray"> ({entry.status}) </Text>
                 <Text color="green">+{additions} </Text>
                 <Text color="red">-{deletions}</Text>
@@ -340,10 +352,12 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           render: () => (
             <Box key={`test-${entry.at}`} flexDirection="column">
               <Box height={1}>
-                <Text bold color={statusColor}>{headerText}</Text>
+                <Text bold color={statusColor}>
+                  {headerText}
+                </Text>
               </Box>
               <Box height={1}>
-                <Text color="gray">  Command: {entry.command}</Text>
+                <Text color="gray"> Command: {entry.command}</Text>
               </Box>
               <Box height={1}>
                 <Text color={statusColor}>

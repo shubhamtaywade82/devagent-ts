@@ -61,12 +61,7 @@ describe("TUI Markdown Rendering Engine", () => {
     });
 
     it("renders aligned Unicode box-drawing borders for tables", () => {
-      const parsed = parseTable([
-        "| Metric | Value |",
-        "| --- | --- |",
-        "| CPU | 45% |",
-        "| Memory | 2.1GB |",
-      ])!;
+      const parsed = parseTable(["| Metric | Value |", "| --- | --- |", "| CPU | 45% |", "| Memory | 2.1GB |"])!;
 
       const rendered = renderTable(parsed, 60);
       expect(rendered.length).toBe(6); // top, header, mid, row1, row2, bottom
@@ -79,7 +74,7 @@ describe("TUI Markdown Rendering Engine", () => {
 
   describe("renderSimpleMarkdown", () => {
     it("renders fenced code blocks with language title headers and borders", () => {
-      const input = "```json\n{\n  \"key\": \"value\"\n}\n```";
+      const input = '```json\n{\n  "key": "value"\n}\n```';
       const formatted = renderSimpleMarkdown(input, 60);
       expect(formatted.length).toBeGreaterThan(3);
       expect(formatted[0].spans[0].text).toContain("json");
