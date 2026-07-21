@@ -75,6 +75,7 @@ export interface AgentEvents {
   onUsage?: (info: { promptTokens: number; completionTokens: number; tokensPerSecond: number; latencyMs: number }) => void;
   onPlanUpdate?: (goal: string, steps: PlanStep[], status: "running" | "completed" | "failed") => void;
   onApprovalRequested?: (request: ApprovalRequest) => void;
+  onModelUsed?: (tier: string, model: string) => void;
 }
 
 type AgentEventName = keyof AgentEvents;
