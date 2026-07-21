@@ -34,7 +34,7 @@ export function Sidebar({ state, sessions, toolCategories, width, rows }: Sideba
   const innerWidth = Math.max(10, width - 2);
 
   return (
-    <Box flexDirection="column" width={width} height={rows} borderStyle="single" borderColor="gray" paddingX={1}>
+    <Box flexDirection="column" width={width} height={rows} paddingX={1}>
       <SectionTitle text="Sessions" />
       {sessions.length === 0 ? (
         <Box height={1}>

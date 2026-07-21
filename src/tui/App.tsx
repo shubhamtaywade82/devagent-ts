@@ -891,6 +891,13 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
               <Box width={activeViewWidth} height={contentRows}>
                 <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />
               </Box>
+              <Box flexDirection="column" width={1} height={contentRows}>
+                {Array.from({ length: contentRows }, (_, i) => (
+                  <Text key={i} color="gray" dimColor>
+                    │
+                  </Text>
+                ))}
+              </Box>
               <Sidebar
                 state={state}
                 sessions={agent?.listSessions?.() ?? []}
