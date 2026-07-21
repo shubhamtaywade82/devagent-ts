@@ -3,7 +3,7 @@ import { Box, Text, useInput } from "ink";
 import { ChatEntry, RuntimeState } from "../../runtime/types.js";
 import { DetailLevel } from "../../layout/density.js";
 import { truncate } from "../../layout/truncate.js";
-import { parseInline, Span } from "../markdown.js";
+import { renderSimpleMarkdown, Span } from "../markdown.js";
 
 export interface ViewProps {
   state: RuntimeState;
@@ -22,89 +22,23 @@ function SpanText({ spans }: { spans: Span[] }): React.JSX.Element {
   return (
     <Text wrap="truncate">
       {spans.map((s, j) => {
-        if (s.code) return <Text key={j} inverse>{` ${s.text} `}</Text>;
+        if (s.ansi) return <Text key={j}>{s.text}</Text>;
+        if (s.code) return <Text key={j} color="yellow">{` ${s.text} `}</Text>;
         return (
-          <Text key={j} bold={s.bold} italic={s.italic}>
+          <Text
+            key={j}
+            bold={s.bold}
+            italic={s.italic}
+            strikethrough={s.strikethrough}
+            color={s.color as any}
+            dimColor={s.dimColor}
+          >
             {s.text}
           </Text>
         );
       })}
     </Text>
   );
-}
-
-function wrapText(text: string, width: number): string[] {
-  if (text.length <= width) return [text];
-  const lines: string[] = [];
-  let remaining = text;
-  while (remaining.length > 0) {
-    lines.push(remaining.slice(0, width));
-    remaining = remaining.slice(width);
-  }
-  return lines;
-}
-
-function renderSimpleMarkdown(text: string, bodyWidth: number): { spans: Span[]; indent?: number }[] {
-  const rawLines = text.split("\n");
-  const result: { spans: Span[]; indent?: number }[] = [];
-  let inCode = false;
-  let codeLines: string[] = [];
-
-  for (const raw of rawLines) {
-    const trimmed = raw.trim();
-    if (trimmed.startsWith("```")) {
-      if (inCode) {
-        for (const cl of codeLines) {
-          result.push({ spans: [{ text: cl, code: true }], indent: 2 });
-        }
-        codeLines = [];
-        inCode = false;
-      } else {
-        inCode = true;
-      }
-      continue;
-    }
-    if (inCode) {
-      codeLines.push(raw);
-      continue;
-    }
-    if (!raw.trim()) {
-      result.push({ spans: [{ text: "" }] });
-      continue;
-    }
-
-    if (raw.startsWith("#")) {
-      const content = raw.replace(/^#+\s*/, "");
-      for (const line of wrapText(content, bodyWidth)) {
-        result.push({ spans: parseInline(line).map((s) => ({ ...s, bold: true })) });
-      }
-      continue;
-    }
-    if (raw.match(/^[-*]\s/)) {
-      const content = raw.replace(/^[-*]\s/, "");
-      for (const line of wrapText(content, bodyWidth - 2)) {
-        result.push({ spans: [{ text: "• " }, ...parseInline(line)], indent: 2 });
-      }
-      continue;
-    }
-    if (raw.startsWith("> ")) {
-      const content = raw.replace(/^>\s*/, "");
-      for (const line of wrapText(content, bodyWidth - 2)) {
-        result.push({ spans: parseInline(line).map((s) => ({ ...s, italic: true })), indent: 2 });
-      }
-      continue;
-    }
-    for (const line of wrapText(raw, bodyWidth)) {
-      result.push({ spans: parseInline(line) });
-    }
-  }
-
-  if (codeLines.length > 0) {
-    for (const cl of codeLines) {
-      result.push({ spans: [{ text: cl, code: true }], indent: 2 });
-    }
-  }
-  return result;
 }
 
 function TurnSeparator({ width }: { width: number }): React.JSX.Element {
