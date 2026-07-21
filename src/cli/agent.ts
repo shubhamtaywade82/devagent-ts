@@ -909,7 +909,15 @@ export class Agent {
   private triggerSummarization(): void {
     if (this.isSummarizing) return;
     this.isSummarizing = true;
-    generateSummary(this.memory, this.provider)
+    // Routed through "quick" rather than this.provider (the conversation's
+    // own primary model): this fires fire-and-forget right after every turn,
+    // and previously shared the exact same provider/endpoint/connection as
+    // the very next turn's own request — the two would contend for the same
+    // queue, making whichever turn came quickly after a short exchange (a
+    // greeting, say) queue behind the still-in-flight background summary
+    // call and appear to hang. "quick" is also simply the right tier for a
+    // 3-5 bullet summary — no need for the primary model's full capability.
+    generateSummary(this.memory, { chat: (messages, opts) => this.routeWithFallback("quick", messages, opts) })
       .then((summary) => this.emit("onMemorySummary", summary))
       .catch((e) => this.emit("onError", e instanceof Error ? e : new Error(String(e))))
       .finally(() => {

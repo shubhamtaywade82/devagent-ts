@@ -551,4 +551,48 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     const tools = (chatBodies()[0].tools ?? []) as Array<{ function: { name: string } }>;
     expect(tools.some((t) => t.function.name === "delegate_to_local")).toBe(true);
   });
+
+  it("routes background memory summarization through 'quick' instead of the primary model (regression: it used to share the primary's own connection and could queue behind the next turn's request)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    let call = 0;
+    (globalThis as any).fetch = jest.fn().mockImplementation(async () => {
+      call += 1;
+      // Catalog.refresh() queries BOTH tiers: call 1 is local's /api/tags,
+      // call 2 is cloud's /v1/models (harmlessly ignored here — no `.data`
+      // array in a chat-shaped response, catalog just sees zero cloud
+      // candidates from it, cloud-primary routing doesn't need the catalog
+      // to know about itself).
+      if (call === 1) {
+        return modelsListResponse([
+          { name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } },
+        ]);
+      }
+      if (call === 3) return chatResponse("hello!"); // the turn's own answer, on the cloud primary
+      if (call >= 4) return chatResponse("- said hello"); // generateSummary's own call
+      return chatResponse("unused");
+    });
+
+    const agent = new Agent({
+      // Pinned to heuristic tool selection so the only two chat-shaped calls
+      // are the turn's own answer and generateSummary's call — hybrid mode's
+      // own quick-routed tool-selection classification call would otherwise
+      // land in between and shift the call count.
+      config: {
+        workspaceRoot: dir,
+        tier: "cloud",
+        apiKey: "k",
+        model: "gpt-oss:120b",
+        toolSelectionMode: "heuristic",
+      },
+    });
+
+    const reply = await agent.runUserMessage("hi");
+    expect(reply).toBe("hello!");
+    // Summarization is fire-and-forget; give pending microtasks/timers a tick to run.
+    await new Promise((r) => setTimeout(r, 0));
+
+    const bodies = chatBodies();
+    expect(bodies[0].model).toBe("gpt-oss:120b"); // the turn's own answer
+    expect(bodies[1].model).toBe("minicpm5-1b"); // summarization — a different model/connection entirely
+  });
 });
