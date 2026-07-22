@@ -5,6 +5,8 @@
  * views only change what is observed, never what is running.
  */
 
+import { PlanStep } from "../orchestrator/types.js";
+
 /** The always-alive actors. Every subsystem is one of these. */
 export type ActorId =
   "conversation" | "planner" | "executor" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "skills" | "lsp";
@@ -36,7 +38,7 @@ export interface ActorState {
 }
 
 /** The focusable views of the Active View zone. Focus never stops actors. */
-export type ViewId = "conversation" | "execution" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "lsp" | "files" | "settings" | "context" | "rails" | "timeline";
+export type ViewId = "conversation" | "execution" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "lsp" | "files" | "settings" | "context" | "rails" | "timeline" | "dashboard";
 
 export const VIEW_ORDER: readonly ViewId[] = [
   "conversation",
@@ -53,6 +55,7 @@ export const VIEW_ORDER: readonly ViewId[] = [
   "context",
   "rails",
   "timeline",
+  "dashboard",
 ];
 
 /** Runtime mode drives the Context Strip contents. */
@@ -195,10 +198,13 @@ export type ChatEntry =
   | { kind: "text"; role: ChatRole; text: string; at: number; model?: string }
   | { kind: "plan"; role: "assistant"; steps: ExecutionStep[]; status: "pending" | "running" | "completed" | "failed"; at: number }
   | { kind: "decision"; role: "assistant"; options: string[]; selected: string; reason: string; confidence: number; at: number }
-  | { kind: "tool_call"; role: "assistant"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string; at: number }
-  | { kind: "diff_preview"; role: "assistant"; filePath: string; diff: string; status: "pending_review" | "approved" | "rejected"; at: number }
-  | { kind: "test_result"; role: "assistant"; command: string; passed: number; failed: number; failures: TestFailure[]; durationMs: number; at: number }
-  | { kind: "card"; role: "assistant"; title: string; status: "running" | "completed" | "failed"; items: CardItem[]; at: number };
+  // crumb: "Execute > Generate migration" — the mission phase/step active when
+  // this entry was created (see mission-derive.ts's missionCrumb), used by the
+  // Dashboard's Activity Feed. Undefined outside an active mission.
+  | { kind: "tool_call"; role: "assistant"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string; at: number; crumb?: string }
+  | { kind: "diff_preview"; role: "assistant"; filePath: string; diff: string; status: "pending_review" | "approved" | "rejected"; at: number; crumb?: string }
+  | { kind: "test_result"; role: "assistant"; command: string; passed: number; failed: number; failures: TestFailure[]; durationMs: number; at: number; crumb?: string }
+  | { kind: "card"; role: "assistant"; title: string; status: "running" | "completed" | "failed"; items: CardItem[]; at: number; crumb?: string };
 
 export interface ExecutionStep {
   id: string;
@@ -221,6 +227,59 @@ export interface SessionState {
   workspace: string;
   branch: string;
   startedAt: number;
+}
+
+/** Whole-mission stages, coarser than a single PlanStep's lifecycle. */
+export type MissionPhaseId = "understand" | "inspect" | "plan" | "execute" | "validate" | "repair" | "review" | "complete";
+
+export const MISSION_PHASE_ORDER: readonly MissionPhaseId[] = [
+  "understand",
+  "inspect",
+  "plan",
+  "execute",
+  "validate",
+  "repair",
+  "review",
+  "complete",
+];
+
+export const MISSION_PHASE_LABELS: Record<MissionPhaseId, string> = {
+  understand: "Understand",
+  inspect: "Inspect",
+  plan: "Plan",
+  execute: "Execute",
+  validate: "Validate",
+  repair: "Repair",
+  review: "Review",
+  complete: "Complete",
+};
+
+export interface MissionPhase {
+  id: MissionPhaseId;
+  status: "pending" | "running" | "completed" | "failed";
+  startedAt?: number;
+  endedAt?: number;
+}
+
+/**
+ * Mission-level progress, driven by real orchestrator events (see
+ * agent-bridge.ts onMissionStarted/onMissionPhase/onMissionStep) — not a
+ * cosmetic checklist. `steps` are Execute's live substeps: the same
+ * PlanStep[] the Orchestrator is actually running, kept at full StepStatus
+ * granularity (analyzing/planning/implementing/testing/reviewing/...) so
+ * Validate/Repair/Review can be derived from them (see mission-derive.ts).
+ */
+export interface MissionState {
+  goal: string;
+  phases: MissionPhase[];
+  steps: PlanStep[];
+}
+
+/** One-time static project sniff (package.json/Gemfile) — see project-info.ts. */
+export interface ProjectInfo {
+  language?: string;
+  framework?: string;
+  testFramework?: string;
 }
 
 /**
@@ -254,6 +313,8 @@ export interface RailsIndexState {
 
 export interface RuntimeState {
   session: SessionState;
+  mission: MissionState;
+  project?: ProjectInfo;
   mode: RuntimeMode;
   agentMode: AgentMode;
   status: string;

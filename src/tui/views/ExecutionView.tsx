@@ -1,16 +1,8 @@
 import React from "react";
 import { Box, Text } from "ink";
-import { ExecutionStep } from "../../runtime/types.js";
 import { tail, truncate } from "../../layout/truncate.js";
+import { STEP_GLYPH } from "../../layout/step-glyphs.js";
 import { ViewProps } from "./ConversationView.js";
-
-const STEP_GLYPH: Record<ExecutionStep["status"], { glyph: string; color: string }> = {
-  pending: { glyph: "○", color: "gray" },
-  running: { glyph: "▶", color: "blue" },
-  completed: { glyph: "✓", color: "green" },
-  failed: { glyph: "✗", color: "red" },
-  skipped: { glyph: "↷", color: "yellow" },
-};
 
 /** Execution: goal, steps, active tool, queue, ETA, reasoning summary. */
 export function ExecutionView({ state, width, rows, detail }: ViewProps): React.JSX.Element {

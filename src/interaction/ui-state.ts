@@ -20,7 +20,7 @@ export interface UiState {
 }
 
 export function initialUiState(): UiState {
-  return { activeView: "conversation", overlay: null, zoom: false, sidebarVisible: true };
+  return { activeView: "dashboard", overlay: null, zoom: false, sidebarVisible: true };
 }
 
 function cycleView(current: ViewId, delta: number): ViewId {

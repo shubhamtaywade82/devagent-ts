@@ -496,7 +496,7 @@ describe("resize safety (regression)", () => {
     }
     // Every zone still present.
     expect(frame).toContain("DevAgent");
-    expect(frame).toContain("Conversation");
+    expect(frame).toContain("Dashboard"); // dashboard is the default view now
     expect(frame).toContain("Chat");
     expect(frame).toContain(">");
     unmount();

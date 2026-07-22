@@ -15,6 +15,9 @@ import {
   LspServerState,
   McpServerState,
   MemoryItem,
+  MissionPhase,
+  MissionPhaseId,
+  ProjectInfo,
   RuntimeMode,
   SkillState,
   Task,
@@ -22,6 +25,7 @@ import {
   ThemeName,
   ToolCallStatus,
 } from "./types.js";
+import { PlanStep } from "../orchestrator/types.js";
 
 export type RuntimeEvent =
   | { type: "conversation.message"; role: ChatRole; text: string }
@@ -69,6 +73,10 @@ export type RuntimeEvent =
   | { type: "execution.step"; step: ExecutionStep }
   | { type: "execution.queue"; queue: string[]; etaSeconds?: number }
   | { type: "execution.reasoning"; text: string }
+  | { type: "mission.started"; goal: string }
+  | { type: "mission.phase"; id: MissionPhaseId; status: MissionPhase["status"] }
+  | { type: "mission.step"; step: PlanStep }
+  | { type: "project.detected"; info: ProjectInfo }
   | { type: "mode.changed"; mode: RuntimeMode }
   | { type: "mode.agent"; mode: AgentMode }
   | { type: "status.changed"; status: string }

@@ -13,7 +13,7 @@ import { PlanStep, Planner } from "../orchestrator/types.js";
 import { generatePlan, replanSteps } from "../tui/plan-generator.js";
 import { SkillMeta } from "../skills/types.js";
 import { LspServerState } from "../lsp/protocol.js";
-import { ApprovalRequest, McpServerState } from "../runtime/types.js";
+import { ApprovalRequest, McpServerState, MissionPhase, MissionPhaseId } from "../runtime/types.js";
 import { MemoryStore } from "../memory/store.js";
 import { DocsStore } from "../docs/store.js";
 import { generateSummary } from "../memory/summarizer.js";
@@ -76,6 +76,11 @@ export interface AgentEvents {
   onPlanUpdate?: (goal: string, steps: PlanStep[], status: "running" | "completed" | "failed") => void;
   onApprovalRequested?: (request: ApprovalRequest) => void;
   onModelUsed?: (tier: string, model: string) => void;
+  /** Whole-mission phase system (see runtime/mission-derive.ts): a new mission
+   * begins, a phase's status changes, or a live plan step transitions. */
+  onMissionStarted?: (goal: string) => void;
+  onMissionPhase?: (id: MissionPhaseId, status: MissionPhase["status"]) => void;
+  onMissionStep?: (step: PlanStep) => void;
 }
 
 type AgentEventName = keyof AgentEvents;
@@ -672,6 +677,7 @@ export class Agent {
         await this.runUserMessage(`Roll back by running exactly this: ${command}`);
       },
       checkpoint: this.planCheckpoint,
+      onStepChange: (step) => this.emit("onMissionStep", step),
     });
     return orchestrator.run();
   }
@@ -693,6 +699,7 @@ export class Agent {
         await this.runUserMessage(`Roll back by running exactly this: ${command}`);
       },
       checkpoint: this.planCheckpoint,
+      onStepChange: (step) => this.emit("onMissionStep", step),
     });
     return orchestrator.run();
   }
@@ -730,18 +737,37 @@ export class Agent {
     const planner: Planner = { replan: (remaining, history) => replanSteps(remaining, history, this.provider) };
 
     if (!goal.trim() && this.hasResumablePlan()) {
+      // Understand/Inspect have no distinct signal of their own (both happen
+      // inside ordinary tool-call exploration before /plan is invoked) — mark
+      // them completed the instant Plan starts rather than fabricate a fake
+      // boundary between them. See runtime/types.ts's MissionState doc comment.
+      this.emit("onMissionStarted", "(resumed plan)");
+      this.emit("onMissionPhase", "understand", "completed");
+      this.emit("onMissionPhase", "inspect", "completed");
+      this.emit("onMissionPhase", "plan", "completed");
+      this.emit("onMissionPhase", "execute", "running");
       const resumed = await this.resumePlannedTask(planner);
       if (resumed) {
         const failed = resumed.some((s) => s.status === "failed");
+        this.emit("onMissionPhase", "execute", failed ? "failed" : "completed");
+        this.emit("onMissionPhase", "complete", failed ? "failed" : "completed");
         this.emit("onPlanUpdate", "(resumed plan)", resumed, failed ? "failed" : "completed");
         return resumed;
       }
     }
 
+    this.emit("onMissionStarted", goal);
+    this.emit("onMissionPhase", "understand", "completed");
+    this.emit("onMissionPhase", "inspect", "completed");
+    this.emit("onMissionPhase", "plan", "running");
     const steps = await generatePlan(goal, this.provider);
+    this.emit("onMissionPhase", "plan", "completed");
     this.emit("onPlanUpdate", goal, steps, "running");
+    this.emit("onMissionPhase", "execute", "running");
     const finalSteps = await this.runPlannedTask(steps, planner);
     const failed = finalSteps.some((s) => s.status === "failed");
+    this.emit("onMissionPhase", "execute", failed ? "failed" : "completed");
+    this.emit("onMissionPhase", "complete", failed ? "failed" : "completed");
     this.emit("onPlanUpdate", goal, finalSteps, failed ? "failed" : "completed");
     return finalSteps;
   }

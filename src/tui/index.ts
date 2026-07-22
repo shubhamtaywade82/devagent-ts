@@ -8,6 +8,7 @@ import { Agent } from "../cli/agent.js";
 import { loadConfig } from "../cli/config.js";
 import { EventBus } from "../runtime/events.js";
 import { initialRuntimeState, Store } from "../runtime/store.js";
+import { detectProjectInfo } from "../runtime/project-info.js";
 import { wireAgentBridge, BridgeableAgent } from "./agent-bridge.js";
 import { App } from "./App.js";
 import { validateAsl, generateAslGraph } from "../asl/commands.js";
@@ -78,6 +79,7 @@ const cfg = loadConfig();
     }),
   );
   store.attach(bus);
+  bus.publish({ type: "project.detected", info: detectProjectInfo(cfg.workspaceRoot) });
 
   const agent = new Agent({ config: cfg });
 

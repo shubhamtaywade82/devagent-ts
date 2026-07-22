@@ -210,6 +210,7 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register(viewCommand("context", "context", "Focus the Context Inspector view"));
   registry.register(viewCommand("rails", "rails", "Focus the Rails project view"));
   registry.register(viewCommand("timeline", "timeline", "Focus the Tool Timeline view"));
+  registry.register(viewCommand("dashboard", "dashboard", "Focus the Dashboard view"));
   registry.register({
     name: "mode",
     aliases: [],

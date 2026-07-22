@@ -1,9 +1,9 @@
 import { initialUiState, uiReduce } from "../../src/interaction/ui-state.js";
 
 describe("uiReduce", () => {
-  it("starts on the conversation view with no overlay", () => {
+  it("starts on the dashboard view with no overlay", () => {
     expect(initialUiState()).toEqual({
-      activeView: "conversation",
+      activeView: "dashboard",
       overlay: null,
       zoom: false,
       sidebarVisible: true,
@@ -11,12 +11,15 @@ describe("uiReduce", () => {
   });
 
   it("cycles views forward and backward with wrap-around", () => {
-    let s = initialUiState();
+    // Anchored to "conversation" via focus-view rather than relying on
+    // initialUiState()'s default, so this test doesn't need to change every
+    // time the default view does.
+    let s = uiReduce(initialUiState(), { type: "focus-view", view: "conversation" });
     s = uiReduce(s, { type: "next-view" });
     expect(s.activeView).toBe("execution");
     s = uiReduce(s, { type: "prev-view" });
     s = uiReduce(s, { type: "prev-view" });
-    expect(s.activeView).toBe("timeline");
+    expect(s.activeView).toBe("dashboard"); // wraps to the last view in VIEW_ORDER
     s = uiReduce(s, { type: "next-view" });
     expect(s.activeView).toBe("conversation");
   });

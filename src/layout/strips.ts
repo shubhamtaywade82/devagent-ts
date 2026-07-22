@@ -138,7 +138,10 @@ export function contextStripTokens(state: RuntimeState, activeView?: ViewId, now
       push(`Mode:${am.label}`, 1, "active");
       push(`Model:${state.model.name || "-"}`, 2, "active");
       if (state.session.workspace) push(`Workspace:${state.session.workspace}`, 3);
-      if (state.model.latencyMs > 0) push(`${state.model.latencyMs}ms`, 4);
+      if (state.model.contextLimit > 0) {
+        push(`Context: ${formatK(state.model.contextUsed)} / ${formatK(state.model.contextLimit)} tokens`, 4);
+      }
+      if (state.model.latencyMs > 0) push(`Latency: ${state.model.latencyMs}ms`, 4);
       if (state.session.startedAt > 0) push(`⏱ ${formatElapsed(now - state.session.startedAt)}`, 5);
       push("Ctrl+P Palette", 6, "muted");
       break;
@@ -225,6 +228,7 @@ const HEADER_PRIORITY = {
   rails: 12,
   skills: 13,
   clock: 14,
+  mission: 15,
 } as const;
 
 /** Header zone: product, workspace, model, branch, context usage, mode, state, clock. */
@@ -279,6 +283,9 @@ export function headerTokens(state: RuntimeState, now: number = Date.now()): Sta
   const activeSkills = state.skills.filter((s) => s.active).length;
   if (activeSkills > 0) {
     tokens.push({ text: `Skills:${activeSkills}`, priority: HEADER_PRIORITY.skills, color: semanticColor("active") });
+  }
+  if (state.mission.goal) {
+    tokens.push({ text: `Mission: ${state.mission.goal}`, priority: HEADER_PRIORITY.mission, color: semanticColor("active") });
   }
   const clock = new Date(now);
   const hh = String(clock.getHours()).padStart(2, "0");

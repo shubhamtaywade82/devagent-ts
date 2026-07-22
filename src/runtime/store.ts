@@ -8,6 +8,7 @@
 import { EventBus, RuntimeEvent } from "./events.js";
 import { applyTaskTransition } from "./task-machine.js";
 import { ACTOR_IDS, ActorId, ActorState, ChatEntry, RuntimeState, Task, ToolCall } from "./types.js";
+import { createMissionState, deriveMissionPhases, missionCrumb } from "./mission-derive.js";
 
 /** Bounded buffer sizes so long sessions can't grow state without limit. */
 // NOTE: Buffer limits are now configurable via `src/runtime/config.ts`. This file
@@ -52,6 +53,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
       branch: opts.branch ?? "",
       startedAt: Date.now(),
     },
+    mission: createMissionState(""),
     mode: "idle",
     agentMode: "code",
     status: "",
@@ -175,6 +177,10 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       );
     }
     case "conversation.tool_call": {
+      const existingIdx = state.conversation.findIndex(
+        (e) => e.kind === "tool_call" && e.id === event.id,
+      );
+      const existing = existingIdx >= 0 ? state.conversation[existingIdx] : undefined;
       const entry: ChatEntry = {
         kind: "tool_call",
         role: "assistant",
@@ -185,10 +191,10 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         result: event.result,
         error: event.error,
         at: Date.now(),
+        // Preserve the crumb captured when this call started — a later
+        // update shouldn't reattribute it to whatever phase is running now.
+        crumb: existing && existing.kind === "tool_call" ? existing.crumb : missionCrumb(state.mission),
       };
-      const existingIdx = state.conversation.findIndex(
-        (e) => e.kind === "tool_call" && e.id === event.id,
-      );
       const updatedConversation =
         existingIdx >= 0
           ? [...state.conversation.slice(0, existingIdx), entry, ...state.conversation.slice(existingIdx + 1)]
@@ -212,6 +218,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         diff: event.diff,
         status: event.status,
         at: Date.now(),
+        crumb: missionCrumb(state.mission),
       };
       return withActor(
         { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
@@ -229,6 +236,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         failures: event.failures,
         durationMs: event.durationMs,
         at: Date.now(),
+        crumb: missionCrumb(state.mission),
       };
       const actorHealth = event.failed > 0 ? "error" : "healthy";
       return withActor(
@@ -245,6 +253,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         status: event.status,
         items: event.items,
         at: Date.now(),
+        crumb: missionCrumb(state.mission),
       };
       return withActor(
         { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
@@ -467,6 +476,28 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       };
     case "execution.reasoning":
       return { ...state, execution: { ...state.execution, reasoning: sanitizeText(event.text) } };
+    case "mission.started":
+      return { ...state, mission: createMissionState(event.goal) };
+    case "mission.phase": {
+      const now = Date.now();
+      const phases = state.mission.phases.map((p) => {
+        if (p.id !== event.id) return p;
+        const startedAt = p.startedAt ?? (event.status === "running" ? now : p.startedAt);
+        const endedAt = event.status === "completed" || event.status === "failed" ? now : p.endedAt;
+        return { ...p, status: event.status, startedAt, endedAt };
+      });
+      return { ...state, mission: { ...state.mission, phases } };
+    }
+    case "mission.step": {
+      const known = state.mission.steps.some((s) => s.id === event.step.id);
+      const steps = known
+        ? state.mission.steps.map((s) => (s.id === event.step.id ? event.step : s))
+        : [...state.mission.steps, event.step];
+      const phases = deriveMissionPhases(state.mission.phases, steps);
+      return { ...state, mission: { ...state.mission, steps, phases } };
+    }
+    case "project.detected":
+      return { ...state, project: event.info };
     case "mode.changed":
       return { ...state, mode: event.mode };
     case "mode.agent":

@@ -1,8 +1,8 @@
 import React from "react";
-import { render } from "ink-testing-library";
 import { App } from "../../src/tui/App.js";
 import { EventBus } from "../../src/runtime/events.js";
 import { initialRuntimeState, Store } from "../../src/runtime/store.js";
+import { renderWide } from "./wide-render.js";
 
 const NOW = new Date(2026, 0, 1, 10, 42, 11).getTime();
 
@@ -46,6 +46,11 @@ function seededWorld() {
 }
 
 describe("layout snapshots", () => {
+  // ink-testing-library's own render() hardcodes its mock stdout.columns to
+  // 100 (see tests/tui/wide-render.ts), silently corrupting any render wider
+  // than that — Dashboard is now the default view and needs >=130 cols to
+  // show its real 3-column layout, so every size here goes through
+  // renderWide for a frame that faithfully represents a real terminal.
   const sizes: [number, number][] = [
     [80, 24],
     [100, 30],
@@ -63,7 +68,31 @@ describe("layout snapshots", () => {
 
   it.each(sizes)("same structure, density-only changes at %dx%d", (columns, rows) => {
     const { bus, store } = seededWorld();
-    const { lastFrame, unmount } = render(<App bus={bus} store={store} columns={columns} rows={rows} now={NOW} />);
+    const { lastFrame, unmount } = renderWide(<App bus={bus} store={store} columns={columns} rows={rows} now={NOW} />, columns);
+    expect(lastFrame()).toMatchSnapshot();
+    unmount();
+  });
+
+  it("dashboard view at 140x40", () => {
+    const { bus, store } = seededWorld();
+    bus.publish({ type: "mission.started", goal: "add authentication" });
+    bus.publish({ type: "mission.phase", id: "understand", status: "completed" });
+    bus.publish({ type: "mission.phase", id: "inspect", status: "completed" });
+    bus.publish({ type: "mission.phase", id: "plan", status: "completed" });
+    bus.publish({ type: "mission.phase", id: "execute", status: "running" });
+    bus.publish({
+      type: "mission.step",
+      step: { id: "s1", description: "Create User model", status: "completed", dependencies: [], retryCount: 0 },
+    });
+    bus.publish({
+      type: "mission.step",
+      step: { id: "s2", description: "Add Devise gem", status: "implementing", dependencies: [], retryCount: 0 },
+    });
+    bus.publish({ type: "conversation.diff", filePath: "Gemfile", diff: "+gem 'devise'", status: "pending_review" });
+    bus.publish({ type: "project.detected", info: { language: "TypeScript", framework: "React", testFramework: "Jest" } });
+
+    // Dashboard is the default view now — no navigation needed.
+    const { lastFrame, unmount } = renderWide(<App bus={bus} store={store} columns={140} rows={40} now={NOW} />, 140);
     expect(lastFrame()).toMatchSnapshot();
     unmount();
   });

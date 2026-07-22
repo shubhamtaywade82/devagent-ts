@@ -15,7 +15,9 @@ export interface CompletionSurfaceProps {
 /**
  * Vertically-stacked completion list rendered directly above PromptBar.
  * Reuses the picker's `visibleWindow` for scroll positioning and caps
- * visible rows at MAX_COMPLETION_ROWS to prevent layout instability.
+ * visible rows at MAX_COMPLETION_ROWS to prevent layout instability. Always
+ * ends in a one-line keybinding hint row — callers budgeting fixed rows for
+ * this component must add 1 for it (see App.tsx's completionChrome).
  *
  * Returns null when there are no items — the parent's conditional render
  * should already guard this, but the component is defensive.
@@ -46,6 +48,11 @@ export function CompletionSurface({
           </Text>
         </Box>
       )}
+      <Box height={1}>
+        <Text color="gray" dimColor>
+          ↑↓ navigate  → select  tab complete  esc close  ctrl+c cancel
+        </Text>
+      </Box>
     </Box>
   );
 }

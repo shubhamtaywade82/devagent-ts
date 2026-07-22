@@ -1,8 +1,79 @@
 // Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
 
+exports[`layout snapshots dashboard view at 140x40 1`] = `
+"DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ Mission: add authentication │ 10:42
+─ 15 Dashboard ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭────────────────────────────╮ ╭────────────────────────────────────────────────────────────────────────────╮ ╭────────────────────────────╮
+│MISSION                     │ │ACTIVITY FEED                                                               │ │CONTEXT                     │
+│add authentication          │ │10:42:11 Execute > Add Devise gem                                    Pending│ │📁 Workspace                │
+│ ✓ Understand               │ │  Gemfile  +1 -0                                                            │ │  ollama-agent              │
+│ ✓ Inspect                  │ │                                                                            │ │⎇ Branch                    │
+│ ✓ Plan                     │ │                                                                            │ │  main                      │
+│ ▶ Execute            0m 00s│ │                                                                            │ │◆ Language                  │
+│ ○ Validate                 │ │                                                                            │ │  TypeScript                │
+│ ○ Repair                   │ │                                                                            │ │⚙ Framework                 │
+│ ○ Review                   │ │                                                                            │ │  React                     │
+│ ○ Complete                 │ │                                                                            │ │✓ Test Framework            │
+│   ── ✓ Create User model   │ │                                                                            │ │  Jest                      │
+│   ── ▶ Add Devise gem      │ │                                                                            │ ╰────────────────────────────╯
+│                            │ │                                                                            │
+│                            │ │                                                                            │ ╭────────────────────────────╮
+│                            │ │                                                                            │ │FILES (2 CHANGED)           │
+│                            │ │                                                                            │ │M src/tools/fs.ts           │
+│                            │ │                                                                            │ │A src/tools/index.ts        │
+│                            │ │                                                                            │ │                            │
+│                            │ │                                                                            │ │                            │
+│                            │ │                                                                            │ │                            │
+│                            │ ╰────────────────────────────────────────────────────────────────────────────╯ │                            │
+╰────────────────────────────╯                                                                                │                            │
+                               ╭────────────────────────────────────────────────────────────────────────────╮ │                            │
+╭────────────────────────────╮ │DIFF PREVIEW                                                                │ │                            │
+│TOOLS                       │ │Gemfile                                                               +1 -0 │ ╰────────────────────────────╯
+│▶ edit_file              (1)│ │+gem 'devise'                                                               │
+│View all tools... (/tools)  │ │                                                                         1/1│ ╭────────────────────────────╮
+│                            │ │                                                                            │ │DIAGNOSTICS                 │
+│                            │ │                                                                            │ │Errors                     0│
+│                            │ │                                                                            │ │Warnings                   —│
+│                            │ │                                                                            │ │Infos                      —│
+╰────────────────────────────╯ ╰────────────────────────────────────────────────────────────────────────────╯ ╰────────────────────────────╯
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+Chat· │ Plan· │ Exec✓ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
+───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+>
+Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ Context: 48k / 71k tokens │ ⏱ 0m │ Ctrl+P Palette"
+`;
+
 exports[`layout snapshots same structure, density-only changes at 80x24 1`] = `
 "DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m
-─ 1 Conversation ──────────────────────────────────────────────────────────────
+─ 15 Dashboard ────────────────────────────────────────────────────────────────
+Resize to ≥130 cols for the full dashboard.
+> create filesystem tool
+
+• Analyzing project structure and existing patterns...
+    • Reading package.json
+    • Found TypeScript project
+  ↳ local/qwen3:30b
+
+
+
+
+
+
+
+
+
+
+───────────────────────────────────────────────────────────────────────────────
+Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP·
+───────────────────────────────────────────────────────────────────────────────
+>
+Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ Context: 48k / 71k tokens"
+`;
+
+exports[`layout snapshots same structure, density-only changes at 100x30 1`] = `
+"DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
+─ 15 Dashboard ────────────────────────────────────────────────────────────────────────────────────
+Resize to ≥130 cols for the full dashboard.
 > create filesystem tool
 
 • Analyzing project structure and existing patterns...
@@ -20,186 +91,158 @@ exports[`layout snapshots same structure, density-only changes at 80x24 1`] = `
 
 
 
-───────────────────────────────────────────────────────────────────────────────
-Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP·
-───────────────────────────────────────────────────────────────────────────────
->
-Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P Palette"
-`;
 
-exports[`layout snapshots same structure, density-only changes at 100x30 1`] = `
-"DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
-─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────
-> create filesystem tool                                                   │ Sessions
-                                                                           │ (none yet)
-• Analyzing project structure and existing patterns...                     │
-    • Reading package.json                                                 │ Tools
-    • Found TypeScript project                                             │ (none registered)
-  ↳ local/qwen3:30b                                                        │
-                                                                           │ Skills
-                                                                           │ (none active)
-                                                                           │
-                                                                           │ Ctrl+H / Ctrl+O /
-                                                                           │ /skills
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
-                                                                           │
+
+
+
+
 ───────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
 ───────────────────────────────────────────────────────────────────────────────────────────────────
 >
-Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P Palette"
+Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ Context: 48k / 71k tokens │ ⏱ 0m"
 `;
 
 exports[`layout snapshots same structure, density-only changes at 120x30 1`] = `
 "DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
-─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────
-> create filesystem tool                                                                       │ Sessions
-                                                                                               │ (none yet)
-• Analyzing project structure and existing patterns...                                         │
-    • Reading package.json                                                                     │ Tools
-    • Found TypeScript project                                                                 │ (none registered)
-  ↳ local/qwen3:30b                                                                            │
-                                                                                               │ Skills
-                                                                                               │ (none active)
-                                                                                               │
-                                                                                               │ Ctrl+H / Ctrl+O /
-                                                                                               │ /skills
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
-                                                                                               │
+─ 15 Dashboard ────────────────────────────────────────────────────────────────────────────────────────────────────────
+Resize to ≥130 cols for the full dashboard.
+> create filesystem tool
+
+• Analyzing project structure and existing patterns...
+    • Reading package.json
+    • Found TypeScript project
+  ↳ local/qwen3:30b
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 >
-Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P Palette"
+Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ Context: 48k / 71k tokens │ ⏱ 0m │ Ctrl+P Palette"
 `;
 
 exports[`layout snapshots same structure, density-only changes at 160x45 1`] = `
 "DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
-─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-> create filesystem tool                                                                            │Sessions
-                                                                                                    │(none yet)
-• Analyzing project structure and existing patterns...                                              │
-    • Reading package.json                                                                          │Tools
-    • Found TypeScript project                                                                      │(none registered)
-  ↳ local/qwen3:30b                                                                                 │
-                                                                                                    │Skills
-                                                                                                    │(none active)
-                                                                                                    │
-                                                                                                    │Ctrl+H / Ctrl+O /
-                                                                                                    │/skills
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
+─ 15 Dashboard ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭────────────────────────────╮ ╭────────────────────────────────────────────────────────────────────────────────────────────────╮ ╭────────────────────────────╮
+│MISSION                     │ │ACTIVITY FEED                                                                                   │ │CONTEXT                     │
+│(no active mission)         │ │No activity yet.                                                                                │ │📁 Workspace                │
+│ ○ Understand               │ │                                                                                                │ │  ollama-agent              │
+│ ○ Inspect                  │ │                                                                                                │ │⎇ Branch                    │
+│ ○ Plan                     │ │                                                                                                │ │  main                      │
+│ ○ Execute                  │ │                                                                                                │ │🕐 Last Updated             │
+│ ○ Validate                 │ │                                                                                                │ │  10:42:11 AM               │
+│ ○ Repair                   │ │                                                                                                │ │                            │
+│ ○ Review                   │ │                                                                                                │ │                            │
+│ ○ Complete                 │ │                                                                                                │ │                            │
+│                            │ │                                                                                                │ │                            │
+│                            │ │                                                                                                │ ╰────────────────────────────╯
+│                            │ │                                                                                                │
+│                            │ │                                                                                                │ ╭────────────────────────────╮
+│                            │ │                                                                                                │ │FILES (2 CHANGED)           │
+│                            │ │                                                                                                │ │M src/tools/fs.ts           │
+│                            │ │                                                                                                │ │A src/tools/index.ts        │
+│                            │ │                                                                                                │ │                            │
+│                            │ │                                                                                                │ │                            │
+│                            │ │                                                                                                │ │                            │
+│                            │ │                                                                                                │ │                            │
+│                            │ │                                                                                                │ │                            │
+│                            │ │                                                                                                │ │                            │
+│                            │ ╰────────────────────────────────────────────────────────────────────────────────────────────────╯ │                            │
+╰────────────────────────────╯                                                                                                    │                            │
+                               ╭────────────────────────────────────────────────────────────────────────────────────────────────╮ │                            │
+╭────────────────────────────╮ │DIFF PREVIEW                                                                                    │ │                            │
+│TOOLS                       │ │(no changes yet)                                                                                │ │                            │
+│▶ edit_file              (1)│ │                                                                                                │ │                            │
+│View all tools... (/tools)  │ │                                                                                                │ ╰────────────────────────────╯
+│                            │ │                                                                                                │
+│                            │ │                                                                                                │ ╭────────────────────────────╮
+│                            │ │                                                                                                │ │DIAGNOSTICS                 │
+│                            │ │                                                                                                │ │Errors                     0│
+│                            │ │                                                                                                │ │Warnings                   —│
+│                            │ │                                                                                                │ │Infos                      —│
+╰────────────────────────────╯ ╰────────────────────────────────────────────────────────────────────────────────────────────────╯ ╰────────────────────────────╯
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 >
-Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P Palette"
+Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ Context: 48k / 71k tokens │ ⏱ 0m │ Ctrl+P Palette"
 `;
 
 exports[`layout snapshots same structure, density-only changes at 220x60 1`] = `
 "DevAgent │ qwen3:30b │ Code │ IDLE │ ollama-agent │ ⎇ main │ ctx68% │ Git:2m │ 10:42
-─ 1 Conversation ──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-> create filesystem tool                                                                            │Sessions
-                                                                                                    │(none yet)
-• Analyzing project structure and existing patterns...                                              │
-    • Reading package.json                                                                          │Tools
-    • Found TypeScript project                                                                      │(none registered)
-  ↳ local/qwen3:30b                                                                                 │
-                                                                                                    │Skills
-                                                                                                    │(none active)
-                                                                                                    │
-                                                                                                    │Ctrl+H / Ctrl+O /
-                                                                                                    │/skills
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
-                                                                                                    │
+─ 15 Dashboard ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+╭────────────────────────────╮ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ ╭────────────────────────────╮
+│MISSION                     │ │ACTIVITY FEED                                                                                                                                               │ │CONTEXT                     │
+│(no active mission)         │ │No activity yet.                                                                                                                                            │ │📁 Workspace                │
+│ ○ Understand               │ │                                                                                                                                                            │ │  ollama-agent              │
+│ ○ Inspect                  │ │                                                                                                                                                            │ │⎇ Branch                    │
+│ ○ Plan                     │ │                                                                                                                                                            │ │  main                      │
+│ ○ Execute                  │ │                                                                                                                                                            │ │🕐 Last Updated             │
+│ ○ Validate                 │ │                                                                                                                                                            │ │  10:42:11 AM               │
+│ ○ Repair                   │ │                                                                                                                                                            │ │                            │
+│ ○ Review                   │ │                                                                                                                                                            │ │                            │
+│ ○ Complete                 │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ ╰────────────────────────────╯
+│                            │ │                                                                                                                                                            │
+│                            │ │                                                                                                                                                            │ ╭────────────────────────────╮
+│                            │ │                                                                                                                                                            │ │FILES (2 CHANGED)           │
+│                            │ │                                                                                                                                                            │ │M src/tools/fs.ts           │
+│                            │ │                                                                                                                                                            │ │A src/tools/index.ts        │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ │                            │
+│                            │ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ │                            │
+│                            │                                                                                                                                                                │                            │
+│                            │ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ │                            │
+│                            │ │DIFF PREVIEW                                                                                                                                                │ │                            │
+╰────────────────────────────╯ │(no changes yet)                                                                                                                                            │ │                            │
+                               │                                                                                                                                                            │ │                            │
+╭────────────────────────────╮ │                                                                                                                                                            │ │                            │
+│TOOLS                       │ │                                                                                                                                                            │ │                            │
+│▶ edit_file              (1)│ │                                                                                                                                                            │ │                            │
+│View all tools... (/tools)  │ │                                                                                                                                                            │ │                            │
+│                            │ │                                                                                                                                                            │ ╰────────────────────────────╯
+│                            │ │                                                                                                                                                            │
+│                            │ │                                                                                                                                                            │ ╭────────────────────────────╮
+│                            │ │                                                                                                                                                            │ │DIAGNOSTICS                 │
+│                            │ │                                                                                                                                                            │ │Errors                     0│
+│                            │ │                                                                                                                                                            │ │Warnings                   —│
+│                            │ │                                                                                                                                                            │ │Infos                      —│
+╰────────────────────────────╯ ╰────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯ ╰────────────────────────────╯
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Chat· │ Plan· │ Exec▶ │ Tasks2 │ Git2 │ Logs· │ Mem· │ Mdl· │ MCP· │ Skl· │ LSP· │ Tok48k/71k
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 >
-Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ ⏱ 0m │ Ctrl+P Palette"
+Mode:Code │ Model:qwen3:30b │ Workspace:ollama-agent │ Context: 48k / 71k tokens │ ⏱ 0m │ Ctrl+P Palette"
 `;

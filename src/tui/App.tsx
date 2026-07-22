@@ -18,6 +18,7 @@ import { ContextStrip } from "./zones/ContextStrip.js";
 import { PromptBar, promptBarRows } from "./zones/PromptBar.js";
 import { CompletionSurface } from "./input/CompletionSurface.js";
 import { ConversationView, ViewProps } from "./views/ConversationView.js";
+import { DashboardView } from "./views/DashboardView.js";
 import { ExecutionView } from "./views/ExecutionView.js";
 import { TasksView } from "./views/TasksView.js";
 import { GitView } from "./views/GitView.js";
@@ -80,6 +81,7 @@ export interface AppProps {
 
 const VIEWS: Record<ViewId, (props: ViewProps) => React.JSX.Element> = {
   conversation: ConversationView,
+  dashboard: DashboardView,
   execution: ExecutionView,
   tasks: TasksView,
   git: GitView,
@@ -97,6 +99,7 @@ const VIEWS: Record<ViewId, (props: ViewProps) => React.JSX.Element> = {
 
 const VIEW_LABELS: Record<ViewId, string> = {
   conversation: "Conversation",
+  dashboard: "Dashboard",
   execution: "Execution",
   tasks: "Tasks",
   git: "Git",
@@ -346,8 +349,10 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const density = densityForWidth(width);
   const detail = ui.zoom ? "full" : detailForDensity(density);
   const completionRowCount = activeCompletion ? Math.min(completionItems.length, MAX_COMPLETION_ROWS) : 0;
-  // When completions are visible they add extra rows; include a counter row when scrolling is needed.
-  const completionChrome = completionRowCount + (completionItems.length > MAX_COMPLETION_ROWS ? 1 : 0);
+  // When completions are visible they add extra rows: a counter row when
+  // scrolling is needed, plus CompletionSurface's own trailing hint row.
+  const completionChrome =
+    completionRowCount + (completionItems.length > MAX_COMPLETION_ROWS ? 1 : 0) + (activeCompletion ? 1 : 0);
   const totalPromptRows = promptBarRows(prompt) + completionChrome;
   const viewRows = activeViewRows(height, totalPromptRows);
   const contentRows = Math.max(2, viewRows - 1);
@@ -793,7 +798,11 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const SIDEBAR_WIDTH = 24;
   const MIN_WIDTH_FOR_SIDEBAR = 90;
   const showSidebar =
-    ui.sidebarVisible && !showApproval && ui.overlay === null && width >= MIN_WIDTH_FOR_SIDEBAR;
+    ui.sidebarVisible &&
+    !showApproval &&
+    ui.overlay === null &&
+    width >= MIN_WIDTH_FOR_SIDEBAR &&
+    ui.activeView !== "dashboard";
   const activeViewWidth = showSidebar ? width - SIDEBAR_WIDTH - 1 : width;
   const toolCategoryCounts: ToolCategoryCount[] = showSidebar
     ? (() => {
