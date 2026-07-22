@@ -1,8 +1,7 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box } from "ink";
 import { RuntimeState, ViewId } from "../../runtime/types.js";
 import { contextStripTokens } from "../../layout/strips.js";
-import { CompletionItem } from "../../interaction/completion.js";
 import { TokenLine } from "./TokenLine.js";
 
 export interface ContextStripProps {
@@ -10,34 +9,8 @@ export interface ContextStripProps {
   width: number;
   activeView: ViewId;
   now?: number;
-  /** When the prompt is completing a slash command, hints replace the strip. */
-  completionItems?: CompletionItem[];
-  completionIndex?: number;
 }
 
-export function ContextStrip({
-  state,
-  width,
-  activeView,
-  now,
-  completionItems,
-  completionIndex,
-}: ContextStripProps): React.JSX.Element {
-  if (completionItems && completionItems.length > 0) {
-    return (
-      <Box height={1}>
-        <Text wrap="truncate">
-          {completionItems.map((item, i) => (
-            <React.Fragment key={item.label}>
-              {i > 0 && <Text color="gray">{"  "}</Text>}
-              <Text color={i === completionIndex ? "blue" : "gray"} inverse={i === completionIndex}>
-                {item.label}
-              </Text>
-            </React.Fragment>
-          ))}
-        </Text>
-      </Box>
-    );
-  }
+export function ContextStrip({ state, width, activeView, now }: ContextStripProps): React.JSX.Element {
   return <TokenLine tokens={contextStripTokens(state, activeView, now)} width={width} />;
 }

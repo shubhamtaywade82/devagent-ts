@@ -34,6 +34,10 @@ export interface CompletionItem {
   label: string;
   detail: string;
   insert: string;
+  /** Completion kind for icon/grouping in future versions. */
+  kind?: "command" | "argument" | "template";
+  /** Optional category/group label shown in the right column. */
+  group?: string;
 }
 
 /**
@@ -55,6 +59,8 @@ export function completions(
       label: `/${c.name}`,
       detail: c.description,
       insert: `/${c.name} `,
+      kind: "command" as const,
+      group: c.category,
     }));
   }
 
@@ -68,5 +74,5 @@ export function completions(
   const argPrefix = argText.toLowerCase();
   return command.argValues
     .filter((v) => v.startsWith(argPrefix))
-    .map((v) => ({ label: v, detail: command.description, insert: `/${name} ${v}` }));
+    .map((v) => ({ label: v, detail: command.description, insert: `/${name} ${v}`, kind: "argument" as const }));
 }
