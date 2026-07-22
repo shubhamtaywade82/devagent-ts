@@ -1,6 +1,6 @@
 import "dotenv/config";
 import path from "node:path";
-import { execSync } from "node:child_process";
+import { execSync, spawn } from "node:child_process";
 import { appendFileSync, mkdirSync } from "node:fs";
 import React from "react";
 import { render } from "ink";
@@ -32,6 +32,19 @@ function currentBranch(workspaceRoot: string): string {
   } catch {
     return "";
   }
+}
+
+// One-time, non-blocking check — whether run_shell's Docker sandbox (see
+// tools/shell.ts's own lazy ensureDockerAvailable) is actually reachable, so
+// the footer's Sandbox indicator reflects reality instead of assuming it's
+// always up. Async so a slow/missing `docker` binary can't delay first paint
+// the way a blocking execSync would.
+function checkDockerAvailable(): Promise<boolean> {
+  return new Promise((resolve) => {
+    const probe = spawn("docker", ["info"], { stdio: "ignore" });
+    probe.on("close", (code) => resolve(code === 0));
+    probe.on("error", () => resolve(false));
+  });
 }
 
 // Debug-only: dump every raw stdin chunk (as JSON-escaped text) to
@@ -80,6 +93,7 @@ const cfg = loadConfig();
   );
   store.attach(bus);
   bus.publish({ type: "project.detected", info: detectProjectInfo(cfg.workspaceRoot) });
+  checkDockerAvailable().then((available) => bus.publish({ type: "sandbox.detected", available }));
 
   const agent = new Agent({ config: cfg });
 

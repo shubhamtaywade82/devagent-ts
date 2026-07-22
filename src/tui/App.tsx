@@ -618,7 +618,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         return;
       }
 
-      uiDispatch({ type: "focus-view", view: "conversation" });
+      // Dashboard is a live cockpit in its own right (Activity Feed shows the
+      // reply) — don't yank the user off it. Every other view still switches
+      // to Conversation so the reply is visible where it always used to be.
+      if (ui.activeView !== "dashboard") {
+        uiDispatch({ type: "focus-view", view: "conversation" });
+      }
       bus.publish({ type: "conversation.message", role: "user", text: trimmed });
       if (!agent) return;
       setBusy(true);
@@ -634,7 +639,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           bus.publish({ type: "mode.changed", mode: "idle" });
         });
     },
-    [agent, applyEffect, bus, commandRegistry, history, uiDispatch],
+    [agent, applyEffect, bus, commandRegistry, history, ui.activeView, uiDispatch],
   );
 
   const handleCommand = useCallback(

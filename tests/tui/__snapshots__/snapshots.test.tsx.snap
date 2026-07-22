@@ -8,11 +8,11 @@ exports[`layout snapshots dashboard view at 140x40 1`] = `
 │add authentication          │ │10:42:11 Execute > Add Devise gem                                    Pending│ │📁 Workspace                │
 │ ✓ Understand               │ │  Gemfile  +1 -0                                                            │ │  ollama-agent              │
 │ ✓ Inspect                  │ │                                                                            │ │⎇ Branch                    │
-│ ✓ Plan                     │ │                                                                            │ │  main                      │
-│ ▶ Execute            0m 00s│ │                                                                            │ │◆ Language                  │
+│ ✓ Plan                     │ │10:42:11 Assistant                                                     Reply│ │  main                      │
+│ ▶ Execute            0m 00s│ │  Analyzing project structure and existing patterns... - Reading package.js…│ │◆ Language                  │
 │ ○ Validate                 │ │                                                                            │ │  TypeScript                │
-│ ○ Repair                   │ │                                                                            │ │⚙ Framework                 │
-│ ○ Review                   │ │                                                                            │ │  React                     │
+│ ○ Repair                   │ │10:42:11 You                                                             You│ │⚙ Framework                 │
+│ ○ Review                   │ │  create filesystem tool                                                    │ │  React                     │
 │ ○ Complete                 │ │                                                                            │ │✓ Test Framework            │
 │   ── ✓ Create User model   │ │                                                                            │ │  Jest                      │
 │   ── ▶ Add Devise gem      │ │                                                                            │ ╰────────────────────────────╯
@@ -141,11 +141,11 @@ exports[`layout snapshots same structure, density-only changes at 160x45 1`] = `
 ─ 15 Dashboard ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭────────────────────────────╮ ╭────────────────────────────────────────────────────────────────────────────────────────────────╮ ╭────────────────────────────╮
 │MISSION                     │ │ACTIVITY FEED                                                                                   │ │CONTEXT                     │
-│(no active mission)         │ │No activity yet.                                                                                │ │📁 Workspace                │
-│ ○ Understand               │ │                                                                                                │ │  ollama-agent              │
+│(no active mission)         │ │10:42:11 Assistant                                                                         Reply│ │📁 Workspace                │
+│ ○ Understand               │ │  Analyzing project structure and existing patterns... - Reading package.json - Found TypeScrip…│ │  ollama-agent              │
 │ ○ Inspect                  │ │                                                                                                │ │⎇ Branch                    │
-│ ○ Plan                     │ │                                                                                                │ │  main                      │
-│ ○ Execute                  │ │                                                                                                │ │🕐 Last Updated             │
+│ ○ Plan                     │ │10:42:11 You                                                                                 You│ │  main                      │
+│ ○ Execute                  │ │  create filesystem tool                                                                        │ │🕐 Last Updated             │
 │ ○ Validate                 │ │                                                                                                │ │  10:42:11 AM               │
 │ ○ Repair                   │ │                                                                                                │ │                            │
 │ ○ Review                   │ │                                                                                                │ │                            │
@@ -189,11 +189,11 @@ exports[`layout snapshots same structure, density-only changes at 220x60 1`] = `
 ─ 15 Dashboard ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 ╭────────────────────────────╮ ╭────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╮ ╭────────────────────────────╮
 │MISSION                     │ │ACTIVITY FEED                                                                                                                                               │ │CONTEXT                     │
-│(no active mission)         │ │No activity yet.                                                                                                                                            │ │📁 Workspace                │
-│ ○ Understand               │ │                                                                                                                                                            │ │  ollama-agent              │
+│(no active mission)         │ │10:42:11 Assistant                                                                                                                                     Reply│ │📁 Workspace                │
+│ ○ Understand               │ │  Analyzing project structure and existing patterns... - Reading package.json - Found TypeScript project                                                    │ │  ollama-agent              │
 │ ○ Inspect                  │ │                                                                                                                                                            │ │⎇ Branch                    │
-│ ○ Plan                     │ │                                                                                                                                                            │ │  main                      │
-│ ○ Execute                  │ │                                                                                                                                                            │ │🕐 Last Updated             │
+│ ○ Plan                     │ │10:42:11 You                                                                                                                                             You│ │  main                      │
+│ ○ Execute                  │ │  create filesystem tool                                                                                                                                    │ │🕐 Last Updated             │
 │ ○ Validate                 │ │                                                                                                                                                            │ │  10:42:11 AM               │
 │ ○ Repair                   │ │                                                                                                                                                            │ │                            │
 │ ○ Review                   │ │                                                                                                                                                            │ │                            │

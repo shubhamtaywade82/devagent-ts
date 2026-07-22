@@ -315,6 +315,9 @@ export interface RuntimeState {
   session: SessionState;
   mission: MissionState;
   project?: ProjectInfo;
+  /** Whether run_shell's Docker sandbox is actually reachable — checked once
+   * at bootstrap (see tui/index.ts), undefined until that check resolves. */
+  sandboxAvailable?: boolean;
   mode: RuntimeMode;
   agentMode: AgentMode;
   status: string;

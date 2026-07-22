@@ -3,7 +3,8 @@ import { Box, Text, useInput } from "ink";
 import { ChatEntry, RuntimeState } from "../../runtime/types.js";
 import { DetailLevel } from "../../layout/density.js";
 import { truncate } from "../../layout/truncate.js";
-import { renderSimpleMarkdown, Span } from "../markdown.js";
+import { renderSimpleMarkdown } from "../markdown.js";
+import { SpanText } from "../components/SpanText.js";
 
 export interface ViewProps {
   state: RuntimeState;
@@ -12,33 +13,10 @@ export interface ViewProps {
   detail: DetailLevel;
 }
 
-function formatArgs(args: Record<string, unknown>): string {
+export function formatArgs(args: Record<string, unknown>): string {
   return Object.values(args)
     .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
     .join(", ");
-}
-
-function SpanText({ spans }: { spans: Span[] }): React.JSX.Element {
-  return (
-    <Text wrap="truncate">
-      {spans.map((s, j) => {
-        if (s.ansi) return <Text key={j}>{s.text}</Text>;
-        if (s.code) return <Text key={j} color="yellow">{` ${s.text} `}</Text>;
-        return (
-          <Text
-            key={j}
-            bold={s.bold}
-            italic={s.italic}
-            strikethrough={s.strikethrough}
-            color={s.color as any}
-            dimColor={s.dimColor}
-          >
-            {s.text}
-          </Text>
-        );
-      })}
-    </Text>
-  );
 }
 
 function TurnSeparator({ width }: { width: number }): React.JSX.Element {

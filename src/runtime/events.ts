@@ -77,6 +77,7 @@ export type RuntimeEvent =
   | { type: "mission.phase"; id: MissionPhaseId; status: MissionPhase["status"] }
   | { type: "mission.step"; step: PlanStep }
   | { type: "project.detected"; info: ProjectInfo }
+  | { type: "sandbox.detected"; available: boolean }
   | { type: "mode.changed"; mode: RuntimeMode }
   | { type: "mode.agent"; mode: AgentMode }
   | { type: "status.changed"; status: string }

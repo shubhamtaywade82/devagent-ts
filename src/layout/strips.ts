@@ -70,22 +70,23 @@ export function activityStripTokens(state: RuntimeState): StatusToken[] {
       color: semanticColor("muted"),
     });
   }
-  // Only rendered when the user has configured a real rate (config.pricing /
-  // DEVAGENT_PRICE_*_PER_M) — Ollama has no published per-token price, so
-  // there is no default rate to compute this from.
-  if (state.pricing) {
-    const cost =
-      (state.usage.totalPromptTokens / 1_000_000) * state.pricing.inputPerMillion +
-      (state.usage.totalCompletionTokens / 1_000_000) * state.pricing.outputPerMillion;
-    if (cost > 0) {
-      tokens.push({
-        text: `$${cost.toFixed(3)}`,
-        priority: 14,
-        color: semanticColor("muted"),
-      });
-    }
+  const cost = computeCost(state);
+  if (cost != null) {
+    tokens.push({ text: `$${cost.toFixed(3)}`, priority: 14, color: semanticColor("muted") });
   }
   return tokens;
+}
+
+/** Only computed when the user has configured a real rate (config.pricing /
+ * DEVAGENT_PRICE_*_PER_M) — Ollama has no published per-token price, so
+ * there is no default rate to compute this from. Returns null (not 0) when
+ * there's nothing to bill, so callers never show a fabricated "$0.000". */
+function computeCost(state: RuntimeState): number | null {
+  if (!state.pricing) return null;
+  const cost =
+    (state.usage.totalPromptTokens / 1_000_000) * state.pricing.inputPerMillion +
+    (state.usage.totalCompletionTokens / 1_000_000) * state.pricing.outputPerMillion;
+  return cost > 0 ? cost : null;
 }
 
 function formatK(n: number): string {
@@ -134,16 +135,22 @@ export function contextStripTokens(state: RuntimeState, activeView?: ViewId, now
 
   switch (state.mode) {
     case "idle": {
-      const am = AGENT_MODE_LABELS[state.agentMode];
-      push(`Mode:${am.label}`, 1, "active");
-      push(`Model:${state.model.name || "-"}`, 2, "active");
-      if (state.session.workspace) push(`Workspace:${state.session.workspace}`, 3);
+      // Mode/Model now live in the top Header — this row is the footer
+      // status line: connection/sandbox/git, then usage figures.
+      push("● Connected", 1, "healthy");
+      if (state.sandboxAvailable != null) {
+        push(state.sandboxAvailable ? "⊞ Sandbox ✓" : "⊞ Sandbox ✗", 2, state.sandboxAvailable ? "healthy" : "error");
+      }
+      const branch = state.git.branch || state.session.branch;
+      if (branch) push(`🔀 Git ${branch}`, 3, "active");
       if (state.model.contextLimit > 0) {
         push(`Context: ${formatK(state.model.contextUsed)} / ${formatK(state.model.contextLimit)} tokens`, 4);
       }
-      if (state.model.latencyMs > 0) push(`Latency: ${state.model.latencyMs}ms`, 4);
-      if (state.session.startedAt > 0) push(`⏱ ${formatElapsed(now - state.session.startedAt)}`, 5);
-      push("Ctrl+P Palette", 6, "muted");
+      const cost = computeCost(state);
+      if (cost != null) push(`Cost: $${cost.toFixed(4)}`, 5);
+      if (state.model.latencyMs > 0) push(`Latency: ${state.model.latencyMs}ms`, 6);
+      if (state.session.startedAt > 0) push(`⏱ ${formatElapsed(now - state.session.startedAt)}`, 7);
+      push("Ctrl+P Palette", 8, "muted");
       break;
     }
     case "planning": {
