@@ -49,4 +49,32 @@ describe("completions", () => {
   it("stops completing once a second argument token starts", () => {
     expect(completions("/mode ask ", registry)).toEqual([]);
   });
+
+  it("populates kind and group on command completions", () => {
+    const items = completions("/mo", registry);
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(item.kind).toBe("command");
+      expect(item.group).toBeDefined();
+    }
+  });
+
+  it("populates kind on argument completions", () => {
+    const items = completions("/mode a", registry);
+    expect(items.length).toBeGreaterThan(0);
+    for (const item of items) {
+      expect(item.kind).toBe("argument");
+    }
+  });
+
+  it("command completions have meaningful group labels", () => {
+    const modelItems = completions("/model", registry);
+    const modelItem = modelItems.find((i) => i.label === "/model");
+    expect(modelItem?.group).toBe("Model");
+
+    const helpItems = completions("/help", registry);
+    const helpItem = helpItems.find((i) => i.label === "/help");
+    expect(helpItem?.group).toBe("General");
+  });
 });
+

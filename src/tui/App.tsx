@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { EventBus } from "../runtime/events.js";
 import { Store } from "../runtime/store.js";
 import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types.js";
-import { activeViewRows, densityForWidth, detailForDensity } from "../layout/density.js";
+import { activeViewRows, densityForWidth, detailForDensity, MAX_COMPLETION_ROWS } from "../layout/density.js";
 import { resolveKey, UiCommand } from "../interaction/keybindings.js";
 import { initialUiState, uiReduce } from "../interaction/ui-state.js";
 import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
@@ -16,6 +16,7 @@ import { Header } from "./zones/Header.js";
 import { ActivityStrip } from "./zones/ActivityStrip.js";
 import { ContextStrip } from "./zones/ContextStrip.js";
 import { PromptBar, promptBarRows } from "./zones/PromptBar.js";
+import { CompletionSurface } from "./input/CompletionSurface.js";
 import { ConversationView, ViewProps } from "./views/ConversationView.js";
 import { ExecutionView } from "./views/ExecutionView.js";
 import { TasksView } from "./views/TasksView.js";
@@ -338,14 +339,18 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     };
   }, [ui.overlay, models, agent]);
 
-  const density = densityForWidth(width);
-  const detail = ui.zoom ? "full" : detailForDensity(density);
-  const viewRows = activeViewRows(height, promptBarRows(prompt));
-  const contentRows = Math.max(2, viewRows - 1);
-
   const completionItems = completions(prompt, commandRegistry);
   const activeCompletion = completionItems.length > 0;
   const ghost = activeCompletion ? "" : ghostSuffix(prompt, history.all());
+
+  const density = densityForWidth(width);
+  const detail = ui.zoom ? "full" : detailForDensity(density);
+  const completionRowCount = activeCompletion ? Math.min(completionItems.length, MAX_COMPLETION_ROWS) : 0;
+  // When completions are visible they add extra rows; include a counter row when scrolling is needed.
+  const completionChrome = completionRowCount + (completionItems.length > MAX_COMPLETION_ROWS ? 1 : 0);
+  const totalPromptRows = promptBarRows(prompt) + completionChrome;
+  const viewRows = activeViewRows(height, totalPromptRows);
+  const contentRows = Math.max(2, viewRows - 1);
 
   const applyEffect = useCallback(
     async (effect: CommandEffect): Promise<void> => {
@@ -664,9 +669,15 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           return;
         }
         case "cancel":
-          setPrompt("");
-          setCompletionIndex(0);
-          history.stopBrowsing();
+          if (activeCompletion) {
+            // Dismiss completion by clearing the trigger prefix
+            setPrompt("");
+            setCompletionIndex(0);
+          } else {
+            setPrompt("");
+            setCompletionIndex(0);
+            history.stopBrowsing();
+          }
           return;
         default:
           uiDispatch(command);
@@ -717,6 +728,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       burstActiveRef.current = false;
     }
     if (key.return) {
+      if (activeCompletion) {
+        const item = completionItems[Math.min(completionIndex, completionItems.length - 1)];
+        setPrompt(item.insert);
+        setCompletionIndex(0);
+        return;
+      }
       submitPrompt(prompt);
       return;
     }
@@ -921,14 +938,19 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             {"─".repeat(Math.max(0, width - 1))}
           </Text>
         </Box>
+        {activeCompletion && (
+          <CompletionSurface
+            items={completionItems}
+            selectedIndex={completionIndex}
+            width={width}
+          />
+        )}
         <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
         <ContextStrip
           state={state}
           width={width}
           activeView={ui.activeView}
           now={now}
-          completionItems={activeCompletion ? completionItems : undefined}
-          completionIndex={completionIndex}
         />
       </ErrorBoundary>
     </Box>
