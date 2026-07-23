@@ -19,22 +19,22 @@ describe("density tiers", () => {
     expect(detailForDensity("minimal")).toBe("compact");
   });
 
-  it("gives the active view all rows minus the fixed chrome (6 rows: header, 2 dividers, activity strip, prompt, context strip)", () => {
-    expect(activeViewRows(24)).toBe(18);
-    expect(activeViewRows(30)).toBe(24);
+  it("gives the active view all rows minus the fixed chrome (7 rows: header, 3 dividers, activity strip, prompt, context strip)", () => {
+    expect(activeViewRows(24)).toBe(17);
+    expect(activeViewRows(30)).toBe(23);
     expect(activeViewRows(5)).toBe(3); // never less than 3
   });
 
   it("shrinks by one more row when the prompt bar is showing its multiline indicator", () => {
-    expect(activeViewRows(24, 2)).toBe(17);
-    expect(activeViewRows(30, 1)).toBe(24);
+    expect(activeViewRows(24, 2)).toBe(16);
+    expect(activeViewRows(30, 1)).toBe(23);
   });
 
   it("shrinks by completion rows when the CompletionSurface is visible", () => {
     // 3 completion rows + 1 prompt row = 4 total prompt area rows
-    expect(activeViewRows(30, 4)).toBe(21); // 30 - 6 - 3 = 21
+    expect(activeViewRows(30, 4)).toBe(20); // 30 - 7 - 3 = 20
     // Full MAX_COMPLETION_ROWS (6) + 1 prompt row = 7
-    expect(activeViewRows(30, 7)).toBe(18); // 30 - 6 - 6 = 18
+    expect(activeViewRows(30, 7)).toBe(17); // 30 - 7 - 6 = 17
     // Never less than 3
     expect(activeViewRows(10, 7)).toBe(3);
   });

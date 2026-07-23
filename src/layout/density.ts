@@ -44,11 +44,11 @@ export function promptAreaRows(promptBarHeight: 1 | 2, completionCount: number):
 /**
  * Rows available to the Active View given total terminal rows.
  * Fixed chrome: Header(1) + divider(1) + ActivityStrip(1) + divider(1) +
- * Prompt(1 baseline) + ContextStrip(1) = 6. Pass promptRows for the full
- * prompt area height (PromptBar + optional CompletionSurface) so the
- * Active View shrinks accordingly. Never less than 3 rows.
+ * Prompt(1 baseline) + divider(1) + ContextStrip(1) = 7. Pass promptRows
+ * for the full prompt area height (PromptBar + optional CompletionSurface)
+ * so the Active View shrinks accordingly. Never less than 3 rows.
  */
 export function activeViewRows(totalRows: number, promptRows: number = 1): number {
-  const fixed = 6 + (promptRows - 1);
+  const fixed = 7 + (promptRows - 1);
   return Math.max(3, totalRows - fixed);
 }

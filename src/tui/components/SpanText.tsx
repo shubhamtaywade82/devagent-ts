@@ -2,7 +2,7 @@ import React from "react";
 import { Text } from "ink";
 import { Span } from "../markdown.js";
 
-/** Renders one markdown-parsed line's spans. Shared by ConversationView and ActivityFeedPanel so both render chat text identically. */
+/** Renders one markdown-parsed line's spans (see markdown.ts). */
 export function SpanText({ spans }: { spans: Span[] }): React.JSX.Element {
   return (
     <Text wrap="truncate">

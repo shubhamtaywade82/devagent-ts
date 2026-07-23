@@ -57,21 +57,22 @@ describe("DashboardView", () => {
     unmount();
   });
 
-  it("collapses the Diff Preview panel while no diff exists", () => {
+  it("collapses the Diff Preview section while no diff exists", () => {
     const { lastFrame, unmount } = renderApp(140, 40);
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("No changes yet");
-    // Collapsed form: exactly one content row between the DIFF PREVIEW title
-    // and the panel's bottom border.
+    // Collapsed form: title + one content row, sitting at the very bottom of
+    // the dashboard (the next frame line is the full-width activity-strip
+    // divider, no column dividers on it).
     const lines = frame.split("\n");
     const titleIdx = lines.findIndex((l) => l.includes("DIFF PREVIEW"));
     expect(titleIdx).toBeGreaterThan(-1);
     expect(lines[titleIdx + 1]).toContain("No changes yet");
-    expect(lines[titleIdx + 2]).toContain("╰");
+    expect(lines[titleIdx + 2]).toMatch(/^─+$/);
     unmount();
   });
 
-  it("renders all three bordered columns at >=130 cols", () => {
+  it("renders all three columns with inner dividers at >=130 cols", () => {
     const { lastFrame, unmount } = renderApp(140, 40);
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("MISSION");
@@ -81,13 +82,13 @@ describe("DashboardView", () => {
     expect(frame).toContain("CONTEXT");
     expect(frame).toContain("FILES");
     expect(frame).toContain("DIAGNOSTICS");
-    // Every panel's own border must actually close — a truncated/garbled
-    // layout (the exact bug this test would have missed under plain
-    // ink-testing-library render()) leaves borders unbalanced.
-    const opens = (frame.match(/╭/g) ?? []).length;
-    const closes = (frame.match(/╰/g) ?? []).length;
-    expect(opens).toBe(closes);
-    expect(opens).toBeGreaterThanOrEqual(7); // 7 panels
+    // Inner dividers only — no box borders. Every dashboard content row has
+    // exactly the two column dividers.
+    expect(frame).not.toContain("╭");
+    expect(frame).not.toContain("╰");
+    const lines = frame.split("\n");
+    const missionIdx = lines.findIndex((l) => l.includes("MISSION"));
+    expect((lines[missionIdx].match(/│/g) ?? []).length).toBe(2);
     unmount();
   });
 

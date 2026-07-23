@@ -355,11 +355,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     completionRowCount + (completionItems.length > MAX_COMPLETION_ROWS ? 1 : 0) + (activeCompletion ? 1 : 0);
   const totalPromptRows = promptBarRows(prompt) + completionChrome;
   const viewRows = activeViewRows(height, totalPromptRows);
-  // Dashboard skips the "─ N ViewName ─" rule row — its branded Header is
+  // Dashboard skips the "─ N ViewName ─" title (its branded Header is
   // directly above, and the numeric index is a digit-key hint that only
-  // reaches views 1-9 anyway. The reclaimed row goes back to the content.
+  // reaches views 1-9 anyway) but still gets a plain divider row separating
+  // Header from content, same as every other view.
   const showViewTitle = ui.activeView !== "dashboard";
-  const contentRows = Math.max(2, viewRows - (showViewTitle ? 1 : 0));
+  const contentRows = Math.max(2, viewRows - 1);
 
   const applyEffect = useCallback(
     async (effect: CommandEffect): Promise<void> => {
@@ -826,7 +827,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
         <Box flexDirection="column" height={viewRows}>
-          {showViewTitle && (
+          {showViewTitle ? (
             <Box height={1}>
               <Text color="gray">{"─"}</Text>
               <Text color="blue" bold>
@@ -834,6 +835,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
               </Text>
               <Text color="gray" wrap="truncate">
                 {rule}
+              </Text>
+            </Box>
+          ) : (
+            <Box height={1}>
+              <Text color="gray" dimColor>
+                {"─".repeat(Math.max(0, width))}
               </Text>
             </Box>
           )}
@@ -966,6 +973,11 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           />
         )}
         <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
+        <Box height={1}>
+          <Text color="gray" dimColor>
+            {"─".repeat(Math.max(0, width - 1))}
+          </Text>
+        </Box>
         <ContextStrip
           state={state}
           width={width}
