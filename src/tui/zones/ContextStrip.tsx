@@ -1,5 +1,4 @@
 import React from "react";
-import { Box } from "ink";
 import { RuntimeState, ViewId } from "../../runtime/types.js";
 import { contextStripTokens } from "../../layout/strips.js";
 import { TokenLine } from "./TokenLine.js";

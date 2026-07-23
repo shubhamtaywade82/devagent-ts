@@ -14,8 +14,14 @@ export interface CompletionRowProps {
  * The selected row gets a full-width background highlight (not just colored
  * text) — matches how a real terminal-menu selection reads.
  */
+const KIND_GLYPH: Record<NonNullable<CompletionItem["kind"]>, string> = {
+  command: "⌘",
+  argument: "→",
+  template: "@",
+};
+
 export function CompletionRow({ item, selected, width }: CompletionRowProps): React.JSX.Element {
-  const GUTTER = 2; // "› " or "  "
+  const GUTTER = 4; // "› ⌘ " or "  ⌘ "
   const LABEL_COL = 20; // fixed label column
   const GROUP_COL = item.group ? 16 : 0; // right-aligned category column
   const detailSpace = Math.max(0, width - GUTTER - LABEL_COL - GROUP_COL - 2);
@@ -26,6 +32,9 @@ export function CompletionRow({ item, selected, width }: CompletionRowProps): Re
       <Box width={GUTTER}>
         <Text color={selected ? "white" : undefined} backgroundColor={bg}>
           {selected ? "› " : "  "}
+        </Text>
+        <Text color={selected ? "white" : "gray"} dimColor={!selected} backgroundColor={bg}>
+          {`${item.kind ? KIND_GLYPH[item.kind] : " "} `}
         </Text>
       </Box>
       <Box width={LABEL_COL}>

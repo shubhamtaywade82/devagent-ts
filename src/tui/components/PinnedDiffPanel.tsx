@@ -6,6 +6,8 @@ export interface PinnedDiffPanelProps {
   conversation: ChatEntry[];
   width: number;
   rows: number;
+  /** One-line aggregate ("3 files changed · +72 −14 · Ctrl+D open diff") instead of the full diff body. */
+  summary?: boolean;
 }
 
 type DiffEntry = Extract<ChatEntry, { kind: "diff_preview" }>;
@@ -18,13 +20,38 @@ function latestDiff(conversation: ChatEntry[]): DiffEntry | undefined {
   return undefined;
 }
 
-/** Center-column pinned panel content: always shows the most recent file diff, unlike the collapsible copy in the Activity Feed. Title/border chrome comes from the shared Panel wrapper. */
-export function PinnedDiffPanel({ conversation, width, rows }: PinnedDiffPanelProps): React.JSX.Element {
+/** Center-column pinned panel content: always shows the most recent file diff, unlike the collapsible copy in the Activity Feed. Title/border chrome comes from the shared Panel wrapper. Callers don't mount this while no diff exists. */
+export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDiffPanelProps): React.JSX.Element {
   const entry = useMemo(() => latestDiff(conversation), [conversation]);
   const bodyRows = Math.max(0, rows - 2);
 
+  if (summary) {
+    const paths = new Set<string>();
+    let additions = 0;
+    let deletions = 0;
+    for (const e of conversation) {
+      if (e.kind !== "diff_preview") continue;
+      paths.add(e.filePath);
+      for (const line of e.diff.split("\n")) {
+        if (line.startsWith("+") && !line.startsWith("+++")) additions++;
+        else if (line.startsWith("-") && !line.startsWith("---")) deletions++;
+      }
+    }
+    return (
+      <Box height={1} width={width}>
+        <Text wrap="truncate">
+          <Text bold>{paths.size} file{paths.size === 1 ? "" : "s"} changed</Text>
+          <Text color="gray"> · </Text>
+          <Text color="green">+{additions}</Text>
+          <Text> </Text>
+          <Text color="red">−{deletions}</Text>
+          <Text color="gray"> · Ctrl+D open diff</Text>
+        </Text>
+      </Box>
+    );
+  }
+
   if (!entry) {
-    // DashboardView collapses this panel to one content row while empty.
     return (
       <Box flexDirection="column" width={width} height={rows} justifyContent="center">
         <Text color="gray" dimColor>

@@ -85,7 +85,7 @@ describe("App shell", () => {
     const { lastFrame, unmount } = renderApp();
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("devagent-ts"); // branded header
-    expect(frame).toContain("No conversation yet"); // conversation area (dashboard's narrow fallback at 100 cols)
+    expect(frame).toContain("Type a message below"); // conversation area (dashboard's narrow fallback at 100 cols)
     expect(frame).toContain("Chat"); // activity strip
     expect(frame).toContain(">"); // prompt
     expect(frame).toContain("MODE:"); // agent mode in header
@@ -130,6 +130,21 @@ describe("App shell", () => {
     unmount();
   });
 
+  it("Ctrl+D opens the split diff view and Esc closes it", async () => {
+    const { stdin, lastFrame, unmount } = renderApp(100, 30, ({ bus }) => {
+      bus.publish({ type: "conversation.diff", filePath: "Gemfile", diff: "+gem 'devise'", status: "pending_review" });
+    });
+    await tick();
+    stdin.write("\x04");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).toContain("Gemfile");
+    expect(stripAnsi(lastFrame() ?? "")).toContain("+gem 'devise'");
+    stdin.write("\x1b");
+    await tick();
+    expect(stripAnsi(lastFrame() ?? "")).not.toContain("1/1");
+    unmount();
+  });
+
   it("typed text lands in the prompt and Enter submits to the agent", async () => {
     const { stdin, lastFrame, agent, store, unmount } = renderApp();
     await tick();
@@ -152,7 +167,7 @@ describe("App shell", () => {
     await tick();
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).not.toContain("[<65");
-    expect(frame).toContain("No conversation yet"); // still idle, nothing typed
+    expect(frame).toContain("Type a message below"); // still idle, nothing typed
     unmount();
   });
 
@@ -164,7 +179,7 @@ describe("App shell", () => {
     stdin.write("2");
     await tick();
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("No conversation yet");
+    expect(frame).toContain("Type a message below");
     expect(frame).toContain("add 2");
     unmount();
   });

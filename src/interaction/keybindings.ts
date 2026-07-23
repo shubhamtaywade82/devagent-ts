@@ -19,7 +19,7 @@
  * Changing focus never stops background actors.
  */
 
-import { RuntimeMode, VIEW_ORDER, ViewId } from "../runtime/types.js";
+import { PRIMARY_VIEWS, RuntimeMode, ViewId } from "../runtime/types.js";
 import { OverlayId } from "./ui-state.js";
 
 export interface KeyInfo {
@@ -95,8 +95,8 @@ export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiComm
   // Bare keys are global only when the user is not mid-typing.
   if (ctx.promptHasText || key.ctrl || key.meta) return null;
 
-  if (input >= "1" && input <= "9") {
-    const view = VIEW_ORDER[Number(input) - 1];
+  if (input >= "1" && input <= "5") {
+    const view = PRIMARY_VIEWS[Number(input) - 1];
     return { type: "focus-view", view };
   }
   if (input === "z") return { type: "toggle-zoom" };

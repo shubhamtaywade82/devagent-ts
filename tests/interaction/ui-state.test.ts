@@ -10,18 +10,21 @@ describe("uiReduce", () => {
     });
   });
 
-  it("cycles views forward and backward with wrap-around", () => {
-    // Anchored to "conversation" via focus-view rather than relying on
-    // initialUiState()'s default, so this test doesn't need to change every
-    // time the default view does.
+  it("cycles the primary tabs with wrap-around", () => {
     let s = uiReduce(initialUiState(), { type: "focus-view", view: "conversation" });
     s = uiReduce(s, { type: "next-view" });
     expect(s.activeView).toBe("execution");
     s = uiReduce(s, { type: "prev-view" });
     s = uiReduce(s, { type: "prev-view" });
-    expect(s.activeView).toBe("dashboard"); // wraps to the last view in VIEW_ORDER
+    expect(s.activeView).toBe("logs"); // wraps to the last primary tab
     s = uiReduce(s, { type: "next-view" });
     expect(s.activeView).toBe("conversation");
+  });
+
+  it("cycles the full view order from a secondary view so it never traps", () => {
+    let s = uiReduce(initialUiState(), { type: "focus-view", view: "mcp" });
+    s = uiReduce(s, { type: "next-view" });
+    expect(s.activeView).toBe("lsp");
   });
 
   it("opens and closes overlays without touching the active view", () => {

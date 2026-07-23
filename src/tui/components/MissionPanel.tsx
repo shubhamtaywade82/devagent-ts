@@ -44,9 +44,15 @@ export function MissionPanel({ mission, width, rows, now = Date.now() }: Mission
   const started = mission.phases[0]?.startedAt;
   const totalElapsed = started ? formatElapsed(now - started) : null;
   const executePhase = mission.phases.find((p) => p.id === "execute");
+  // Derived phases (validate/repair/review) only become real once Execute
+  // finishes — until then they're speculation, not a checklist worth 3 rows.
+  const executeDone = executePhase?.status === "completed" || executePhase?.status === "failed";
+  const phases = mission.phases.filter(
+    (p) => !(p.status === "pending" && !executeDone && (p.id === "validate" || p.id === "repair" || p.id === "review")),
+  );
   const showSteps = executePhase?.status === "running" && mission.steps.length > 0;
   // Rows left under goal(1) + phase list for Execute's live substeps.
-  const stepBudget = Math.max(0, rows - 1 - mission.phases.length);
+  const stepBudget = Math.max(0, rows - 1 - phases.length);
   const steps = showSteps ? tail(mission.steps, stepBudget) : [];
 
   return (
@@ -62,7 +68,7 @@ export function MissionPanel({ mission, width, rows, now = Date.now() }: Mission
           </Text>
         )}
       </Box>
-      {mission.phases.map((phase) => {
+      {phases.map((phase) => {
         const g = STEP_GLYPH[phase.status];
         const duration = phaseDuration(phase, now);
         const label = MISSION_PHASE_LABELS[phase.id];

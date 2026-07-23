@@ -88,6 +88,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
     mcpServers: [],
     lspServers: [],
     skills: [],
+    diagnosticsByPath: {},
     approval: null,
     notifications: [],
     lastError: null,
@@ -109,13 +110,14 @@ function appendChunk(
   role: "assistant" | "thinking",
   chunk: string,
   model?: string,
+  crumb?: string,
 ): ChatEntry[] {
   const last = conversation[conversation.length - 1];
   if (last && last.kind === "text" && last.role === role) {
     return conversation.slice(0, -1).concat({ ...last, text: last.text + chunk });
   }
   // Stamped once, at entry creation — a turn's answering model doesn't change mid-stream.
-  return bounded([...conversation, { kind: "text", role, text: chunk, at: Date.now(), model }], MAX_CONVERSATION);
+  return bounded([...conversation, { kind: "text", role, text: chunk, at: Date.now(), model, crumb }], MAX_CONVERSATION);
 }
 
 function taskDetail(tasks: Task[]): string {
@@ -126,7 +128,7 @@ function taskDetail(tasks: Task[]): string {
 export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   switch (event.type) {
     case "conversation.message": {
-      const entry: ChatEntry = { kind: "text", role: event.role, text: sanitizeText(event.text), at: Date.now() };
+      const entry: ChatEntry = { kind: "text", role: event.role, text: sanitizeText(event.text), at: Date.now(), crumb: missionCrumb(state.mission) };
       // A new user turn starts fresh — any prior turn's delegation label must not
       // bleed into this one if classifyCapability doesn't delegate this time.
       const lastTurnModel = event.role === "user" ? null : state.lastTurnModel;
@@ -140,7 +142,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       const modelLabel = state.lastTurnModel ?? `${state.model.provider}/${state.model.name}`;
       const next = {
         ...state,
-        conversation: appendChunk(state.conversation, event.role, sanitizeText(event.chunk), modelLabel),
+        conversation: appendChunk(state.conversation, event.role, sanitizeText(event.chunk), modelLabel, missionCrumb(state.mission)),
       };
       return withActor(next, "conversation", { health: event.role === "thinking" ? "thinking" : "active" });
     }
@@ -240,7 +242,18 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       };
       const actorHealth = event.failed > 0 ? "error" : "healthy";
       return withActor(
-        { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        {
+          ...state,
+          conversation: bounded([...state.conversation, entry], MAX_CONVERSATION),
+          lastTestResult: {
+            command: event.command,
+            passed: event.passed,
+            failed: event.failed,
+            failures: event.failures,
+            durationMs: event.durationMs,
+            at: Date.now(),
+          },
+        },
         "executor",
         { health: actorHealth, detail: event.failed > 0 ? `✗${event.failed}` : "✓" },
       );
@@ -411,7 +424,10 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       });
     }
     case "lsp.diagnostics": {
-      return withActor({ ...state }, "lsp", {
+      const diagnosticsByPath = { ...state.diagnosticsByPath };
+      if (event.count > 0) diagnosticsByPath[event.path] = event.count;
+      else delete diagnosticsByPath[event.path];
+      return withActor({ ...state, diagnosticsByPath }, "lsp", {
         health: event.count > 0 ? "waiting" : "healthy",
         detail: event.count > 0 ? `${event.count}✗` : state.actors.lsp.detail,
       });

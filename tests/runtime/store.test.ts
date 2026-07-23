@@ -235,6 +235,40 @@ describe("Store", () => {
   });
 });
 
+describe("aggregated state (Stage 0)", () => {
+  it("persists the last test result", () => {
+    let s = fresh();
+    s = reduce(s, {
+      type: "conversation.test_result",
+      command: "npm test",
+      passed: 42,
+      failed: 3,
+      failures: [{ file: "a.ts", line: 1, message: "boom" }],
+      durationMs: 1200,
+    });
+    expect(s.lastTestResult).toMatchObject({ command: "npm test", passed: 42, failed: 3 });
+  });
+
+  it("accumulates diagnostics per path and clears at zero", () => {
+    let s = fresh();
+    s = reduce(s, { type: "lsp.diagnostics", path: "a.ts", count: 2 });
+    s = reduce(s, { type: "lsp.diagnostics", path: "b.ts", count: 1 });
+    expect(s.diagnosticsByPath).toEqual({ "a.ts": 2, "b.ts": 1 });
+    s = reduce(s, { type: "lsp.diagnostics", path: "a.ts", count: 0 });
+    expect(s.diagnosticsByPath).toEqual({ "b.ts": 1 });
+  });
+
+  it("stamps text entries with the mission crumb", () => {
+    let s = fresh();
+    s = reduce(s, { type: "mission.started", goal: "Add auth" });
+    s = reduce(s, { type: "mission.phase", id: "execute", status: "running" });
+    s = reduce(s, { type: "conversation.message", role: "assistant", text: "working" });
+    const last = s.conversation[s.conversation.length - 1];
+    expect(last.kind).toBe("text");
+    expect((last as { crumb?: string }).crumb).toContain("Execute");
+  });
+});
+
 describe("rails.index event", () => {
   it("stores rails index state", () => {
     let s = fresh();

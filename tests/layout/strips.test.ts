@@ -7,40 +7,28 @@ function fresh(): RuntimeState {
 }
 
 describe("activityStripTokens", () => {
-  it("emits one token per actor in the plan's format", () => {
-    let s = fresh();
-    s = reduce(s, { type: "task.created", task: { id: "a", title: "A", status: "queued", dependencies: [] } });
-    s = reduce(s, { type: "task.created", task: { id: "b", title: "B", status: "queued", dependencies: [] } });
-    s = reduce(s, { type: "task.created", task: { id: "c", title: "C", status: "queued", dependencies: [] } });
-    s = reduce(s, { type: "tool.started", id: "t1", name: "edit_file", args: {} });
-    const texts = activityStripTokens(s).map((t) => t.text);
-    expect(texts).toContain("Tasks3");
-    expect(texts).toContain("Exec▶");
+  it("emits the five primary tabs plus the palette hint", () => {
+    const texts = activityStripTokens(fresh()).map((t) => t.text.trim());
+    expect(texts).toEqual(["Chat", "Plan", "Tasks", "Changes", "Logs", "Ctrl+P Palette"]);
   });
 
-  it("errored actors get top priority so they never drop out", () => {
-    let s = fresh();
-    s = reduce(s, { type: "tool.started", id: "t1", name: "x", args: {} });
-    s = reduce(s, { type: "tool.failed", id: "t1", error: "boom" });
-    const exec = activityStripTokens(s).find((t) => t.text.startsWith("Exec"));
-    expect(exec).toMatchObject({ priority: 0, color: "red" });
+  it("brackets the active tab", () => {
+    const texts = activityStripTokens(fresh(), "git").map((t) => t.text);
+    expect(texts).toContain("[Changes]");
+    expect(texts).not.toContain("[Chat]");
   });
 
-  it("includes token usage when a context limit is known", () => {
-    let s = fresh();
-    s = reduce(s, { type: "context.changed", used: 48000, limit: 71000 });
-    const texts = activityStripTokens(s).map((t) => t.text);
-    expect(texts).toContain("Tok48k/71k");
+  it("treats the dashboard as the Chat tab", () => {
+    const texts = activityStripTokens(fresh(), "dashboard").map((t) => t.text);
+    expect(texts).toContain("[Chat]");
   });
 
-  it("shows a skills token once a skill is active", () => {
-    let s = fresh();
-    s = reduce(s, {
-      type: "skills.changed",
-      skills: [{ id: "a", name: "A", tags: [], active: true }],
-    });
-    const texts = activityStripTokens(s).map((t) => t.text);
-    expect(texts).toContain("Skl1");
+  it("keeps the palette hint at the lowest priority so tabs never drop first", () => {
+    const tokens = activityStripTokens(fresh());
+    const hint = tokens.find((t) => t.text.includes("Ctrl+P"))!;
+    for (const t of tokens.filter((x) => x !== hint)) {
+      expect(t.priority).toBeLessThan(hint.priority);
+    }
   });
 });
 
@@ -50,7 +38,7 @@ describe("contextStripTokens", () => {
     const texts = contextStripTokens(s, undefined, s.session.startedAt).map((t) => t.text);
     // Sandbox token absent: sandboxAvailable is undefined until the bootstrap
     // docker probe resolves (see tui/index.ts) — never fabricated.
-    expect(texts).toEqual(["● Connected", "🔀 Git main", "⏱ 0m", "Ctrl+P Palette"]);
+    expect(texts).toEqual(["● Connected", "🔀 Git main", "⏱ 0m"]);
   });
 
   it("idle strip shows sandbox status once detected", () => {

@@ -5,75 +5,22 @@
  * Context Strip: dynamic status for the current runtime mode.
  */
 
-import { ACTOR_IDS, ActorHealth, ActorId, AGENT_MODE_LABELS, RuntimeState, StatusToken, ViewId } from "../runtime/types.js";
+import { ActorHealth, AGENT_MODE_LABELS, PRIMARY_VIEW_LABELS, PRIMARY_VIEWS, RuntimeState, StatusToken, ViewId } from "../runtime/types.js";
 import { semanticColor } from "./theme-map.js";
 
-const ACTOR_LABELS: Record<ActorId, string> = {
-  conversation: "Chat",
-  planner: "Plan",
-  executor: "Exec",
-  tasks: "Tasks",
-  git: "Git",
-  logs: "Logs",
-  memory: "Mem",
-  models: "Mdl",
-  mcp: "MCP",
-  skills: "Skl",
-  lsp: "LSP",
-};
-
-/** Priority order for actor tokens when width shrinks. */
-const ACTOR_PRIORITY: Record<ActorId, number> = {
-  conversation: 1,
-  executor: 2,
-  tasks: 3,
-  git: 4,
-  planner: 5,
-  models: 6,
-  logs: 7,
-  memory: 8,
-  mcp: 9,
-  skills: 10,
-  lsp: 11,
-};
-
-export function activityStripTokens(state: RuntimeState): StatusToken[] {
-  const tokens: StatusToken[] = ACTOR_IDS.map((id) => {
-    const actor = state.actors[id];
+/** Primary nav tabs: five workspace views, active one highlighted. Secondary
+ * actors (Mem/Mdl/MCP/Skl/LSP) surface as header health tokens instead —
+ * they never deserved the same navigational prominence as Chat. */
+export function activityStripTokens(_state: RuntimeState, activeView?: ViewId): StatusToken[] {
+  const tokens: StatusToken[] = PRIMARY_VIEWS.map((id, i) => {
+    const active = activeView === id || (activeView === "dashboard" && id === "conversation");
     return {
-      text: `${ACTOR_LABELS[id]}${actor.detail || "·"}`,
-      priority: actor.health === "error" ? 0 : ACTOR_PRIORITY[id],
-      color: semanticColor(actor.health),
+      text: active ? `[${PRIMARY_VIEW_LABELS[id]}]` : ` ${PRIMARY_VIEW_LABELS[id]} `,
+      priority: i + 1,
+      color: semanticColor(active ? "active" : "muted"),
     };
   });
-  // Below all actor priorities (1-11): useful, but actor health always wins
-  // the last slot when the terminal is narrow.
-  if (state.model.contextLimit > 0) {
-    tokens.push({
-      text: `Tok${formatK(state.model.contextUsed)}/${formatK(state.model.contextLimit)}`,
-      priority: 12,
-      color: semanticColor("muted"),
-    });
-  } else if (state.model.contextUsed > 0) {
-    // No known context window for this model — still show the real count.
-    tokens.push({
-      text: `Tok${formatK(state.model.contextUsed)}`,
-      priority: 12,
-      color: semanticColor("muted"),
-    });
-  }
-  const totalTokens = state.usage.totalPromptTokens + state.usage.totalCompletionTokens;
-  if (totalTokens > 0) {
-    tokens.push({
-      text: `Session${formatK(totalTokens)}`,
-      priority: 13,
-      color: semanticColor("muted"),
-    });
-  }
-  const cost = computeCost(state);
-  if (cost != null) {
-    tokens.push({ text: `$${cost.toFixed(3)}`, priority: 14, color: semanticColor("muted") });
-  }
+  tokens.push({ text: "Ctrl+P Palette", priority: 20, color: semanticColor("muted") });
   return tokens;
 }
 
@@ -150,7 +97,6 @@ export function contextStripTokens(state: RuntimeState, activeView?: ViewId, now
       if (cost != null) push(`Cost: $${cost.toFixed(4)}`, 5);
       if (state.model.latencyMs > 0) push(`Latency: ${state.model.latencyMs}ms`, 6);
       if (state.session.startedAt > 0) push(`⏱ ${formatElapsed(now - state.session.startedAt)}`, 7);
-      push("Ctrl+P Palette", 8, "muted");
       break;
     }
     case "planning": {
@@ -226,12 +172,14 @@ const HEADER_PRIORITY = {
   agentMode: 3,
   runtimeMode: 4,
   workspace: 5,
+  language: 5.5, // between workspace and cloudTag without renumbering the rest
   cloudTag: 6,
   branch: 7,
   contextPct: 8,
   gitDirty: 9,
   memory: 10,
   lsp: 11,
+  mcp: 11.5, // between lsp and rails without renumbering the rest
   rails: 12,
   skills: 13,
   clock: 14,
@@ -254,6 +202,7 @@ export function headerTokens(state: RuntimeState, now: number = Date.now()): Sta
     color: semanticColor(state.mode === "idle" ? "healthy" : state.mode === "approval" ? "waiting" : "thinking"),
   });
   if (state.session.workspace) tokens.push({ text: state.session.workspace, priority: HEADER_PRIORITY.workspace });
+  if (state.project?.language) tokens.push({ text: state.project.language, priority: HEADER_PRIORITY.language, color: semanticColor("muted") });
   if (state.model.provider === "cloud") {
     tokens.push({ text: "☁ cloud", priority: HEADER_PRIORITY.cloudTag, color: semanticColor("thinking") });
   }
@@ -269,14 +218,15 @@ export function headerTokens(state: RuntimeState, now: number = Date.now()): Sta
   if (state.memory.length > 0) {
     tokens.push({ text: `Mem:${state.memory.length}`, priority: HEADER_PRIORITY.memory, color: semanticColor("healthy") });
   }
-  // LSP status
-  const runningLsp = state.lspServers.filter((s) => s.status === "running");
-  if (runningLsp.length > 0) {
-    tokens.push({
-      text: `LSP:${runningLsp.map((s) => s.language.slice(0, 2)).join(",")}`,
-      priority: HEADER_PRIORITY.lsp,
-      color: semanticColor("healthy"),
-    });
+  // LSP status — only worth header space when something's wrong.
+  const lspErrors = state.lspServers.reduce((sum, s) => sum + s.errorCount, 0);
+  if (lspErrors > 0) {
+    tokens.push({ text: `LSP:${lspErrors}✗`, priority: HEADER_PRIORITY.lsp, color: semanticColor("error") });
+  }
+  // MCP status — only when a configured server is down.
+  const mcpDown = state.mcpServers.filter((s) => !s.connected).length;
+  if (mcpDown > 0) {
+    tokens.push({ text: `MCP:${mcpDown}✗`, priority: HEADER_PRIORITY.mcp, color: semanticColor("error") });
   }
   // Rails status
   if (state.rails && state.rails.status !== "disabled") {

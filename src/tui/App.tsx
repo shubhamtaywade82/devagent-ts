@@ -18,6 +18,8 @@ import { ContextStrip } from "./zones/ContextStrip.js";
 import { PromptBar, promptBarRows } from "./zones/PromptBar.js";
 import { CompletionSurface } from "./input/CompletionSurface.js";
 import { ConversationView, ViewProps } from "./views/ConversationView.js";
+import { PinnedDiffPanel } from "./components/PinnedDiffPanel.js";
+import { VDivider } from "./components/Section.js";
 import { DashboardView } from "./views/DashboardView.js";
 import { ExecutionView } from "./views/ExecutionView.js";
 import { TasksView } from "./views/TasksView.js";
@@ -102,7 +104,7 @@ const VIEW_LABELS: Record<ViewId, string> = {
   dashboard: "Dashboard",
   execution: "Execution",
   tasks: "Tasks",
-  git: "Git",
+  git: "Changes",
   logs: "Logs",
   memory: "Memory",
   models: "Models",
@@ -826,7 +828,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     <Box flexDirection="column" width={width} height={height}>
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
-        <ActivityStrip state={state} width={width} now={now} />
+        <ActivityStrip state={state} width={width} now={now} activeView={ui.activeView} />
         <Box height={1}>
           <Text color="gray" dimColor>
             {"─".repeat(Math.max(0, width - 1))}
@@ -852,6 +854,20 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           )}
           {showApproval ? (
             <ApprovalOverlay request={approval} width={width} rows={contentRows} showDiff={ui.overlay === "diff"} />
+          ) : ui.overlay === "diff" ? (
+            <Box flexDirection="row" width={width} height={contentRows}>
+              <Box width={Math.floor((width - 1) / 2)} height={contentRows}>
+                <ConversationView state={state} width={Math.floor((width - 1) / 2)} rows={contentRows} detail={detail} />
+              </Box>
+              <VDivider rows={contentRows} />
+              <Box width={width - Math.floor((width - 1) / 2) - 1} height={contentRows}>
+                <PinnedDiffPanel
+                  conversation={state.conversation}
+                  width={width - Math.floor((width - 1) / 2) - 1}
+                  rows={contentRows}
+                />
+              </Box>
+            </Box>
           ) : ui.overlay === "palette" ? (
             <CommandPalette
               registry={commandRegistry}
@@ -939,7 +955,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           ) : showSidebar ? (
             <Box flexDirection="row" width={width} height={contentRows}>
               <Box width={activeViewWidth} height={contentRows}>
-                <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />
+                <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} now={now} />
               </Box>
               <Box flexDirection="column" width={1} height={contentRows}>
                 {Array.from({ length: contentRows }, (_, i) => (
@@ -957,7 +973,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
               />
             </Box>
           ) : (
-            <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />
+            <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} now={now} />
           )}
         </Box>
         <Box height={1}>

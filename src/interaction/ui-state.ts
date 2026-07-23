@@ -4,7 +4,7 @@
  * closing an overlay or switching views can never stop an actor.
  */
 
-import { VIEW_ORDER, ViewId } from "../runtime/types.js";
+import { PRIMARY_VIEWS, VIEW_ORDER, ViewId } from "../runtime/types.js";
 import { UiCommand } from "./keybindings.js";
 
 export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode" | "sessions" | "tools";
@@ -24,6 +24,12 @@ export function initialUiState(): UiState {
 }
 
 function cycleView(current: ViewId, delta: number): ViewId {
+  // Tab cycles the five primary tabs; from a secondary view it falls back to
+  // the full order so you're never trapped in /mcp or /settings.
+  const primaryIdx = (PRIMARY_VIEWS as readonly ViewId[]).indexOf(current);
+  if (primaryIdx >= 0) {
+    return PRIMARY_VIEWS[(primaryIdx + delta + PRIMARY_VIEWS.length) % PRIMARY_VIEWS.length];
+  }
   const idx = VIEW_ORDER.indexOf(current);
   const next = (idx + delta + VIEW_ORDER.length) % VIEW_ORDER.length;
   return VIEW_ORDER[next];

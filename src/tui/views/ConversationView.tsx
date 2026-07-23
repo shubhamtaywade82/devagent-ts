@@ -11,12 +11,56 @@ export interface ViewProps {
   width: number;
   rows: number;
   detail: DetailLevel;
+  /** App's render clock — lets panels tick elapsed times with the app instead of Date.now() at render. */
+  now?: number;
 }
 
 export function formatArgs(args: Record<string, unknown>): string {
   return Object.values(args)
     .map((v) => (typeof v === "string" ? v : JSON.stringify(v)))
     .join(", ");
+}
+
+function countDiff(diff: string): { additions: number; deletions: number } {
+  let additions = 0;
+  let deletions = 0;
+  for (const line of diff.split("\n")) {
+    if (line.startsWith("+") && !line.startsWith("+++")) additions++;
+    else if (line.startsWith("-") && !line.startsWith("---")) deletions++;
+  }
+  return { additions, deletions };
+}
+
+export interface GroupSummary {
+  files: Array<{ path: string; additions: number; deletions: number }>;
+  totalAdditions: number;
+  totalDeletions: number;
+  test?: { passed: number; failed: number };
+}
+
+/** Aggregate a phase group's entries into a compact summary, or null when
+ * the group has nothing worth summarizing (pure tool-call groups — the
+ * tool tree is already compact). */
+export function summarizeGroup(entries: ChatEntry[]): GroupSummary | null {
+  const byPath = new Map<string, { additions: number; deletions: number }>();
+  let test: GroupSummary["test"];
+  for (const e of entries) {
+    if (e.kind === "diff_preview") {
+      const { additions, deletions } = countDiff(e.diff);
+      const prev = byPath.get(e.filePath) ?? { additions: 0, deletions: 0 };
+      byPath.set(e.filePath, { additions: prev.additions + additions, deletions: prev.deletions + deletions });
+    } else if (e.kind === "test_result") {
+      test = { passed: e.passed, failed: e.failed };
+    }
+  }
+  if (byPath.size === 0 && !test) return null;
+  const files = [...byPath.entries()].map(([path, c]) => ({ path, ...c }));
+  return {
+    files,
+    totalAdditions: files.reduce((s, f) => s + f.additions, 0),
+    totalDeletions: files.reduce((s, f) => s + f.deletions, 0),
+    test,
+  };
 }
 
 function TurnSeparator({ width }: { width: number }): React.JSX.Element {
@@ -99,9 +143,79 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
   const blocks = useMemo<RenderedBlock[]>(() => {
     const b: RenderedBlock[] = [];
     let isFirst = true;
+    let lastSpeaker: "user" | "assistant" | null = null;
+    let prevCrumb: string | undefined;
+    let group: ChatEntry[] = [];
+
+    const flushGroup = (flushKey: string) => {
+      const summary = summarizeGroup(group);
+      group = [];
+      if (!summary) return;
+      const shown = summary.files.slice(0, 4);
+      const overflow = summary.files.length - shown.length;
+      const rows: Array<{ text: string; color: string }> = shown.map((f) => ({
+        text: `  ✓ ${f.path}  +${f.additions} −${f.deletions}`,
+        color: "green",
+      }));
+      if (overflow > 0) rows.push({ text: `  … and ${overflow} more files`, color: "gray" });
+      if (summary.files.length > 0) {
+        rows.push({
+          text: `  ${summary.files.length} file${summary.files.length === 1 ? "" : "s"} · +${summary.totalAdditions} −${summary.totalDeletions}`,
+          color: "gray",
+        });
+      }
+      if (summary.test) {
+        rows.push(
+          summary.test.failed > 0
+            ? { text: `  ✗ ${summary.test.failed} failed`, color: "red" }
+            : { text: `  ✓ ${summary.test.passed} passed`, color: "green" },
+        );
+      }
+      b.push({
+        key: `sum-${flushKey}`,
+        height: rows.length,
+        render: (startRow, endRow) => (
+          <Box key={`sum-${flushKey}`} flexDirection="column">
+            {rows.slice(startRow, endRow).map((r, i) => (
+              <Box key={i} height={1}>
+                <Text color={r.color} wrap="truncate">
+                  {r.text}
+                </Text>
+              </Box>
+            ))}
+          </Box>
+        ),
+      });
+    };
 
     for (let idx = 0; idx < state.conversation.length; idx++) {
       const entry = state.conversation[idx];
+      const crumb = "crumb" in entry ? entry.crumb : undefined;
+      if (crumb !== prevCrumb) {
+        flushGroup(`${idx}`);
+        if (crumb) {
+          b.push({
+            key: `crumb-${idx}-${entry.at}`,
+            height: 1,
+            render: () => (
+              <Box key={`crumb-${idx}-${entry.at}`} height={1}>
+                <Text bold color="cyan" wrap="truncate">
+                  ◆ {crumb}
+                </Text>
+              </Box>
+            ),
+          });
+        }
+        prevCrumb = crumb;
+      }
+      if (crumb) group.push(entry);
+      // A tool call following the thought that spawned it (or another tool
+      // call) reads as one unit — no blank row inside the chain.
+      const prev = state.conversation[idx - 1];
+      const chained =
+        entry.kind === "tool_call" &&
+        prev != null &&
+        (prev.kind === "tool_call" || (prev.kind === "text" && prev.role === "thinking"));
       if (!isFirst) {
         if (entry.role === "user") {
           b.push({
@@ -109,7 +223,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
             height: 1,
             render: () => <TurnSeparator key={`sep-${entry.at}`} width={bodyWidth} />,
           });
-        } else {
+        } else if (!chained) {
           b.push({
             key: `space-${entry.at}`,
             height: 1,
@@ -137,16 +251,28 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           });
         } else if (entry.role === "user") {
           const lines = renderSimpleMarkdown(entry.text, bodyWidth - 2);
+          const showSpeaker = lastSpeaker !== "user";
+          lastSpeaker = "user";
           b.push({
             key: `user-${entry.at}`,
-            height: lines.length,
+            height: lines.length + (showSpeaker ? 1 : 0),
             render: (startRow, endRow) => {
-              const visibleLines = lines.slice(startRow, endRow);
+              const speakerVisible = showSpeaker && startRow === 0;
+              const bodyStart = showSpeaker ? Math.max(0, startRow - 1) : startRow;
+              const bodyEnd = showSpeaker ? endRow - 1 : endRow;
+              const visibleLines = lines.slice(bodyStart, bodyEnd);
               return (
                 <Box key={`user-${entry.at}`} flexDirection="column">
+                  {speakerVisible ? (
+                    <Box height={1}>
+                      <Text bold color="green">
+                        You
+                      </Text>
+                    </Box>
+                  ) : null}
                   {visibleLines.map((line, li) => (
-                    <Box key={startRow + li} height={1}>
-                      {startRow + li === 0 ? <Text color="green">&gt; </Text> : <Box width={2} />}
+                    <Box key={bodyStart + li} height={1}>
+                      <Box width={2} />
                       {line.indent ? <Box width={line.indent} /> : null}
                       <SpanText spans={line.spans} />
                     </Box>
@@ -158,30 +284,38 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
         } else {
           // assistant
           const lines = renderSimpleMarkdown(entry.text, bodyWidth - 2);
-          const tagRow = entry.model ? lines.length : -1;
+          const showSpeaker = lastSpeaker !== "assistant";
+          lastSpeaker = "assistant";
           b.push({
             key: `asst-${entry.at}`,
-            height: lines.length + (entry.model ? 1 : 0),
+            height: lines.length + (showSpeaker ? 1 : 0),
             render: (startRow, endRow) => {
-              const visibleLines = lines.slice(startRow, endRow);
-              const showTag = tagRow >= startRow && tagRow < endRow;
+              const speakerVisible = showSpeaker && startRow === 0;
+              const bodyStart = showSpeaker ? Math.max(0, startRow - 1) : startRow;
+              const bodyEnd = showSpeaker ? endRow - 1 : endRow;
+              const visibleLines = lines.slice(bodyStart, bodyEnd);
               return (
                 <Box key={`asst-${entry.at}`} flexDirection="column">
+                  {speakerVisible ? (
+                    <Box height={1}>
+                      <Text bold color="cyan">
+                        DevAgent
+                      </Text>
+                      {entry.model ? (
+                        <Text color="gray" dimColor>
+                          {" "}
+                          · {entry.model}
+                        </Text>
+                      ) : null}
+                    </Box>
+                  ) : null}
                   {visibleLines.map((line, li) => (
-                    <Box key={startRow + li} height={1}>
-                      {startRow + li === 0 ? <Text color="cyan">{"• "}</Text> : <Box width={2} />}
+                    <Box key={bodyStart + li} height={1}>
+                      <Box width={2} />
                       {line.indent ? <Box width={line.indent} /> : null}
                       <SpanText spans={line.spans} />
                     </Box>
                   ))}
-                  {showTag ? (
-                    <Box height={1}>
-                      <Box width={2} />
-                      <Text color="gray" dimColor>
-                        ↳ {entry.model}
-                      </Text>
-                    </Box>
-                  ) : null}
                 </Box>
               );
             },
@@ -384,6 +518,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
         });
       }
     }
+    flushGroup("end");
     return b;
   }, [state.conversation, collapsed, bodyWidth]);
 
@@ -446,8 +581,15 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
 
   if (blocks.length === 0) {
     return (
-      <Box height={rows} width={width}>
-        <Text color="gray">No conversation yet — type below to begin.</Text>
+      <Box height={rows} width={width} flexDirection="column" justifyContent="center" alignItems="center">
+        <Text bold color="cyan">
+          DevAgent
+        </Text>
+        <Box height={1} />
+        <Text color="gray">Type a message below to start a conversation.</Text>
+        <Text color="gray" dimColor>
+          /plan {"<goal>"} start a mission · / commands · Ctrl+P palette · 1-5 tabs
+        </Text>
       </Box>
     );
   }

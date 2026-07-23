@@ -58,6 +58,18 @@ export const VIEW_ORDER: readonly ViewId[] = [
   "dashboard",
 ];
 
+/** The five workspace views that get tab-strip prominence and digit keys
+ * 1-5; everything else stays reachable via slash commands and the palette. */
+export const PRIMARY_VIEWS = ["conversation", "execution", "tasks", "git", "logs"] as const satisfies readonly ViewId[];
+
+export const PRIMARY_VIEW_LABELS: Record<(typeof PRIMARY_VIEWS)[number], string> = {
+  conversation: "Chat",
+  execution: "Plan",
+  tasks: "Tasks",
+  git: "Changes",
+  logs: "Logs",
+};
+
 /** Runtime mode drives the Context Strip contents. */
 export type RuntimeMode = "idle" | "planning" | "editing" | "testing" | "approval" | "streaming";
 
@@ -195,7 +207,7 @@ export interface CardItem {
 export type ChatEntry =
   // model: "tier/name" of whichever model actually answered this entry (e.g.
   // "local/minicpm5-1b" or "cloud/gpt-oss:120b") — only set for assistant text.
-  | { kind: "text"; role: ChatRole; text: string; at: number; model?: string }
+  | { kind: "text"; role: ChatRole; text: string; at: number; model?: string; crumb?: string }
   | { kind: "plan"; role: "assistant"; steps: ExecutionStep[]; status: "pending" | "running" | "completed" | "failed"; at: number }
   | { kind: "decision"; role: "assistant"; options: string[]; selected: string; reason: string; confidence: number; at: number }
   // crumb: "Execute > Generate migration" — the mission phase/step active when
@@ -340,6 +352,10 @@ export interface RuntimeState {
   lspServers: LspServerState[];
   rails?: RailsIndexState;
   skills: SkillState[];
+  /** Latest test run, persisted (feed's test_result entries scroll away). */
+  lastTestResult?: { command: string; passed: number; failed: number; failures: TestFailure[]; durationMs: number; at: number };
+  /** Per-file LSP diagnostic counts; errors aggregate = sum of values. */
+  diagnosticsByPath: Record<string, number>;
   approval: ApprovalRequest | null;
   notifications: Notification[];
   lastError: string | null;
