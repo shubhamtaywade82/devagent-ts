@@ -127,6 +127,8 @@ const cfg = loadConfig();
         .getTools()
         .map((t) => ({ name: t.name, description: t.description, category: agent.getRegistry().categoryOf(t.name) })),
     listModels: () => agent.listModels(),
+    modelAvailability: (models: string[]) => agent.modelAvailability(models),
+    modelCapabilities: (models: string[]) => agent.modelCapabilities(models),
     runPlan: (goal: string) => agent.runPlan(goal),
     hasResumablePlan: () => agent.hasResumablePlan(),
     resolveApproval: (id: string, approved: boolean) => agent.resolveApproval(id, approved),

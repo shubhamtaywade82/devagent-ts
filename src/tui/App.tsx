@@ -62,6 +62,10 @@ export interface ShellAgent {
   hasResumablePlan?(): boolean;
   resolveApproval?(id: string, approved: boolean): void;
   listModels?(): Promise<string[]>;
+  /** Cache-only: which of the given models are known to require a Cloud subscription. */
+  modelAvailability?(models: string[]): Record<string, boolean>;
+  /** coding/vision/reasoning/quick/tools/agentic tags per model. */
+  modelCapabilities?(models: string[]): Promise<Record<string, string[]>>;
   /** Round-trips a real request through the new model; true, or an error string. */
   validateModel?(): Promise<true | string>;
   getSkillsRegistry?(): SkillsRegistry;
@@ -214,6 +218,8 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     return mgr;
   });
   const [models, setModels] = useState<string[] | null>(null);
+  const [modelAvailability, setModelAvailability] = useState<Record<string, boolean>>({});
+  const [modelCapabilities, setModelCapabilities] = useState<Record<string, string[]>>({});
   const commandRegistry = useMemo(() => registry ?? builtinCommands(), [registry]);
   const pastingRef = useRef(false);
   const pasteBufRef = useRef("");
@@ -368,7 +374,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     agent
       .listModels()
       .then((list) => {
-        if (!cancelled) setModels(list);
+        if (cancelled) return;
+        setModels(list);
+        setModelAvailability(agent.modelAvailability?.(list) ?? {});
+        agent.modelCapabilities?.(list).then((caps) => {
+          if (!cancelled) setModelCapabilities(caps);
+        });
       })
       .catch(() => {
         if (!cancelled) setModels([]);
@@ -376,6 +387,19 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     return () => {
       cancelled = true;
     };
+  }, [ui.overlay, models, agent]);
+
+  // The availability cache fills in progressively (ModelAvailabilityChecker's
+  // startup refreshAll checks each model via a real network round-trip,
+  // batched 5 at a time) — poll the cache while the switcher is open so
+  // subscription tags appear as checks land instead of only reflecting
+  // whatever was cached the instant the list loaded (often none of it yet).
+  useEffect(() => {
+    if (ui.overlay !== "model" || models === null || !agent?.modelAvailability) return;
+    const interval = setInterval(() => {
+      setModelAvailability(agent.modelAvailability!(models));
+    }, 1000);
+    return () => clearInterval(interval);
   }, [ui.overlay, models, agent]);
 
   const completionItems = completions(prompt, commandRegistry);
@@ -438,6 +462,8 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           if (effect.tier === previousTier) break;
           agent?.setTier?.(effect.tier);
           setModels(null); // invalidate the Ctrl+M cache — it belongs to the old tier
+          setModelAvailability({});
+          setModelCapabilities({});
           bus.publish({ type: "model.changed", name: store.getState().model.name, provider: effect.tier });
           bus.publish({ type: "notification", kind: "success", text: `Tier: ${effect.tier}` });
           break;
@@ -922,6 +948,8 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             <ModelSwitcher
               current={state.model.name}
               models={models}
+              availability={modelAvailability}
+              capabilities={modelCapabilities}
               width={width}
               rows={contentRows}
               active={true}

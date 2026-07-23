@@ -3,7 +3,7 @@ import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig } from "./config.js";
 import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
-import { Capability, ModelCatalog } from "../provider/catalog.js";
+import { Capability, inferCapabilities, ModelCatalog } from "../provider/catalog.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
 import { SessionStore, SessionMeta } from "../runtime/session.js";
 import { LoopDetector } from "../orchestrator/loop-detector.js";
@@ -874,6 +874,39 @@ export class Agent {
     }
     const local = data as { models?: Array<{ name: string }> };
     return (local.models ?? []).map((m) => m.name);
+  }
+
+  /**
+   * Cache-only availability lookup for the model switcher: which of `models`
+   * are known (from the startup/background ModelAvailabilityChecker refresh)
+   * to require an Ollama Cloud subscription, so the picker can show that
+   * before the user selects one instead of after. Models never checked yet,
+   * or local-tier models (the checker only tracks cloud), are omitted rather
+   * than guessed at.
+   */
+  modelAvailability(models: string[]): Record<string, boolean> {
+    if (!this.availabilityChecker) return {};
+    const out: Record<string, boolean> = {};
+    for (const m of models) {
+      const status = this.availabilityChecker.cachedStatusAnyKey(m);
+      if (status) out[m] = status.available;
+    }
+    return out;
+  }
+
+  /**
+   * Per-model capability tags (coding/vision/reasoning/quick/tools/agentic)
+   * for the model switcher. Local models get real capabilities reported by
+   * Ollama's /api/tags; cloud models fall back to the same name-based
+   * heuristic used for routing (`inferCapabilities`) since Cloud's
+   * OpenAI-compatible /v1/models doesn't expose capability metadata.
+   */
+  async modelCapabilities(models: string[]): Promise<Record<string, Capability[]>> {
+    await this.ensureCatalog();
+    const byName = new Map(this.catalog.all().map((m) => [m.name, m.capabilities]));
+    const out: Record<string, Capability[]> = {};
+    for (const m of models) out[m] = byName.get(m) ?? inferCapabilities(m);
+    return out;
   }
 
   resetContext(): void {

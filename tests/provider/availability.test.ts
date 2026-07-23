@@ -42,6 +42,23 @@ describe("ModelAvailabilityChecker", () => {
     expect(result.reason).toBe("subscription_required");
   });
 
+  it("checkOne hits the real /api/chat completion, not /api/show — regression for the false-Free bug", async () => {
+    mockFetch([{ status: 403, body: { error: "subscription required" } }]);
+    const checker = new ModelAvailabilityChecker(["key-a"]);
+    await checker.checkOne("key-a", "kimi-k2.6");
+    const [url, init] = (global.fetch as ReturnType<typeof jest.fn>).mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://ollama.com/api/chat");
+    expect(JSON.parse(init.body as string)).toMatchObject({ model: "kimi-k2.6", stream: false });
+  });
+
+  it("checkOne returns available:false, reason:forbidden on a 403 that isn't subscription-worded", async () => {
+    mockFetch([{ status: 403, body: { error: "invalid api key" } }]);
+    const checker = new ModelAvailabilityChecker(["key-a"]);
+    const result = await checker.checkOne("key-a", "some-model");
+    expect(result.available).toBe(false);
+    expect(result.reason).toBe("forbidden");
+  });
+
   it("checkOne returns available:false, reason:not_found on HTTP 404", async () => {
     mockFetch([{ status: 404, body: { error: "not found" } }]);
     const checker = new ModelAvailabilityChecker(["key-a"]);
@@ -103,5 +120,37 @@ describe("ModelAvailabilityChecker", () => {
     const result = await checker.checkOne("key-a", "some-model");
     expect(result.available).toBe(false);
     expect(result.reason).toBe("network_error");
+  });
+
+  describe("cachedStatus / cachedStatusAnyKey", () => {
+    it("cachedStatus returns undefined before any check has run", () => {
+      const checker = new ModelAvailabilityChecker(["key-a"]);
+      expect(checker.cachedStatus("key-a", "qwen3:8b")).toBeUndefined();
+    });
+
+    it("cachedStatus peeks the cache without a live fetch", async () => {
+      mockFetch([{ status: 403, body: { error: "subscription required" } }]);
+      const checker = new ModelAvailabilityChecker(["key-a"]);
+      await checker.checkOne("key-a", "minimax-m2.7");
+      const fetchMock = global.fetch as ReturnType<typeof jest.fn>;
+      fetchMock.mockClear();
+      const status = checker.cachedStatus("key-a", "minimax-m2.7");
+      expect(status).toMatchObject({ available: false, reason: "subscription_required" });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("cachedStatusAnyKey prefers an available key over a gated one", async () => {
+      mockFetch([{ status: 403, body: {} }]);
+      const checker = new ModelAvailabilityChecker(["key-a", "key-b"]);
+      await checker.checkOne("key-a", "shared-model");
+      mockFetch([{ status: 200, body: {} }]);
+      await checker.checkOne("key-b", "shared-model");
+      expect(checker.cachedStatusAnyKey("shared-model")).toMatchObject({ available: true });
+    });
+
+    it("cachedStatusAnyKey returns undefined for a never-checked model", () => {
+      const checker = new ModelAvailabilityChecker(["key-a"]);
+      expect(checker.cachedStatusAnyKey("unknown-model")).toBeUndefined();
+    });
   });
 });

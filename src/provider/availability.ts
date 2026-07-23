@@ -56,6 +56,32 @@ export class ModelAvailabilityChecker {
   }
 
   /**
+   * Peeks the cache for a model's last-known availability without triggering
+   * a live check — used to annotate a model picker before the user selects
+   * anything. Returns undefined when never checked or the entry is stale.
+   */
+  cachedStatus(apiKey: string, model: string): ModelAvailability | undefined {
+    const entry = this.cache.get(apiKey)?.get(model);
+    return entry && this.isFresh(entry) ? entry : undefined;
+  }
+
+  /**
+   * Same as `cachedStatus`, but checks across every configured API key (the
+   * caller doesn't know or care which key will actually serve the request) —
+   * available on any key wins; otherwise the first cached reason found.
+   */
+  cachedStatusAnyKey(model: string): ModelAvailability | undefined {
+    let fallback: ModelAvailability | undefined;
+    for (const apiKey of this.apiKeys) {
+      const entry = this.cachedStatus(apiKey, model);
+      if (!entry) continue;
+      if (entry.available) return entry;
+      fallback ??= entry;
+    }
+    return fallback;
+  }
+
+  /**
    * Returns all model IDs cached as available (and non-stale) for `apiKey`.
    */
   availableModels(apiKey: string): string[] {
@@ -174,15 +200,22 @@ export class ModelAvailabilityChecker {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     const base: Omit<ModelAvailability, "available" | "reason"> = { model, checkedAt: Date.now() };
     try {
-      const resp = await fetch("https://ollama.com/api/show", {
+      // A real (tiny) chat completion, not /api/show — Ollama Cloud's
+      // subscription gating is enforced on /api/chat; /api/show returns 200
+      // metadata for every model regardless of entitlement, which previously
+      // made every cloud model read back as "available".
+      const resp = await fetch("https://ollama.com/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-        body: JSON.stringify({ model }),
+        body: JSON.stringify({ model, messages: [{ role: "user", content: "hi" }], stream: false }),
         signal: controller.signal,
       });
+      const text = await resp.text().catch(() => "");
 
       if (resp.status === 200) return { ...base, available: true, reason: "ok" };
-      if (resp.status === 403) return { ...base, available: false, reason: "subscription_required" };
+      if (resp.status === 403) {
+        return { ...base, available: false, reason: text.toLowerCase().includes("subscription") ? "subscription_required" : "forbidden" };
+      }
       if (resp.status === 404) return { ...base, available: false, reason: "not_found" };
       return { ...base, available: false, reason: `http_${resp.status}` };
     } catch (e) {
