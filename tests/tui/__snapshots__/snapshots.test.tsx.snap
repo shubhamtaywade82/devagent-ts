@@ -2,23 +2,23 @@
 
 exports[`layout snapshots dashboard view at 140x40 1`] = `
 "devagent-ts v0.1.0  │ Mission: add authentication                                                   MODE: CODE   MODEL: qwen3:30b   10:42:11
-[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-MISSION                        │ ACTIVITY STREAM                                                            │ FILES (2 CHANGED)
-add authentication             │ You                                                                        │ M src/tools/fs.ts
- ✓ Understand                  │   create filesystem tool                                                   │ A src/tools/index.ts
- ✓ Inspect                     │                                                                            │
- ✓ Plan                        │ DevAgent · local/qwen3:30b                                                 │
- ▶ Execute              0m 00s │   Analyzing project structure and existing patterns...                     │
- ○ Complete                    │     • Reading package.json                                                 │
-   ── ✓ Create User model      │     • Found TypeScript project                                             │
-   ── ▶ Add Devise gem         │ ◆ Execute > Add Devise gem                                                 │
-                               │                                                                            │
+MISSION                        │ You                                                                        │ FILES (2 CHANGED)
+add authentication             │   create filesystem tool                                                   │ M src/tools/fs.ts
+ ✓ Understand                  │                                                                            │ A src/tools/index.ts
+ ✓ Inspect                     │ DevAgent · local/qwen3:30b                                                 │
+ ✓ Plan                        │   Analyzing project structure and existing patterns...                     │
+ ▶ Execute              0m 00s │     • Reading package.json                                                 │
+ ○ Complete                    │     • Found TypeScript project                                             │
+   ── ✓ Create User model      │ ◆ Execute > Add Devise gem                                                 │
+   ── ▶ Add Devise gem         │                                                                            │
                                │ 📄 Gemfile (pending_review) +1 -0                                          │
                                │   +gem 'devise'                                                            │
                                │   ✓ Gemfile  +1 −0                                                         │
                                │   1 file · +1 −0                                                           │
+                               │                                                                            │
                                │                                                                            │
                                │                                                                            │
                                │                                                                            │
@@ -45,8 +45,8 @@ View all tools... (/tools)     │                                              
 
 exports[`layout snapshots same structure, density-only changes at 80x24 1`] = `
 "devagent-ts v0.1.0                      MODE: CODE   MODEL: qwen3:30b   10:42:11
-[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ───────────────────────────────────────────────────────────────────────────────
+[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ────────────────────────────────────────────────────────────────────────────────
 Resize to ≥130 cols for the full dashboard.
 You
@@ -72,8 +72,8 @@ DevAgent · local/qwen3:30b
 
 exports[`layout snapshots same structure, density-only changes at 100x30 1`] = `
 "devagent-ts v0.1.0                                          MODE: CODE   MODEL: qwen3:30b   10:42:11
-[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ───────────────────────────────────────────────────────────────────────────────────────────────────
+[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ────────────────────────────────────────────────────────────────────────────────────────────────────
 Resize to ≥130 cols for the full dashboard.
 You
@@ -105,8 +105,8 @@ DevAgent · local/qwen3:30b
 
 exports[`layout snapshots same structure, density-only changes at 120x30 1`] = `
 "devagent-ts v0.1.0                                                              MODE: CODE   MODEL: qwen3:30b   10:42:11
-[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
 Resize to ≥130 cols for the full dashboard.
 You
@@ -138,10 +138,9 @@ DevAgent · local/qwen3:30b
 
 exports[`layout snapshots same structure, density-only changes at 160x45 1`] = `
 "devagent-ts v0.1.0                                                                                                      MODE: CODE   MODEL: qwen3:30b   10:42:11
-[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-ACTIVITY STREAM
 You
   create filesystem tool
 
@@ -149,6 +148,7 @@ DevAgent · local/qwen3:30b
   Analyzing project structure and existing patterns...
     • Reading package.json
     • Found TypeScript project
+
 
 
 
@@ -186,10 +186,9 @@ DevAgent · local/qwen3:30b
 
 exports[`layout snapshots same structure, density-only changes at 220x60 1`] = `
 "devagent-ts v0.1.0                                                                                                                                                                  MODE: CODE   MODEL: qwen3:30b   10:42:11
-[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ───────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+[Chat] │  Plan  │  Tasks  │  Changes  │  Logs  │ Ctrl+P Palette
 ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
-ACTIVITY STREAM
 You
   create filesystem tool
 
@@ -197,6 +196,7 @@ DevAgent · local/qwen3:30b
   Analyzing project structure and existing patterns...
     • Reading package.json
     • Found TypeScript project
+
 
 
 

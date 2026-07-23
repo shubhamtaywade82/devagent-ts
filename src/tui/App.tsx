@@ -218,6 +218,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const pastingRef = useRef(false);
   const pasteBufRef = useRef("");
   const pasteCountRef = useRef(0);
+  const focusReportRef = useRef(false);
 
   // Burst detection: some terminals split a multi-line paste into one
   // "data" event PER LINE, each ending in a lone \r that Ink reads as a
@@ -320,6 +321,39 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     process.stdin.prependListener("data", handler);
     return () => {
       process.stdin.off("data", handler);
+    };
+  }, []);
+
+  // Terminal focus tracking (DECSET 1004): most modern terminals (iTerm2,
+  // kitty, WezTerm, Alacritty, Windows Terminal) report window focus in/out
+  // as \x1b[I / \x1b[O once this mode is enabled — used to switch the prompt
+  // cursor from a solid block (focused) to a thin bar (unfocused), same
+  // convention as GUI editors. Terminals that don't support it simply never
+  // send the sequence, so `focused` just stays true — no feature detection
+  // needed.
+  const [focused, setFocused] = useState(true);
+  useEffect(() => {
+    if (!process.stdin.isTTY) return;
+    process.stdout.write("\x1b[?1004h");
+    // Ink doesn't recognize \x1b[I / \x1b[O as a real key — left alone it
+    // falls through Ink's keypress parser as literal "[I"/"[O" text typed
+    // into the prompt. Same fix as the bracketed-paste handler above:
+    // prependListener runs before Ink's own stdin listener, and
+    // focusReportRef tells useInput to swallow the resulting keypresses
+    // instead of appending them (see the pastingRef check below).
+    const handler = (data: Buffer) => {
+      const s = data.toString();
+      if (s !== "\x1b[I" && s !== "\x1b[O") return;
+      setFocused(s === "\x1b[I");
+      focusReportRef.current = true;
+      setTimeout(() => {
+        focusReportRef.current = false;
+      }, 0);
+    };
+    process.stdin.prependListener("data", handler);
+    return () => {
+      process.stdin.off("data", handler);
+      process.stdout.write("\x1b[?1004l");
     };
   }, []);
 
@@ -705,6 +739,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
 
   useInput((input, key) => {
     if (pastingRef.current) return; // let the data handler manage paste content
+    if (focusReportRef.current) return; // terminal focus in/out escape, not real text
     if (MOUSE_SGR_PATTERN.test(input)) return; // scroll/click artifact, never real text
 
     const now = Date.now();
@@ -828,12 +863,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     <Box flexDirection="column" width={width} height={height}>
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
-        <ActivityStrip state={state} width={width} now={now} activeView={ui.activeView} />
         <Box height={1}>
           <Text color="gray" dimColor>
             {"─".repeat(Math.max(0, width - 1))}
           </Text>
         </Box>
+        <ActivityStrip state={state} width={width} now={now} activeView={ui.activeView} />
         <Box flexDirection="column" height={viewRows}>
           {showViewTitle ? (
             <Box height={1}>
@@ -988,7 +1023,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             width={width}
           />
         )}
-        <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} />
+        <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} focused={focused} />
         <Box height={1}>
           <Text color="gray" dimColor>
             {"─".repeat(Math.max(0, width - 1))}

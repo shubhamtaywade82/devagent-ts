@@ -74,18 +74,11 @@ export function DashboardView({ state, width, rows, detail, now }: ViewProps): R
         </>
       )}
       <Box flexDirection="column" width={centerWidth} height={rows}>
-        {state.conversation.length === 0 ? (
-          // Empty session: the welcome block centers itself; a section title
-          // above an empty stream just labels a void.
-          <ConversationView state={state} width={centerWidth} rows={feedSection} detail={detail} />
-        ) : (
-          <Section title="Activity Stream" width={centerWidth} rows={feedSection}>
-            {/* ConversationView verbatim — the stream renders exactly like the
-                Conversation view (same markdown/tool/diff formatting, same
-                PageUp/PageDown + wheel scrolling), just inside a section. */}
-            <ConversationView state={state} width={centerWidth} rows={feedSection - 1} detail={detail} />
-          </Section>
-        )}
+        {/* No "Activity Stream" title — the [Chat] tab above already says
+            what this is; ConversationView verbatim (same markdown/tool/diff
+            formatting, same PageUp/PageDown + wheel scrolling) just gets the
+            full column instead of losing a row to a redundant label. */}
+        <ConversationView state={state} width={centerWidth} rows={feedSection} detail={detail} />
         {showDiffSummary && (
           <>
             <Rule width={centerWidth} />

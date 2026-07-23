@@ -6,6 +6,9 @@ export interface PromptBarProps {
   ghost: string;
   width: number;
   busy: boolean;
+  /** Terminal window focus (see App.tsx's DECSET 1004 tracking). Defaults to
+   * true so callers/tests that don't wire it up keep the solid-block cursor. */
+  focused?: boolean;
 }
 
 function isPastedPlaceholder(lines: string[]): boolean {
@@ -26,7 +29,7 @@ export function promptBarRows(text: string): 1 | 2 {
 }
 
 /** Prompt input with multiline support. Shift+Enter inserts a newline. */
-export function PromptBar({ text, ghost, width, busy }: PromptBarProps): React.JSX.Element {
+export function PromptBar({ text, ghost, width, busy, focused = true }: PromptBarProps): React.JSX.Element {
   const promptGlyph = busy ? "◌" : ">";
   const lines = text.split("\n");
   const isPasted = isPastedPlaceholder(lines);
@@ -54,7 +57,7 @@ export function PromptBar({ text, ghost, width, busy }: PromptBarProps): React.J
         </Text>
         <Text key={visibleLine}>
           {visibleLine}
-          <Text inverse> </Text>
+          {focused ? <Text inverse> </Text> : <Text color="green">│</Text>}
           <Text color="gray">{visibleGhost}</Text>
         </Text>
       </Box>
