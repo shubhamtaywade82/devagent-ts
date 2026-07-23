@@ -826,6 +826,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     <Box flexDirection="column" width={width} height={height}>
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
+        <ActivityStrip state={state} width={width} now={now} />
+        <Box height={1}>
+          <Text color="gray" dimColor>
+            {"─".repeat(Math.max(0, width - 1))}
+          </Text>
+        </Box>
         <Box flexDirection="column" height={viewRows}>
           {showViewTitle ? (
             <Box height={1}>
@@ -954,12 +960,6 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} />
           )}
         </Box>
-        <Box height={1}>
-          <Text color="gray" dimColor>
-            {"─".repeat(Math.max(0, width - 1))}
-          </Text>
-        </Box>
-        <ActivityStrip state={state} width={width} now={now} />
         <Box height={1}>
           <Text color="gray" dimColor>
             {"─".repeat(Math.max(0, width - 1))}

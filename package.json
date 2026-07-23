@@ -13,7 +13,7 @@
     "build": "tsc -p tsconfig.json",
     "test": "node --experimental-vm-modules node_modules/.bin/jest",
     "start": "node dist/tui/index.js",
-    "dev": "tsx src/tui/index.ts",
+    "dev": "tsx watch src/tui/index.ts",
     "dev:legacy": "tsx src/cli/tui.ts",
     "benchmark": "tsx src/benchmark/cli.ts",
     "docs:ingest": "tsx src/docs/cli.ts",
