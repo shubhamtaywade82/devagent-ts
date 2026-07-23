@@ -45,10 +45,19 @@ describe("activityStripTokens", () => {
 });
 
 describe("contextStripTokens", () => {
-  it("idle mode shows the NORMAL strip", () => {
+  it("idle mode shows the footer status strip", () => {
     const s = fresh();
     const texts = contextStripTokens(s, undefined, s.session.startedAt).map((t) => t.text);
-    expect(texts).toEqual(["Mode:Code", "Model:qwen3:30b", "Workspace:ollama-agent", "⏱ 0m", "Ctrl+P Palette"]);
+    // Sandbox token absent: sandboxAvailable is undefined until the bootstrap
+    // docker probe resolves (see tui/index.ts) — never fabricated.
+    expect(texts).toEqual(["● Connected", "🔀 Git main", "⏱ 0m", "Ctrl+P Palette"]);
+  });
+
+  it("idle strip shows sandbox status once detected", () => {
+    let s = fresh();
+    s = reduce(s, { type: "sandbox.detected", available: true });
+    const texts = contextStripTokens(s, undefined, s.session.startedAt).map((t) => t.text);
+    expect(texts).toContain("⊞ Sandbox ✓");
   });
 
   it("streaming mode shows generation state", () => {

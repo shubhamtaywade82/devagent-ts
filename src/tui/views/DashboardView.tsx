@@ -33,17 +33,30 @@ export function DashboardView({ state, width, rows, detail }: ViewProps): React.
 
   const centerWidth = Math.max(20, width - SIDE_WIDTH * 2 - GAP * 2);
 
-  // Left column: Mission (majority) + Tools (fixed-ish), each panel's outer
-  // height includes Panel's own border(2)+title(1) overhead.
-  const toolsOuter = Math.min(12, Math.max(6, Math.floor(rows * 0.3)));
-  const missionOuter = Math.max(6, rows - GAP - toolsOuter);
+  // Content-driven heights: fixed-size panels get exactly what their content
+  // needs (+3 for Panel's border(2)+title(1) chrome); each column's one
+  // naturally-growing panel absorbs the remainder so columns always fill
+  // `rows` exactly — an idle dashboard shows compact panels, not voids.
 
-  // Center column: Activity Feed (majority) + pinned Diff Preview.
-  const diffOuter = Math.min(16, Math.max(6, Math.floor(rows * 0.32)));
+  // Left column: Mission sized to goal(1) + 8 phases + live substeps
+  // (Execute running only, capped); Tools absorbs the rest — it's the list
+  // that actually grows over a session.
+  const executeRunning = state.mission.phases.find((p) => p.id === "execute")?.status === "running";
+  const substepRows = executeRunning ? Math.min(state.mission.steps.length, 6) : 0;
+  const missionContent = state.mission.goal ? 1 + state.mission.phases.length + substepRows : 2; // no goal → 2-line centered hint
+  const missionOuter = Math.min(missionContent + 3, Math.max(6, rows - GAP - 6));
+  const toolsOuter = Math.max(6, rows - GAP - missionOuter);
+
+  // Center column: Diff Preview only reserves real space when a diff exists;
+  // idle it collapses to a title + one-line empty state.
+  const hasDiff = state.conversation.some((e) => e.kind === "diff_preview");
+  const diffOuter = hasDiff ? Math.min(16, Math.max(6, Math.floor(rows * 0.32))) : 4;
   const feedOuter = Math.max(6, rows - GAP - diffOuter);
 
-  // Right column: Context + Files + Diagnostics, stacked.
-  const contextOuter = Math.min(13, rows);
+  // Right column: Context sized to its field count (1 line each, see
+  // ContextPanel), Diagnostics fixed at its 3 rows, Files absorbs the middle.
+  const contextFields = 3 + (state.project?.language ? 1 : 0) + (state.project?.framework ? 1 : 0) + (state.project?.testFramework ? 1 : 0);
+  const contextOuter = Math.min(contextFields + 3, rows);
   const diagOuter = Math.min(6, Math.max(0, rows - contextOuter - GAP * 2));
   const filesOuter = Math.max(0, rows - contextOuter - diagOuter - GAP * 2);
 

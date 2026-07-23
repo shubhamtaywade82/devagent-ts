@@ -24,9 +24,9 @@ export function FilesPanel({ files, width, rows }: FilesPanelProps): React.JSX.E
   return (
     <Box flexDirection="column" width={width} height={rows}>
       {files.length === 0 ? (
-        <Box height={1}>
+        <Box height={rows} justifyContent="center" alignItems="center">
           <Text color="gray" dimColor>
-            (clean)
+            Working tree clean
           </Text>
         </Box>
       ) : (

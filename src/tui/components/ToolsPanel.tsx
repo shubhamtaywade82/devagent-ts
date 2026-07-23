@@ -37,9 +37,9 @@ export function ToolsPanel({ toolCalls, width, rows }: ToolsPanelProps): React.J
   return (
     <Box flexDirection="column" width={width} height={rows}>
       {visible.length === 0 ? (
-        <Box height={1}>
+        <Box height={Math.max(1, rows - 1)} justifyContent="center" alignItems="center">
           <Text color="gray" dimColor>
-            (none yet)
+            No tool calls yet
           </Text>
         </Box>
       ) : (

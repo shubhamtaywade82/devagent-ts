@@ -24,10 +24,11 @@ export function PinnedDiffPanel({ conversation, width, rows }: PinnedDiffPanelPr
   const bodyRows = Math.max(0, rows - 2);
 
   if (!entry) {
+    // DashboardView collapses this panel to one content row while empty.
     return (
-      <Box flexDirection="column" width={width} height={rows}>
+      <Box flexDirection="column" width={width} height={rows} justifyContent="center">
         <Text color="gray" dimColor>
-          (no changes yet)
+          No changes yet
         </Text>
       </Box>
     );

@@ -25,18 +25,35 @@ function phaseDuration(phase: MissionState["phases"][number], now: number): stri
 
 /** Left-column Mission panel content: whole-mission phases (flat, with elapsed durations), Execute's live substeps indented while it's running. Title/border chrome comes from the shared Panel wrapper. */
 export function MissionPanel({ mission, width, rows, now = Date.now() }: MissionPanelProps): React.JSX.Element {
+  if (!mission.goal) {
+    // No mission yet — a centered hint beats 8 rows of pending checkboxes
+    // for something that hasn't started. DashboardView sizes the panel to
+    // this compact form (see its missionOuter math).
+    return (
+      <Box flexDirection="column" width={width} height={rows} justifyContent="center" alignItems="center">
+        <Text color="gray" dimColor>
+          No active mission
+        </Text>
+        <Text color="gray" dimColor>
+          Start one with /plan {"<goal>"}
+        </Text>
+      </Box>
+    );
+  }
+
   const started = mission.phases[0]?.startedAt;
   const totalElapsed = started ? formatElapsed(now - started) : null;
   const executePhase = mission.phases.find((p) => p.id === "execute");
   const showSteps = executePhase?.status === "running" && mission.steps.length > 0;
-  const stepBudget = Math.max(0, rows - mission.phases.length - 2);
+  // Rows left under goal(1) + phase list for Execute's live substeps.
+  const stepBudget = Math.max(0, rows - 1 - mission.phases.length);
   const steps = showSteps ? tail(mission.steps, stepBudget) : [];
 
   return (
     <Box flexDirection="column" width={width} height={rows}>
       <Box height={1}>
         <Text wrap="truncate" color="cyan">
-          {truncate(mission.goal || "(no active mission)", width - (totalElapsed ? totalElapsed.length + 1 : 0))}
+          {truncate(mission.goal, width - (totalElapsed ? totalElapsed.length + 1 : 0))}
         </Text>
         {totalElapsed && (
           <Text color="gray" dimColor>

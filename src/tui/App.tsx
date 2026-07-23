@@ -355,7 +355,11 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     completionRowCount + (completionItems.length > MAX_COMPLETION_ROWS ? 1 : 0) + (activeCompletion ? 1 : 0);
   const totalPromptRows = promptBarRows(prompt) + completionChrome;
   const viewRows = activeViewRows(height, totalPromptRows);
-  const contentRows = Math.max(2, viewRows - 1);
+  // Dashboard skips the "─ N ViewName ─" rule row — its branded Header is
+  // directly above, and the numeric index is a digit-key hint that only
+  // reaches views 1-9 anyway. The reclaimed row goes back to the content.
+  const showViewTitle = ui.activeView !== "dashboard";
+  const contentRows = Math.max(2, viewRows - (showViewTitle ? 1 : 0));
 
   const applyEffect = useCallback(
     async (effect: CommandEffect): Promise<void> => {
@@ -822,15 +826,17 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
         <Box flexDirection="column" height={viewRows}>
-          <Box height={1}>
-            <Text color="gray">{"─"}</Text>
-            <Text color="blue" bold>
-              {title}
-            </Text>
-            <Text color="gray" wrap="truncate">
-              {rule}
-            </Text>
-          </Box>
+          {showViewTitle && (
+            <Box height={1}>
+              <Text color="gray">{"─"}</Text>
+              <Text color="blue" bold>
+                {title}
+              </Text>
+              <Text color="gray" wrap="truncate">
+                {rule}
+              </Text>
+            </Box>
+          )}
           {showApproval ? (
             <ApprovalOverlay request={approval} width={width} rows={contentRows} showDiff={ui.overlay === "diff"} />
           ) : ui.overlay === "palette" ? (

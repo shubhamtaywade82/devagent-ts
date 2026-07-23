@@ -50,8 +50,24 @@ describe("DashboardView", () => {
   it("is the default view", () => {
     const { lastFrame, unmount } = renderApp(140, 40);
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("Dashboard");
+    // No "─ 15 Dashboard ─" title row anymore — the branded header + panel
+    // titles identify the view.
     expect(frame).toContain("MISSION");
+    expect(frame).toContain("ACTIVITY FEED");
+    unmount();
+  });
+
+  it("collapses the Diff Preview panel while no diff exists", () => {
+    const { lastFrame, unmount } = renderApp(140, 40);
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("No changes yet");
+    // Collapsed form: exactly one content row between the DIFF PREVIEW title
+    // and the panel's bottom border.
+    const lines = frame.split("\n");
+    const titleIdx = lines.findIndex((l) => l.includes("DIFF PREVIEW"));
+    expect(titleIdx).toBeGreaterThan(-1);
+    expect(lines[titleIdx + 1]).toContain("No changes yet");
+    expect(lines[titleIdx + 2]).toContain("╰");
     unmount();
   });
 

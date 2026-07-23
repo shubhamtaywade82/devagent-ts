@@ -84,11 +84,11 @@ describe("App shell", () => {
   it("renders all five permanent zones", () => {
     const { lastFrame, unmount } = renderApp();
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("DevAgent"); // header
-    expect(frame).toContain("No conversation yet"); // conversation area
+    expect(frame).toContain("devagent-ts"); // branded header
+    expect(frame).toContain("No conversation yet"); // conversation area (dashboard's narrow fallback at 100 cols)
     expect(frame).toContain("Chat"); // activity strip
     expect(frame).toContain(">"); // prompt
-    expect(frame).toContain("IDLE"); // status in header
+    expect(frame).toContain("MODE:"); // agent mode in header
     unmount();
   });
 
@@ -494,9 +494,10 @@ describe("resize safety (regression)", () => {
     for (const line of lines) {
       expect(line.length).toBeLessThanOrEqual(columns);
     }
-    // Every zone still present.
-    expect(frame).toContain("DevAgent");
-    expect(frame).toContain("Dashboard"); // dashboard is the default view now
+    // Every zone still present. (Dashboard shows no view-title row — the
+    // branded header and its MODE token stand in for it.)
+    expect(frame).toContain("devagent-ts");
+    expect(frame).toContain("MODE:");
     expect(frame).toContain("Chat");
     expect(frame).toContain(">");
     unmount();

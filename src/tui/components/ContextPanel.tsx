@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { GitState, ProjectInfo, SessionState } from "../../runtime/types.js";
+import { truncate } from "../../layout/truncate.js";
 
 export interface ContextPanelProps {
   session: SessionState;
@@ -11,17 +12,21 @@ export interface ContextPanelProps {
   now?: number;
 }
 
+/** One line per field: dim icon+label left, value right-aligned — same gap-padding pattern as DiagnosticsPanel's Row. */
 function Field({ icon, label, value, width }: { icon: string; label: string; value: string; width: number }): React.JSX.Element {
+  const left = `${icon} ${label}`;
+  // Emoji icons render 2 cells wide but count as 1 string char — the -1
+  // keeps the right-aligned values from spilling past the panel edge.
+  const valueBudget = Math.max(4, width - left.length - 2);
+  const shown = truncate(value, valueBudget);
+  const gap = Math.max(1, width - left.length - shown.length - 1);
   return (
-    <Box flexDirection="column">
-      <Box height={1}>
-        <Text color="gray" dimColor>
-          {icon} {label}
-        </Text>
-      </Box>
-      <Box height={1} paddingLeft={2}>
-        <Text wrap="truncate">{value.length > width - 2 ? value.slice(0, width - 3) + "…" : value}</Text>
-      </Box>
+    <Box height={1}>
+      <Text color="gray" dimColor>
+        {left}
+      </Text>
+      <Text>{" ".repeat(gap)}</Text>
+      <Text wrap="truncate">{shown}</Text>
     </Box>
   );
 }
@@ -34,10 +39,13 @@ export function ContextPanel({ session, git, project, width, rows, now = Date.no
   ];
   if (project?.language) fields.push({ icon: "◆", label: "Language", value: project.language });
   if (project?.framework) fields.push({ icon: "⚙", label: "Framework", value: project.framework });
-  if (project?.testFramework) fields.push({ icon: "✓", label: "Test Framework", value: project.testFramework });
-  fields.push({ icon: "🕐", label: "Last Updated", value: new Date(now).toLocaleTimeString() });
+  if (project?.testFramework) fields.push({ icon: "✓", label: "Tests", value: project.testFramework });
+  // 24h HH:MM:SS — matches the Header clock's format, not locale-dependent.
+  const d = new Date(now);
+  const hhmmss = [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
+  fields.push({ icon: "🕐", label: "Updated", value: hhmmss });
 
-  const visible = fields.slice(0, Math.max(0, Math.floor(rows / 2)));
+  const visible = fields.slice(0, Math.max(0, rows));
 
   return (
     <Box flexDirection="column" width={width} height={rows}>

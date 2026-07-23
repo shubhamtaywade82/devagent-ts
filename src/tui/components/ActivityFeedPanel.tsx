@@ -290,9 +290,12 @@ export function ActivityFeedPanel({ state, width, rows }: ActivityFeedPanelProps
 
   if (entries.length === 0) {
     return (
-      <Box height={rows} width={width}>
+      <Box flexDirection="column" height={rows} width={width} justifyContent="center" alignItems="center">
         <Text color="gray" dimColor>
-          No activity yet.
+          No activity yet
+        </Text>
+        <Text color="gray" dimColor>
+          Type below to begin
         </Text>
       </Box>
     );
