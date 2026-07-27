@@ -183,3 +183,42 @@ describe("Provider streaming resilience", () => {
     expect(cancel).toHaveBeenCalled();
   });
 });
+
+// The host used to be resolved once in the constructor from the *construction*
+// tier, so setTier("cloud") on a local-built Provider kept talking to
+// localhost:11434 while attaching a cloud Bearer token to every request.
+describe("Provider host resolution", () => {
+  const savedEnv = process.env.OLLAMA_HOST;
+  afterEach(() => {
+    if (savedEnv === undefined) delete process.env.OLLAMA_HOST;
+    else process.env.OLLAMA_HOST = savedEnv;
+  });
+
+  it("defaults each tier to its own endpoint", () => {
+    delete process.env.OLLAMA_HOST;
+    expect(new Provider({ tier: "local", model: "m" }).currentHost).toBe("http://localhost:11434");
+    expect(new Provider({ tier: "cloud", model: "m", apiKey: "k" }).currentHost).toBe("https://ollama.com");
+  });
+
+  it("re-derives the host when the tier changes", () => {
+    delete process.env.OLLAMA_HOST;
+    const provider = new Provider({ tier: "local", model: "m", apiKey: "k" });
+    expect(provider.currentHost).toBe("http://localhost:11434");
+
+    provider.setTier("cloud");
+
+    expect(provider.currentHost).toBe("https://ollama.com");
+  });
+
+  it("never resolves OLLAMA_HOST as a cloud endpoint", () => {
+    process.env.OLLAMA_HOST = "http://127.0.0.1:9999";
+    expect(new Provider({ tier: "local", model: "m" }).currentHost).toBe("http://127.0.0.1:9999");
+    expect(new Provider({ tier: "cloud", model: "m", apiKey: "k" }).currentHost).toBe("https://ollama.com");
+  });
+
+  it("keeps an explicitly configured host across a tier switch", () => {
+    const provider = new Provider({ tier: "local", model: "m", host: "http://proxy.internal", apiKey: "k" });
+    provider.setTier("cloud");
+    expect(provider.currentHost).toBe("http://proxy.internal");
+  });
+});

@@ -215,11 +215,19 @@ export function loadConfig(): CliConfig {
       ? { inputPerMillion, outputPerMillion }
       : undefined;
 
+  const tier: CliConfig["tier"] = (fromEnv("DEVAGENT_TIER") || file.tier) === "cloud" ? "cloud" : "local";
+
   return {
     model: fromEnv("DEVAGENT_MODEL") || file.model || "qwen3.5:4b",
     workspaceRoot,
-    tier: (fromEnv("DEVAGENT_TIER") || file.tier) === "cloud" ? "cloud" : "local",
-    host: fromEnv("OLLAMA_HOST") || file.host,
+    tier,
+    // OLLAMA_HOST is the local-Ollama convention, so it only applies to the
+    // local tier. It used to be returned regardless, which meant a user with
+    // OLLAMA_HOST set (normal for a local Ollama install) who switched to
+    // DEVAGENT_TIER=cloud silently sent Cloud requests -- Bearer token and all
+    // -- to their own localhost. An explicit `host` in config still wins for
+    // either tier, since that is a deliberate choice.
+    host: file.host || (tier === "local" ? fromEnv("OLLAMA_HOST") : undefined),
     apiKey: primaryApiKey,
     timeoutMs,
     systemPrompt,

@@ -138,3 +138,48 @@ describe("enableHeuristicGate flag", () => {
     expect(loadConfig().enableHeuristicGate).toBe(false);
   });
 });
+
+describe("loadConfig host/tier interaction", () => {
+  const originalEnv = { ...process.env };
+  let workspaceRoot: string;
+
+  beforeEach(async () => {
+    workspaceRoot = await mkdtemp(join(tmpdir(), "config-host-"));
+    process.env.DEVAGENT_WORKSPACE = workspaceRoot;
+    delete process.env.OLLAMA_HOST;
+    delete process.env.DEVAGENT_TIER;
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+  });
+
+  it("uses OLLAMA_HOST for the local tier", () => {
+    process.env.OLLAMA_HOST = "http://127.0.0.1:9999";
+    const cfg = loadConfig();
+    expect(cfg.tier).toBe("local");
+    expect(cfg.host).toBe("http://127.0.0.1:9999");
+  });
+
+  // OLLAMA_HOST is the local-Ollama convention. Returning it for a cloud-tier
+  // config pointed Cloud requests -- Bearer token attached -- at the user's
+  // own localhost.
+  it("ignores OLLAMA_HOST when the tier is cloud", () => {
+    process.env.OLLAMA_HOST = "http://127.0.0.1:9999";
+    process.env.DEVAGENT_TIER = "cloud";
+    const cfg = loadConfig();
+    expect(cfg.tier).toBe("cloud");
+    expect(cfg.host).toBeUndefined();
+  });
+
+  it("still honours an explicit host from the config file on the cloud tier", () => {
+    mkdirSync(join(workspaceRoot, ".devagent"), { recursive: true });
+    writeFileSync(
+      join(workspaceRoot, ".devagent", "config.json"),
+      JSON.stringify({ host: "https://proxy.example" }),
+    );
+    process.env.OLLAMA_HOST = "http://127.0.0.1:9999";
+    process.env.DEVAGENT_TIER = "cloud";
+    expect(loadConfig().host).toBe("https://proxy.example");
+  });
+});
