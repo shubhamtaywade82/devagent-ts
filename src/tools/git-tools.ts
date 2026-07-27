@@ -19,6 +19,12 @@ const ALLOWED_SUBCOMMANDS = new Set([
 
 const DISALLOWED_FLAG_PATTERNS = [/^--hard$/, /^--force$/, /^-f$/, /^-D$/];
 
+/** Same ceiling and rationale as ShellTool.MAX_OUTPUT_BYTES: this output goes
+ * straight back to the model as a tool message. `git log` or `git diff` on a
+ * large repo previously accumulated unbounded into memory and then into the
+ * context window. */
+const MAX_OUTPUT_BYTES = 32 * 1024;
+
 export class GitTool extends Tool {
   constructor(private readonly root: string) {
     super();
@@ -59,12 +65,26 @@ export class GitTool extends Tool {
 
     return new Promise((resolvePromise) => {
       const child = spawn("git", gitArgs, { cwd: this.root });
-      let stdout = "";
-      let stderr = "";
-      child.stdout.on("data", (c: Buffer) => (stdout += c.toString()));
-      child.stderr.on("data", (c: Buffer) => (stderr += c.toString()));
+      // Buffers, decoded once at the end: concatenating per-chunk toString()
+      // corrupts multi-byte characters split across a chunk boundary, which
+      // shows up as mojibake in diffs and commit messages.
+      let stdout = Buffer.alloc(0);
+      let stderr = Buffer.alloc(0);
+      child.stdout.on("data", (c: Buffer) => {
+        if (stdout.byteLength < MAX_OUTPUT_BYTES) stdout = Buffer.concat([stdout, c]);
+      });
+      child.stderr.on("data", (c: Buffer) => {
+        if (stderr.byteLength < MAX_OUTPUT_BYTES) stderr = Buffer.concat([stderr, c]);
+      });
       child.on("close", (exitCode) => {
-        resolvePromise({ command: `git ${gitArgs.join(" ")}`, exitCode: exitCode ?? -1, stdout, stderr });
+        const truncated = stdout.byteLength > MAX_OUTPUT_BYTES || stderr.byteLength > MAX_OUTPUT_BYTES;
+        resolvePromise({
+          command: `git ${gitArgs.join(" ")}`,
+          exitCode: exitCode ?? -1,
+          stdout: stdout.subarray(0, MAX_OUTPUT_BYTES).toString("utf-8"),
+          stderr: stderr.subarray(0, MAX_OUTPUT_BYTES).toString("utf-8"),
+          truncated,
+        });
       });
       child.on("error", (err) => {
         resolvePromise({ command: `git ${gitArgs.join(" ")}`, exitCode: -1, stdout: "", stderr: err.message });

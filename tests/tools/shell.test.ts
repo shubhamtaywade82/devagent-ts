@@ -35,7 +35,8 @@ afterEach(() => {
 type ShellToolInstance = InstanceType<typeof ShellTool>;
 
 function skipDockerPreflight(tool: ShellToolInstance): void {
-  (tool as any).dockerChecked = true;
+  // Non-null means "already probed", which keeps call() on its synchronous
+  // fast path so the fake child's listeners are attached in the same tick.
   (tool as any).dockerAvailable = true;
 }
 
@@ -148,5 +149,34 @@ describe("ShellTool", () => {
     expect(onOutput).toHaveBeenCalledWith("stdout", "hi\n");
     expect(onOutput).toHaveBeenCalledWith("stderr", "warn\n");
     expect(result).toMatchObject({ exitCode: 0, stdout: "hi\n", stderr: "warn\n" });
+  });
+});
+
+// timeoutSec arrives as untyped JSON from the model. It was read with a bare
+// `as number`, so a string "30" made (timeoutSec + 15) * 1000 evaluate to
+// 3015000 -- 50 minutes instead of 45 seconds -- and a non-numeric value
+// produced NaN, which makes setTimeout fire immediately so *every* run_shell
+// returned "sandbox exceeded hard timeout".
+describe("ShellTool timeoutSec coercion", () => {
+  const resolve = (tool: ShellToolInstance, raw: unknown): number => (tool as any).resolveTimeoutSec(raw);
+
+  it("accepts a number", () => {
+    const tool = new ShellTool({ workspaceRoot: "/tmp/ws", timeoutSec: 30 });
+    expect(resolve(tool, 45)).toBe(45);
+  });
+
+  it("coerces a numeric string instead of concatenating it", () => {
+    const tool = new ShellTool({ workspaceRoot: "/tmp/ws", timeoutSec: 30 });
+    expect(resolve(tool, "45")).toBe(45);
+  });
+
+  it.each([undefined, null, "soon", NaN, 0, -5, {}])("falls back to the configured default for %p", (raw) => {
+    const tool = new ShellTool({ workspaceRoot: "/tmp/ws", timeoutSec: 30 });
+    expect(resolve(tool, raw)).toBe(30);
+  });
+
+  it("clamps a value that would disable the sandbox time budget", () => {
+    const tool = new ShellTool({ workspaceRoot: "/tmp/ws", timeoutSec: 30 });
+    expect(resolve(tool, 10 ** 9)).toBe(ShellTool.MAX_TIMEOUT_SEC);
   });
 });
