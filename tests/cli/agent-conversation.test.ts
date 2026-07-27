@@ -248,3 +248,72 @@ describe("AgentConversation.buildSystemPrompt delegation addendum", () => {
     expect(prompt).not.toContain("delegate_to_local");
   });
 });
+
+describe("AgentConversation skill injection", () => {
+  const skill = { id: "s1", name: "Ruby style", body: "Always use frozen_string_literal." } as any;
+  const cfg = { model: "test", workspaceRoot: ".", tier: "local" as const };
+
+  // injectSkill is called for every activated skill on every runUserMessage,
+  // so a skill active across ten turns used to append its full body ten times.
+  it("injects a skill body once no matter how many turns activate it", () => {
+    const convo = new AgentConversation();
+    convo.init(cfg, [], []);
+
+    for (let turn = 0; turn < 5; turn++) {
+      convo.injectSkill(skill);
+      convo.pushUserMessage(`turn ${turn}`);
+    }
+
+    const skillMessages = convo.getMessages().filter((m) => m.content.startsWith("Skill: Ruby style"));
+    expect(skillMessages).toHaveLength(1);
+  });
+
+  it("re-injects after a reset, which clears the transcript", () => {
+    const convo = new AgentConversation();
+    convo.init(cfg, [], []);
+    convo.injectSkill(skill);
+    convo.reset();
+    convo.init(cfg, [], []);
+    convo.injectSkill(skill);
+
+    expect(convo.getMessages().filter((m) => m.content.startsWith("Skill: "))).toHaveLength(1);
+  });
+
+  it("keeps skill bodies across a prune, since they are standing instructions", () => {
+    const convo = new AgentConversation();
+    convo.init(cfg, [], []);
+    convo.injectSkill(skill);
+    for (let i = 0; i < 40; i++) convo.pushUserMessage(`msg ${i}`);
+
+    convo.pruneContext();
+
+    expect(convo.getMessages().some((m) => m.content.startsWith("Skill: Ruby style"))).toBe(true);
+  });
+});
+
+describe("AgentConversation pruning keeps tool results attached to their call", () => {
+  // A role:"tool" message only makes sense directly after the assistant
+  // message whose tool_calls produced it. Cutting on a fixed message count
+  // could leave an orphaned tool result at the head of the window.
+  it("never starts the retained window with an orphaned tool result", () => {
+    const convo = new AgentConversation();
+    convo.init({ model: "test", workspaceRoot: ".", tier: "local" }, [], []);
+
+    convo.pushUserMessage("go");
+    for (let i = 0; i < 15; i++) {
+      convo.pushAssistantMessage("", [{ function: { name: "read_file", arguments: {} } }]);
+      convo.pushToolResult(`result ${i}`);
+    }
+
+    convo.pruneContext();
+
+    const messages = convo.getMessages();
+    const firstConversational = messages.findIndex((m) => m.role !== "system");
+    expect(messages[firstConversational].role).not.toBe("tool");
+    for (let i = 1; i < messages.length; i++) {
+      if (messages[i].role === "tool") {
+        expect(messages[i - 1].role).toBe("assistant");
+      }
+    }
+  });
+});

@@ -318,3 +318,68 @@ describe("Orchestrator checkpointing", () => {
     expect(checkpoint.load()).toBeNull();
   });
 });
+
+// CheckpointStore has persisted history and replanCount all along, but
+// Orchestrator had no way to accept them, so Agent.resumePlannedTask dropped
+// both: a resumed run replanned with an empty history (the model never saw the
+// failures that caused the checkpoint) and with the replan budget reset to
+// zero (so a crash-loop could never exhaust it).
+describe("Orchestrator resume state", () => {
+  it("carries a checkpoint's history into the planner", async () => {
+    const priorHistory = [
+      { stepId: "a", outcome: { kind: "fatal", error: "compile error" } as StepOutcome, at: 1 },
+    ];
+    const seen: unknown[] = [];
+    const planner: Planner = {
+      async replan(_remaining, history) {
+        seen.push(...history);
+        return [];
+      },
+    };
+    const runner: StepRunner = { async run() { return { kind: "fatal", error: "still broken" }; } };
+
+    const orchestrator = new Orchestrator({
+      steps: [makeStep("a")],
+      runner,
+      planner,
+      runRollback: jest.fn(async () => {}),
+      logger: noopLogger,
+      history: priorHistory,
+    });
+    await orchestrator.run();
+
+    expect(seen).toContainEqual(priorHistory[0]);
+  });
+
+  it("resumes the replan budget instead of restarting it", async () => {
+    const planner = new StubPlanner((remaining) => remaining.map((s) => ({ ...s, status: "pending" as const })));
+    const runner: StepRunner = { async run() { return { kind: "fatal", error: "always fails" }; } };
+
+    const orchestrator = new Orchestrator({
+      steps: [makeStep("a")],
+      runner,
+      planner,
+      runRollback: jest.fn(async () => {}),
+      logger: noopLogger,
+      maxReplans: 3,
+      replanCount: 3, // budget already spent before the crash
+    });
+
+    await expect(orchestrator.run()).rejects.toThrow(OrchestratorError);
+  });
+
+  it("does not mutate the caller's history array", async () => {
+    const priorHistory = [{ stepId: "a", outcome: { kind: "success", output: {} } as StepOutcome, at: 1 }];
+    const orchestrator = new Orchestrator({
+      steps: [makeStep("a")],
+      runner: { async run() { return { kind: "success", output: {} }; } },
+      planner: new StubPlanner(),
+      runRollback: jest.fn(async () => {}),
+      logger: noopLogger,
+      history: priorHistory,
+    });
+    await orchestrator.run();
+
+    expect(priorHistory).toHaveLength(1);
+  });
+});

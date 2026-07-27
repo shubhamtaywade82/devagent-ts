@@ -700,6 +700,12 @@ export class Agent {
       },
       checkpoint: this.planCheckpoint,
       onStepChange: (step) => this.emit("onMissionStep", step),
+      // The checkpoint has persisted these all along but nothing read them
+      // back: a resumed run replanned with an empty history (so the model
+      // never saw the failures that caused the checkpoint) and a replan budget
+      // reset to zero (so a crash-loop could never exhaust it).
+      history: saved.history,
+      replanCount: saved.replanCount,
     });
     return orchestrator.run();
   }
