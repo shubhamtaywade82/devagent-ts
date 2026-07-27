@@ -25,10 +25,24 @@ import { setActiveTheme } from "../layout/theme-map.js";
 // concept of "rewind the line".
 /* eslint-disable no-control-regex -- intentionally matching C0/C1 control chars to strip them */
 export function sanitizeText(text: string): string {
-  return text
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
-    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "")
-    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
+  return (
+    text
+      // CSI sequences, including private-mode forms such as ESC[?25l (hide
+      // cursor) and ESC[?1049h (alternate screen). The parameter class must
+      // allow the private-marker and intermediate bytes or those sequences
+      // fell through to the control-character pass below, which stripped only
+      // the ESC and left "[?25l" as visible garbage in the layout.
+      .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+      // OSC (window title, hyperlinks), terminated by BEL or ST.
+      .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "")
+      // Charset designation, e.g. ESC(B — an intermediate byte then a final.
+      .replace(/\x1b[ -/]+[0-~]/g, "")
+      // Remaining single-character escapes (ESC7, ESC=, ESCM, ...). "[" and
+      // "]" are excluded above by construction so this can't eat a CSI/OSC
+      // introducer whose body was malformed.
+      .replace(/\x1b[@-Z\\-_]/g, "")
+      .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "")
+  );
 }
 /* eslint-enable no-control-regex */
 
@@ -95,6 +109,14 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
     theme: "default",
     pricing: opts.pricing,
   };
+}
+
+// Monotonic counter, not `notifications.length`: once the buffer is full
+// `bounded()` pins that length at MAX_NOTIFICATIONS, so two notifications
+// raised in the same millisecond got identical ids — and these are React keys.
+let notificationSeq = 0;
+function nextNotificationId(): string {
+  return `n${Date.now()}-${notificationSeq++}`;
 }
 
 function bounded<T>(items: T[], max: number): T[] {
@@ -532,7 +554,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       return { ...state, lastTurnModel: `${event.tier}/${event.model}` };
     case "notification": {
       const note = {
-        id: `n${Date.now()}-${state.notifications.length}`,
+        id: nextNotificationId(),
         text: event.text,
         kind: event.kind,
         at: Date.now(),
@@ -543,7 +565,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       // Executor health flips to "✗" on any error, but that glyph alone gives
       // the user zero detail — surface the actual message as a notification
       // too, the same path a visible toast already uses elsewhere.
-      const note = { id: `n${Date.now()}-${state.notifications.length}`, text: event.message, kind: "error" as const, at: Date.now() };
+      const note = { id: nextNotificationId(), text: event.message, kind: "error" as const, at: Date.now() };
       return withActor(
         { ...state, lastError: event.message, notifications: bounded([...state.notifications, note], MAX_NOTIFICATIONS) },
         "executor",
