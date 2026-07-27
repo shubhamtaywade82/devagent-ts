@@ -118,3 +118,68 @@ describe("Provider apiKeys pool (Ollama Cloud only)", () => {
     expect(fakeFetch.mock.calls[2][1].headers.Authorization).toBe("Bearer key_b");
   });
 });
+
+// A non-JSON line mid-stream (proxy error page, keep-alive, truncated write)
+// used to throw a SyntaxError straight out of chat(), killing the turn. The
+// trailing-buffer parse already tolerated this, so the two paths disagreed.
+describe("Provider streaming resilience", () => {
+  function streamOf(lines: string[]): Response {
+    const encoder = new TextEncoder();
+    let i = 0;
+    const body = {
+      getReader: () => ({
+        read: async () =>
+          i < lines.length ? { value: encoder.encode(lines[i++]), done: false } : { value: undefined, done: true },
+        releaseLock: () => {},
+      }),
+      cancel: async () => {},
+    };
+    return { ok: true, status: 200, body } as unknown as Response;
+  }
+
+  afterEach(() => {
+    delete (globalThis as any).fetch;
+  });
+
+  it("skips a malformed line and still returns the accumulated response", async () => {
+    (globalThis as any).fetch = jest.fn().mockResolvedValue(
+      streamOf([
+        JSON.stringify({ message: { role: "assistant", content: "he" }, done: false }) + "\n",
+        "<html>502 Bad Gateway</html>\n",
+        JSON.stringify({ message: { role: "assistant", content: "llo" }, done: true }) + "\n",
+      ]),
+    );
+    const provider = new Provider({ tier: "local", model: "m", host: "http://127.0.0.1:1" });
+
+    const res = await provider.chat([{ role: "user", content: "hi" }], { stream: true });
+
+    expect(res.message.content).toBe("hello");
+    expect(res.done).toBe(true);
+  });
+
+  it("releases the reader and cancels the body once the stream is consumed", async () => {
+    const releaseLock = jest.fn();
+    const cancel = jest.fn().mockResolvedValue(undefined);
+    const encoder = new TextEncoder();
+    let i = 0;
+    const lines = [JSON.stringify({ message: { role: "assistant", content: "x" }, done: true }) + "\n"];
+    (globalThis as any).fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: {
+        getReader: () => ({
+          read: async () =>
+            i < lines.length ? { value: encoder.encode(lines[i++]), done: false } : { value: undefined, done: true },
+          releaseLock,
+        }),
+        cancel,
+      },
+    } as unknown as Response);
+    const provider = new Provider({ tier: "local", model: "m", host: "http://127.0.0.1:1" });
+
+    await provider.chat([{ role: "user", content: "hi" }], { stream: true });
+
+    expect(releaseLock).toHaveBeenCalled();
+    expect(cancel).toHaveBeenCalled();
+  });
+});

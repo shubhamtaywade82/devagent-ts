@@ -194,60 +194,63 @@ export class Provider {
     let accumulatedThinking = "";
     const accumulatedToolCalls: any[] = [];
 
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
+    const consume = (chunk: ChatResponse): void => {
+      onChunk?.(chunk);
 
-      buffer += decoder.decode(value, { stream: true });
-      let newlineIdx: number;
-      while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, newlineIdx).trim();
-        buffer = buffer.slice(newlineIdx + 1);
-        if (!line) continue;
-
-        const chunk = JSON.parse(line) as ChatResponse;
-        onChunk?.(chunk);
-
-        if (chunk.message) {
-          if (chunk.message.content) {
-            accumulatedContent += chunk.message.content;
-          }
-          if ((chunk.message as any).thinking) {
-            accumulatedThinking += (chunk.message as any).thinking;
-          }
-          if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
-            accumulatedToolCalls.push(...chunk.message.tool_calls);
-          }
+      if (chunk.message) {
+        if (chunk.message.content) {
+          accumulatedContent += chunk.message.content;
         }
-
-        if (chunk.done) {
-          final = chunk;
+        if ((chunk.message as any).thinking) {
+          accumulatedThinking += (chunk.message as any).thinking;
+        }
+        if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
+          accumulatedToolCalls.push(...chunk.message.tool_calls);
         }
       }
+
+      if (chunk.done) {
+        final = chunk;
+      }
+    };
+
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        let newlineIdx: number;
+        while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, newlineIdx).trim();
+          buffer = buffer.slice(newlineIdx + 1);
+          if (!line) continue;
+
+          // A single non-JSON line (a proxy error page, a keep-alive, a
+          // truncated response) used to throw straight out of chat(). Skip it
+          // and keep reading — the trailing-buffer parse below already did
+          // exactly this, so the two paths were inconsistent.
+          let chunk: ChatResponse;
+          try {
+            chunk = JSON.parse(line) as ChatResponse;
+          } catch {
+            continue;
+          }
+          consume(chunk);
+        }
+      }
+    } finally {
+      // Without this, an error mid-stream leaves the body unread and the
+      // underlying socket held open.
+      reader.releaseLock();
+      await resp.body.cancel().catch(() => {});
     }
 
     // Parse any remaining content in the buffer (if it didn't end with a newline)
     const remaining = buffer.trim();
     if (remaining) {
       try {
-        const chunk = JSON.parse(remaining) as ChatResponse;
-        onChunk?.(chunk);
-
-        if (chunk.message) {
-          if (chunk.message.content) {
-            accumulatedContent += chunk.message.content;
-          }
-          if ((chunk.message as any).thinking) {
-            accumulatedThinking += (chunk.message as any).thinking;
-          }
-          if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
-            accumulatedToolCalls.push(...chunk.message.tool_calls);
-          }
-        }
-
-        if (chunk.done) {
-          final = chunk;
-        }
+        consume(JSON.parse(remaining) as ChatResponse);
       } catch {
         // Ignore parse error for incomplete trailing chunks
       }
