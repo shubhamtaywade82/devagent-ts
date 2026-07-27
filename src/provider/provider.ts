@@ -45,6 +45,13 @@ export interface ChatOptions {
   tools?: OllamaToolSchema[];
   stream?: boolean;
   onChunk?: (chunk: ChatResponse) => void;
+  /** Model for this request only, leaving the provider's configured model
+   * untouched. Router uses this to try candidates: it previously called
+   * setModel() before awaiting chat(), so two concurrent routes through the
+   * same Provider instance raced — the second overwrote the first's model
+   * mid-flight, and both requests went to whichever model was set last while
+   * `routedModel` reported the wrong one. */
+  model?: string;
 }
 
 export interface ProviderOptions {
@@ -103,7 +110,8 @@ export class Provider {
       throw new ProviderError("missing apiKey for cloud chat");
     }
 
-    const body: Record<string, unknown> = { model: this.model, messages, stream: opts.stream ?? false };
+    const model = opts.model ?? this.model;
+    const body: Record<string, unknown> = { model, messages, stream: opts.stream ?? false };
     if (opts.tools) body.tools = opts.tools;
 
     // Cloud with multiple keys: rotate to the next key on a 429 and retry
@@ -148,7 +156,7 @@ export class Provider {
           this.apiKeyIndex = (this.apiKeyIndex + 1) % this.apiKeys.length;
           continue;
         }
-        throw new RateLimitError(`${this.model} (${this.tier}) rate limited on all ${this.apiKeys.length} key(s)`);
+        throw new RateLimitError(`${model} (${this.tier}) rate limited on all ${this.apiKeys.length} key(s)`);
       }
       if (!resp.ok) {
         throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${redactSecrets(await resp.text())}`);
@@ -158,7 +166,7 @@ export class Provider {
     }
 
     // Unreachable: maxAttempts is always >= 1 and the loop body always returns or throws.
-    throw new RateLimitError(`${this.model} (${this.tier}) rate limited`);
+    throw new RateLimitError(`${model} (${this.tier}) rate limited`);
   }
 
   async availableModels(): Promise<unknown> {
