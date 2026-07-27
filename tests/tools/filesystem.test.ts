@@ -14,6 +14,53 @@ describe("ReadFileTool", () => {
     expect(result.content).toBe("hello");
   });
 
+  it("returns the whole file and truncated:false when under the ceiling", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    await writeFile(join(dir, "a.txt"), "hello");
+    const tool = new ReadFileTool(dir);
+
+    const result = await tool.call({ path: "a.txt" });
+
+    expect(result.truncated).toBe(false);
+    expect(result.bytesRead).toBe(5);
+    expect(result.totalBytes).toBe(5);
+  });
+
+  // The system prompt tells the model "if read_file returns `truncated`, that
+  // is a content ceiling" -- but the flag used to be hardcoded false and the
+  // whole file was read, so one read_file on a large file could blow the
+  // context window.
+  it("truncates a file past the ceiling and reports it", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    const big = "x".repeat(ReadFileTool.MAX_CONTENT_BYTES + 5000);
+    await writeFile(join(dir, "big.txt"), big);
+    const tool = new ReadFileTool(dir);
+
+    const result = await tool.call({ path: "big.txt" });
+
+    expect(result.truncated).toBe(true);
+    expect(result.bytesRead).toBe(ReadFileTool.MAX_CONTENT_BYTES);
+    expect(result.totalBytes).toBe(big.length);
+    expect((result.content as string).length).toBe(ReadFileTool.MAX_CONTENT_BYTES);
+  });
+
+  it("cuts on a byte boundary without throwing on a split multi-byte character", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    // 3-byte characters do not divide evenly into the ceiling, so the cut
+    // lands mid-character.
+    const content = "\u65e5".repeat(ReadFileTool.MAX_CONTENT_BYTES);
+    await writeFile(join(dir, "cjk.txt"), content);
+    const tool = new ReadFileTool(dir);
+
+    const result = await tool.call({ path: "cjk.txt" });
+
+    expect(result.truncated).toBe(true);
+    expect(result.bytesRead).toBe(ReadFileTool.MAX_CONTENT_BYTES);
+    expect(Buffer.byteLength(result.content as string, "utf-8")).toBeLessThanOrEqual(
+      ReadFileTool.MAX_CONTENT_BYTES + 3,
+    );
+  });
+
   it("rejects a path that escapes the workspace root", async () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     const tool = new ReadFileTool(dir);
