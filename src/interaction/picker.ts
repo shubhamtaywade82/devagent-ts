@@ -8,14 +8,21 @@ export interface PickerItem {
   id: string;
   label: string;
   detail?: string;
+  /** Overrides what the filter matches against, when `detail` carries live
+   * status text rather than searchable content. Without it, a `detail` that
+   * updates asynchronously (the model switcher's availability tags) silently
+   * changes which items match — and because the picker holds a numeric index,
+   * a list that shrinks between render and keypress makes Enter select a
+   * different row than the highlighted one. */
+  filterText?: string;
 }
 
-/** Case-insensitive all-terms filter over label + detail. */
+/** Case-insensitive all-terms filter over `filterText`, else label + detail. */
 export function filterPickerItems<T extends PickerItem>(items: T[], query: string): T[] {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (terms.length === 0) return items;
   return items.filter((item) => {
-    const haystack = `${item.label} ${item.detail ?? ""}`.toLowerCase();
+    const haystack = (item.filterText ?? `${item.label} ${item.detail ?? ""}`).toLowerCase();
     return terms.every((t) => haystack.includes(t));
   });
 }

@@ -156,6 +156,16 @@ function useTerminalSize(columns?: number, rows?: number): { width: number; heig
 // (stays responsive); anything within RENDER_THROTTLE_MS of the last render
 // is deferred to a single trailing flush instead of one render each.
 const RENDER_THROTTLE_MS = 50; // ~20fps cap — well above flicker threshold, still feels live
+
+/** Cadence and stop condition for the model-switcher's availability poll. */
+const AVAILABILITY_POLL_MS = 1000;
+const AVAILABILITY_POLL_TIMEOUT_MS = 30_000;
+
+function shallowEqual<T extends Record<string, unknown>>(a: T, b: T): boolean {
+  const aKeys = Object.keys(a);
+  if (aKeys.length !== Object.keys(b).length) return false;
+  return aKeys.every((k) => a[k] === b[k]);
+}
 function useRuntimeState(store: Store): RuntimeState {
   const [state, setState] = useState<RuntimeState>(() => store.getState());
   useEffect(() => {
@@ -377,9 +387,17 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         if (cancelled) return;
         setModels(list);
         setModelAvailability(agent.modelAvailability?.(list) ?? {});
-        agent.modelCapabilities?.(list).then((caps) => {
-          if (!cancelled) setModelCapabilities(caps);
-        });
+        // Returned, and with its own catch: as a floating promise the outer
+        // .catch() below didn't cover it, so a rejection here was an unhandled
+        // rejection — fatal under Node's default settings, taking down the TUI.
+        return agent.modelCapabilities?.(list).then(
+          (caps) => {
+            if (!cancelled) setModelCapabilities(caps);
+          },
+          () => {
+            // capability tags are decoration; the picker works without them
+          },
+        );
       })
       .catch(() => {
         if (!cancelled) setModels([]);
@@ -396,9 +414,19 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   // whatever was cached the instant the list loaded (often none of it yet).
   useEffect(() => {
     if (ui.overlay !== "model" || models === null || !agent?.modelAvailability) return;
+    let elapsed = 0;
     const interval = setInterval(() => {
-      setModelAvailability(agent.modelAvailability!(models));
-    }, 1000);
+      const next = agent.modelAvailability!(models);
+      elapsed += AVAILABILITY_POLL_MS;
+      // Only re-render when something actually changed. This always allocated
+      // a fresh object and handed it to setState, so on the default local tier
+      // — where modelAvailability() always returns {} because the checker only
+      // tracks cloud ids — it was a pure no-op repaint every second.
+      setModelAvailability((prev) => (shallowEqual(prev, next) ? prev : next));
+      // The startup refresh is bounded work; without a stop condition this
+      // polled forever for as long as the overlay stayed open.
+      if (elapsed >= AVAILABILITY_POLL_TIMEOUT_MS) clearInterval(interval);
+    }, AVAILABILITY_POLL_MS);
     return () => clearInterval(interval);
   }, [ui.overlay, models, agent]);
 

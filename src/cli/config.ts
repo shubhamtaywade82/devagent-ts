@@ -103,6 +103,15 @@ Prefer minimal, surgical changes. If a command fails, inspect the error and fix 
 
 const GLOBAL_CONFIG_DIR = join(homedir(), ".devagent");
 
+/** Env override for a boolean flag, in both directions: "true"/"1" enable,
+ * "false"/"0" disable, anything else (including unset) defers to the config
+ * file / built-in default. */
+function boolFlag(envValue: string | undefined, fallback: boolean): boolean {
+  if (envValue === "true" || envValue === "1") return true;
+  if (envValue === "false" || envValue === "0") return false;
+  return fallback;
+}
+
 function loadGlobalConfig(): ConfigFile {
   const p = join(GLOBAL_CONFIG_DIR, "config.json");
   if (!existsSync(p)) return {};
@@ -200,12 +209,21 @@ export function loadConfig(): CliConfig {
   const envKeys = (fromEnv("OLLAMA_API_KEYS") ?? "").split(",").map((k) => k.trim()).filter(Boolean);
   const apiKeys = [...new Set([...(primaryApiKey ? [primaryApiKey] : []), ...envKeys, ...(file.apiKeys ?? [])])];
 
-  const selfConsistencyN = Number(fromEnv("DEVAGENT_SC_N") || String(file.selfConsistencyN ?? "3"));
-  const selfConsistencyThreshold = Number(
-    fromEnv("DEVAGENT_SC_THRESHOLD") || String(file.selfConsistencyThreshold ?? "0.5"),
+  // Number() on a malformed value yields NaN, which is not nullish and so
+  // sails straight past every `?? default` downstream. Validate here instead.
+  const positiveNumber = (raw: string | undefined, fallback: number): number => {
+    const n = Number(raw);
+    return raw !== undefined && raw !== "" && Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+
+  const selfConsistencyN = positiveNumber(fromEnv("DEVAGENT_SC_N") || String(file.selfConsistencyN ?? ""), 3);
+  const selfConsistencyThreshold = positiveNumber(
+    fromEnv("DEVAGENT_SC_THRESHOLD") || String(file.selfConsistencyThreshold ?? ""),
+    0.5,
   );
-  const availabilityCheckTtlMs = Number(
-    fromEnv("DEVAGENT_AVAIL_TTL_MS") || String(file.availabilityCheckTtlMs ?? "86400000"),
+  const availabilityCheckTtlMs = positiveNumber(
+    fromEnv("DEVAGENT_AVAIL_TTL_MS") || String(file.availabilityCheckTtlMs ?? ""),
+    86_400_000,
   );
 
   const inputPerMillion = Number(fromEnv("DEVAGENT_PRICE_INPUT_PER_M") || String(file.pricing?.inputPerMillion ?? ""));
@@ -238,16 +256,18 @@ export function loadConfig(): CliConfig {
     apiKeys: apiKeys.length ? apiKeys : undefined,
     quickModel: fromEnv("DEVAGENT_QUICK_MODEL") || file.quickModel,
     // Hybrid architecture flags
-    enableLocalWorker: fromEnv("DEVAGENT_LOCAL_WORKER") !== "false" && (file.enableLocalWorker ?? true),
-    enableVerifier: fromEnv("DEVAGENT_VERIFIER") === "true" || (file.enableVerifier ?? false),
-    enableSelfConsistency:
-      fromEnv("DEVAGENT_SELF_CONSISTENCY") === "true" || (file.enableSelfConsistency ?? false),
+    enableLocalWorker: boolFlag(fromEnv("DEVAGENT_LOCAL_WORKER"), file.enableLocalWorker ?? true),
+    // An explicit env value wins in BOTH directions. The previous
+    // `env === "true" || file` form meant DEVAGENT_VERIFIER=false could not
+    // switch off a config-file `true`, which is the opposite of how every
+    // sibling flag here behaves.
+    enableVerifier: boolFlag(fromEnv("DEVAGENT_VERIFIER"), file.enableVerifier ?? false),
+    enableSelfConsistency: boolFlag(fromEnv("DEVAGENT_SELF_CONSISTENCY"), file.enableSelfConsistency ?? false),
     selfConsistencyN,
     selfConsistencyThreshold,
     availabilityCheckTtlMs,
-    enableAvailabilityCheck:
-      fromEnv("DEVAGENT_AVAIL_CHECK") !== "false" && (file.enableAvailabilityCheck ?? true),
-    enableHeuristicGate: fromEnv("DEVAGENT_HEURISTIC_GATE") !== "false" && (file.enableHeuristicGate ?? true),
+    enableAvailabilityCheck: boolFlag(fromEnv("DEVAGENT_AVAIL_CHECK"), file.enableAvailabilityCheck ?? true),
+    enableHeuristicGate: boolFlag(fromEnv("DEVAGENT_HEURISTIC_GATE"), file.enableHeuristicGate ?? true),
     pricing,
     mcpServers: file.mcpServers,
   };
