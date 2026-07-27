@@ -10,7 +10,7 @@ import { resolveKey, UiCommand } from "../interaction/keybindings.js";
 import { initialUiState, uiReduce } from "../interaction/ui-state.js";
 import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
 import { HistoryManager } from "../interaction/history.js";
-import { acceptWord, completions, ghostSuffix } from "../interaction/completion.js";
+import { acceptWord, completions, ghostSuffix, isNoOpCompletion } from "../interaction/completion.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Header } from "./zones/Header.js";
 import { ActivityStrip } from "./zones/ActivityStrip.js";
@@ -403,7 +403,11 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   }, [ui.overlay, models, agent]);
 
   const completionItems = completions(prompt, commandRegistry);
-  const activeCompletion = completionItems.length > 0;
+  // A list whose only entry is the command the user already typed in full is
+  // not an actionable completion — treating it as one made Enter re-insert the
+  // same text instead of submitting, so every zero-argument slash command
+  // (/help, /clear, /resume, /model, /quit, ...) needed Enter pressed twice.
+  const activeCompletion = completionItems.some((item) => !isNoOpCompletion(prompt, item));
   const ghost = activeCompletion ? "" : ghostSuffix(prompt, history.all());
 
   const density = densityForWidth(width);
@@ -806,8 +810,14 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       burstActiveRef.current = false;
     }
     if (key.return) {
-      if (activeCompletion) {
-        const item = completionItems[Math.min(completionIndex, completionItems.length - 1)];
+      const item = activeCompletion
+        ? completionItems[Math.min(completionIndex, completionItems.length - 1)]
+        : undefined;
+      // Guard the selected entry too, not just the list: a prefix can be both
+      // an exact command and a prefix of others (e.g. "/test" alongside
+      // "/tests"), which would otherwise leave Enter permanently stuck on the
+      // no-op entry.
+      if (item && !isNoOpCompletion(prompt, item)) {
         setPrompt(item.insert);
         setCompletionIndex(0);
         return;
