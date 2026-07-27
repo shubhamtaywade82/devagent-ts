@@ -11,7 +11,14 @@ export interface LspClientOptions {
 
 export class LspClient extends EventEmitter {
   private process: ChildProcess | null = null;
-  private buffer = "";
+  // Raw bytes, not a string: LSP's Content-Length is a BYTE count, so framing
+  // must be done on a Buffer. Accumulating as a UTF-8 string made the length
+  // check and the slice operate on UTF-16 code units, so a single non-ASCII
+  // character anywhere in a message (accented identifier, curly quote in hover
+  // docs, ✓ in a diagnostic, CJK, emoji) desynchronized the stream permanently.
+  // Decoding per chunk also corrupted multi-byte characters split across chunk
+  // boundaries.
+  private buffer: Buffer = Buffer.alloc(0);
   private pending = new Map<
     number,
     { resolve: (value: unknown) => void; reject: (err: Error) => void; timer: NodeJS.Timeout }
@@ -46,7 +53,7 @@ export class LspClient extends EventEmitter {
     });
 
     this.process.stdout?.on("data", (data: Buffer) => {
-      this.buffer += data.toString("utf-8");
+      this.buffer = Buffer.concat([this.buffer, data]);
       this.processBuffer();
     });
 
@@ -163,13 +170,15 @@ export class LspClient extends EventEmitter {
 
   private processBuffer(): void {
     for (;;) {
+      // All offsets below are BYTE offsets into the raw buffer — headers are
+      // ASCII, and Content-Length counts the body's bytes.
       const headerEnd = this.buffer.indexOf("\r\n\r\n");
       if (headerEnd === -1) break;
 
-      const header = this.buffer.slice(0, headerEnd);
+      const header = this.buffer.subarray(0, headerEnd).toString("ascii");
       const contentLengthMatch = header.match(/Content-Length:\s*(\d+)/i);
       if (!contentLengthMatch) {
-        this.buffer = this.buffer.slice(headerEnd + 4);
+        this.buffer = this.buffer.subarray(headerEnd + 4);
         continue;
       }
 
@@ -177,8 +186,10 @@ export class LspClient extends EventEmitter {
       const bodyStart = headerEnd + 4;
       if (this.buffer.length < bodyStart + contentLength) break;
 
-      const body = this.buffer.slice(bodyStart, bodyStart + contentLength);
-      this.buffer = this.buffer.slice(bodyStart + contentLength);
+      // Decode only once the whole body is present, so multi-byte characters
+      // are never split across a chunk boundary.
+      const body = this.buffer.subarray(bodyStart, bodyStart + contentLength).toString("utf-8");
+      this.buffer = this.buffer.subarray(bodyStart + contentLength);
 
       try {
         const message = JSON.parse(body) as Record<string, unknown>;
