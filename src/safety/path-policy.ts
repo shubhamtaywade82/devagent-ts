@@ -9,12 +9,7 @@ const BLOCKED_BASENAMES = new Set([
   "id_ed25519",
 ]);
 
-const BLOCKED_PATTERNS = [
-  /(^|[\\/])\.env(\.|$)/i,
-  /(^|[\\/])secrets?[\\/]/i,
-  /\.pem$/i,
-  /\.key$/i,
-];
+const BLOCKED_PATTERNS = [/(^|[\\/])\.env(\.|$)/i, /(^|[\\/])secrets?[\\/]/i, /\.pem$/i, /\.key$/i];
 
 export function isSensitivePath(path: string): boolean {
   const base = basename(path);

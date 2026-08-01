@@ -3,11 +3,7 @@ import { isAbsolute, normalize, relative, resolve } from "node:path";
 import { isSensitivePath } from "../safety/path-policy.js";
 import { accepted, issue, rejected } from "./issues.js";
 import { validateSyntax } from "./syntax.js";
-import type {
-  PatchHunk,
-  PatchSafetyContext,
-  StrictValidationResult,
-} from "./types.js";
+import type { PatchHunk, PatchSafetyContext, StrictValidationResult } from "./types.js";
 
 const DEFAULT_MAX_PATCH = 50_000;
 const DEFAULT_MAX_PLAN = 200_000;

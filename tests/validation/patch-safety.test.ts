@@ -35,9 +35,9 @@ describe("Validation - Patch Safety & Apply Hunks", () => {
   });
 
   it("blocks patches that attempt path escaping", () => {
-    const res = validatePatchSafety([
-      { path: "../outside.ts", old_str: "a", new_str: "b" }
-    ], { projectRoot: "/home/project" });
+    const res = validatePatchSafety([{ path: "../outside.ts", old_str: "a", new_str: "b" }], {
+      projectRoot: "/home/project",
+    });
     expect(res.ok).toBe(false);
     expect(res.issues[0]?.code).toBe("path_escape");
   });

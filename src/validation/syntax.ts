@@ -1,11 +1,7 @@
 /** Lightweight syntax / structure checks before applying patches/writes. */
 
 function matches(open: string, close: string): boolean {
-  return (
-    (open === "(" && close === ")") ||
-    (open === "[" && close === "]") ||
-    (open === "{" && close === "}")
-  );
+  return (open === "(" && close === ")") || (open === "[" && close === "]") || (open === "{" && close === "}");
 }
 
 function checkBalanced(content: string, label: string): { ok: boolean; error?: string } {
