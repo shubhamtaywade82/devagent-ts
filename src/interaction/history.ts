@@ -32,7 +32,7 @@ export class HistoryManager {
       const saved: unknown = JSON.parse(raw);
       if (Array.isArray(saved)) {
         for (const entry of saved) {
-          if (typeof entry === "string" && !this.entries.includes(entry)) {
+          if (typeof entry === "string" && !entry.trim().startsWith("/") && !this.entries.includes(entry)) {
             this.entries.push(entry);
           }
         }
@@ -60,7 +60,7 @@ export class HistoryManager {
 
   add(entry: string): void {
     const trimmed = entry.trim();
-    if (!trimmed) return;
+    if (!trimmed || trimmed.startsWith("/")) return;
     this.entries = this.entries.filter((e) => e !== trimmed).concat(trimmed);
     if (this.entries.length > this.max) this.entries = this.entries.slice(this.entries.length - this.max);
     this.cursor = null;

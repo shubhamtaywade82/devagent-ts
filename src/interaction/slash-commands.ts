@@ -30,6 +30,7 @@ export type CommandEffect =
   | { kind: "next-mode" }
   | { kind: "quit" }
   | { kind: "learn"; rule: string }
+  | { kind: "replay-session"; id?: string }
   | { kind: "error"; text: string };
 
 export interface SlashCommand {
@@ -112,6 +113,41 @@ export function builtinCommands(): SlashCommandRegistry {
     description: "Resume the conversation from before a crash/restart",
     category: "Session",
     execute: () => ({ kind: "resume-session" }),
+  });
+  registry.register({
+    name: "replay",
+    aliases: [],
+    description: "Replay a past session trajectory: /replay [session-id]",
+    category: "Session",
+    execute: (args) => ({ kind: "replay-session", id: args.trim() || undefined }),
+  });
+  registry.register({
+    name: "dag",
+    aliases: ["graph", "timeline"],
+    description: "Inspect the execution DAG graph & node trace overlay",
+    category: "Execution",
+    execute: () => ({ kind: "open-overlay", overlay: "dag" }),
+  });
+  registry.register({
+    name: "focus",
+    aliases: ["console"],
+    description: "Switch to Focus Mode (Dynamic Execution Console layout)",
+    category: "Layout",
+    execute: () => ({ kind: "focus-view", view: "conversation" }),
+  });
+  registry.register({
+    name: "inspect",
+    aliases: ["debug"],
+    description: "Switch to Inspect Mode (Collapsible Debugger & DAG layout)",
+    category: "Layout",
+    execute: () => ({ kind: "focus-view", view: "execution" }),
+  });
+  registry.register({
+    name: "mission",
+    aliases: ["dashboard"],
+    description: "Switch to Mission Control Mode (Multi-Agent Grid layout)",
+    category: "Layout",
+    execute: () => ({ kind: "focus-view", view: "dashboard" }),
   });
   registry.register({
     name: "history",
@@ -236,7 +272,8 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register({
     name: "plan",
     aliases: [],
-    description: "Decompose and execute a task via the orchestrator: /plan [task description] (no args resumes an interrupted plan)",
+    description:
+      "Decompose and execute a task via the orchestrator: /plan [task description] (no args resumes an interrupted plan)",
     category: "Agent",
     execute: (args) => ({ kind: "run-plan", goal: args.trim() }),
   });
@@ -255,7 +292,10 @@ export function builtinCommands(): SlashCommandRegistry {
     aliases: [],
     description: "Review the current code changes",
     category: "Agent",
-    execute: () => ({ kind: "message", text: "Review all uncommitted code changes for quality, security, and best practices" }),
+    execute: () => ({
+      kind: "message",
+      text: "Review all uncommitted code changes for quality, security, and best practices",
+    }),
   });
   registry.register({
     name: "fix",
@@ -283,9 +323,7 @@ export function builtinCommands(): SlashCommandRegistry {
     description: "Run a shell command: /run <command>",
     category: "Agent",
     execute: (args) =>
-      args.trim()
-        ? { kind: "run-shell", command: args.trim() }
-        : { kind: "error", text: "Usage: /run <command>" },
+      args.trim() ? { kind: "run-shell", command: args.trim() } : { kind: "error", text: "Usage: /run <command>" },
   });
   registry.register({
     name: "explain",
@@ -317,9 +355,7 @@ export function builtinCommands(): SlashCommandRegistry {
     description: "Record a learning/preference: /learn <preference>",
     category: "Memory",
     execute: (args) =>
-      args.trim()
-        ? { kind: "learn", rule: args.trim() }
-        : { kind: "error", text: "Usage: /learn <preference>" },
+      args.trim() ? { kind: "learn", rule: args.trim() } : { kind: "error", text: "Usage: /learn <preference>" },
   });
   return registry;
 }

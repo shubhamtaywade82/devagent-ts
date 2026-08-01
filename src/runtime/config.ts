@@ -4,6 +4,12 @@
  */
 
 export const MAX_LOGS = process.env.DEVAGENT_MAX_LOGS ? parseInt(process.env.DEVAGENT_MAX_LOGS, 10) : 500;
-export const MAX_CONVERSATION = process.env.DEVAGENT_MAX_CONVERSATION ? parseInt(process.env.DEVAGENT_MAX_CONVERSATION, 10) : 500;
-export const MAX_TOOL_CALLS = process.env.DEVAGENT_MAX_TOOL_CALLS ? parseInt(process.env.DEVAGENT_MAX_TOOL_CALLS, 10) : 200;
-export const MAX_NOTIFICATIONS = process.env.DEVAGENT_MAX_NOTIFICATIONS ? parseInt(process.env.DEVAGENT_MAX_NOTIFICATIONS, 10) : 20;
+export const MAX_CONVERSATION = process.env.DEVAGENT_MAX_CONVERSATION
+  ? parseInt(process.env.DEVAGENT_MAX_CONVERSATION, 10)
+  : 500;
+export const MAX_TOOL_CALLS = process.env.DEVAGENT_MAX_TOOL_CALLS
+  ? parseInt(process.env.DEVAGENT_MAX_TOOL_CALLS, 10)
+  : 200;
+export const MAX_NOTIFICATIONS = process.env.DEVAGENT_MAX_NOTIFICATIONS
+  ? parseInt(process.env.DEVAGENT_MAX_NOTIFICATIONS, 10)
+  : 20;

@@ -8,6 +8,9 @@ describe("resolveKey", () => {
     expect(resolveKey("2", {}, base)).toEqual({ type: "focus-view", view: "execution" });
     expect(resolveKey("4", {}, base)).toEqual({ type: "focus-view", view: "git" });
     expect(resolveKey("5", {}, base)).toEqual({ type: "focus-view", view: "logs" });
+    expect(resolveKey("f1", {}, base)).toEqual({ type: "set-layout-preset", preset: "focus" });
+    expect(resolveKey("f2", {}, base)).toEqual({ type: "set-layout-preset", preset: "inspect" });
+    expect(resolveKey("f3", {}, base)).toEqual({ type: "set-layout-preset", preset: "mission-control" });
     expect(resolveKey("6", {}, base)).toBeNull();
     expect(resolveKey("9", {}, base)).toBeNull();
   });

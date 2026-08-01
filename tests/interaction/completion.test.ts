@@ -77,4 +77,3 @@ describe("completions", () => {
     expect(helpItem?.group).toBe("General");
   });
 });
-

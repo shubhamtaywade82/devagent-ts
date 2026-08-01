@@ -52,4 +52,8 @@ export class SessionReplayManager {
       return [];
     }
   }
+
+  getPlaybackIntervalMs(durationMs: number, speedMultiplier: 1 | 2 | 5 = 1): number {
+    return Math.max(50, Math.floor(durationMs / speedMultiplier));
+  }
 }

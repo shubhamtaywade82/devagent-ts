@@ -53,7 +53,8 @@ export type UiCommand =
   | { type: "view-diff" }
   | { type: "clear-conversation" }
   | { type: "open-mode" }
-  | { type: "next-mode" };
+  | { type: "next-mode" }
+  | { type: "set-layout-preset"; preset: "focus" | "inspect" | "mission-control" };
 
 export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiCommand | null {
   // Escape always wins: close overlay first, otherwise cancel current action.
@@ -74,6 +75,8 @@ export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiComm
   if (key.ctrl && input === "t") return { type: "focus-view", view: "tasks" };
   if (key.ctrl && input === "h") return { type: "open-overlay", overlay: "sessions" };
   if (key.ctrl && input === "o") return { type: "open-overlay", overlay: "tools" };
+  if (key.ctrl && input === "y") return { type: "open-overlay", overlay: "dag" };
+  if (key.ctrl && input === "i") return { type: "focus-view", view: "dashboard" };
   if (key.ctrl && input === "n") return { type: "toggle-sidebar" };
 
   // Tab cycles views only when the prompt is empty — while typing it
@@ -95,6 +98,9 @@ export function resolveKey(input: string, key: KeyInfo, ctx: KeyContext): UiComm
   // Bare keys are global only when the user is not mid-typing.
   if (ctx.promptHasText || key.ctrl || key.meta) return null;
 
+  if (input === "f1" || input === "\u001bOP") return { type: "set-layout-preset", preset: "focus" };
+  if (input === "f2" || input === "\u001bOQ") return { type: "set-layout-preset", preset: "inspect" };
+  if (input === "f3" || input === "\u001bOR") return { type: "set-layout-preset", preset: "mission-control" };
   if (input >= "1" && input <= "5") {
     const view = PRIMARY_VIEWS[Number(input) - 1];
     return { type: "focus-view", view };

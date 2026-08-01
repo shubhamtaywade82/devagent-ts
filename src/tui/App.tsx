@@ -662,14 +662,6 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         .join("\n");
       const trimmed = withoutPasteLabels.trim();
       if (!trimmed) return;
-      history.add(trimmed);
-      try {
-        const root = workspaceRoot ?? process.cwd();
-        const historyPath = join(root, ".devagent_history");
-        writeFileSync(historyPath, history.all().join("\n"), "utf-8");
-      } catch {
-        // ignore
-      }
       setPrompt("");
       setCompletionIndex(0);
 
@@ -678,6 +670,15 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         const command = commandRegistry.find(slash.name);
         applyEffect(command ? command.execute(slash.args) : { kind: "error", text: `Unknown command: /${slash.name}` });
         return;
+      }
+
+      history.add(trimmed);
+      try {
+        const root = workspaceRoot ?? process.cwd();
+        const historyPath = join(root, ".devagent_history");
+        writeFileSync(historyPath, history.all().join("\n"), "utf-8");
+      } catch {
+        // ignore
       }
 
       // Dashboard is a live cockpit in its own right (Activity Feed shows the

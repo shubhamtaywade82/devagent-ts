@@ -28,7 +28,15 @@ function detectFromPackageJson(workspaceRoot: string): ProjectInfo | null {
             : deps.fastify
               ? "Fastify"
               : undefined;
-    const testFramework = deps.jest ? "Jest" : deps.vitest ? "Vitest" : deps.mocha ? "Mocha" : deps.ava ? "Ava" : undefined;
+    const testFramework = deps.jest
+      ? "Jest"
+      : deps.vitest
+        ? "Vitest"
+        : deps.mocha
+          ? "Mocha"
+          : deps.ava
+            ? "Ava"
+            : undefined;
     return { language, framework, testFramework };
   } catch {
     return {};
@@ -41,7 +49,11 @@ function detectFromGemfile(workspaceRoot: string): ProjectInfo | null {
   try {
     const gemfile = readFileSync(gemfilePath, "utf-8");
     const framework = /gem\s+["']rails["']/.test(gemfile) ? "Rails" : undefined;
-    const testFramework = /gem\s+["']rspec/.test(gemfile) ? "RSpec" : /gem\s+["']minitest/.test(gemfile) ? "Minitest" : undefined;
+    const testFramework = /gem\s+["']rspec/.test(gemfile)
+      ? "RSpec"
+      : /gem\s+["']minitest/.test(gemfile)
+        ? "Minitest"
+        : undefined;
     return { language: "Ruby", framework, testFramework };
   } catch {
     return { language: "Ruby" };
