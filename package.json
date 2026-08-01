@@ -11,7 +11,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test": "DEVAGENT_TEST_NO_GLOBAL=true node --experimental-vm-modules node_modules/.bin/jest",
     "start": "node dist/tui/index.js",
     "dev": "tsx src/tui/index.ts",
     "dev:legacy": "tsx src/cli/tui.ts",

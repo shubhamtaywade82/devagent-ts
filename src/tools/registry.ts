@@ -67,9 +67,25 @@ export class Registry {
 
   async invoke(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     try {
-      const targetName = TOOL_ALIASES[name] ?? name;
-      const tool = this.tools.get(targetName);
-      if (!tool) throw new ToolError(`unknown tool: ${name}`);
+      let cleanName = name.trim().replace(/^(functions\.|tools__|mcp__|tool_)/i, "");
+      const targetName = TOOL_ALIASES[cleanName] ?? TOOL_ALIASES[name] ?? cleanName;
+      let tool = this.tools.get(targetName) ?? this.tools.get(name);
+
+      if (!tool) {
+        const lower = targetName.toLowerCase();
+        for (const [k, v] of this.tools.entries()) {
+          if (k.toLowerCase() === lower) {
+            tool = v;
+            break;
+          }
+        }
+      }
+
+      if (!tool) {
+        const available = [...this.tools.keys()].sort().join(", ");
+        throw new ToolError(`unknown tool: ${name}. Available tools: ${available}`);
+      }
+
       const effectiveArgs = normalizeArgs(tool, args);
       return await tool.call(effectiveArgs);
     } catch (e) {

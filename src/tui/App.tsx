@@ -9,7 +9,12 @@ import { activeViewRows, densityForWidth, detailForDensity, MAX_COMPLETION_ROWS 
 import { resolveKey, UiCommand } from "../interaction/keybindings.js";
 import { MOUSE_SGR_PATTERN } from "../interaction/mouse.js";
 import { initialUiState, uiReduce } from "../interaction/ui-state.js";
-import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
+import {
+  builtinCommands,
+  CommandEffect,
+  parseSlashInput,
+  SlashCommandRegistry,
+} from "../interaction/slash-commands.js";
 import { HistoryManager } from "../interaction/history.js";
 import { acceptWord, completions, ghostSuffix } from "../interaction/completion.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
@@ -184,7 +189,6 @@ function useRuntimeState(store: Store): RuntimeState {
   }, [store]);
   return state;
 }
-
 
 export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): React.JSX.Element {
   const { exit } = useApp();
@@ -561,15 +565,13 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             kind: "info",
             text: effect.goal ? `Planning: ${effect.goal}` : "Resuming interrupted plan…",
           });
-          agent
-            ?.runPlan?.(effect.goal)
-            .catch((e: unknown) =>
-              bus.publish({
-                type: "notification",
-                kind: "error",
-                text: `Plan failed: ${e instanceof Error ? e.message : String(e)}`,
-              }),
-            );
+          agent?.runPlan?.(effect.goal).catch((e: unknown) =>
+            bus.publish({
+              type: "notification",
+              kind: "error",
+              text: `Plan failed: ${e instanceof Error ? e.message : String(e)}`,
+            }),
+          );
           break;
         }
         case "set-theme":
@@ -617,7 +619,8 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           if (agent) {
             setBusy(true);
             bus.publish({ type: "mode.changed", mode: "streaming" });
-            agent.runUserMessage(`Run the following shell command and show me the output:\n\n${effect.command}`)
+            agent
+              .runUserMessage(`Run the following shell command and show me the output:\n\n${effect.command}`)
               .catch(() => {})
               .finally(() => {
                 setBusy(false);
@@ -662,11 +665,10 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         .join("\n");
       const trimmed = withoutPasteLabels.trim();
       if (!trimmed) return;
-      setPrompt("");
-      setCompletionIndex(0);
-
       const slash = parseSlashInput(trimmed);
       if (slash) {
+        setPrompt("");
+        setCompletionIndex(0);
         const command = commandRegistry.find(slash.name);
         applyEffect(command ? command.execute(slash.args) : { kind: "error", text: `Unknown command: /${slash.name}` });
         return;
@@ -680,6 +682,8 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       } catch {
         // ignore
       }
+      setPrompt("");
+      setCompletionIndex(0);
 
       // Dashboard is a live cockpit in its own right (Activity Feed shows the
       // reply) — don't yank the user off it. Every other view still switches
@@ -804,6 +808,11 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     if (key.return) {
       if (activeCompletion) {
         const item = completionItems[Math.min(completionIndex, completionItems.length - 1)];
+        if (prompt.trim() === item.insert.trim()) {
+          submitPrompt(prompt);
+          setCompletionIndex(0);
+          return;
+        }
         setPrompt(item.insert);
         setCompletionIndex(0);
         return;
@@ -877,7 +886,9 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     ? (() => {
         const counts = new Map<string, number>();
         for (const t of agent?.getTools?.() ?? []) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
-        return [...counts.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count);
+        return [...counts.entries()]
+          .map(([category, count]) => ({ category, count }))
+          .sort((a, b) => b.count - a.count);
       })()
     : [];
 
@@ -914,7 +925,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           ) : ui.overlay === "diff" ? (
             <Box flexDirection="row" width={width} height={contentRows}>
               <Box width={Math.floor((width - 1) / 2)} height={contentRows}>
-                <ConversationView state={state} width={Math.floor((width - 1) / 2)} rows={contentRows} detail={detail} />
+                <ConversationView
+                  state={state}
+                  width={Math.floor((width - 1) / 2)}
+                  rows={contentRows}
+                  detail={detail}
+                />
               </Box>
               <VDivider rows={contentRows} />
               <Box width={width - Math.floor((width - 1) / 2) - 1} height={contentRows}>
@@ -1041,11 +1057,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           </Text>
         </Box>
         {activeCompletion && (
-          <CompletionSurface
-            items={completionItems}
-            selectedIndex={completionIndex}
-            width={width}
-          />
+          <CompletionSurface items={completionItems} selectedIndex={completionIndex} width={width} />
         )}
         <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} focused={focused} />
         <Box height={1}>
@@ -1053,12 +1065,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             {"─".repeat(Math.max(0, width - 1))}
           </Text>
         </Box>
-        <ContextStrip
-          state={state}
-          width={width}
-          activeView={ui.activeView}
-          now={now}
-        />
+        <ContextStrip state={state} width={width} activeView={ui.activeView} now={now} />
       </ErrorBoundary>
     </Box>
   );

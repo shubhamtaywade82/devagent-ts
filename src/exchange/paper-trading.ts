@@ -3,6 +3,7 @@ import { BinanceStreamManager } from "./binance-stream.js";
 export interface PaperPosition {
   id: number;
   symbol: string;
+  market: string;
   direction: "long" | "short";
   entryPrice: number;
   quantity: number;
@@ -25,24 +26,32 @@ export class PaperTradingManager {
 
   constructor(private stream: BinanceStreamManager) {}
 
-  async open(symbol: string, direction: "long" | "short", quantity: number, stopPrice?: number, targetPrice?: number): Promise<PaperPosition | { error: string; message: string }> {
+  async open(
+    symbol: string,
+    direction: "long" | "short",
+    quantity: number,
+    stopPrice?: number,
+    targetPrice?: number,
+    market = "spot",
+  ): Promise<PaperPosition | { error: string; message: string }> {
     const sym = symbol.toUpperCase();
     try {
-      if (!this.stream.isSubscribed(sym)) await this.stream.subscribe(sym);
+      if (!this.stream.isSubscribed(sym, market)) await this.stream.subscribe(sym, market);
     } catch (e) {
       return { error: "SubscribeError", message: (e as Error).message };
     }
 
-    let tick = this.stream.getLatest(sym);
+    let tick = this.stream.getLatest(sym, market);
     for (let i = 0; i < 20 && !tick; i++) {
       await new Promise((resolve) => setTimeout(resolve, 250));
-      tick = this.stream.getLatest(sym);
+      tick = this.stream.getLatest(sym, market);
     }
     if (!tick) return { error: "NoPriceYet", message: "Subscribed but no live price received yet, try again" };
 
     const position: PaperPosition = {
       id: this.nextId++,
       symbol: sym,
+      market,
       direction,
       entryPrice: tick.price,
       quantity,
@@ -63,7 +72,7 @@ export class PaperTradingManager {
   markToMarket(): void {
     for (const p of this.positions) {
       if (p.closedAt !== null) continue;
-      const tick = this.stream.getLatest(p.symbol);
+      const tick = this.stream.getLatest(p.symbol, p.market);
       if (!tick) continue;
       if (p.stopPrice !== undefined) {
         const hitStop = p.direction === "long" ? tick.price <= p.stopPrice : tick.price >= p.stopPrice;
@@ -79,7 +88,11 @@ export class PaperTradingManager {
     }
   }
 
-  close(id: number, reason: PaperPosition["closeReason"] = "manual", priceOverride?: number): PaperPosition | undefined {
+  close(
+    id: number,
+    reason: PaperPosition["closeReason"] = "manual",
+    priceOverride?: number,
+  ): PaperPosition | undefined {
     const p = this.positions.find((pos) => pos.id === id);
     if (!p || p.closedAt !== null) return undefined;
     const price = priceOverride ?? this.stream.getLatest(p.symbol)?.price;
@@ -87,7 +100,8 @@ export class PaperTradingManager {
     p.closedAt = Date.now();
     p.closePrice = price;
     p.closeReason = reason;
-    p.realizedPnlPct = p.direction === "long" ? (price - p.entryPrice) / p.entryPrice : (p.entryPrice - price) / p.entryPrice;
+    p.realizedPnlPct =
+      p.direction === "long" ? (price - p.entryPrice) / p.entryPrice : (p.entryPrice - price) / p.entryPrice;
     return p;
   }
 
@@ -98,8 +112,10 @@ export class PaperTradingManager {
 
   unrealizedPnlPct(p: PaperPosition): number | null {
     if (p.closedAt !== null) return p.realizedPnlPct;
-    const tick = this.stream.getLatest(p.symbol);
+    const tick = this.stream.getLatest(p.symbol, p.market);
     if (!tick) return null;
-    return p.direction === "long" ? (tick.price - p.entryPrice) / p.entryPrice : (p.entryPrice - tick.price) / p.entryPrice;
+    return p.direction === "long"
+      ? (tick.price - p.entryPrice) / p.entryPrice
+      : (p.entryPrice - tick.price) / p.entryPrice;
   }
 }
