@@ -1,7 +1,13 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { filterPickerItems, PickerItem, visibleWindow } from "../../interaction/picker.js";
+import { MOUSE_SGR_PATTERN } from "../../interaction/mouse.js";
 import { OverlayFrame } from "./OverlayFrame.js";
+
+// Fixed columns so every row's detail (e.g. "Free"/"🔒 Subscription") lines
+// up vertically regardless of how long each item's label is.
+const GLYPH_COL = 4; // "(•) " / "[x] " / "[ ] " / blank
+const LABEL_COL = 22;
 
 export interface UniversalPickerProps {
   title: string;
@@ -52,6 +58,7 @@ export function UniversalPicker({
 
   useInput(
     (input, key) => {
+      if (MOUSE_SGR_PATTERN.test(input)) return; // scroll/click artifact, never real text
       if (key.upArrow) {
         setIndex(Math.max(0, clampedIndex - 1));
       } else if (key.downArrow) {
@@ -95,24 +102,26 @@ export function UniversalPicker({
       {visible.map((item, i) => {
         const absolute = start + i;
         const highlighted = absolute === clampedIndex;
-        const glyph = multi
-          ? checked.has(item.id)
-            ? "[x] "
-            : "[ ] "
-          : initialSelected.includes(item.id)
-            ? "(•) "
-            : "";
+        const glyph = multi ? (checked.has(item.id) ? "[x] " : "[ ] ") : initialSelected.includes(item.id) ? "(•) " : "";
+        const bg = highlighted ? "magenta" : undefined;
         return (
-          <Box key={item.id}>
-            <Text color={highlighted ? "blue" : undefined} inverse={highlighted} wrap="truncate">
-              {glyph}
-              {item.label}
-            </Text>
-            {item.detail ? (
-              <Text color={highlighted ? "blue" : "gray"} inverse={highlighted} wrap="truncate">
-                {"  "}
-                {item.detail}
+          <Box key={item.id} height={1} width="100%" backgroundColor={bg}>
+            <Box width={GLYPH_COL}>
+              <Text color={highlighted ? "white" : undefined} backgroundColor={bg}>
+                {glyph}
               </Text>
+            </Box>
+            <Box width={LABEL_COL}>
+              <Text bold={highlighted} color={highlighted ? "white" : undefined} backgroundColor={bg} wrap="truncate">
+                {item.label}
+              </Text>
+            </Box>
+            {item.detail ? (
+              <Box>
+                <Text color={highlighted ? "white" : "gray"} dimColor={!highlighted} backgroundColor={bg} wrap="truncate">
+                  {item.detail}
+                </Text>
+              </Box>
             ) : null}
           </Box>
         );

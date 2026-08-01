@@ -7,6 +7,7 @@ import { Store } from "../runtime/store.js";
 import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types.js";
 import { activeViewRows, densityForWidth, detailForDensity, MAX_COMPLETION_ROWS } from "../layout/density.js";
 import { resolveKey, UiCommand } from "../interaction/keybindings.js";
+import { MOUSE_SGR_PATTERN } from "../interaction/mouse.js";
 import { initialUiState, uiReduce } from "../interaction/ui-state.js";
 import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
 import { HistoryManager } from "../interaction/history.js";
@@ -184,12 +185,6 @@ function useRuntimeState(store: Store): RuntimeState {
   return state;
 }
 
-// SGR mouse reporting (scroll wheel, click) — some terminals send these
-// whenever the app is in raw mode, even though DevAgent never requests mouse
-// tracking. Format: ESC [ < button ; col ; row (M press or m release). Without
-// this filter the raw escape sequence gets typed into the prompt literally.
-// eslint-disable-next-line no-control-regex
-const MOUSE_SGR_PATTERN = /\x1b?\[<\d+;\d+;\d+[Mm]/;
 
 export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): React.JSX.Element {
   const { exit } = useApp();
