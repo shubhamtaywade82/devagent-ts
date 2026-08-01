@@ -82,6 +82,10 @@ export type RuntimeEvent =
   | { type: "mode.agent"; mode: AgentMode }
   | { type: "status.changed"; status: string }
   | { type: "model.answered"; tier: string; model: string }
+  | { type: "node.start"; id: string; kind: string; title: string; parentId?: string; details?: Record<string, unknown> }
+  | { type: "node.update"; id: string; status: "pending" | "running" | "completed" | "failed" | "collapsed"; progress?: number; details?: Record<string, unknown> }
+  | { type: "node.complete"; id: string; durationMs?: number; details?: Record<string, unknown> }
+  | { type: "node.fail"; id: string; error: string; details?: Record<string, unknown> }
   | { type: "notification"; text: string; kind: "info" | "success" | "warning" | "error" }
   | { type: "error"; message: string };
 
