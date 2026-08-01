@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 
 export interface LanguageOverride {
   enabled?: boolean;
@@ -174,13 +174,13 @@ function loadEnvFiles(workspaceRoot: string): void {
   if (existsSync(globalEnv)) {
     dotenvConfig({ path: globalEnv, override: false, quiet: true } as any);
   }
-  const workspaceEnv = join(workspaceRoot, ".env");
-  if (existsSync(workspaceEnv)) {
-    dotenvConfig({ path: workspaceEnv, override: false, quiet: true } as any);
-  }
   const cwdEnv = join(process.cwd(), ".env");
-  if (existsSync(cwdEnv) && cwdEnv !== workspaceEnv) {
-    dotenvConfig({ path: cwdEnv, override: false, quiet: true } as any);
+  if (existsSync(cwdEnv)) {
+    dotenvConfig({ path: cwdEnv, override: true, quiet: true } as any);
+  }
+  const workspaceEnv = join(workspaceRoot, ".env");
+  if (existsSync(workspaceEnv) && workspaceEnv !== cwdEnv) {
+    dotenvConfig({ path: workspaceEnv, override: true, quiet: true } as any);
   }
 }
 
@@ -201,7 +201,11 @@ export function loadConfig(): CliConfig {
 
   const basePrompt = fromEnv("DEVAGENT_SYSTEM_PROMPT") || file.systemPrompt || DEFAULT_SYSTEM_PROMPT;
   const agentsMd = loadAgentsFile(workspaceRoot);
-  const systemPrompt = agentsMd ? `${basePrompt}\n\n## Project Rules\n\n${agentsMd}` : basePrompt;
+  const folderName = basename(workspaceRoot);
+  const workspaceContext = `## Current Workspace Context\n- Workspace Name: ${folderName}\n- Workspace Root Directory: ${workspaceRoot}`;
+  const systemPrompt = agentsMd
+    ? `${basePrompt}\n\n${workspaceContext}\n\n## Project Rules\n\n${agentsMd}`
+    : `${basePrompt}\n\n${workspaceContext}`;
 
   const rawMaxActiveTools = fromEnv("DEVAGENT_MAX_ACTIVE_TOOLS") || String(file.maxActiveTools ?? "");
   const maxActiveTools =

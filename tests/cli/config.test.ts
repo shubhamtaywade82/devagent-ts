@@ -38,6 +38,7 @@ describe("loadConfig apiKeys pool", () => {
 
   it("loads API keys and config from workspace .env files", () => {
     delete process.env.DEVAGENT_TEST_NO_GLOBAL;
+    delete process.env.OLLAMA_API_KEY;
     writeFileSync(join(workspaceRoot, ".env"), "OLLAMA_API_KEY=env_workspace_key\nDEVAGENT_TIER=cloud\n");
     const cfg = loadConfig();
     expect(cfg.apiKey).toBe("env_workspace_key");
