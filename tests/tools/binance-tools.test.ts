@@ -5,6 +5,9 @@ import {
 } from "../../src/tools/binance-tools.js";
 import { BinanceStreamManager } from "../../src/exchange/binance-stream.js";
 
+const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
+const describeIfNetwork = skipNetwork ? describe.skip : describe;
+
 function fakeKline(close: number, i: number): unknown[] {
   const t = 1700000000000 + i * 3600000;
   return [t, close, close, close, close, "100", t + 3599999, "0", 0, "0", "0", "0"];
@@ -379,7 +382,7 @@ describe("BinancePriceAlertTool", () => {
   });
 });
 
-describe("BinancePublicApiTool (real network)", () => {
+describeIfNetwork("BinancePublicApiTool (real network)", () => {
   it("pings the real Binance spot API", async () => {
     const tool = new BinancePublicApiTool();
     const result = await tool.call({ path: "/api/v3/ping" });
@@ -394,7 +397,7 @@ describe("BinancePublicApiTool (real network)", () => {
   }, 15000);
 });
 
-describe("BinanceTechnicalIndicatorsTool (real network)", () => {
+describeIfNetwork("BinanceTechnicalIndicatorsTool (real network)", () => {
   it("computes real indicators for BTCUSDT", async () => {
     const tool = new BinanceTechnicalIndicatorsTool();
     const result = await tool.call({ symbol: "BTCUSDT", interval: "1h", limit: 100 });
@@ -406,7 +409,7 @@ describe("BinanceTechnicalIndicatorsTool (real network)", () => {
   }, 15000);
 });
 
-describe("BinanceOrderBookTool (real network)", () => {
+describeIfNetwork("BinanceOrderBookTool (real network)", () => {
   it("fetches a real BTCUSDT order book", async () => {
     const tool = new BinanceOrderBookTool();
     const result = await tool.call({ symbol: "BTCUSDT" });
@@ -414,7 +417,7 @@ describe("BinanceOrderBookTool (real network)", () => {
   }, 15000);
 });
 
-describe("BinanceFuturesStatsTool (real network)", () => {
+describeIfNetwork("BinanceFuturesStatsTool (real network)", () => {
   it("fetches real BTCUSDT funding rate and open interest", async () => {
     const tool = new BinanceFuturesStatsTool();
     const result = await tool.call({ symbol: "BTCUSDT" });
@@ -423,7 +426,7 @@ describe("BinanceFuturesStatsTool (real network)", () => {
   }, 15000);
 });
 
-describe("BinanceScreenerTool (real network)", () => {
+describeIfNetwork("BinanceScreenerTool (real network)", () => {
   it("screens real symbols", async () => {
     const tool = new BinanceScreenerTool();
     const result = await tool.call({ symbols: ["BTCUSDT", "ETHUSDT"] });

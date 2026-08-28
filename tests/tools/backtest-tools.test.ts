@@ -3,6 +3,9 @@ import {
 } from "../../src/tools/backtest-tools.js";
 import { StrategyConfig } from "../../src/backtest/types.js";
 
+const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
+const describeIfNetwork = skipNetwork ? describe.skip : describe;
+
 function fakeKlines(closes: number[]): unknown[][] {
   return closes.map((c, i) => {
     const t = 1700000000000 + i * 3600000;
@@ -96,7 +99,7 @@ describe("BinanceParamSweepTool", () => {
   });
 });
 
-describe("Backtest tools (real network)", () => {
+describeIfNetwork("Backtest tools (real network)", () => {
   it("backtests a real BTCUSDT strategy against real Binance history", async () => {
     const tool = new BinanceBacktestTool();
     const result = await tool.call({ symbol: "BTCUSDT", interval: "1h", limit: 300, strategy: STRATEGY });
