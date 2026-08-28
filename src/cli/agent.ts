@@ -32,6 +32,7 @@ import { LocalWorker } from "../provider/local-worker.js";
 import { Verifier } from "../provider/verifier.js";
 import { SelfConsistency } from "../provider/self-consistency.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
+import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
 
 // Confirmation gate for irreversible actions — a UX safety net, not a
 // security boundary (Docker sandboxing already bounds worst-case blast
@@ -373,11 +374,11 @@ export class Agent {
     // unless the configured primary is cloud, see below) — kept as a
     // runUserMessage param for AgentStepRunner/Orchestrator interface
     // compatibility.
-    const escalationHint = this.detectEscalationHint(userMessage);
+    const escalationHint = detectEscalationHint(userMessage);
     // Lookup-style prompts ("where is X defined?") NEED a tool call (search/read)
     // to answer correctly; a small model that just prose-answers instead is wrong,
     // not merely low-quality. Verified below: escalate once if that happens.
-    const requiresToolEvidence = Agent.LOOKUP_PATTERN.test(userMessage.toLowerCase());
+    const requiresToolEvidence = isLookupPrompt(userMessage);
     // Local to this call, not a class field: AgentStepRunner reuses the same Agent
     // across plan steps and retries, each via a fresh runUserMessage call — a class
     // field would leak escalation state across unrelated steps/retries.
@@ -781,28 +782,6 @@ export class Agent {
     this.provider.setModel(model);
   }
 
-  // ponytail: keyword classification, not an LLM intent classifier — cheap and
-  // deterministic. No longer gates whether the local "quick" model gets tried
-  // at all (every turn attempts it first, unless the configured primary is
-  // cloud — see runUserMessage's `escalated` initializer) — these patterns
-  // only pick the ESCALATION TARGET for when the model self-escalates via the
-  // escalate_task tool, reusing Router's existing vision/reasoning routing.
-  private static readonly VISION_PATTERN = /\b(screenshot|diagram|image|photo|picture)\b|\.(png|jpe?g|gif|webp)\b/;
-  private static readonly REASONING_PATTERN =
-    /\b(architecture|trade-?offs?|root cause|design decision|why does|why is|think through|deep dive)\b/;
-  // Read-only lookup/classification phrasing — still used below to require tool
-  // evidence on quick-routed lookup turns (a prose-only answer is wrong, not
-  // just low quality).
-  private static readonly LOOKUP_PATTERN =
-    /\b(where is|where's|find the|show me|list the|which file|how many|what does .* do)\b/;
-
-  private detectEscalationHint(text: string): "vision" | "reasoning" | null {
-    const desc = text.toLowerCase();
-    if (Agent.VISION_PATTERN.test(desc)) return "vision";
-    if (Agent.REASONING_PATTERN.test(desc)) return "reasoning";
-    return null;
-  }
-
   // Refreshed once, on first delegation attempt, and cached for the Agent's lifetime.
   private ensureCatalog(): Promise<void> {
     if (!this.catalogRefreshed) {
@@ -850,8 +829,8 @@ export class Agent {
     }
   }
 
-  setTier(tier: string): void {
-    this.provider.setTier(tier as any);
+  setTier(tier: "local" | "cloud"): void {
+    this.provider.setTier(tier);
   }
 
   setRuntimeHost(host: string): void {
