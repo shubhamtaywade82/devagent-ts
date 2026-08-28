@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventBus } from "../../runtime/events.js";
 import { Store } from "../../runtime/store.js";

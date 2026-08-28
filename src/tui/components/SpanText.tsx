@@ -15,7 +15,7 @@ export function SpanText({ spans }: { spans: Span[] }): React.JSX.Element {
             bold={s.bold}
             italic={s.italic}
             strikethrough={s.strikethrough}
-            color={s.color as any}
+            color={s.color}
             dimColor={s.dimColor}
           >
             {s.text}

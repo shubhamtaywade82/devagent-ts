@@ -1,4 +1,5 @@
 import { marked } from "marked";
+import type { Token as MarkedToken } from "marked";
 import { highlight, supportsLanguage } from "cli-highlight";
 import chalk from "chalk";
 import { wrapText } from "../layout/truncate.js";
@@ -192,7 +193,7 @@ export function renderSimpleMarkdown(text: string, bodyWidth: number): Formatted
   const width = Math.max(10, bodyWidth);
   const result: FormattedLine[] = [];
 
-  let tokens: any[];
+  let tokens: MarkedToken[];
   try {
     tokens = marked.lexer(text);
   } catch {
@@ -317,7 +318,8 @@ export function renderSimpleMarkdown(text: string, bodyWidth: number): Formatted
 
       case "paragraph":
       default: {
-        const rawContent = (token as any).text || (token as any).raw || "";
+        const textual = token as unknown as { text?: string; raw?: string };
+        const rawContent = textual.text || textual.raw || "";
         for (const rawLine of rawContent.split("\n")) {
           if (!rawLine.trim()) {
             result.push({ spans: [{ text: "" }] });

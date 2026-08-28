@@ -114,7 +114,9 @@ export class MemoryStore {
   }
 
   getLearnings(): Array<{ id: number; category: string; context: string; lesson: string; created_at: number; success_count: number }> {
-    return this.db.prepare("SELECT * FROM learnings ORDER BY id DESC").all() as any[];
+    return this.db.prepare("SELECT * FROM learnings ORDER BY id DESC").all() as Array<{
+    id: number; category: string; context: string; lesson: string; created_at: number; success_count: number;
+  }>;
   }
 
   close(): void {

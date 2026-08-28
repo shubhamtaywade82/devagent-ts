@@ -272,7 +272,7 @@ export class LspManager {
     // childless top-level DocumentSymbol as flat SymbolInformation, which then
     // crashes downstream on the missing `.location`.
     if (!("location" in result[0])) {
-      return this.flattenDocumentSymbols(result as any[], uri);
+      return this.flattenDocumentSymbols(result as Array<{ name: string; kind: number; range: unknown; children?: unknown[] }>, uri);
     }
 
     return result as SymbolInformation[];
@@ -498,11 +498,11 @@ export class LspManager {
         result.push({
           name: sym.name,
           kind: sym.kind,
-          location: { uri, range: sym.range as any },
+          location: { uri, range: sym.range as Location["range"] },
           containerName: containerName ?? "",
         } as SymbolInformation);
         if (sym.children) {
-          walk(sym.children as any[], sym.name);
+          walk(sym.children as Array<{ name: string; kind: number; range: unknown; children?: unknown[] }>, sym.name);
         }
       }
     };

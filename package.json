@@ -1,7 +1,6 @@
 {
   "name": "devagent-ollama",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
   "engines": {
     "node": ">=22"
@@ -19,7 +18,8 @@
     "docs:ingest": "tsx src/docs/cli.ts",
     "doctor": "tsx src/cli/doctor.ts",
     "lint": "eslint src tests",
-    "format:check": "prettier --check src tests"
+    "format:check": "prettier --check src tests",
+    "prepare": "npm run build"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -61,5 +61,35 @@
     "vscode-languageserver-types": "^3.18.0",
     "vscode-uri": "^3.1.0",
     "ws": "^8.21.1"
-  }
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./provider": {
+      "types": "./dist/provider/provider.d.ts",
+      "import": "./dist/provider/provider.js"
+    },
+    "./catalog": {
+      "types": "./dist/provider/catalog.d.ts",
+      "import": "./dist/provider/catalog.js"
+    },
+    "./router": {
+      "types": "./dist/provider/router.d.ts",
+      "import": "./dist/provider/router.js"
+    },
+    "./agent": {
+      "types": "./dist/cli/agent.d.ts",
+      "import": "./dist/cli/agent.js"
+    }
+  },
+  "files": [
+    "dist/",
+    "bin/",
+    "README.md",
+    "LICENSE"
+  ]
 }
