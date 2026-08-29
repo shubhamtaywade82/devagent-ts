@@ -73,7 +73,12 @@ export interface AgentEvents {
   onMemorySummary?: (summary: string) => void;
   onSkillsActivated?: (skills: SkillMeta[]) => void;
   onLspStateChange?: (servers: LspServerState[]) => void;
-  onUsage?: (info: { promptTokens: number; completionTokens: number; tokensPerSecond: number; latencyMs: number }) => void;
+  onUsage?: (info: {
+    promptTokens: number;
+    completionTokens: number;
+    tokensPerSecond: number;
+    latencyMs: number;
+  }) => void;
   onPlanUpdate?: (goal: string, steps: PlanStep[], status: "running" | "completed" | "failed") => void;
   onApprovalRequested?: (request: ApprovalRequest) => void;
   onModelUsed?: (tier: string, model: string) => void;
@@ -203,19 +208,18 @@ export class Agent {
     this.verifier = cfg.enableVerifier && this.localWorker ? new Verifier(quickLocalProvider) : undefined;
 
     // Self-consistency: agreement signal for borderline prompts (off by default).
-    this.selfConsistency =
-      cfg.enableSelfConsistency
-        ? new SelfConsistency(quickLocalProvider, {
-            n: cfg.selfConsistencyN,
-            threshold: cfg.selfConsistencyThreshold,
-          })
-        : undefined;
+    this.selfConsistency = cfg.enableSelfConsistency
+      ? new SelfConsistency(quickLocalProvider, {
+          n: cfg.selfConsistencyN,
+          threshold: cfg.selfConsistencyThreshold,
+        })
+      : undefined;
 
     // Trigger availability refresh non-blocking at startup.
     if (this.availabilityChecker) {
-      this.availabilityChecker.refreshAll().catch((e: Error) =>
-        this.emit("onStatus", `[Availability] refresh error: ${e.message}`),
-      );
+      this.availabilityChecker
+        .refreshAll()
+        .catch((e: Error) => this.emit("onStatus", `[Availability] refresh error: ${e.message}`));
     }
 
     this.events = opts.events ?? {};
@@ -404,10 +408,7 @@ export class Agent {
       if (heuristic.decision === "cloud") {
         escalated = true;
         injectDelegationAddendum();
-        this.emit(
-          "onStatus",
-          `escalating to primary model: heuristic pre-filter matched "${heuristic.trigger}"`,
-        );
+        this.emit("onStatus", `escalating to primary model: heuristic pre-filter matched "${heuristic.trigger}"`);
       } else if (heuristic.decision === "unknown" && !requiresToolEvidence && this.selfConsistency) {
         // Self-consistency, not verbalized self-confidence: measures agreement
         // across independent samples rather than asking the model to judge its
@@ -417,10 +418,7 @@ export class Agent {
         if (sc.shouldEscalate) {
           escalated = true;
           injectDelegationAddendum();
-          this.emit(
-            "onStatus",
-            `escalating to primary model: low self-consistency agreement (${sc.score.toFixed(2)})`,
-          );
+          this.emit("onStatus", `escalating to primary model: low self-consistency agreement (${sc.score.toFixed(2)})`);
         }
       }
     }
@@ -580,7 +578,8 @@ export class Agent {
             try {
               args = JSON.parse(rawArguments);
             } catch {
-              // leave args empty on malformed JSON
+              const parts = rawArguments.split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
+              args = parts as unknown as Record<string, unknown>;
             }
           }
 
@@ -630,7 +629,10 @@ export class Agent {
             if (typeof result.error === "string") {
               previousTurnHadToolError = true;
               if (this.loopDetector.record(name, args, result.error)) {
-                return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
+                return finish(
+                  "loop_abort",
+                  lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name,
+                );
               }
             }
             if (toolTurn === this.maxToolTurns - 1) {

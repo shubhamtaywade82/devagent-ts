@@ -25,6 +25,11 @@ describe("SlashCommandRegistry", () => {
     expect(registry.find("resume")?.execute("")).toEqual({ kind: "resume-session" });
   });
 
+  it("/replay executes to a replay-session effect", () => {
+    const registry = builtinCommands();
+    expect(registry.find("replay")?.execute("sess-1")).toEqual({ kind: "replay-session", id: "sess-1" });
+  });
+
   it("completes by prefix", () => {
     const registry = builtinCommands();
     const names = registry.complete("m").map((c) => c.name);

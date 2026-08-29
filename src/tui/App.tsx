@@ -206,7 +206,6 @@ function useRuntimeState(store: Store): RuntimeState {
   return state;
 }
 
-
 export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const state = useRuntimeState(store);
@@ -474,6 +473,15 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
         .join("\n");
       const trimmed = withoutPasteLabels.trim();
       if (!trimmed) return;
+      const slash = parseSlashInput(trimmed);
+      if (slash) {
+        setPrompt("");
+        setCompletionIndex(0);
+        const command = commandRegistry.find(slash.name);
+        applyEffect(command ? command.execute(slash.args) : { kind: "error", text: `Unknown command: /${slash.name}` });
+        return;
+      }
+
       history.add(trimmed);
       try {
         const root = workspaceRoot ?? process.cwd();
@@ -484,13 +492,6 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
       }
       setPrompt("");
       setCompletionIndex(0);
-
-      const slash = parseSlashInput(trimmed);
-      if (slash) {
-        const command = commandRegistry.find(slash.name);
-        applyEffect(command ? command.execute(slash.args) : { kind: "error", text: `Unknown command: /${slash.name}` });
-        return;
-      }
 
       // Dashboard is a live cockpit in its own right (Activity Feed shows the
       // reply) — don't yank the user off it. Every other view still switches
@@ -694,7 +695,9 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     ? (() => {
         const counts = new Map<string, number>();
         for (const t of agent?.getTools?.() ?? []) counts.set(t.category, (counts.get(t.category) ?? 0) + 1);
-        return [...counts.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count);
+        return [...counts.entries()]
+          .map(([category, count]) => ({ category, count }))
+          .sort((a, b) => b.count - a.count);
       })()
     : [];
 
@@ -732,7 +735,12 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           ) : ui.overlay === "diff" ? (
             <Box flexDirection="row" width={width} height={contentRows}>
               <Box width={Math.floor((width - 1) / 2)} height={contentRows}>
-                <ConversationView state={state} width={Math.floor((width - 1) / 2)} rows={contentRows} detail={detail} />
+                <ConversationView
+                  state={state}
+                  width={Math.floor((width - 1) / 2)}
+                  rows={contentRows}
+                  detail={detail}
+                />
               </Box>
               <VDivider rows={contentRows} />
               <Box width={width - Math.floor((width - 1) / 2) - 1} height={contentRows}>
@@ -859,11 +867,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
           </Text>
         </Box>
         {activeCompletion && (
-          <CompletionSurface
-            items={completionItems}
-            selectedIndex={completionIndex}
-            width={width}
-          />
+          <CompletionSurface items={completionItems} selectedIndex={completionIndex} width={width} />
         )}
         <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} focused={focused} />
         <Box height={1}>
@@ -871,12 +875,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
             {"─".repeat(Math.max(0, width - 1))}
           </Text>
         </Box>
-        <ContextStrip
-          state={state}
-          width={width}
-          activeView={ui.activeView}
-          now={now}
-        />
+        <ContextStrip state={state} width={width} activeView={ui.activeView} now={now} />
       </ErrorBoundary>
     </Box>
   );

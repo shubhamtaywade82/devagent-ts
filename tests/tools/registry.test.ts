@@ -39,4 +39,14 @@ describe("Registry", () => {
 
     expect(registry.schemas()[0].function.name).toBe("read_file");
   });
+
+  it("resolves tool aliases and normalizes positional arguments", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    await writeFile(join(dir, "a.txt"), "hello alias");
+    const registry = new Registry().register(new ReadFileTool(dir));
+
+    // open_file alias -> read_file, positional args ["a.txt"] -> { path: "a.txt" }
+    const result = await registry.invoke("open_file", ["a.txt"] as unknown as Record<string, unknown>);
+    expect(result.content).toBe("hello alias");
+  });
 });

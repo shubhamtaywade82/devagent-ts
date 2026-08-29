@@ -11,12 +11,27 @@ function fakeManager(overrides: Partial<PaperTradingManager> = {}): PaperTrading
 }
 
 describe("BinancePaperTradeTool", () => {
-  it("opens a position", async () => {
-    const position = { id: 1, symbol: "BTCUSDT", direction: "long", entryPrice: 60000, quantity: 1 };
+  it("opens a spot position (default market)", async () => {
+    const position = { id: 1, symbol: "BTCUSDT", market: "spot", direction: "long", entryPrice: 60000, quantity: 1 };
     const manager = fakeManager({ open: jest.fn().mockResolvedValue(position) });
     const tool = new BinancePaperTradeTool(manager);
     const result = await tool.call({ action: "open", symbol: "BTCUSDT", direction: "long", quantity: 1 });
-    expect(manager.open).toHaveBeenCalledWith("BTCUSDT", "long", 1, undefined, undefined);
+    expect(manager.open).toHaveBeenCalledWith("BTCUSDT", "long", 1, undefined, undefined, "spot");
+    expect(result).toEqual(position);
+  });
+
+  it("opens a usdm futures position", async () => {
+    const position = { id: 2, symbol: "SOLUSDT", market: "usdm", direction: "long", entryPrice: 72, quantity: 10 };
+    const manager = fakeManager({ open: jest.fn().mockResolvedValue(position) });
+    const tool = new BinancePaperTradeTool(manager);
+    const result = await tool.call({
+      action: "open",
+      symbol: "SOLUSDT",
+      market: "usdm",
+      direction: "long",
+      quantity: 10,
+    });
+    expect(manager.open).toHaveBeenCalledWith("SOLUSDT", "long", 10, undefined, undefined, "usdm");
     expect(result).toEqual(position);
   });
 

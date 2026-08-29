@@ -10,7 +10,14 @@
 import { PlanStep } from "../orchestrator/types.js";
 import { MISSION_PHASE_LABELS, MISSION_PHASE_ORDER, MissionPhase, MissionState } from "./types.js";
 
-const STEP_IN_FLIGHT: readonly PlanStep["status"][] = ["analyzing", "planning", "implementing", "testing", "reviewing", "running"];
+const STEP_IN_FLIGHT: readonly PlanStep["status"][] = [
+  "analyzing",
+  "planning",
+  "implementing",
+  "testing",
+  "reviewing",
+  "running",
+];
 
 /** "Execute > Generate migration" breadcrumb for the Activity Feed — undefined outside an active mission (nothing to attribute the entry to). */
 export function missionCrumb(mission: MissionState): string | undefined {
@@ -47,12 +54,18 @@ export function deriveMissionPhases(phases: MissionPhase[], steps: PlanStep[]): 
 
   const anyTesting = steps.some((s) => s.status === "testing");
   const anyReviewing = steps.some((s) => s.status === "reviewing");
-  const anyRetrying = steps.some((s) => s.retryCount > 0 && (s.status === "pending" || s.status === "analyzing" || s.status === "implementing"));
+  const anyRetrying = steps.some(
+    (s) => s.retryCount > 0 && (s.status === "pending" || s.status === "analyzing" || s.status === "implementing"),
+  );
   const everRetried = steps.some((s) => s.retryCount > 0);
 
   let next = phases;
   next = patchPhase(next, "validate", anyTesting ? "running" : executeDone ? "completed" : "pending");
-  next = patchPhase(next, "repair", anyRetrying ? "running" : everRetried && executeDone ? "completed" : everRetried ? "running" : "pending");
+  next = patchPhase(
+    next,
+    "repair",
+    anyRetrying ? "running" : everRetried && executeDone ? "completed" : everRetried ? "running" : "pending",
+  );
   next = patchPhase(next, "review", anyReviewing ? "running" : executeDone ? "completed" : "pending");
   return next;
 }

@@ -24,13 +24,21 @@ export function searchItems(state: RuntimeState, registry: SlashCommandRegistry)
 
   for (const [i, entry] of state.conversation.slice(-MAX_PER_SOURCE).entries()) {
     const label =
-      entry.kind === "text" ? firstLine(entry.text) :
-      entry.kind === "plan" ? `Plan: ${entry.steps.length} steps` :
-      entry.kind === "decision" ? `Strategy: ${entry.selected}` :
-      entry.kind === "tool_call" ? `Tool: ${entry.name}` :
-      entry.kind === "diff_preview" ? `Diff: ${entry.filePath}` :
-      entry.kind === "test_result" ? `Tests: ${entry.passed}/${entry.passed + entry.failed}` :
-      entry.kind === "card" ? `Card: ${entry.title}` : "(unknown)";
+      entry.kind === "text"
+        ? firstLine(entry.text)
+        : entry.kind === "plan"
+          ? `Plan: ${entry.steps.length} steps`
+          : entry.kind === "decision"
+            ? `Strategy: ${entry.selected}`
+            : entry.kind === "tool_call"
+              ? `Tool: ${entry.name}`
+              : entry.kind === "diff_preview"
+                ? `Diff: ${entry.filePath}`
+                : entry.kind === "test_result"
+                  ? `Tests: ${entry.passed}/${entry.passed + entry.failed}`
+                  : entry.kind === "card"
+                    ? `Card: ${entry.title}`
+                    : "(unknown)";
     items.push({ id: `chat:${i}`, label, detail: `chat · ${entry.role}`, view: "conversation" });
   }
   for (const [i, log] of state.logs.slice(-MAX_PER_SOURCE).entries()) {

@@ -12,8 +12,8 @@ describeIfNetwork("BinanceStreamManager (real network)", () => {
     manager = new BinanceStreamManager();
   });
 
-  afterEach(() => {
-    manager.closeAll();
+  afterEach(async () => {
+    await manager.closeAllAsync();
   });
 
   it("subscribes and receives real ticks for BTCUSDT", async () => {

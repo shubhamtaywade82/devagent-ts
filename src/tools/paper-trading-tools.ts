@@ -13,11 +13,11 @@ export class BinancePaperTradeTool extends Tool {
   get description(): string {
     return (
       "Simulated position tracking against live Binance prices — NEVER touches a real exchange, " +
-      "no API keys, no real money. Use to track a discovered setup forward in time instead of just " +
-      "claiming it would work. action: 'open' (symbol, direction 'long'|'short', quantity, " +
-      "optional stopPrice/targetPrice — marks entry at the current live price), 'list' (all " +
-      "positions, open ones mark-to-market against the live feed and auto-close on stop/target), " +
-      "'close' (id, closes at current live price)."
+      "no API keys, no real money. Supports spot and usdm (USD-M futures) markets. Use to track " +
+      "a discovered setup forward in time. action: 'open' (symbol, market, direction 'long'|'short', " +
+      "quantity, optional stopPrice/targetPrice — marks entry at the current live price), " +
+      "'list' (all positions, open ones mark-to-market against the live feed and auto-close on " +
+      "stop/target), 'close' (id, closes at current live price)."
     );
   }
 
@@ -31,6 +31,11 @@ export class BinancePaperTradeTool extends Tool {
       properties: {
         action: { type: "string", enum: ["open", "list", "close"] },
         symbol: { type: "string" },
+        market: {
+          type: "string",
+          enum: ["spot", "usdm", "coinm"],
+          description: "Default spot; use usdm for USD-M futures",
+        },
         direction: { type: "string", enum: ["long", "short"] },
         quantity: { type: "number" },
         stopPrice: { type: "number" },
@@ -49,12 +54,13 @@ export class BinancePaperTradeTool extends Tool {
       const symbol = String(args.symbol ?? "");
       const direction = args.direction as "long" | "short";
       const quantity = Number(args.quantity);
+      const market = typeof args.market === "string" ? args.market : "spot";
       if (!symbol || (direction !== "long" && direction !== "short") || Number.isNaN(quantity)) {
         return { error: "InvalidArgs", message: "open requires symbol, direction ('long'|'short'), quantity" };
       }
       const stopPrice = typeof args.stopPrice === "number" ? args.stopPrice : undefined;
       const targetPrice = typeof args.targetPrice === "number" ? args.targetPrice : undefined;
-      const result = await this.paper.open(symbol, direction, quantity, stopPrice, targetPrice);
+      const result = await this.paper.open(symbol, direction, quantity, stopPrice, targetPrice, market);
       return "error" in result ? result : { ...result };
     }
 

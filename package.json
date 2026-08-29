@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test": "DEVAGENT_TEST_NO_GLOBAL=true node --experimental-vm-modules node_modules/.bin/jest",
     "start": "node dist/tui/index.js",
     "dev": "tsx src/tui/index.ts",
     "dev:legacy": "tsx src/cli/tui.ts",
@@ -43,6 +43,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
+    "@nemesis-oss/ollama-sdk": "^1.0.0",
     "better-sqlite3": "^12.11.1",
     "boxen": "^8.0.1",
     "chalk": "^5.6.2",
@@ -60,7 +61,8 @@
     "vscode-languageserver-protocol": "^3.18.2",
     "vscode-languageserver-types": "^3.18.0",
     "vscode-uri": "^3.1.0",
-    "ws": "^8.21.1"
+    "ws": "^8.21.1",
+    "zod": "^4.4.3"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

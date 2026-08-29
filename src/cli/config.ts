@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 
 export interface LanguageOverride {
   enabled?: boolean;
@@ -113,6 +113,7 @@ function boolFlag(envValue: string | undefined, fallback: boolean): boolean {
 }
 
 function loadGlobalConfig(): ConfigFile {
+  if (process.env.DEVAGENT_TEST_NO_GLOBAL === "true") return {};
   const p = join(GLOBAL_CONFIG_DIR, "config.json");
   if (!existsSync(p)) return {};
   try {
@@ -174,8 +175,27 @@ function loadAgentsFile(root: string): string {
   return "";
 }
 
+import { config as dotenvConfig } from "dotenv";
+
+function loadEnvFiles(workspaceRoot: string): void {
+  if (process.env.DEVAGENT_TEST_NO_GLOBAL === "true") return;
+  const globalEnv = join(homedir(), ".devagent", ".env");
+  if (existsSync(globalEnv)) {
+    dotenvConfig({ path: globalEnv, override: false, quiet: true } as any);
+  }
+  const cwdEnv = join(process.cwd(), ".env");
+  if (existsSync(cwdEnv)) {
+    dotenvConfig({ path: cwdEnv, override: true, quiet: true } as any);
+  }
+  const workspaceEnv = join(workspaceRoot, ".env");
+  if (existsSync(workspaceEnv) && workspaceEnv !== cwdEnv) {
+    dotenvConfig({ path: workspaceEnv, override: true, quiet: true } as any);
+  }
+}
+
 export function loadConfig(): CliConfig {
   const workspaceRoot = findWorkspaceRoot(process.cwd());
+  loadEnvFiles(workspaceRoot);
   const globalFile = loadGlobalConfig();
   const workspaceFile = loadWorkspaceConfig(workspaceRoot);
   // Workspace config overrides global, env vars override both
@@ -185,28 +205,35 @@ export function loadConfig(): CliConfig {
   const rawTimeout = fromEnv("DEVAGENT_TIMEOUT_MS") || String(file.timeoutMs ?? "");
   const timeoutMs = rawTimeout && Number.isFinite(Number(rawTimeout)) ? Number(rawTimeout) : undefined;
   const rawShellTimeout = fromEnv("DEVAGENT_SHELL_TIMEOUT_SEC") || String(file.shellTimeoutSec ?? "");
-  const shellTimeoutSec = rawShellTimeout && Number.isFinite(Number(rawShellTimeout)) ? Number(rawShellTimeout) : undefined;
+  const shellTimeoutSec =
+    rawShellTimeout && Number.isFinite(Number(rawShellTimeout)) ? Number(rawShellTimeout) : undefined;
 
   const basePrompt = fromEnv("DEVAGENT_SYSTEM_PROMPT") || file.systemPrompt || DEFAULT_SYSTEM_PROMPT;
   const agentsMd = loadAgentsFile(workspaceRoot);
-  const systemPrompt = agentsMd ? `${basePrompt}\n\n## Project Rules\n\n${agentsMd}` : basePrompt;
+  const folderName = basename(workspaceRoot);
+  const workspaceContext = `## Current Workspace Context\n- Workspace Name: ${folderName}\n- Workspace Root Directory: ${workspaceRoot}`;
+  const systemPrompt = agentsMd
+    ? `${basePrompt}\n\n${workspaceContext}\n\n## Project Rules\n\n${agentsMd}`
+    : `${basePrompt}\n\n${workspaceContext}`;
 
   const rawMaxActiveTools = fromEnv("DEVAGENT_MAX_ACTIVE_TOOLS") || String(file.maxActiveTools ?? "");
-  const maxActiveTools = rawMaxActiveTools && Number.isFinite(Number(rawMaxActiveTools)) ? Number(rawMaxActiveTools) : undefined;
+  const maxActiveTools =
+    rawMaxActiveTools && Number.isFinite(Number(rawMaxActiveTools)) ? Number(rawMaxActiveTools) : undefined;
   // Default to "hybrid": pure heuristic keyword/tag scoring can't tell that
   // e.g. "what does the map method do" needs search_docs — its content words
   // ("map", "method") don't appear in any tool's own name/tags/description.
   // Hybrid tries heuristic first and falls back to a real quick-tier model
   // classification call when heuristic is weak/ambiguous.
   const toolSelectionMode = (fromEnv("DEVAGENT_TOOL_SELECTION_MODE") || file.toolSelectionMode || "hybrid") as
-    | "heuristic"
-    | "llm"
-    | "hybrid";
+    "heuristic" | "llm" | "hybrid";
 
   // Pool of Ollama Cloud keys: primary single key, comma-separated OLLAMA_API_KEYS,
   // and any keys listed in the config file, deduped in that priority order.
   const primaryApiKey = fromEnv("OLLAMA_API_KEY") || file.apiKey;
-  const envKeys = (fromEnv("OLLAMA_API_KEYS") ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+  const envKeys = (fromEnv("OLLAMA_API_KEYS") ?? "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
   const apiKeys = [...new Set([...(primaryApiKey ? [primaryApiKey] : []), ...envKeys, ...(file.apiKeys ?? [])])];
 
   // Number() on a malformed value yields NaN, which is not nullish and so
@@ -227,9 +254,13 @@ export function loadConfig(): CliConfig {
   );
 
   const inputPerMillion = Number(fromEnv("DEVAGENT_PRICE_INPUT_PER_M") || String(file.pricing?.inputPerMillion ?? ""));
-  const outputPerMillion = Number(fromEnv("DEVAGENT_PRICE_OUTPUT_PER_M") || String(file.pricing?.outputPerMillion ?? ""));
+  const outputPerMillion = Number(
+    fromEnv("DEVAGENT_PRICE_OUTPUT_PER_M") || String(file.pricing?.outputPerMillion ?? ""),
+  );
   const pricing =
-    Number.isFinite(inputPerMillion) && Number.isFinite(outputPerMillion) && (inputPerMillion > 0 || outputPerMillion > 0)
+    Number.isFinite(inputPerMillion) &&
+    Number.isFinite(outputPerMillion) &&
+    (inputPerMillion > 0 || outputPerMillion > 0)
       ? { inputPerMillion, outputPerMillion }
       : undefined;
 

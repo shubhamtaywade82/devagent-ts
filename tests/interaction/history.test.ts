@@ -19,10 +19,13 @@ describe("HistoryManager", () => {
     expect(h.all()).toEqual(["b", "a"]);
   });
 
-  it("ignores blank entries", () => {
+  it("ignores blank entries and slash commands", () => {
     const h = new HistoryManager();
     h.add("   ");
-    expect(h.all()).toEqual([]);
+    h.add("/model qwen3:30b");
+    h.add("/dag");
+    h.add("real user prompt");
+    expect(h.all()).toEqual(["real user prompt"]);
   });
 
   it("caps history at max entries", () => {

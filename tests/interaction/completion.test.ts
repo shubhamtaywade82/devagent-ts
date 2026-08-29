@@ -77,8 +77,6 @@ describe("completions", () => {
     expect(helpItem?.group).toBe("General");
   });
 });
-
-
 describe("isNoOpCompletion", () => {
   const registry = builtinCommands();
 

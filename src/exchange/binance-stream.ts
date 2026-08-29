@@ -26,6 +26,14 @@ const MAX_LIQUIDATIONS_BUFFERED = 200;
  * which hangs the tool call and the agent turn behind it. */
 const CONNECT_TIMEOUT_MS = 10_000;
 
+function tickerStreamBase(market: string): string {
+  return market === "usdm" || market === "coinm" ? FUTURES_STREAM_BASE : STREAM_BASE;
+}
+
+function socketKey(stream: string, market: string): string {
+  return `${stream}:${market}`;
+}
+
 export interface Liquidation {
   symbol: string;
   side: "BUY" | "SELL";
@@ -74,27 +82,32 @@ export class BinanceStreamManager {
     this.connectTimeoutMs = opts.connectTimeoutMs ?? CONNECT_TIMEOUT_MS;
   }
 
-  subscribe(symbol: string): Promise<void> {
+  subscribe(symbol: string, market = "spot"): Promise<void> {
     const sym = symbol.toUpperCase();
     const stream = `${sym.toLowerCase()}@ticker`;
-    if (this.sockets.has(stream)) return Promise.resolve();
+    const key = socketKey(stream, market);
+    if (this.sockets.has(key)) return Promise.resolve();
+    const latestKey = `${sym}:${market}`;
 
     return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`${this.streamBase}/${stream}`);
+      const base = market === "usdm" || market === "coinm" ? this.futuresStreamBase : this.streamBase;
+      const ws = new WebSocket(`${base}/${stream}`);
+      (ws as any)._socket?.unref();
       const timer = setTimeout(() => {
-        this.sockets.delete(stream);
+        this.sockets.delete(key);
         ws.terminate();
         reject(new Error(`timed out connecting to ${stream} after ${this.connectTimeoutMs}ms`));
       }, this.connectTimeoutMs);
       const onError = (err: Error) => {
         clearTimeout(timer);
-        this.sockets.delete(stream);
+        this.sockets.delete(key);
         reject(err);
       };
       ws.once("error", onError);
       ws.once("open", () => {
         clearTimeout(timer);
         ws.off("error", onError);
+        (ws as any)._socket?.unref();
         resolve();
       });
       ws.on("message", (data: Buffer) => {
@@ -105,33 +118,34 @@ export class BinanceStreamManager {
         const price = Number(msg.c);
         if (!Number.isFinite(price)) return;
         const tick: Tick = { symbol: sym, price, time: Date.now() };
-        this.latest.set(sym, tick);
-        this.checkAlerts(tick);
+        this.latest.set(latestKey, tick);
+        this.checkAlerts(tick, market);
       });
       ws.on("error", () => {
         // swallow post-open errors; getLatest()/isSubscribed() reflect staleness naturally
       });
-      this.sockets.set(stream, ws);
+      this.sockets.set(key, ws);
     });
   }
 
-  unsubscribe(symbol: string): boolean {
+  unsubscribe(symbol: string, market = "spot"): boolean {
     const sym = symbol.toUpperCase();
     const stream = `${sym.toLowerCase()}@ticker`;
-    const ws = this.sockets.get(stream);
+    const key = socketKey(stream, market);
+    const ws = this.sockets.get(key);
     if (!ws) return false;
     ws.terminate();
-    this.sockets.delete(stream);
-    this.latest.delete(sym);
+    this.sockets.delete(key);
+    this.latest.delete(`${sym}:${market}`);
     return true;
   }
 
-  isSubscribed(symbol: string): boolean {
-    return this.sockets.has(`${symbol.toLowerCase()}@ticker`);
+  isSubscribed(symbol: string, market = "spot"): boolean {
+    return this.sockets.has(socketKey(`${symbol.toLowerCase()}@ticker`, market));
   }
 
-  getLatest(symbol: string): Tick | undefined {
-    return this.latest.get(symbol.toUpperCase());
+  getLatest(symbol: string, market = "spot"): Tick | undefined {
+    return this.latest.get(`${symbol.toUpperCase()}:${market}`);
   }
 
   /** Symbols with a live ticker socket. Derived from `sockets` (the same
@@ -144,7 +158,7 @@ export class BinanceStreamManager {
       .map((stream) => stream.slice(0, -"@ticker".length).toUpperCase());
   }
 
-  addAlert(symbol: string, condition: AlertCondition, threshold: number): Alert {
+  addAlert(symbol: string, condition: AlertCondition, threshold: number, market = "spot"): Alert {
     const alert: Alert = {
       id: this.nextAlertId++,
       symbol: symbol.toUpperCase(),
@@ -154,6 +168,8 @@ export class BinanceStreamManager {
       triggeredAt: null,
       triggeredPrice: null,
     };
+    // store market on the alert so checkAlerts can match correctly
+    (alert as any).market = market;
     this.alerts.push(alert);
     return alert;
   }
@@ -168,9 +184,10 @@ export class BinanceStreamManager {
     return [...this.alerts];
   }
 
-  private checkAlerts(tick: Tick): void {
+  private checkAlerts(tick: Tick, market = "spot"): void {
     for (const alert of this.alerts) {
       if (alert.triggered || alert.symbol !== tick.symbol) continue;
+      if ((alert as any).market && (alert as any).market !== market) continue;
       const hit = alert.condition === "above" ? tick.price >= alert.threshold : tick.price <= alert.threshold;
       if (hit) {
         alert.triggered = true;
@@ -185,6 +202,7 @@ export class BinanceStreamManager {
 
     return new Promise((resolve, reject) => {
       const ws = new WebSocket(`${this.futuresStreamBase}/${LIQUIDATIONS_STREAM}`);
+      (ws as any)._socket?.unref();
       const timer = setTimeout(() => {
         this.sockets.delete(LIQUIDATIONS_STREAM);
         ws.terminate();
@@ -199,6 +217,7 @@ export class BinanceStreamManager {
       ws.once("open", () => {
         clearTimeout(timer);
         ws.off("error", onError);
+        (ws as any)._socket?.unref();
         resolve();
       });
       ws.on("message", (data: Buffer) => {
@@ -241,5 +260,21 @@ export class BinanceStreamManager {
     this.sockets.clear();
     this.latest.clear();
     this.liquidations = [];
+  }
+
+  /** Waits for all currently-open sockets to fully close (use in tests/shutdown). */
+  closeAllAsync(): Promise<void> {
+    const closing = [...this.sockets.values()].map(
+      (ws) =>
+        new Promise<void>((resolve) => {
+          if (ws.readyState === ws.CLOSED) return resolve();
+          ws.once("close", resolve);
+          ws.terminate();
+        }),
+    );
+    this.sockets.clear();
+    this.latest.clear();
+    this.liquidations = [];
+    return Promise.all(closing).then(() => undefined);
   }
 }

@@ -2,6 +2,7 @@ import { Tool } from "./tool.js";
 import { parseKlineRows, StrategyConfig } from "../backtest/types.js";
 import { runBacktest } from "../backtest/engine.js";
 import { walkForward, monteCarlo, paramSweep, ParamRange } from "../backtest/analysis.js";
+import { normalizeMarket } from "./binance-tools.js";
 
 const CONDITION_SCHEMA = {
   type: "object",
@@ -36,8 +37,11 @@ const STRATEGY_SCHEMA = {
   required: ["direction", "entry", "risk"],
 };
 
-async function fetchCandles(symbol: string, interval: string, limit: number): Promise<{ candles: ReturnType<typeof parseKlineRows> } | { error: string; message: string }> {
-  const url = new URL("/api/v3/klines", "https://api.binance.com");
+async function fetchCandles(symbol: string, interval: string, limit: number, rawMarket?: string): Promise<{ candles: ReturnType<typeof parseKlineRows> } | { error: string; message: string }> {
+  const market = normalizeMarket(rawMarket);
+  const base = market === "usdm" ? "https://fapi.binance.com" : market === "coinm" ? "https://dapi.binance.com" : "https://api.binance.com";
+  const path = market === "usdm" ? "/fapi/v1/klines" : market === "coinm" ? "/dapi/v1/klines" : "/api/v3/klines";
+  const url = new URL(path, base);
   url.searchParams.set("symbol", symbol);
   url.searchParams.set("interval", interval);
   url.searchParams.set("limit", String(limit));
@@ -74,6 +78,7 @@ export class BinanceBacktestTool extends Tool {
       type: "object",
       properties: {
         symbol: { type: "string" },
+        market: { type: "string", description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)" },
         interval: { type: "string", description: "e.g. 1h, 4h, 1d" },
         limit: { type: "number", description: "Candles to fetch, max 1000 (default 500)" },
         strategy: STRATEGY_SCHEMA,
@@ -84,11 +89,12 @@ export class BinanceBacktestTool extends Tool {
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const symbol = String(args.symbol ?? "");
+    const market = typeof args.market === "string" ? args.market : undefined;
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 500) || 500, 1000);
     const strategy = args.strategy as StrategyConfig;
 
-    const fetched = await fetchCandles(symbol, interval, limit);
+    const fetched = await fetchCandles(symbol, interval, limit, market);
     if ("error" in fetched) return fetched;
 
     const result = runBacktest(fetched.candles, strategy);
@@ -127,6 +133,7 @@ export class BinanceWalkForwardTool extends Tool {
       type: "object",
       properties: {
         symbol: { type: "string" },
+        market: { type: "string", description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)" },
         interval: { type: "string" },
         limit: { type: "number", description: "Candles to fetch, max 1000 (default 500)" },
         strategy: STRATEGY_SCHEMA,
@@ -138,12 +145,13 @@ export class BinanceWalkForwardTool extends Tool {
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const symbol = String(args.symbol ?? "");
+    const market = typeof args.market === "string" ? args.market : undefined;
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 500) || 500, 1000);
     const strategy = args.strategy as StrategyConfig;
     const folds = Number(args.folds ?? 4) || 4;
 
-    const fetched = await fetchCandles(symbol, interval, limit);
+    const fetched = await fetchCandles(symbol, interval, limit, market);
     if ("error" in fetched) return fetched;
 
     const result = walkForward(fetched.candles, strategy, folds);
@@ -182,6 +190,7 @@ export class BinanceMonteCarloTool extends Tool {
       type: "object",
       properties: {
         symbol: { type: "string" },
+        market: { type: "string", description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)" },
         interval: { type: "string" },
         limit: { type: "number", description: "Candles to fetch, max 1000 (default 500)" },
         strategy: STRATEGY_SCHEMA,
@@ -193,12 +202,13 @@ export class BinanceMonteCarloTool extends Tool {
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const symbol = String(args.symbol ?? "");
+    const market = typeof args.market === "string" ? args.market : undefined;
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 500) || 500, 1000);
     const strategy = args.strategy as StrategyConfig;
     const simulations = Number(args.simulations ?? 1000) || 1000;
 
-    const fetched = await fetchCandles(symbol, interval, limit);
+    const fetched = await fetchCandles(symbol, interval, limit, market);
     if ("error" in fetched) return fetched;
 
     const backtest = runBacktest(fetched.candles, strategy);
@@ -234,6 +244,7 @@ export class BinanceParamSweepTool extends Tool {
       type: "object",
       properties: {
         symbol: { type: "string" },
+        market: { type: "string", description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)" },
         interval: { type: "string" },
         limit: { type: "number", description: "Candles to fetch, max 1000 (default 500)" },
         strategy: STRATEGY_SCHEMA,
@@ -256,12 +267,13 @@ export class BinanceParamSweepTool extends Tool {
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const symbol = String(args.symbol ?? "");
+    const market = typeof args.market === "string" ? args.market : undefined;
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 500) || 500, 1000);
     const strategy = args.strategy as StrategyConfig;
     const ranges = args.ranges as ParamRange[];
 
-    const fetched = await fetchCandles(symbol, interval, limit);
+    const fetched = await fetchCandles(symbol, interval, limit, market);
     if ("error" in fetched) return fetched;
 
     const results = paramSweep(fetched.candles, strategy, ranges);

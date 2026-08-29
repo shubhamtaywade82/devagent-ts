@@ -2,7 +2,11 @@ import { Registry } from "../tools/registry.js";
 import { ReadFileTool, WriteFileTool } from "../tools/filesystem.js";
 import { ShellTool } from "../tools/shell.js";
 import {
-  ListDirectoryTool, DeleteFileTool, MakeDirectoryTool, CopyFileTool, MoveFileTool,
+  ListDirectoryTool,
+  DeleteFileTool,
+  MakeDirectoryTool,
+  CopyFileTool,
+  MoveFileTool,
 } from "../tools/directory-tools.js";
 import { PatchTool, AppendTool } from "../tools/edit-tools.js";
 import { SnapshotBackupTool } from "../tools/backup-tools.js";
@@ -17,25 +21,53 @@ import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools
 import { RunRubocopTool } from "../tools/rubocop-tool.js";
 import { RunRSpecTool } from "../tools/rspec-tool.js";
 import {
-  GetDefinitionTool, FindReferencesTool, RenameSymbolTool,
-  WorkspaceSymbolsTool, DocumentSymbolsTool, HoverTool,
-  DiagnosticsTool, CodeActionsTool, FormatDocumentTool,
-  SignatureHelpTool, CompletionTool, SemanticTokensTool,
+  GetDefinitionTool,
+  FindReferencesTool,
+  RenameSymbolTool,
+  WorkspaceSymbolsTool,
+  DocumentSymbolsTool,
+  HoverTool,
+  DiagnosticsTool,
+  CodeActionsTool,
+  FormatDocumentTool,
+  SignatureHelpTool,
+  CompletionTool,
+  SemanticTokensTool,
 } from "../tools/lsp-tools.js";
 import { LspManager } from "../lsp/manager.js";
 import {
-  BrowserNavigateTool, BrowserClickTool, BrowserFillTool,
-  BrowserGetTextTool, BrowserScreenshotTool, BrowserEvaluateTool, BrowserCloseTool,
+  BrowserNavigateTool,
+  BrowserClickTool,
+  BrowserFillTool,
+  BrowserGetTextTool,
+  BrowserScreenshotTool,
+  BrowserEvaluateTool,
+  BrowserCloseTool,
 } from "../tools/browser-tools.js";
 import { BrowserManager } from "../browser/manager.js";
 import {
-  BinancePublicApiTool, BinanceTechnicalIndicatorsTool, BinanceOrderBookTool,
-  BinanceFuturesStatsTool, BinanceScreenerTool, BinanceWatchPriceTool,
-  BinanceUnwatchPriceTool, BinancePriceAlertTool, BinanceLiquidationsTool,
+  BinancePublicApiTool,
+  BinanceTechnicalIndicatorsTool,
+  BinanceOrderBookTool,
+  BinanceFuturesStatsTool,
+  BinanceScreenerTool,
+  BinanceWatchPriceTool,
+  BinanceUnwatchPriceTool,
+  BinancePriceAlertTool,
+  BinanceLiquidationsTool,
+  BinanceOhlcvTool,
+  BinanceMultiTimeframeTool,
+  BinanceVolumeTool,
+  BinanceFundingHistoryTool,
+  BinanceOpenInterestHistoryTool,
+  BinanceFuturesBasisTool,
 } from "../tools/binance-tools.js";
 import { BinanceStreamManager } from "../exchange/binance-stream.js";
 import {
-  BinanceBacktestTool, BinanceWalkForwardTool, BinanceMonteCarloTool, BinanceParamSweepTool,
+  BinanceBacktestTool,
+  BinanceWalkForwardTool,
+  BinanceMonteCarloTool,
+  BinanceParamSweepTool,
 } from "../tools/backtest-tools.js";
 import { BinancePaperTradeTool } from "../tools/paper-trading-tools.js";
 import { PaperTradingManager } from "../exchange/paper-trading.js";
@@ -90,6 +122,12 @@ export class AgentToolManager {
       .register(new BinanceOrderBookTool(), "Market")
       .register(new BinanceFuturesStatsTool(), "Market")
       .register(new BinanceScreenerTool(), "Market")
+      .register(new BinanceOhlcvTool(), "Market")
+      .register(new BinanceMultiTimeframeTool(), "Market")
+      .register(new BinanceVolumeTool(), "Market")
+      .register(new BinanceFundingHistoryTool(), "Market")
+      .register(new BinanceOpenInterestHistoryTool(), "Market")
+      .register(new BinanceFuturesBasisTool(), "Market")
       .register(new BinanceBacktestTool(), "Market")
       .register(new BinanceWalkForwardTool(), "Market")
       .register(new BinanceMonteCarloTool(), "Market")

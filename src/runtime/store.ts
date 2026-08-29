@@ -139,7 +139,10 @@ function appendChunk(
     return conversation.slice(0, -1).concat({ ...last, text: last.text + chunk });
   }
   // Stamped once, at entry creation — a turn's answering model doesn't change mid-stream.
-  return bounded([...conversation, { kind: "text", role, text: chunk, at: Date.now(), model, crumb }], MAX_CONVERSATION);
+  return bounded(
+    [...conversation, { kind: "text", role, text: chunk, at: Date.now(), model, crumb }],
+    MAX_CONVERSATION,
+  );
 }
 
 function taskDetail(tasks: Task[]): string {
@@ -150,7 +153,13 @@ function taskDetail(tasks: Task[]): string {
 export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   switch (event.type) {
     case "conversation.message": {
-      const entry: ChatEntry = { kind: "text", role: event.role, text: sanitizeText(event.text), at: Date.now(), crumb: missionCrumb(state.mission) };
+      const entry: ChatEntry = {
+        kind: "text",
+        role: event.role,
+        text: sanitizeText(event.text),
+        at: Date.now(),
+        crumb: missionCrumb(state.mission),
+      };
       // A new user turn starts fresh — any prior turn's delegation label must not
       // bleed into this one if classifyCapability doesn't delegate this time.
       const lastTurnModel = event.role === "user" ? null : state.lastTurnModel;
@@ -164,7 +173,13 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       const modelLabel = state.lastTurnModel ?? `${state.model.provider}/${state.model.name}`;
       const next = {
         ...state,
-        conversation: appendChunk(state.conversation, event.role, sanitizeText(event.chunk), modelLabel, missionCrumb(state.mission)),
+        conversation: appendChunk(
+          state.conversation,
+          event.role,
+          sanitizeText(event.chunk),
+          modelLabel,
+          missionCrumb(state.mission),
+        ),
       };
       return withActor(next, "conversation", { health: event.role === "thinking" ? "thinking" : "active" });
     }
@@ -179,7 +194,11 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         at: Date.now(),
       };
       return withActor(
-        { ...state, execution: { ...state.execution, goal: event.goal, steps: event.steps }, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        {
+          ...state,
+          execution: { ...state.execution, goal: event.goal, steps: event.steps },
+          conversation: bounded([...state.conversation, entry], MAX_CONVERSATION),
+        },
         "planner",
         { health: event.status === "running" ? "thinking" : "healthy", detail: event.status === "running" ? "▶" : "✓" },
       );
@@ -201,9 +220,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       );
     }
     case "conversation.tool_call": {
-      const existingIdx = state.conversation.findIndex(
-        (e) => e.kind === "tool_call" && e.id === event.id,
-      );
+      const existingIdx = state.conversation.findIndex((e) => e.kind === "tool_call" && e.id === event.id);
       const existing = existingIdx >= 0 ? state.conversation[existingIdx] : undefined;
       const entry: ChatEntry = {
         kind: "tool_call",
@@ -228,7 +245,10 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         {
           ...state,
           conversation: bounded(updatedConversation, MAX_CONVERSATION),
-          execution: { ...state.execution, activeTool: event.status === "running" ? event.name : state.execution.activeTool },
+          execution: {
+            ...state.execution,
+            activeTool: event.status === "running" ? event.name : state.execution.activeTool,
+          },
         },
         "executor",
         { health: actorHealth, detail: event.status === "running" ? "▶" : event.status === "failed" ? "✗" : "✓" },
@@ -290,11 +310,10 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         at: Date.now(),
         crumb: missionCrumb(state.mission),
       };
-      return withActor(
-        { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
-        "tasks",
-        { health: event.status === "running" ? "active" : "healthy", detail: event.status === "running" ? "▶" : "✓" },
-      );
+      return withActor({ ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) }, "tasks", {
+        health: event.status === "running" ? "active" : "healthy",
+        detail: event.status === "running" ? "▶" : "✓",
+      });
     }
     case "conversation.card_item": {
       const last = state.conversation[state.conversation.length - 1];
@@ -567,7 +586,11 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       // too, the same path a visible toast already uses elsewhere.
       const note = { id: nextNotificationId(), text: event.message, kind: "error" as const, at: Date.now() };
       return withActor(
-        { ...state, lastError: event.message, notifications: bounded([...state.notifications, note], MAX_NOTIFICATIONS) },
+        {
+          ...state,
+          lastError: event.message,
+          notifications: bounded([...state.notifications, note], MAX_NOTIFICATIONS),
+        },
         "executor",
         { health: "error", detail: "✗" },
       );
