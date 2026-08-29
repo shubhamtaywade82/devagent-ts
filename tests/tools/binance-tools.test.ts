@@ -720,7 +720,7 @@ describe("BinanceWatchPriceTool (market-aware)", () => {
   });
 });
 
-describe("BinanceMultiTimeframeTool (real network)", () => {
+describeIfNetwork("BinanceMultiTimeframeTool (real network)", () => {
   it("fetches real SOLUSDT indicators across 15m/1h/4h", async () => {
     const tool = new BinanceMultiTimeframeTool();
     const result = await tool.call({
@@ -739,7 +739,7 @@ describe("BinanceMultiTimeframeTool (real network)", () => {
   }, 20000);
 });
 
-describe("BinanceFuturesBasisTool (real network)", () => {
+describeIfNetwork("BinanceFuturesBasisTool (real network)", () => {
   it("computes real BTCUSDT futures basis", async () => {
     const tool = new BinanceFuturesBasisTool();
     const result = await tool.call({ symbol: "BTCUSDT" });
@@ -750,7 +750,7 @@ describe("BinanceFuturesBasisTool (real network)", () => {
   }, 15000);
 });
 
-describe("BinanceOpenInterestHistoryTool (real network)", () => {
+describeIfNetwork("BinanceOpenInterestHistoryTool (real network)", () => {
   it("fetches real BTCUSDT open interest history", async () => {
     const tool = new BinanceOpenInterestHistoryTool();
     const result = await tool.call({ symbol: "BTCUSDT", period: "1h", limit: 10 });

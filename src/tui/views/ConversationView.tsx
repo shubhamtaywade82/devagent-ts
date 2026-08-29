@@ -237,15 +237,15 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
       if (!isFirst) {
         if (entry.role === "user") {
           b.push({
-            key: `sep-${entry.at}`,
+            key: `sep-${entry.at}-${idx}`,
             height: 1,
-            render: () => <TurnSeparator key={`sep-${entry.at}`} width={bodyWidth} />,
+            render: () => <TurnSeparator key={`sep-${entry.at}-${idx}`} width={bodyWidth} />,
           });
         } else if (!chained) {
           b.push({
-            key: `space-${entry.at}`,
+            key: `space-${entry.at}-${idx}`,
             height: 1,
-            render: () => <Box key={`space-${entry.at}`} height={1} />,
+            render: () => <Box key={`space-${entry.at}-${idx}`} height={1} />,
           });
         }
       }
@@ -255,10 +255,10 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
         if (entry.role === "thinking") {
           const preview = entry.text.slice(0, bodyWidth - 6).replace(/\n.*$/s, "") || "Thinking...";
           b.push({
-            key: `think-${entry.at}`,
+            key: `think-${entry.at}-${idx}`,
             height: 1,
             render: () => (
-              <Box key={`think-${entry.at}`} flexDirection="column">
+              <Box key={`think-${entry.at}-${idx}`} flexDirection="column">
                 <Box height={1}>
                   <Text color="magenta" dimColor wrap="truncate">
                     ▸ {preview}
@@ -272,7 +272,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           const showSpeaker = lastSpeaker !== "user";
           lastSpeaker = "user";
           b.push({
-            key: `user-${entry.at}`,
+            key: `user-${entry.at}-${idx}`,
             height: lines.length + (showSpeaker ? 1 : 0),
             render: (startRow, endRow) => {
               const speakerVisible = showSpeaker && startRow === 0;
@@ -305,7 +305,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           const showSpeaker = lastSpeaker !== "assistant";
           lastSpeaker = "assistant";
           b.push({
-            key: `asst-${entry.at}`,
+            key: `asst-${entry.at}-${idx}`,
             height: lines.length + (showSpeaker ? 1 : 0),
             render: (startRow, endRow) => {
               const speakerVisible = showSpeaker && startRow === 0;
@@ -346,7 +346,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
         const extraHeight = errorLines.length + resultLines.length;
         const isLast = state.conversation[idx + 1]?.kind !== "tool_call";
         b.push({
-          key: `tool-${entry.at}`,
+          key: `tool-${entry.at}-${idx}`,
           height: 1 + extraHeight,
           render: () => (
             <ToolCallBlock
@@ -369,20 +369,20 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           skipped: { char: "–", color: "gray" },
         };
         b.push({
-          key: `plan-${entry.at}`,
+          key: `plan-${entry.at}-${idx}`,
           height: 1 + entry.steps.length,
           render: () => (
-            <Box key={`plan-${entry.at}`} flexDirection="column">
+            <Box key={`plan-${entry.at}-${idx}`} flexDirection="column">
               <Box height={1}>
                 <Text bold color="blue">
                   {headerText}
                 </Text>
               </Box>
-              {entry.steps.map((step, idx) => {
+              {entry.steps.map((step, sidx) => {
                 const s = stepGlyphs[step.status] || stepGlyphs.pending;
                 return (
                   <Box key={step.id} height={1}>
-                    <Text color="gray"> {idx + 1}) </Text>
+                    <Text color="gray"> {sidx + 1}) </Text>
                     <Text color={s.color}>{s.char} </Text>
                     <Text color={step.status === "completed" ? "gray" : "white"}>{step.description}</Text>
                   </Box>
@@ -394,10 +394,10 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
       } else if (entry.kind === "decision") {
         const optionList = entry.options.join(", ");
         b.push({
-          key: `decision-${entry.at}`,
+          key: `decision-${entry.at}-${idx}`,
           height: 3,
           render: () => (
-            <Box key={`decision-${entry.at}`} flexDirection="column">
+            <Box key={`decision-${entry.at}-${idx}`} flexDirection="column">
               <Box height={1}>
                 <Text bold color="cyan">
                   🧠 Strategy Selection
@@ -445,10 +445,10 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           ).length > changes.length;
 
         b.push({
-          key: `diff-${entry.at}`,
+          key: `diff-${entry.at}-${idx}`,
           height: 1 + changes.length + (hasMore ? 1 : 0),
           render: () => (
-            <Box key={`diff-${entry.at}`} flexDirection="column">
+            <Box key={`diff-${entry.at}-${idx}`} flexDirection="column">
               <Box height={1}>
                 <Text bold color="yellow">
                   📄 {entry.filePath}
@@ -457,8 +457,8 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                 <Text color="green">+{additions} </Text>
                 <Text color="red">-{deletions}</Text>
               </Box>
-              {changes.map((ch, idx) => (
-                <Box key={idx} height={1} marginLeft={2}>
+              {changes.map((ch, cidx) => (
+                <Box key={cidx} height={1} marginLeft={2}>
                   <Text color={ch.color}>{ch.text}</Text>
                 </Box>
               ))}
@@ -488,10 +488,10 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
         }
 
         b.push({
-          key: `test-${entry.at}`,
+          key: `test-${entry.at}-${idx}`,
           height: 3 + failureLines.length,
           render: () => (
-            <Box key={`test-${entry.at}`} flexDirection="column">
+            <Box key={`test-${entry.at}-${idx}`} flexDirection="column">
               <Box height={1}>
                 <Text bold color={statusColor}>
                   {headerText}
@@ -505,8 +505,8 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                   {isSuccess ? "  ✓" : "  ✗"} {entry.passed} passed, {entry.failed} failed
                 </Text>
               </Box>
-              {failureLines.map((fl, idx) => (
-                <Box key={idx} height={1}>
+              {failureLines.map((fl, fidx) => (
+                <Box key={fidx} height={1}>
                   <Text color={fl.startsWith("    ") ? "gray" : "red"}>{fl}</Text>
                 </Box>
               ))}
@@ -523,10 +523,10 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           skipped: { char: "–", color: "gray" },
         };
         b.push({
-          key: `card-${entry.at}`,
+          key: `card-${entry.at}-${idx}`,
           height: 1 + entry.items.length,
           render: () => (
-            <Box key={`card-${entry.at}`} flexDirection="column">
+            <Box key={`card-${entry.at}-${idx}`} flexDirection="column">
               <Box height={1}>
                 <Text bold color={statusColor}>
                   {entry.title} [{entry.status}]

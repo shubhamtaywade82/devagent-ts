@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BrowserManager, resolveChromiumExecutablePath } from "../../src/browser/manager.js";
 
+import { chromium } from "playwright";
+
 // Real Chromium, real navigation — data: URLs keep it offline/deterministic,
 // same spirit as the real-process LSP client tests (verify the actual
 // integration, not a mock of it).
@@ -12,7 +14,19 @@ const PAGE = `data:text/html,<html><head><title>Test Page</title></head><body>
   <button id="btn" onclick="document.getElementById('heading').textContent='Clicked'">Click me</button>
 </body></html>`;
 
-describe("BrowserManager", () => {
+let hasChromium = false;
+try {
+  const executablePath = resolveChromiumExecutablePath();
+  const testBrowser = await chromium.launch({ headless: true, ...(executablePath ? { executablePath } : {}) });
+  await testBrowser.close();
+  hasChromium = true;
+} catch {
+  hasChromium = false;
+}
+
+const describeBrowser = hasChromium ? describe : describe.skip;
+
+describeBrowser("BrowserManager", () => {
   let browser: BrowserManager;
 
   beforeEach(() => {
