@@ -108,21 +108,30 @@ describe("tool-call-typed-arguments case", () => {
 
   it("passes with correctly-typed number and boolean args", () => {
     const result = alarmCase.validate(
-      response({ content: "", tool_calls: [{ function: { name: "set_alarm", arguments: { hour: 7, repeat: true } } }] }),
+      response({
+        content: "",
+        tool_calls: [{ function: { name: "set_alarm", arguments: { hour: 7, repeat: true } } }],
+      }),
     );
     expect(result.pass).toBe(true);
   });
 
   it("tolerates stringified number/boolean args", () => {
     const result = alarmCase.validate(
-      response({ content: "", tool_calls: [{ function: { name: "set_alarm", arguments: { hour: "7", repeat: "true" } } }] }),
+      response({
+        content: "",
+        tool_calls: [{ function: { name: "set_alarm", arguments: { hour: "7", repeat: "true" } } }],
+      }),
     );
     expect(result.pass).toBe(true);
   });
 
   it("fails on the wrong hour", () => {
     const result = alarmCase.validate(
-      response({ content: "", tool_calls: [{ function: { name: "set_alarm", arguments: { hour: 8, repeat: true } } }] }),
+      response({
+        content: "",
+        tool_calls: [{ function: { name: "set_alarm", arguments: { hour: 8, repeat: true } } }],
+      }),
     );
     expect(result.pass).toBe(false);
     expect(result.reason).toMatch(/hour was/);
@@ -184,7 +193,9 @@ describe("thinking-shows-work case", () => {
   });
 
   it("notes when a separate thinking field is present, without affecting pass/fail", () => {
-    const withThinking = thinkingCase.validate(response({ content: "391", thinking: "17*23 = 17*20 + 17*3 = 340+51 = 391" } as any));
+    const withThinking = thinkingCase.validate(
+      response({ content: "391", thinking: "17*23 = 17*20 + 17*3 = 340+51 = 391" } as any),
+    );
     expect(withThinking.pass).toBe(true);
     expect(withThinking.reason).toMatch(/thinking field/);
   });

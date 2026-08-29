@@ -26,7 +26,14 @@ describe("Router.route", () => {
     expect(result.message.content).toBe("hi");
     expect(localChat).toHaveBeenCalled();
     expect(cloudChat).not.toHaveBeenCalled();
-    expect(local.currentModel).toBe("qwen3:8b");
+    // The candidate is passed per-request; the Provider's own configured model
+    // is deliberately left alone, so concurrent routes through the same
+    // instance can't clobber each other (see the concurrency test below).
+    expect(localChat).toHaveBeenCalledWith(
+      [{ role: "user", content: "hi" }],
+      expect.objectContaining({ model: "qwen3:8b" }),
+    );
+    expect(local.currentModel).toBe("x");
     // Stamped so callers can know which candidate actually served the
     // request, since the candidate pool can silently widen past whatever
     // capability was originally requested (see the tool-capability-widening
@@ -223,5 +230,48 @@ describe("Router.route", () => {
     expect(result.message.content).toBe("from local");
     expect(cloudChat).not.toHaveBeenCalled();
     expect(localChat).toHaveBeenCalled();
+  });
+});
+
+// Router used to call provider.setModel(candidate) and then await chat(), so
+// model selection lived in shared instance state across an await point. Two
+// concurrent routes through the same Provider (the fire-and-forget
+// summarization racing the next turn, or parallel plan steps) overwrote each
+// other: both requests went to whichever model was set last, while routedModel
+// reported the candidate each call had picked.
+describe("Router concurrency", () => {
+  it("does not let concurrent routes clobber each other's model", async () => {
+    const local = new Provider({ tier: "local", model: "base" });
+    const catalog = new ModelCatalog(local);
+    jest.spyOn(local, "availableModels").mockResolvedValue({ models: [{ name: "qwen3:8b" }, { name: "minicpm5:1b" }] });
+    await catalog.refresh();
+
+    const seen: string[] = [];
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    jest.spyOn(local, "chat").mockImplementation(async (_messages, opts) => {
+      // Hold both requests open simultaneously, so a mutation-based
+      // implementation is guaranteed to have overwritten the first.
+      seen.push(opts?.model ?? local.currentModel);
+      await gate;
+      return okResponse(opts?.model ?? "");
+    });
+
+    const router = new Router({ local, catalog, logger: { warn: jest.fn() } });
+    const both = Promise.all([
+      router.route("quick", [{ role: "user", content: "a" }]),
+      router.route("coding", [{ role: "user", content: "b" }]),
+    ]);
+    release();
+    const [quick, coding] = await both;
+
+    // Each request carried its own candidate...
+    expect(new Set(seen).size).toBe(2);
+    // ...the response content (echoing the model the request actually used)
+    // matches what routedModel claims...
+    expect(quick.message.content).toBe(quick.routedModel);
+    expect(coding.message.content).toBe(coding.routedModel);
+    // ...and the shared Provider is untouched.
+    expect(local.currentModel).toBe("base");
   });
 });

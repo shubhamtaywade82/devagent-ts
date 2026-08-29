@@ -4,11 +4,22 @@ import { Tool } from "./tool.js";
 import { resolveWorkspacePath } from "./path-utils.js";
 
 export class ListDirectoryTool extends Tool {
-  constructor(private readonly root: string) { super(); }
-  get name(): string { return "list_directory"; }
-  get description(): string { return "List files and directories at a path relative to the workspace root. Defaults to workspace root if no path given."; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name(): string {
+    return "list_directory";
+  }
+  get description(): string {
+    return "List files and directories at a path relative to the workspace root. Defaults to workspace root if no path given.";
+  }
   get parameters(): Record<string, unknown> {
-    return { type: "object", properties: { path: { type: "string", description: "Directory path relative to workspace root (defaults to root)" } } };
+    return {
+      type: "object",
+      properties: {
+        path: { type: "string", description: "Directory path relative to workspace root (defaults to root)" },
+      },
+    };
   }
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const path = (args.path as string) || ".";
@@ -19,7 +30,12 @@ export class ListDirectoryTool extends Tool {
         const item = resolve(target, name);
         const rel = relative(this.root, item);
         let type: "file" | "directory" = "file";
-        try { const s = await stat(item); type = s.isDirectory() ? "directory" : "file"; } catch { /* stat failed */ }
+        try {
+          const s = await stat(item);
+          type = s.isDirectory() ? "directory" : "file";
+        } catch {
+          /* stat failed */
+        }
         entries.push({ name, path: rel, type });
       }
     } catch (e) {
@@ -30,9 +46,15 @@ export class ListDirectoryTool extends Tool {
 }
 
 export class DeleteFileTool extends Tool {
-  constructor(private readonly root: string) { super(); }
-  get name(): string { return "delete_file"; }
-  get description(): string { return "Remove a file or directory recursively."; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name(): string {
+    return "delete_file";
+  }
+  get description(): string {
+    return "Remove a file or directory recursively.";
+  }
   get parameters(): Record<string, unknown> {
     return { type: "object", properties: { path: { type: "string" } }, required: ["path"] };
   }
@@ -50,9 +72,15 @@ export class DeleteFileTool extends Tool {
 }
 
 export class MakeDirectoryTool extends Tool {
-  constructor(private readonly root: string) { super(); }
-  get name(): string { return "make_directory"; }
-  get description(): string { return "Create a directory within the workspace, including parents."; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name(): string {
+    return "make_directory";
+  }
+  get description(): string {
+    return "Create a directory within the workspace, including parents.";
+  }
   get parameters(): Record<string, unknown> {
     return { type: "object", properties: { path: { type: "string" } }, required: ["path"] };
   }
@@ -70,11 +98,21 @@ export class MakeDirectoryTool extends Tool {
 }
 
 export class CopyFileTool extends Tool {
-  constructor(private readonly root: string) { super(); }
-  get name(): string { return "copy_file"; }
-  get description(): string { return "Copy a file or directory within the workspace."; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name(): string {
+    return "copy_file";
+  }
+  get description(): string {
+    return "Copy a file or directory within the workspace.";
+  }
   get parameters(): Record<string, unknown> {
-    return { type: "object", properties: { source: { type: "string" }, destination: { type: "string" } }, required: ["source", "destination"] };
+    return {
+      type: "object",
+      properties: { source: { type: "string" }, destination: { type: "string" } },
+      required: ["source", "destination"],
+    };
   }
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const source = args.source as string;
@@ -92,11 +130,21 @@ export class CopyFileTool extends Tool {
 }
 
 export class MoveFileTool extends Tool {
-  constructor(private readonly root: string) { super(); }
-  get name(): string { return "move_file"; }
-  get description(): string { return "Move or rename a file within the workspace."; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name(): string {
+    return "move_file";
+  }
+  get description(): string {
+    return "Move or rename a file within the workspace.";
+  }
   get parameters(): Record<string, unknown> {
-    return { type: "object", properties: { source: { type: "string" }, destination: { type: "string" } }, required: ["source", "destination"] };
+    return {
+      type: "object",
+      properties: { source: { type: "string" }, destination: { type: "string" } },
+      required: ["source", "destination"],
+    };
   }
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const source = args.source as string;

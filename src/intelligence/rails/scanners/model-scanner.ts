@@ -4,26 +4,42 @@
  * relationship intents resolved by the indexer.
  */
 
+import { Association, ModelEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types.js";
 import {
-  Association,
-  ModelEntity,
-  RelationshipIntent,
-  Scanner,
-  ScannerResult,
-  SourceFile,
-} from "../types.js";
-import { classify, logicalLines, parseMacroArgs, parseSymbolList, singularize, underscore, unquote } from "./ruby-source.js";
+  classify,
+  logicalLines,
+  parseMacroArgs,
+  parseSymbolList,
+  singularize,
+  underscore,
+  unquote,
+} from "./ruby-source.js";
 
 const ASSOCIATION_KINDS = ["belongs_to", "has_many", "has_one", "has_and_belongs_to_many"] as const;
 
 const CALLBACK_KINDS = new Set([
-  "before_validation", "after_validation",
-  "before_save", "around_save", "after_save",
-  "before_create", "around_create", "after_create",
-  "before_update", "around_update", "after_update",
-  "before_destroy", "around_destroy", "after_destroy",
-  "after_commit", "after_create_commit", "after_update_commit", "after_destroy_commit",
-  "after_rollback", "after_initialize", "after_find", "after_touch",
+  "before_validation",
+  "after_validation",
+  "before_save",
+  "around_save",
+  "after_save",
+  "before_create",
+  "around_create",
+  "after_create",
+  "before_update",
+  "around_update",
+  "after_update",
+  "before_destroy",
+  "around_destroy",
+  "after_destroy",
+  "after_commit",
+  "after_create_commit",
+  "after_update_commit",
+  "after_destroy_commit",
+  "after_rollback",
+  "after_initialize",
+  "after_find",
+  "after_touch",
 ]);
 
 export class ModelScanner implements Scanner {

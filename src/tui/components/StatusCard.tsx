@@ -21,8 +21,7 @@ export function StatusCard({ entry, collapsed, onToggle, width }: StatusCardProp
         {items.map((item, i) => (
           <Box key={i} height={1}>
             <Text>
-              <StatusChip status={item.status} />
-              {" "}
+              <StatusChip status={item.status} />{" "}
               <Text
                 color={
                   item.status === "completed"
@@ -38,7 +37,8 @@ export function StatusCard({ entry, collapsed, onToggle, width }: StatusCardProp
               </Text>
               {item.detail && (
                 <Text color="gray" wrap="truncate">
-                  {"  "}{item.detail}
+                  {"  "}
+                  {item.detail}
                 </Text>
               )}
             </Text>

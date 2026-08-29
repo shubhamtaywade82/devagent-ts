@@ -71,23 +71,23 @@ abstract class ScriptRunnerTool extends Tool {
 export class RunTestsTool extends ScriptRunnerTool {
   protected readonly scriptName = "test";
   protected readonly toolName = "run_tests";
-  protected readonly toolDescription = "Run the project's test suite via its package.json \"test\" script.";
+  protected readonly toolDescription = 'Run the project\'s test suite via its package.json "test" script.';
 }
 
 export class RunLintTool extends ScriptRunnerTool {
   protected readonly scriptName = "lint";
   protected readonly toolName = "run_lint";
-  protected readonly toolDescription = "Run the project's linter via its package.json \"lint\" script.";
+  protected readonly toolDescription = 'Run the project\'s linter via its package.json "lint" script.';
 }
 
 export class RunFormatTool extends ScriptRunnerTool {
   protected readonly scriptName = "format";
   protected readonly toolName = "run_format";
-  protected readonly toolDescription = "Run the project's formatter via its package.json \"format\" script.";
+  protected readonly toolDescription = 'Run the project\'s formatter via its package.json "format" script.';
 }
 
 export class RunBuildTool extends ScriptRunnerTool {
   protected readonly scriptName = "build";
   protected readonly toolName = "run_build";
-  protected readonly toolDescription = "Run the project's build via its package.json \"build\" script.";
+  protected readonly toolDescription = 'Run the project\'s build via its package.json "build" script.';
 }

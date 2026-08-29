@@ -20,10 +20,26 @@ describe("summarizeGroup", () => {
 
   it("aggregates diffs per file and test results", () => {
     const entries: ChatEntry[] = [
-      { kind: "diff_preview", role: "assistant", filePath: "a.ts", diff: "+one\n+two\n-three", status: "approved", at: 1 },
+      {
+        kind: "diff_preview",
+        role: "assistant",
+        filePath: "a.ts",
+        diff: "+one\n+two\n-three",
+        status: "approved",
+        at: 1,
+      },
       { kind: "diff_preview", role: "assistant", filePath: "a.ts", diff: "+four", status: "approved", at: 2 },
       { kind: "diff_preview", role: "assistant", filePath: "b.ts", diff: "+x", status: "approved", at: 3 },
-      { kind: "test_result", role: "assistant", command: "npm test", passed: 10, failed: 1, failures: [], durationMs: 100, at: 4 },
+      {
+        kind: "test_result",
+        role: "assistant",
+        command: "npm test",
+        passed: 10,
+        failed: 1,
+        failures: [],
+        durationMs: 100,
+        at: 4,
+      },
     ];
     const s = summarizeGroup(entries);
     expect(s).not.toBeNull();

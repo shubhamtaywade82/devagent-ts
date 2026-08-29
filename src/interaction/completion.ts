@@ -41,6 +41,21 @@ export interface CompletionItem {
 }
 
 /**
+ * True when accepting `item` would leave the prompt effectively unchanged —
+ * i.e. the user has already typed the whole command and the only "completion"
+ * on offer is that same command (registry.complete matches exact names, so
+ * "/resume" always completes to "/resume "). Trailing whitespace doesn't
+ * count as a change: parseSlashInput trims, so "/resume" and "/resume " run
+ * the identical command.
+ *
+ * Callers use this to keep Enter meaning "submit" once there is nothing left
+ * to complete, instead of silently re-inserting what is already there.
+ */
+export function isNoOpCompletion(input: string, item: CompletionItem): boolean {
+  return item.insert.trim() === input.trim();
+}
+
+/**
  * Autocomplete candidates for the prompt: slash commands when the input
  * starts with "/", prompt templates when it starts with "@".
  */

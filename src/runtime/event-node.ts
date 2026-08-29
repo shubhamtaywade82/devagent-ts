@@ -12,7 +12,8 @@ export type ExecutionNodeKind =
   | "reflection"
   | "git";
 
-export type ExecutionNodeStatus = "pending" | "running" | "completed" | "failed" | "collapsed";
+export type ExecutionNodeStatus =
+  "pending" | "running" | "waiting" | "completed" | "failed" | "collapsed" | "paused" | "cancelled" | "retrying";
 
 export interface ExecutionNodeDetails {
   prompt?: string;

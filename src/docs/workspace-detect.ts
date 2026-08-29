@@ -38,6 +38,7 @@ export function detectWorkspaceKinds(root: string): string[] {
     if (hasAnyDependency(pkg, ["next"])) kinds.push("nextjs");
     if (hasAnyDependency(pkg, ["react", "react-dom"])) kinds.push("react");
     if (hasAnyDependency(pkg, ["vue"])) kinds.push("vue");
+    if (hasAnyDependency(pkg, ["svelte"])) kinds.push("svelte");
     if (hasAnyDependency(pkg, ["@angular/core"])) kinds.push("angular");
     if (hasAnyDependency(pkg, ["express"])) kinds.push("express");
 
@@ -45,6 +46,10 @@ export function detectWorkspaceKinds(root: string): string[] {
     const hasTsDependency = hasAnyDependency(pkg, ["typescript"]);
     if (hasTsConfig || hasTsDependency) kinds.push("typescript");
     kinds.push("node");
+  }
+
+  if (existsSync(join(root, "deno.json")) || existsSync(join(root, "deno.jsonc"))) {
+    kinds.push("deno");
   }
 
   if (
@@ -59,6 +64,52 @@ export function detectWorkspaceKinds(root: string): string[] {
 
   if (existsSync(join(root, "go.mod"))) kinds.push("go");
   if (existsSync(join(root, "Cargo.toml"))) kinds.push("rust");
+
+  if (
+    existsSync(join(root, "CMakeLists.txt")) ||
+    existsSync(join(root, "Makefile")) ||
+    existsSync(join(root, "meson.build"))
+  ) {
+    kinds.push("cpp");
+    kinds.push("c");
+  }
+
+  if (existsSync(join(root, "global.json")) || existsSync(join(root, "Directory.Build.props"))) {
+    kinds.push("csharp");
+  }
+
+  if (existsSync(join(root, "pom.xml")) || existsSync(join(root, "build.gradle"))) {
+    kinds.push("java");
+  }
+  if (existsSync(join(root, "build.gradle.kts"))) {
+    kinds.push("kotlin");
+    kinds.push("java");
+  }
+  if (existsSync(join(root, "build.sbt"))) {
+    kinds.push("scala");
+    kinds.push("java");
+  }
+
+  const composer = readJsonIfExists(join(root, "composer.json"));
+  if (composer) {
+    if (hasAnyDependency(composer, ["laravel/framework"])) kinds.push("laravel");
+    if (hasAnyDependency(composer, ["symfony/framework-bundle", "symfony/symfony"])) kinds.push("symfony");
+    kinds.push("php");
+  }
+
+  if (existsSync(join(root, "Package.swift"))) kinds.push("swift");
+  if (existsSync(join(root, "pubspec.yaml"))) kinds.push("dart");
+  if (existsSync(join(root, "mix.exs"))) kinds.push("elixir");
+  if (existsSync(join(root, "rebar.config"))) kinds.push("erlang");
+  if (existsSync(join(root, "build.zig"))) kinds.push("zig");
+
+  if (
+    existsSync(join(root, "Dockerfile")) ||
+    existsSync(join(root, "docker-compose.yml")) ||
+    existsSync(join(root, "compose.yaml"))
+  ) {
+    kinds.push("docker");
+  }
 
   return [...new Set(kinds)];
 }

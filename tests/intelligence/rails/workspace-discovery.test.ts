@@ -10,12 +10,23 @@ async function makeRailsApp(overrides?: { application?: string; lockfile?: strin
   await writeFile(
     join(root, "Gemfile.lock"),
     overrides?.lockfile ??
-      ["GEM", "  remote: https://rubygems.org/", "  specs:", "    rails (7.1.3)", "", "BUNDLED WITH", "   2.5.6", ""].join("\n"),
+      [
+        "GEM",
+        "  remote: https://rubygems.org/",
+        "  specs:",
+        "    rails (7.1.3)",
+        "",
+        "BUNDLED WITH",
+        "   2.5.6",
+        "",
+      ].join("\n"),
   );
   await writeFile(
     join(root, "config", "application.rb"),
     overrides?.application ??
-      ["module Demo", "  class Application < Rails::Application", "    config.load_defaults 7.1", "  end", "end"].join("\n"),
+      ["module Demo", "  class Application < Rails::Application", "    config.load_defaults 7.1", "  end", "end"].join(
+        "\n",
+      ),
   );
   return root;
 }

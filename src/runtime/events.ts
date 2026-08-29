@@ -31,11 +31,31 @@ export type RuntimeEvent =
   | { type: "conversation.message"; role: ChatRole; text: string }
   | { type: "conversation.chunk"; role: "assistant" | "thinking"; chunk: string }
   | { type: "conversation.clear" }
-  | { type: "conversation.plan"; goal: string; steps: ExecutionStep[]; status: "pending" | "running" | "completed" | "failed" }
+  | {
+      type: "conversation.plan";
+      goal: string;
+      steps: ExecutionStep[];
+      status: "pending" | "running" | "completed" | "failed";
+    }
   | { type: "conversation.decision"; options: string[]; selected: string; reason: string; confidence: number }
-  | { type: "conversation.tool_call"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string }
+  | {
+      type: "conversation.tool_call";
+      id: string;
+      name: string;
+      args: Record<string, unknown>;
+      status: ToolCallStatus;
+      result?: string;
+      error?: string;
+    }
   | { type: "conversation.diff"; filePath: string; diff: string; status: "pending_review" | "approved" | "rejected" }
-  | { type: "conversation.test_result"; command: string; passed: number; failed: number; failures: TestFailure[]; durationMs: number }
+  | {
+      type: "conversation.test_result";
+      command: string;
+      passed: number;
+      failed: number;
+      failures: TestFailure[];
+      durationMs: number;
+    }
   | { type: "conversation.card"; title: string; status: "running" | "completed" | "failed"; items: CardItem[] }
   | { type: "conversation.card_item"; title: string; label: string; status: CardItem["status"]; detail?: string }
   | { type: "task.created"; task: Task }
@@ -82,8 +102,21 @@ export type RuntimeEvent =
   | { type: "mode.agent"; mode: AgentMode }
   | { type: "status.changed"; status: string }
   | { type: "model.answered"; tier: string; model: string }
-  | { type: "node.start"; id: string; kind: string; title: string; parentId?: string; details?: Record<string, unknown> }
-  | { type: "node.update"; id: string; status: "pending" | "running" | "completed" | "failed" | "collapsed"; progress?: number; details?: Record<string, unknown> }
+  | {
+      type: "node.start";
+      id: string;
+      kind: string;
+      title: string;
+      parentId?: string;
+      details?: Record<string, unknown>;
+    }
+  | {
+      type: "node.update";
+      id: string;
+      status: "pending" | "running" | "completed" | "failed" | "collapsed";
+      progress?: number;
+      details?: Record<string, unknown>;
+    }
   | { type: "node.complete"; id: string; durationMs?: number; details?: Record<string, unknown> }
   | { type: "node.fail"; id: string; error: string; details?: Record<string, unknown> }
   | { type: "notification"; text: string; kind: "info" | "success" | "warning" | "error" }

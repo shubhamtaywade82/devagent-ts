@@ -34,12 +34,18 @@ function mockDevDocsFetch() {
     if (m) {
       const slug = m[1];
       if (m[2] === "index") {
-        return { ok: true, status: 200, json: async () => ({ entries: [{ name: slug, path: "index", type: "guide" }] }) };
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ entries: [{ name: slug, path: "index", type: "guide" }] }),
+        };
       }
       return {
         ok: true,
         status: 200,
-        json: async () => ({ index: `<section><h1 id="index">${slug}</h1>\n<p>stub content for ${slug}</p></section>` }),
+        json: async () => ({
+          index: `<section><h1 id="index">${slug}</h1>\n<p>stub content for ${slug}</p></section>`,
+        }),
       };
     }
     return { ok: false, status: 404, json: async () => ({}) };

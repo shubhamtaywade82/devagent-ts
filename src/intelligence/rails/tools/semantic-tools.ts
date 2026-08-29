@@ -150,7 +150,10 @@ export class FindSpecTool extends RailsTool {
     const gate = this.disabledResult();
     if (gate) return gate;
     const specs = this.index.query.findSpecs(String(args.name ?? ""));
-    return { found: specs.length > 0, specs: specs.map((s) => ({ file: s.file, type: s.specType, examples: s.exampleCount })) };
+    return {
+      found: specs.length > 0,
+      specs: specs.map((s) => ({ file: s.file, type: s.specType, examples: s.exampleCount })),
+    };
   }
 }
 

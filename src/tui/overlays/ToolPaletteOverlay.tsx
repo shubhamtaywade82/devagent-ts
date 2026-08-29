@@ -18,7 +18,13 @@ export interface ToolPaletteOverlayProps {
 }
 
 /** Ctrl+I / "/tools" — browse every registered tool, filterable by name or category. */
-export function ToolPaletteOverlay({ tools, width, rows, active, onSelect }: ToolPaletteOverlayProps): React.JSX.Element {
+export function ToolPaletteOverlay({
+  tools,
+  width,
+  rows,
+  active,
+  onSelect,
+}: ToolPaletteOverlayProps): React.JSX.Element {
   if (tools.length === 0) {
     return (
       <OverlayFrame title="Tools" width={width} rows={rows}>

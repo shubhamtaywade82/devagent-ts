@@ -3,7 +3,19 @@
  * This allows CI or interactive sessions to tune buffer sizes without code changes.
  */
 
-export const MAX_LOGS = process.env.DEVAGENT_MAX_LOGS ? parseInt(process.env.DEVAGENT_MAX_LOGS, 10) : 500;
-export const MAX_CONVERSATION = process.env.DEVAGENT_MAX_CONVERSATION ? parseInt(process.env.DEVAGENT_MAX_CONVERSATION, 10) : 500;
-export const MAX_TOOL_CALLS = process.env.DEVAGENT_MAX_TOOL_CALLS ? parseInt(process.env.DEVAGENT_MAX_TOOL_CALLS, 10) : 200;
-export const MAX_NOTIFICATIONS = process.env.DEVAGENT_MAX_NOTIFICATIONS ? parseInt(process.env.DEVAGENT_MAX_NOTIFICATIONS, 10) : 20;
+/**
+ * A bare `parseInt` here returned NaN for a malformed value, and `bounded()`
+ * in store.ts compares `items.length > max` — false for NaN — so the buffer it
+ * was meant to cap grew without limit for the rest of the session. Fall back
+ * to the default unless the override is a usable positive integer.
+ */
+function boundedLimit(raw: string | undefined, fallback: number): number {
+  if (!raw) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
+export const MAX_LOGS = boundedLimit(process.env.DEVAGENT_MAX_LOGS, 500);
+export const MAX_CONVERSATION = boundedLimit(process.env.DEVAGENT_MAX_CONVERSATION, 500);
+export const MAX_TOOL_CALLS = boundedLimit(process.env.DEVAGENT_MAX_TOOL_CALLS, 200);
+export const MAX_NOTIFICATIONS = boundedLimit(process.env.DEVAGENT_MAX_NOTIFICATIONS, 20);

@@ -31,7 +31,13 @@ function sampleGraph(): { graph: KnowledgeGraph; intents: RelationshipIntent[] }
   graph.addEntity({ id: "model:Order", type: "model", name: "Order", file: "app/models/order.rb", line: 1 });
   graph.addEdge({ from: "model:User", to: "model:Order", type: "has_many", meta: { association: "orders" } });
   const intents: RelationshipIntent[] = [
-    { fromId: "model:User", relationship: "has_many", toType: "model", toName: "Order", meta: { association: "orders" } },
+    {
+      fromId: "model:User",
+      relationship: "has_many",
+      toType: "model",
+      toName: "Order",
+      meta: { association: "orders" },
+    },
   ];
   return { graph, intents };
 }
@@ -54,7 +60,10 @@ describe("GraphStore", () => {
     const loadedIntents = reopened.load(loaded);
     expect(loadedIntents).toEqual(intents);
     expect((loaded.getEntity("model:User") as ModelEntity).associations[0].className).toBe("Order");
-    expect(loaded.edgesFrom("model:User", "has_many")[0]).toMatchObject({ to: "model:Order", meta: { association: "orders" } });
+    expect(loaded.edgesFrom("model:User", "has_many")[0]).toMatchObject({
+      to: "model:Order",
+      meta: { association: "orders" },
+    });
     expect(reopened.savedAt()).toBeGreaterThan(0);
     reopened.close();
   });

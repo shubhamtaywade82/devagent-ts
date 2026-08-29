@@ -12,9 +12,7 @@ describe("SearchCodeTool", () => {
     const result = await tool.call({ query: "function bar" });
 
     const matches = result.matches as { path: string; line: number; text: string }[];
-    expect(matches).toEqual(
-      expect.arrayContaining([expect.objectContaining({ path: "a.ts", line: 2 })]),
-    );
+    expect(matches).toEqual(expect.arrayContaining([expect.objectContaining({ path: "a.ts", line: 2 })]));
   });
 
   it("scopes search to a subdirectory when path is given", async () => {

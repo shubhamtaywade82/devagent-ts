@@ -6,9 +6,15 @@ import { resolveWorkspacePath } from "./path-utils.js";
 const BACKUP_DIR = ".devagent/backups";
 
 export class SnapshotBackupTool extends Tool {
-  constructor(private readonly root: string) { super(); }
-  get name(): string { return "snapshot_backup"; }
-  get description(): string { return "Create a timestamped backup of a file before modifying it."; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name(): string {
+    return "snapshot_backup";
+  }
+  get description(): string {
+    return "Create a timestamped backup of a file before modifying it.";
+  }
   get parameters(): Record<string, unknown> {
     return { type: "object", properties: { path: { type: "string" } }, required: ["path"] };
   }

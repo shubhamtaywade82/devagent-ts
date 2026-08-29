@@ -19,11 +19,16 @@ export function parseKlineRows(rows: unknown[][]): Candle[] {
 }
 
 export type ConditionType =
-  | "rsi_below" | "rsi_above"
-  | "price_above_sma" | "price_below_sma"
-  | "price_above_ema" | "price_below_ema"
-  | "macd_bullish_cross" | "macd_bearish_cross"
-  | "bollinger_touch_lower" | "bollinger_touch_upper";
+  | "rsi_below"
+  | "rsi_above"
+  | "price_above_sma"
+  | "price_below_sma"
+  | "price_above_ema"
+  | "price_below_ema"
+  | "macd_bullish_cross"
+  | "macd_bearish_cross"
+  | "bollinger_touch_lower"
+  | "bollinger_touch_upper";
 
 export interface Condition {
   type: ConditionType;

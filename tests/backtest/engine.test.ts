@@ -80,9 +80,33 @@ describe("runBacktest", () => {
 describe("computeMetrics", () => {
   it("computes win rate, expectancy, profit factor, drawdown from a known trade set", () => {
     const trades = [
-      { entryIndex: 0, exitIndex: 1, entryPrice: 100, exitPrice: 110, direction: "long" as const, returnPct: 0.1, exitReason: "target" as const },
-      { entryIndex: 1, exitIndex: 2, entryPrice: 100, exitPrice: 95, direction: "long" as const, returnPct: -0.05, exitReason: "stop" as const },
-      { entryIndex: 2, exitIndex: 3, entryPrice: 100, exitPrice: 110, direction: "long" as const, returnPct: 0.1, exitReason: "target" as const },
+      {
+        entryIndex: 0,
+        exitIndex: 1,
+        entryPrice: 100,
+        exitPrice: 110,
+        direction: "long" as const,
+        returnPct: 0.1,
+        exitReason: "target" as const,
+      },
+      {
+        entryIndex: 1,
+        exitIndex: 2,
+        entryPrice: 100,
+        exitPrice: 95,
+        direction: "long" as const,
+        returnPct: -0.05,
+        exitReason: "stop" as const,
+      },
+      {
+        entryIndex: 2,
+        exitIndex: 3,
+        entryPrice: 100,
+        exitPrice: 110,
+        direction: "long" as const,
+        returnPct: 0.1,
+        exitReason: "target" as const,
+      },
     ];
     const metrics = computeMetrics(trades);
     expect(metrics.totalTrades).toBe(3);
@@ -100,8 +124,24 @@ describe("computeMetrics", () => {
 
   it("computes max drawdown from the equity curve", () => {
     const trades = [
-      { entryIndex: 0, exitIndex: 1, entryPrice: 100, exitPrice: 120, direction: "long" as const, returnPct: 0.2, exitReason: "target" as const },
-      { entryIndex: 1, exitIndex: 2, entryPrice: 100, exitPrice: 80, direction: "long" as const, returnPct: -0.3, exitReason: "stop" as const },
+      {
+        entryIndex: 0,
+        exitIndex: 1,
+        entryPrice: 100,
+        exitPrice: 120,
+        direction: "long" as const,
+        returnPct: 0.2,
+        exitReason: "target" as const,
+      },
+      {
+        entryIndex: 1,
+        exitIndex: 2,
+        entryPrice: 100,
+        exitPrice: 80,
+        direction: "long" as const,
+        returnPct: -0.3,
+        exitReason: "stop" as const,
+      },
     ];
     const curve = computeEquityCurve(trades);
     expect(curve[0]).toBeCloseTo(1.2);

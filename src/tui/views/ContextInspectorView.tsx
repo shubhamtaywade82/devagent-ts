@@ -57,7 +57,8 @@ export function ContextInspectorView({ state, width, rows }: ViewProps): React.J
 
   const hasLimit = model.contextLimit > 0;
   const contextPercent = hasLimit ? Math.round((model.contextUsed / model.contextLimit) * 100) : null;
-  const contextColor = contextPercent === null ? "gray" : contextPercent > 80 ? "red" : contextPercent > 60 ? "yellow" : "green";
+  const contextColor =
+    contextPercent === null ? "gray" : contextPercent > 80 ? "red" : contextPercent > 60 ? "yellow" : "green";
   const breakdown = estimateContextBreakdown(state);
 
   return (
@@ -79,14 +80,16 @@ export function ContextInspectorView({ state, width, rows }: ViewProps): React.J
       <Box height={1} marginLeft={2}>
         <Text>
           <Text>Usage: </Text>
-          <Text color={contextColor}>{contextPercent === null ? "no known context window for this model" : `${contextPercent}%`}</Text>
+          <Text color={contextColor}>
+            {contextPercent === null ? "no known context window for this model" : `${contextPercent}%`}
+          </Text>
         </Text>
       </Box>
       <Box height={1} marginLeft={2}>
         <Text>
           <Text>Speed: </Text>
           <Text color="gray">{model.tokensPerSecond.toFixed(1)} tok/s</Text>
-          {model.latencyMs > 0 && <Text color="gray">  Latency: {model.latencyMs}ms</Text>}
+          {model.latencyMs > 0 && <Text color="gray"> Latency: {model.latencyMs}ms</Text>}
         </Text>
       </Box>
 
@@ -97,13 +100,15 @@ export function ContextInspectorView({ state, width, rows }: ViewProps): React.J
           </Box>
           <Box height={1} marginLeft={2}>
             <Text color="gray">
-              Conversation {pct(breakdown.conversationChars, breakdown.totalChars)}%  Tool calls{" "}
-              {pct(breakdown.toolChars, breakdown.totalChars)}%  Other {pct(breakdown.otherChars, breakdown.totalChars)}%
+              Conversation {pct(breakdown.conversationChars, breakdown.totalChars)}% Tool calls{" "}
+              {pct(breakdown.toolChars, breakdown.totalChars)}% Other {pct(breakdown.otherChars, breakdown.totalChars)}%
             </Text>
           </Box>
           {breakdown.totalChars > 2000 && breakdown.toolChars / breakdown.totalChars > 0.4 && (
             <Box height={1} marginLeft={2}>
-              <Text color="yellow">⚠ Tool-call output is over 40% of this conversation — try /reset to compact it.</Text>
+              <Text color="yellow">
+                ⚠ Tool-call output is over 40% of this conversation — try /reset to compact it.
+              </Text>
             </Box>
           )}
         </>

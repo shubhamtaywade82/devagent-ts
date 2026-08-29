@@ -68,13 +68,7 @@ describe("RunRSpecTool", () => {
     proc.stdout.emit(
       "data",
       Buffer.from(
-        [
-          "User",
-          "  validates name (FAILED - 1)",
-          "",
-          "Finished in 0.15 seconds",
-          "1 example, 1 failure",
-        ].join("\n"),
+        ["User", "  validates name (FAILED - 1)", "", "Finished in 0.15 seconds", "1 example, 1 failure"].join("\n"),
       ),
     );
     proc.stderr.emit("data", Buffer.from(""));
@@ -93,15 +87,7 @@ describe("RunRSpecTool", () => {
     const tool = new RunRSpecTool("/tmp/ws");
     const promise = tool.call({});
 
-    proc.stdout.emit(
-      "data",
-      Buffer.from(
-        [
-          "Finished in 0.01 seconds",
-          "5 examples, 1 failure, 2 pending",
-        ].join("\n"),
-      ),
-    );
+    proc.stdout.emit("data", Buffer.from(["Finished in 0.01 seconds", "5 examples, 1 failure, 2 pending"].join("\n")));
     proc.stderr.emit("data", Buffer.from(""));
     proc.emit("close", 1);
 

@@ -87,7 +87,9 @@ export class BrowserGetTextTool extends BrowserTool {
   get parameters(): Record<string, unknown> {
     return {
       type: "object",
-      properties: { selector: { type: "string", description: "Optional CSS selector; defaults to the whole page body" } },
+      properties: {
+        selector: { type: "string", description: "Optional CSS selector; defaults to the whole page body" },
+      },
       required: [],
     };
   }

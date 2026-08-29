@@ -35,7 +35,8 @@ export function SettingsView({ state, rows }: ViewProps): React.JSX.Element {
           <Text bold>Context: </Text>
           <Text color="gray">
             {state.model.contextUsed}/{state.model.contextLimit} tokens
-            {state.model.contextLimit > 0 && ` (${Math.round((state.model.contextUsed / state.model.contextLimit) * 100)}%)`}
+            {state.model.contextLimit > 0 &&
+              ` (${Math.round((state.model.contextUsed / state.model.contextLimit) * 100)}%)`}
           </Text>
         </Text>
       </Box>
@@ -48,7 +49,9 @@ export function SettingsView({ state, rows }: ViewProps): React.JSX.Element {
       <Box height={1}>
         <Text>
           <Text bold>MCP Servers: </Text>
-          <Text color="gray">{state.mcpServers.length} configured, {state.mcpServers.filter((s) => s.connected).length} connected</Text>
+          <Text color="gray">
+            {state.mcpServers.length} configured, {state.mcpServers.filter((s) => s.connected).length} connected
+          </Text>
         </Text>
       </Box>
       <Box height={1}>
@@ -67,12 +70,16 @@ export function SettingsView({ state, rows }: ViewProps): React.JSX.Element {
         <Box height={1}>
           <Text>
             <Text bold>Rails: </Text>
-            <Text color="gray">Status: {state.rails.status} — {state.rails.entityCount} entities</Text>
+            <Text color="gray">
+              Status: {state.rails.status} — {state.rails.entityCount} entities
+            </Text>
           </Text>
         </Box>
       )}
       <Box marginTop={1}>
-        <Text color="gray" dimColor>Use Ctrl+P for quick actions, /mode to change agent mode</Text>
+        <Text color="gray" dimColor>
+          Use Ctrl+P for quick actions, /mode to change agent mode
+        </Text>
       </Box>
     </Box>
   );

@@ -32,9 +32,7 @@ describe("ViewScanner", () => {
       const result = new ViewScanner().scan([{ relPath: "app/views/users/index.html.erb", content: erb }]);
       const view = result.entities[0] as ViewEntity;
 
-      expect(view.referencedModels).toEqual(
-        expect.arrayContaining(["User", "Post"]),
-      );
+      expect(view.referencedModels).toEqual(expect.arrayContaining(["User", "Post"]));
 
       expect(result.intents).toContainEqual(
         expect.objectContaining({ relationship: "references_model", toType: "model", toName: "User" }),
@@ -50,7 +48,8 @@ describe("ViewScanner", () => {
     });
 
     it("extracts render partial calls and emits renders_partial intents", () => {
-      const erb = "<%= render partial: 'form' %>\n<%= render 'shared/header' %>\n<%= render partial: 'user', locals: { user: @user } %>\n";
+      const erb =
+        "<%= render partial: 'form' %>\n<%= render 'shared/header' %>\n<%= render partial: 'user', locals: { user: @user } %>\n";
       const result = new ViewScanner().scan([{ relPath: "app/views/users/edit.html.erb", content: erb }]);
       const view = result.entities[0] as ViewEntity;
 
@@ -64,7 +63,8 @@ describe("ViewScanner", () => {
     });
 
     it("extracts component references via XxxComponent.new(...)", () => {
-      const erb = "<%= render UserComponent.new(user: @user) %>\n<%= render Admin::TableComponent.new(rows: @users) %>\n";
+      const erb =
+        "<%= render UserComponent.new(user: @user) %>\n<%= render Admin::TableComponent.new(rows: @users) %>\n";
       const result = new ViewScanner().scan([{ relPath: "app/views/users/show.html.erb", content: erb }]);
       const view = result.entities[0] as ViewEntity;
 
@@ -77,7 +77,8 @@ describe("ViewScanner", () => {
     });
 
     it("extracts helper method usage", () => {
-      const erb = "<%= link_to 'Profile', @user %>\n<%= form_with model: @user do |f| %>\n<%= button_to 'Delete', @user, method: :delete %>\n";
+      const erb =
+        "<%= link_to 'Profile', @user %>\n<%= form_with model: @user do |f| %>\n<%= button_to 'Delete', @user, method: :delete %>\n";
       const result = new ViewScanner().scan([{ relPath: "app/views/users/show.html.erb", content: erb }]);
       const view = result.entities[0] as ViewEntity;
 
@@ -97,7 +98,7 @@ describe("ViewScanner", () => {
     });
 
     it("handles JSON format response", () => {
-      const erb = '<%= @user.to_json %>\n';
+      const erb = "<%= @user.to_json %>\n";
       const result = new ViewScanner().scan([{ relPath: "app/views/users/show.json.erb", content: erb }]);
       const view = result.entities[0] as ViewEntity;
 

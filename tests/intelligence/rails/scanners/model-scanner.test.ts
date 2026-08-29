@@ -31,8 +31,7 @@ const USER_MODEL = [
 ].join("\n");
 
 describe("ModelScanner", () => {
-  const scan = (content: string, relPath = "app/models/user.rb") =>
-    new ModelScanner().scan([{ relPath, content }]);
+  const scan = (content: string, relPath = "app/models/user.rb") => new ModelScanner().scan([{ relPath, content }]);
 
   it("extracts associations with options", () => {
     const model = scan(USER_MODEL).entities[0] as ModelEntity;
@@ -77,7 +76,13 @@ describe("ModelScanner", () => {
   });
 
   it("qualifies namespaced models", () => {
-    const source = ["module Billing", "  class Invoice < ApplicationRecord", "    has_many :line_items", "  end", "end"].join("\n");
+    const source = [
+      "module Billing",
+      "  class Invoice < ApplicationRecord",
+      "    has_many :line_items",
+      "  end",
+      "end",
+    ].join("\n");
     const model = scan(source, "app/models/billing/invoice.rb").entities[0] as ModelEntity;
     expect(model.name).toBe("Billing::Invoice");
     expect(model.associations[0].className).toBe("LineItem");

@@ -28,7 +28,16 @@ const CAP_SHORT: Record<string, string> = {
 };
 
 /** Ctrl+M — switch model via the universal picker. */
-export function ModelSwitcher({ current, models, availability, capabilities, width, rows, active, onSelect }: ModelSwitcherProps): React.JSX.Element {
+export function ModelSwitcher({
+  current,
+  models,
+  availability,
+  capabilities,
+  width,
+  rows,
+  active,
+  onSelect,
+}: ModelSwitcherProps): React.JSX.Element {
   if (models === null) {
     return (
       <OverlayFrame title="Switch Model" width={width} rows={rows}>
@@ -40,15 +49,23 @@ export function ModelSwitcher({ current, models, availability, capabilities, wid
   }
   const all = models.includes(current) || !current ? models : [current, ...models];
   const detailFor = (m: string): string | undefined => {
+    // Only state what is actually known. The checker only ever tracks cloud
+    // ids, so every local model used to read "Untested" forever, and a 200 was
+    // labelled "Free" even for models a paying subscriber is billed for —
+    // both were claims the data doesn't support. Silence is the honest default.
     const known = availability?.[m];
-    const status = m === current ? "current" : known === true ? "Free" : known === false ? "🔒 Subscription" : "Untested";
+    const status = m === current ? "current" : known === false ? "🔒 Subscription" : undefined;
     const caps = capabilities?.[m]?.map((c) => CAP_SHORT[c] ?? c).join("/");
-    return caps ? `${status} · ${caps}` : status;
+    return [status, caps].filter(Boolean).join(" · ") || undefined;
   };
   return (
     <UniversalPicker
       title="Switch Model"
-      items={all.map((m) => ({ id: m, label: m, detail: detailFor(m) }))}
+      // filterText pins filtering to the model name: `detail` here updates
+      // asynchronously as availability checks land, and letting that drive the
+      // filter meant the list could shrink under the picker's fixed index
+      // between render and keypress, selecting the wrong model on Enter.
+      items={all.map((m) => ({ id: m, label: m, detail: detailFor(m), filterText: m }))}
       width={width}
       rows={rows}
       active={active}

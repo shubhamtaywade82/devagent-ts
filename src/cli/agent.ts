@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
-import { CliConfig, loadConfig } from "./config.js";
+import { CliConfig, loadConfig, saveWorkspaceConfig } from "./config.js";
 import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
 import { Capability, inferCapabilities, ModelCatalog } from "../provider/catalog.js";
@@ -32,6 +32,7 @@ import { LocalWorker } from "../provider/local-worker.js";
 import { Verifier } from "../provider/verifier.js";
 import { SelfConsistency } from "../provider/self-consistency.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
+import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
 
 // Confirmation gate for irreversible actions — a UX safety net, not a
 // security boundary (Docker sandboxing already bounds worst-case blast
@@ -72,7 +73,12 @@ export interface AgentEvents {
   onMemorySummary?: (summary: string) => void;
   onSkillsActivated?: (skills: SkillMeta[]) => void;
   onLspStateChange?: (servers: LspServerState[]) => void;
-  onUsage?: (info: { promptTokens: number; completionTokens: number; tokensPerSecond: number; latencyMs: number }) => void;
+  onUsage?: (info: {
+    promptTokens: number;
+    completionTokens: number;
+    tokensPerSecond: number;
+    latencyMs: number;
+  }) => void;
   onPlanUpdate?: (goal: string, steps: PlanStep[], status: "running" | "completed" | "failed") => void;
   onApprovalRequested?: (request: ApprovalRequest) => void;
   onModelUsed?: (tier: string, model: string) => void;
@@ -124,11 +130,13 @@ export class Agent {
   readonly selfConsistency: SelfConsistency | undefined;
   readonly availabilityChecker: ModelAvailabilityChecker | undefined;
   readonly keyManager: KeyManager | undefined;
+  readonly workspaceRoot: string;
   private readonly mcpServerConfigs: Array<{ name: string; command: string; args?: string[] }>;
   private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
+    this.workspaceRoot = cfg.workspaceRoot;
     this.mcpServerConfigs = cfg.mcpServers ?? [];
 
     this.provider = new Provider({
@@ -202,19 +210,18 @@ export class Agent {
     this.verifier = cfg.enableVerifier && this.localWorker ? new Verifier(quickLocalProvider) : undefined;
 
     // Self-consistency: agreement signal for borderline prompts (off by default).
-    this.selfConsistency =
-      cfg.enableSelfConsistency
-        ? new SelfConsistency(quickLocalProvider, {
-            n: cfg.selfConsistencyN,
-            threshold: cfg.selfConsistencyThreshold,
-          })
-        : undefined;
+    this.selfConsistency = cfg.enableSelfConsistency
+      ? new SelfConsistency(quickLocalProvider, {
+          n: cfg.selfConsistencyN,
+          threshold: cfg.selfConsistencyThreshold,
+        })
+      : undefined;
 
     // Trigger availability refresh non-blocking at startup.
     if (this.availabilityChecker) {
-      this.availabilityChecker.refreshAll().catch((e: Error) =>
-        this.emit("onStatus", `[Availability] refresh error: ${e.message}`),
-      );
+      this.availabilityChecker
+        .refreshAll()
+        .catch((e: Error) => this.emit("onStatus", `[Availability] refresh error: ${e.message}`));
     }
 
     this.events = opts.events ?? {};
@@ -373,11 +380,11 @@ export class Agent {
     // unless the configured primary is cloud, see below) — kept as a
     // runUserMessage param for AgentStepRunner/Orchestrator interface
     // compatibility.
-    const escalationHint = this.detectEscalationHint(userMessage);
+    const escalationHint = detectEscalationHint(userMessage);
     // Lookup-style prompts ("where is X defined?") NEED a tool call (search/read)
     // to answer correctly; a small model that just prose-answers instead is wrong,
     // not merely low-quality. Verified below: escalate once if that happens.
-    const requiresToolEvidence = Agent.LOOKUP_PATTERN.test(userMessage.toLowerCase());
+    const requiresToolEvidence = isLookupPrompt(userMessage);
     // Local to this call, not a class field: AgentStepRunner reuses the same Agent
     // across plan steps and retries, each via a fresh runUserMessage call — a class
     // field would leak escalation state across unrelated steps/retries.
@@ -403,10 +410,7 @@ export class Agent {
       if (heuristic.decision === "cloud") {
         escalated = true;
         injectDelegationAddendum();
-        this.emit(
-          "onStatus",
-          `escalating to primary model: heuristic pre-filter matched "${heuristic.trigger}"`,
-        );
+        this.emit("onStatus", `escalating to primary model: heuristic pre-filter matched "${heuristic.trigger}"`);
       } else if (heuristic.decision === "unknown" && !requiresToolEvidence && this.selfConsistency) {
         // Self-consistency, not verbalized self-confidence: measures agreement
         // across independent samples rather than asking the model to judge its
@@ -416,10 +420,7 @@ export class Agent {
         if (sc.shouldEscalate) {
           escalated = true;
           injectDelegationAddendum();
-          this.emit(
-            "onStatus",
-            `escalating to primary model: low self-consistency agreement (${sc.score.toFixed(2)})`,
-          );
+          this.emit("onStatus", `escalating to primary model: low self-consistency agreement (${sc.score.toFixed(2)})`);
         }
       }
     }
@@ -488,7 +489,7 @@ export class Agent {
         const makeChatOpts = () => ({
           stream: true,
           tools: activeTools.length > 0 ? activeTools.map((t) => t.schema) : undefined,
-          onChunk: (chunk: any) => {
+          onChunk: (chunk: ChatResponse) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
               if (buffered) buffered.push(delta);
@@ -497,7 +498,9 @@ export class Agent {
                 this.emit("onAssistantText", delta);
               }
             }
-            const thinking = (chunk.message as any)?.thinking;
+            const thinking = (
+              chunk.message as { role: string; content: string; thinking?: string; tool_calls?: unknown[] }
+            )?.thinking;
             if (typeof thinking === "string" && thinking) {
               this.emit("onThinking", thinking);
             }
@@ -579,7 +582,8 @@ export class Agent {
             try {
               args = JSON.parse(rawArguments);
             } catch {
-              // leave args empty on malformed JSON
+              const parts = rawArguments.split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
+              args = parts as unknown as Record<string, unknown>;
             }
           }
 
@@ -629,7 +633,10 @@ export class Agent {
             if (typeof result.error === "string") {
               previousTurnHadToolError = true;
               if (this.loopDetector.record(name, args, result.error)) {
-                return finish("loop_abort", lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name);
+                return finish(
+                  "loop_abort",
+                  lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name,
+                );
               }
             }
             if (toolTurn === this.maxToolTurns - 1) {
@@ -700,6 +707,12 @@ export class Agent {
       },
       checkpoint: this.planCheckpoint,
       onStepChange: (step) => this.emit("onMissionStep", step),
+      // The checkpoint has persisted these all along but nothing read them
+      // back: a resumed run replanned with an empty history (so the model
+      // never saw the failures that caused the checkpoint) and a replan budget
+      // reset to zero (so a crash-loop could never exhaust it).
+      history: saved.history,
+      replanCount: saved.replanCount,
     });
     return orchestrator.run();
   }
@@ -775,10 +788,12 @@ export class Agent {
   setModel(model: string): void {
     this.provider.setModel(model);
     this.conversation.reset();
+    saveWorkspaceConfig(this.workspaceRoot, { model });
   }
 
   setModelWithoutReset(model: string): void {
     this.provider.setModel(model);
+    saveWorkspaceConfig(this.workspaceRoot, { model });
   }
 
   // ponytail: keyword classification, not an LLM intent classifier — cheap and
@@ -803,11 +818,34 @@ export class Agent {
     return null;
   }
 
-  // Refreshed once, on first delegation attempt, and cached for the Agent's lifetime.
+  /** How long a catalog snapshot is trusted before the next lookup refreshes
+   * it. Previously the refresh happened exactly once per process, which meant
+   * (a) if Ollama was down at startup the catalog stayed empty forever and
+   * capability delegation was disabled for the whole session even after it
+   * came back, and (b) a model pulled mid-session never showed up — the model
+   * switcher fell back to name-based inferCapabilities() guesses for it. */
+  private static readonly CATALOG_TTL_MS = 60_000;
+  private catalogRefreshedAt = 0;
   private ensureCatalog(): Promise<void> {
-    if (!this.catalogRefreshed) {
-      this.catalogRefreshed = this.catalog.refresh().then(() => undefined);
-    }
+    // An empty catalog is never worth caching — it means discovery failed, not
+    // that the user genuinely has no models.
+    const usable = this.catalog.all().length > 0;
+    const fresh = Date.now() - this.catalogRefreshedAt < Agent.CATALOG_TTL_MS;
+    if (usable && fresh) return Promise.resolve();
+
+    // `catalogRefreshed` is only an in-flight handle, so concurrent callers
+    // share one refresh; it is cleared on settle so the next stale lookup
+    // starts a fresh one instead of resolving against a stale result forever.
+    if (this.catalogRefreshed) return this.catalogRefreshed;
+
+    this.catalogRefreshed = this.catalog
+      .refresh()
+      .then(() => {
+        this.catalogRefreshedAt = Date.now();
+      })
+      .finally(() => {
+        this.catalogRefreshed = null;
+      });
     return this.catalogRefreshed;
   }
 
@@ -850,8 +888,9 @@ export class Agent {
     }
   }
 
-  setTier(tier: string): void {
-    this.provider.setTier(tier as any);
+  setTier(tier: "local" | "cloud"): void {
+    this.provider.setTier(tier);
+    saveWorkspaceConfig(this.workspaceRoot, { tier });
   }
 
   setRuntimeHost(host: string): void {

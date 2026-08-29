@@ -111,9 +111,7 @@ export class LocalWorker {
 
     if (!task.examples?.length) return base;
 
-    const exampleBlock = task.examples
-      .map((ex) => `Input: ${ex.input}\nOutput: ${ex.output}`)
-      .join("\n\n");
+    const exampleBlock = task.examples.map((ex) => `Input: ${ex.input}\nOutput: ${ex.output}`).join("\n\n");
 
     return `${base}\n\nExamples:\n${exampleBlock}`;
   }

@@ -36,11 +36,7 @@ describe("ListDirectoryTool", () => {
 
     expect(result.path).toBe(".");
     const entries = result.entries as { name: string; type: string }[];
-    expect(entries).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: "a.txt", type: "file" }),
-      ]),
-    );
+    expect(entries).toEqual(expect.arrayContaining([expect.objectContaining({ name: "a.txt", type: "file" })]));
   });
 });
 

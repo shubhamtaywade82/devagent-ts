@@ -17,7 +17,11 @@ describe("McpToolAdapter", () => {
 
     expect(adapter.name).toBe("github_search_issues");
     expect(adapter.description).toBe("Search GitHub issues");
-    expect(adapter.parameters).toEqual({ type: "object", properties: { query: { type: "string" } }, required: ["query"] });
+    expect(adapter.parameters).toEqual({
+      type: "object",
+      properties: { query: { type: "string" } },
+      required: ["query"],
+    });
   });
 
   it("forwards call() args to the underlying MCP client and returns its content", async () => {

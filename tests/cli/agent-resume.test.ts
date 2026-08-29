@@ -87,9 +87,7 @@ describe("Agent plan checkpoint/resume", () => {
     const chatBodies = (globalThis.fetch as jest.Mock).mock.calls
       .filter((c) => c[1]?.body)
       .map((c) => JSON.parse(c[1].body));
-    const sawStepA = chatBodies.some((body) =>
-      body.messages.some((m: { content?: string }) => m.content === "step a"),
-    );
+    const sawStepA = chatBodies.some((body) => body.messages.some((m: { content?: string }) => m.content === "step a"));
     expect(sawStepA).toBe(false);
     expect(agent.hasResumablePlan()).toBe(false);
   });

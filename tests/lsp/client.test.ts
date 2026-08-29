@@ -216,3 +216,57 @@ describe("frame() self-check", () => {
     expect(framed).toMatch(/^Content-Length: \d+\r\n\r\n\{"a":1\}$/);
   });
 });
+
+// Regression: Content-Length is a BYTE count. The client used to accumulate
+// stdout into a JS string and slice it by UTF-16 code units, so any response
+// containing a non-ASCII character (accented identifier, curly quote in hover
+// docs, ✓ in a diagnostic, CJK, emoji) left the framing permanently
+// desynchronized — the message stalled, then over-read into the next frame's
+// header and every subsequent request on that server timed out.
+const UNICODE_SERVER = `
+const payloads = {
+  hover: { contents: "café — ✓ 日本語 🎉" },
+  ascii: { contents: "plain" },
+};
+let buf = Buffer.alloc(0);
+process.stdin.on("data", (d) => {
+  buf = Buffer.concat([buf, d]);
+  for (;;) {
+    const headerEnd = buf.indexOf("\\r\\n\\r\\n");
+    if (headerEnd === -1) break;
+    const m = buf.subarray(0, headerEnd).toString("ascii").match(/Content-Length:\\s*(\\d+)/i);
+    if (!m) { buf = buf.subarray(headerEnd + 4); continue; }
+    const len = parseInt(m[1], 10);
+    const bodyStart = headerEnd + 4;
+    if (buf.length < bodyStart + len) break;
+    const msg = JSON.parse(buf.subarray(bodyStart, bodyStart + len).toString("utf-8"));
+    buf = buf.subarray(bodyStart + len);
+    if (msg.id === undefined) continue;
+    const result = payloads[msg.method] || { contents: "unknown" };
+    const out = Buffer.from(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }), "utf-8");
+    process.stdout.write("Content-Length: " + out.length + "\\r\\n\\r\\n");
+    process.stdout.write(out);
+  }
+});
+`;
+
+describe("LspClient framing is byte-accurate", () => {
+  it("parses a response containing multi-byte UTF-8 and stays in sync for later requests", async () => {
+    const client = new LspClient({ command: process.execPath, args: ["-e", UNICODE_SERVER], cwd: process.cwd() });
+    await client.start();
+
+    const parseErrors: unknown[] = [];
+    client.on("parseError", (e) => parseErrors.push(e));
+
+    const hover = (await client.sendRequest("hover", {})) as any;
+    expect(hover.contents).toBe("café — ✓ 日本語 🎉");
+
+    // The real damage was to everything *after* the unicode message: prove the
+    // stream is still framed correctly.
+    const next = (await client.sendRequest("ascii", {})) as any;
+    expect(next.contents).toBe("plain");
+    expect(parseErrors).toEqual([]);
+
+    client.exit();
+  }, 15000);
+});

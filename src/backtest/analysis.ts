@@ -31,9 +31,11 @@ export function walkForward(candles: Candle[], config: StrategyConfig, folds = 4
   const withTrades = windows.filter((w) => w.metrics.totalTrades > 0);
   const expectancies = withTrades.map((w) => w.metrics.expectancyPct);
   const mean = expectancies.length > 0 ? expectancies.reduce((s, v) => s + v, 0) / expectancies.length : 0;
-  const variance = expectancies.length > 0 ? expectancies.reduce((s, v) => s + (v - mean) ** 2, 0) / expectancies.length : 0;
+  const variance =
+    expectancies.length > 0 ? expectancies.reduce((s, v) => s + (v - mean) ** 2, 0) / expectancies.length : 0;
   const expectancyStability = Math.sqrt(variance);
-  const consistentDirection = expectancies.length > 0 && expectancies.every((v) => Math.sign(v) === Math.sign(mean || expectancies[0]));
+  const consistentDirection =
+    expectancies.length > 0 && expectancies.every((v) => Math.sign(v) === Math.sign(mean || expectancies[0]));
 
   return { windows, expectancyStability, consistentDirection };
 }
@@ -52,9 +54,20 @@ export interface MonteCarloResult {
 // on the specific order trades happened to occur in, versus the edge itself.
 // This is not a source of NEW predictive information — it's a stability
 // check on the trade sample already observed.
-export function monteCarlo(trades: { returnPct: number }[], simulations = 1000, seedSequence?: number[]): MonteCarloResult {
+export function monteCarlo(
+  trades: { returnPct: number }[],
+  simulations = 1000,
+  seedSequence?: number[],
+): MonteCarloResult {
   if (trades.length === 0) {
-    return { simulations: 0, medianReturnPct: 0, p5ReturnPct: 0, p95ReturnPct: 0, medianMaxDrawdownPct: 0, probabilityOfLoss: 1 };
+    return {
+      simulations: 0,
+      medianReturnPct: 0,
+      p5ReturnPct: 0,
+      p95ReturnPct: 0,
+      medianMaxDrawdownPct: 0,
+      probabilityOfLoss: 1,
+    };
   }
 
   const returns: number[] = [];
@@ -113,7 +126,12 @@ export interface ParamSweepCandidate {
 // no Gaussian-process library exists in this stack and hand-rolling one
 // isn't proportionate to a handful of TA parameters; grid/random search is
 // the honest, simple substitute for a search space this small).
-export function paramSweep(candles: Candle[], baseConfig: StrategyConfig, ranges: ParamRange[], rankBy: keyof BacktestMetrics = "expectancyPct"): ParamSweepCandidate[] {
+export function paramSweep(
+  candles: Candle[],
+  baseConfig: StrategyConfig,
+  ranges: ParamRange[],
+  rankBy: keyof BacktestMetrics = "expectancyPct",
+): ParamSweepCandidate[] {
   const combos = cartesianProduct(ranges);
   const results: ParamSweepCandidate[] = combos.map((combo) => {
     const entry: Condition[] = baseConfig.entry.map((c) => ({ ...c }));
@@ -131,7 +149,9 @@ export function paramSweep(candles: Candle[], baseConfig: StrategyConfig, ranges
   });
 }
 
-function cartesianProduct(ranges: ParamRange[]): Array<Array<{ conditionIndex: number; field: "period" | "value"; value: number }>> {
+function cartesianProduct(
+  ranges: ParamRange[],
+): Array<Array<{ conditionIndex: number; field: "period" | "value"; value: number }>> {
   if (ranges.length === 0) return [[]];
   const [first, ...rest] = ranges;
   const restProduct = cartesianProduct(rest);

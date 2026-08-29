@@ -1,14 +1,15 @@
 import { Verifier } from "../../src/provider/verifier.js";
 import type { Provider, ChatResponse } from "../../src/provider/provider.js";
 
-
-
 function makeProvider(reply: string): Provider {
   return {
-    chat: jest.fn(async () => ({
-      message: { role: "assistant", content: reply },
-      done: true,
-    }) as ChatResponse),
+    chat: jest.fn(
+      async () =>
+        ({
+          message: { role: "assistant", content: reply },
+          done: true,
+        }) as ChatResponse,
+    ),
   } as unknown as Provider;
 }
 

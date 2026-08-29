@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExecutionNode } from "./event-node.js";
 
@@ -45,11 +45,14 @@ export class SessionReplayManager {
   listSessions(): string[] {
     if (!existsSync(this.sessionsDir)) return [];
     try {
-      const fs = require("node:fs");
-      const files: string[] = fs.readdirSync(this.sessionsDir);
+      const files: string[] = readdirSync(this.sessionsDir);
       return files.filter((f: string) => f.endsWith(".events.json")).map((f: string) => f.replace(".events.json", ""));
     } catch {
       return [];
     }
+  }
+
+  getPlaybackIntervalMs(durationMs: number, speedMultiplier: 1 | 2 | 5 = 1): number {
+    return Math.max(50, Math.floor(durationMs / speedMultiplier));
   }
 }

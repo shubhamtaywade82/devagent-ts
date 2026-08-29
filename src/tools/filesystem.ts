@@ -2,10 +2,35 @@ import { readFile, writeFile, rename, unlink, mkdir, stat } from "node:fs/promis
 import { dirname } from "node:path";
 import { Tool } from "./tool.js";
 import { resolveWorkspacePath, PathEscapeError } from "./path-utils.js";
+import { isSensitivePath } from "../safety/path-policy.js";
 
 export { PathEscapeError };
 
+/**
+ * Error thrown when a tool attempts to read or write a sensitive file
+ * (e.g. .env, credentials, private keys) that should not be exposed
+ * to the agent. This is a UX safety net, not a security boundary —
+ * the Docker sandbox and path containment already bound worst-case
+ * blast radius.
+ */
+export class SensitivePathError extends Error {
+  constructor(
+    public readonly path: string,
+    public readonly reason: string,
+  ) {
+    super(`access to sensitive path blocked: ${path} (${reason})`);
+    this.name = "SensitivePathError";
+  }
+}
+
 export class ReadFileTool extends Tool {
+  // The result is fed straight back into the model as a tool message, so this
+  // is a context-window ceiling, not a storage limit — matched to
+  // ShellTool.MAX_OUTPUT_BYTES for the same reason. Without it a single
+  // read_file on a lockfile or a log could blow the whole context, even though
+  // the system prompt already promises callers a `truncated` flag.
+  static readonly MAX_CONTENT_BYTES = 32 * 1024;
+
   constructor(private readonly root: string) {
     super();
   }
@@ -15,7 +40,7 @@ export class ReadFileTool extends Tool {
   }
 
   get description(): string {
-    return "Read a UTF-8 text file relative to the workspace root.";
+    return "Read a UTF-8 text file relative to the workspace root. Long files are truncated; the result reports `truncated`, `bytesRead` and `totalBytes`.";
   }
 
   override get capabilities(): string[] {
@@ -32,10 +57,23 @@ export class ReadFileTool extends Tool {
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const relPath = args.path as string;
+    if (isSensitivePath(relPath)) {
+      throw new SensitivePathError(relPath, "reading sensitive files is not allowed");
+    }
     const path = resolveWorkspacePath(this.root, relPath);
 
-    const content = await readFile(path, "utf-8");
-    return { path: relPath, content, truncated: false };
+    // Read as bytes and cut on a byte boundary, then decode — slicing the
+    // decoded string would count UTF-16 code units against a byte budget and
+    // could split a multi-byte character.
+    const raw = await readFile(path);
+    const totalBytes = raw.byteLength;
+    const truncated = totalBytes > ReadFileTool.MAX_CONTENT_BYTES;
+    const slice = truncated ? raw.subarray(0, ReadFileTool.MAX_CONTENT_BYTES) : raw;
+    // `fatal: false` (the default) replaces a trailing partial character with
+    // U+FFFD rather than throwing.
+    const content = new TextDecoder("utf-8").decode(slice);
+
+    return { path: relPath, content, truncated, bytesRead: slice.byteLength, totalBytes };
   }
 }
 
@@ -71,6 +109,9 @@ export class WriteFileTool extends Tool {
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const relPath = args.path as string;
     const content = args.content as string;
+    if (isSensitivePath(relPath)) {
+      throw new SensitivePathError(relPath, "writing sensitive files is not allowed");
+    }
     const path = resolveWorkspacePath(this.root, relPath);
     await mkdir(dirname(path), { recursive: true });
 

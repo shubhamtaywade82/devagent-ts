@@ -41,9 +41,7 @@ export function discoverWorkspace(root: string): WorkspaceInfo {
 
   const isRuby = gemfile != null || existsSync(join(root, ".ruby-version"));
   const isRails =
-    application != null &&
-    /Rails::Application/.test(application) &&
-    (gemfile != null || lockfile != null);
+    application != null && /Rails::Application/.test(application) && (gemfile != null || lockfile != null);
 
   const info: WorkspaceInfo = {
     root,

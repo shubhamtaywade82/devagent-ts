@@ -1,7 +1,16 @@
 export type SemanticOperation =
-  | "definition" | "references" | "documentSymbols" | "workspaceSymbols"
-  | "hover" | "diagnostics" | "codeActions" | "rename"
-  | "completion" | "signatureHelp" | "formatting" | "semanticTokens";
+  | "definition"
+  | "references"
+  | "documentSymbols"
+  | "workspaceSymbols"
+  | "hover"
+  | "diagnostics"
+  | "codeActions"
+  | "rename"
+  | "completion"
+  | "signatureHelp"
+  | "formatting"
+  | "semanticTokens";
 
 export type PluginKind = "language" | "framework" | "repository";
 

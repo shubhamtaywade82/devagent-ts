@@ -1,16 +1,19 @@
 import { BinanceStreamManager } from "../../src/exchange/binance-stream.js";
 
+const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
+const describeIfNetwork = skipNetwork ? describe.skip : describe;
+
 // Real WebSocket connection to Binance's public ticker stream, same spirit
 // as the real-Chromium browser tests — verify the actual integration.
-describe("BinanceStreamManager (real network)", () => {
+describeIfNetwork("BinanceStreamManager (real network)", () => {
   let manager: BinanceStreamManager;
 
   beforeEach(() => {
     manager = new BinanceStreamManager();
   });
 
-  afterEach(() => {
-    manager.closeAll();
+  afterEach(async () => {
+    await manager.closeAllAsync();
   });
 
   it("subscribes and receives real ticks for BTCUSDT", async () => {

@@ -102,7 +102,13 @@ export function UniversalPicker({
       {visible.map((item, i) => {
         const absolute = start + i;
         const highlighted = absolute === clampedIndex;
-        const glyph = multi ? (checked.has(item.id) ? "[x] " : "[ ] ") : initialSelected.includes(item.id) ? "(•) " : "";
+        const glyph = multi
+          ? checked.has(item.id)
+            ? "[x] "
+            : "[ ] "
+          : initialSelected.includes(item.id)
+            ? "(•) "
+            : "";
         const bg = highlighted ? "magenta" : undefined;
         return (
           <Box key={item.id} height={1} width="100%" backgroundColor={bg}>
@@ -118,7 +124,12 @@ export function UniversalPicker({
             </Box>
             {item.detail ? (
               <Box>
-                <Text color={highlighted ? "white" : "gray"} dimColor={!highlighted} backgroundColor={bg} wrap="truncate">
+                <Text
+                  color={highlighted ? "white" : "gray"}
+                  dimColor={!highlighted}
+                  backgroundColor={bg}
+                  wrap="truncate"
+                >
                   {item.detail}
                 </Text>
               </Box>

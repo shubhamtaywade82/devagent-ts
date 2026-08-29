@@ -9,22 +9,25 @@ const DEFAULT_FEE_BPS = 10;
 // or maxHoldBars timeout. One position at a time (no pyramiding/overlap) —
 // ponytail: add position sizing/overlap if a strategy genuinely needs it.
 export function runBacktest(candles: Candle[], config: StrategyConfig): BacktestResult {
-  const series = buildIndicatorSeries(candles, config.entry);
-  const feeFraction = (config.feeBps ?? DEFAULT_FEE_BPS) / 10000;
-  const maxHold = config.maxHoldBars ?? DEFAULT_MAX_HOLD_BARS;
+  const entry = config?.entry ?? [];
+  const series = buildIndicatorSeries(candles, entry);
+  const feeFraction = (config?.feeBps ?? DEFAULT_FEE_BPS) / 10000;
+  const maxHold = config?.maxHoldBars ?? DEFAULT_MAX_HOLD_BARS;
+  const stopPct = config?.risk?.stopPct ?? 0.02;
+  const targetPct = config?.risk?.targetPct ?? 0.04;
   const trades: Trade[] = [];
 
   let i = 0;
   while (i < candles.length) {
-    if (!evaluateAll(config.entry, series, i)) {
+    if (!evaluateAll(entry, series, i)) {
       i++;
       continue;
     }
 
     const entryIndex = i;
     const entryPrice = candles[entryIndex].close;
-    const stopPrice = config.direction === "long" ? entryPrice * (1 - config.risk.stopPct) : entryPrice * (1 + config.risk.stopPct);
-    const targetPrice = config.direction === "long" ? entryPrice * (1 + config.risk.targetPct) : entryPrice * (1 - config.risk.targetPct);
+    const stopPrice = config.direction === "long" ? entryPrice * (1 - stopPct) : entryPrice * (1 + stopPct);
+    const targetPrice = config.direction === "long" ? entryPrice * (1 + targetPct) : entryPrice * (1 - targetPct);
 
     let exitIndex = candles.length - 1;
     let exitPrice = candles[exitIndex].close;
@@ -56,7 +59,8 @@ export function runBacktest(candles: Candle[], config: StrategyConfig): Backtest
       }
     }
 
-    const rawReturn = config.direction === "long" ? (exitPrice - entryPrice) / entryPrice : (entryPrice - exitPrice) / entryPrice;
+    const rawReturn =
+      config.direction === "long" ? (exitPrice - entryPrice) / entryPrice : (entryPrice - exitPrice) / entryPrice;
     const returnPct = rawReturn - feeFraction;
 
     trades.push({ entryIndex, exitIndex, entryPrice, exitPrice, direction: config.direction, returnPct, exitReason });
@@ -78,7 +82,16 @@ export function computeEquityCurve(trades: Trade[]): number[] {
 
 export function computeMetrics(trades: Trade[]): BacktestMetrics {
   if (trades.length === 0) {
-    return { totalTrades: 0, winRate: 0, avgWinPct: 0, avgLossPct: 0, expectancyPct: 0, profitFactor: 0, totalReturnPct: 0, maxDrawdownPct: 0 };
+    return {
+      totalTrades: 0,
+      winRate: 0,
+      avgWinPct: 0,
+      avgLossPct: 0,
+      expectancyPct: 0,
+      profitFactor: 0,
+      totalReturnPct: 0,
+      maxDrawdownPct: 0,
+    };
   }
 
   const wins = trades.filter((t) => t.returnPct > 0);
@@ -103,5 +116,14 @@ export function computeMetrics(trades: Trade[]): BacktestMetrics {
     if (drawdown > maxDrawdownPct) maxDrawdownPct = drawdown;
   }
 
-  return { totalTrades: trades.length, winRate, avgWinPct, avgLossPct, expectancyPct, profitFactor, totalReturnPct, maxDrawdownPct };
+  return {
+    totalTrades: trades.length,
+    winRate,
+    avgWinPct,
+    avgLossPct,
+    expectancyPct,
+    profitFactor,
+    totalReturnPct,
+    maxDrawdownPct,
+  };
 }

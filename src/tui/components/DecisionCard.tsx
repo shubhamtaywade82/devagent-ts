@@ -25,9 +25,7 @@ export function DecisionCard({ entry, collapsed, onToggle, width }: DecisionCard
         </Box>
         {options.length > 0 && (
           <Box height={1}>
-            <Text color="gray">
-              Options: {options.join(", ")}
-            </Text>
+            <Text color="gray">Options: {options.join(", ")}</Text>
           </Box>
         )}
         {reason && (

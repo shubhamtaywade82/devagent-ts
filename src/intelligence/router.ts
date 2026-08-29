@@ -20,7 +20,12 @@ class TextFallbackProvider implements LanguageIntelligenceProvider {
   async findDefinition(_filePath: string, _line: number, _character: number): Promise<Location[]> {
     return [];
   }
-  async findReferences(_filePath: string, _line: number, _character: number, _includeDeclaration?: boolean): Promise<Location[]> {
+  async findReferences(
+    _filePath: string,
+    _line: number,
+    _character: number,
+    _includeDeclaration?: boolean,
+  ): Promise<Location[]> {
     return [];
   }
   async listDocumentSymbols(_filePath: string): Promise<SymbolInformation[]> {
@@ -73,11 +78,7 @@ export class IntelligenceRouter implements LanguageIntelligenceProvider {
     return this.fallback.supportsOperation(filePath, op);
   }
 
-  async findDefinition(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<Location[]> {
+  async findDefinition(filePath: string, line: number, character: number): Promise<Location[]> {
     if (this.lsp.supports(filePath, "definition")) {
       return this.lsp.getDefinition(filePath, line, character);
     }
@@ -110,11 +111,7 @@ export class IntelligenceRouter implements LanguageIntelligenceProvider {
     return this.fallback.listWorkspaceSymbols(query);
   }
 
-  async getHover(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<Hover | null> {
+  async getHover(filePath: string, line: number, character: number): Promise<Hover | null> {
     if (this.lsp.supports(filePath, "hover")) {
       return this.lsp.getHover(filePath, line, character);
     }
@@ -128,33 +125,21 @@ export class IntelligenceRouter implements LanguageIntelligenceProvider {
     return this.fallback.getDiagnostics(filePath);
   }
 
-  async getCodeActions(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<CodeAction[]> {
+  async getCodeActions(filePath: string, line: number, character: number): Promise<CodeAction[]> {
     if (this.lsp.supports(filePath, "codeActions")) {
       return this.lsp.getCodeActions(filePath, line, character);
     }
     return this.fallback.getCodeActions(filePath, line, character);
   }
 
-  async getCompletion(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<CompletionItem[]> {
+  async getCompletion(filePath: string, line: number, character: number): Promise<CompletionItem[]> {
     if (this.lsp.supports(filePath, "completion")) {
       return this.lsp.getCompletion(filePath, line, character);
     }
     return this.fallback.getCompletion(filePath, line, character);
   }
 
-  async getSignatureHelp(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<SignatureHelp | null> {
+  async getSignatureHelp(filePath: string, line: number, character: number): Promise<SignatureHelp | null> {
     if (this.lsp.supports(filePath, "signatureHelp")) {
       return this.lsp.getSignatureHelp(filePath, line, character);
     }

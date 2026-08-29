@@ -34,6 +34,12 @@ export interface OrchestratorOptions {
   logger?: Pick<Console, "info" | "warn" | "error">;
   onStepChange?: (step: PlanStep) => void;
   checkpoint?: CheckpointStore;
+  /** Outcome log carried over from a checkpoint, so a resumed run replans with
+   * the failure history that caused the checkpoint rather than from scratch. */
+  history?: HistoryEntry[];
+  /** Replans already spent before the checkpoint. Without it a crash-loop
+   * resets the budget to zero on every resume and the guard never fires. */
+  replanCount?: number;
 }
 
 export class Orchestrator {
@@ -45,8 +51,8 @@ export class Orchestrator {
   private readonly maxReplans: number;
   private readonly logger: Pick<Console, "info" | "warn" | "error">;
   private readonly executedOrder: PlanStep[] = [];
-  private readonly history: HistoryEntry[] = [];
-  private replanCount = 0;
+  private readonly history: HistoryEntry[];
+  private replanCount: number;
   private readonly onStepChange?: (step: PlanStep) => void;
   private readonly checkpoint?: CheckpointStore;
 
@@ -60,6 +66,8 @@ export class Orchestrator {
     this.logger = opts.logger ?? console;
     this.onStepChange = opts.onStepChange;
     this.checkpoint = opts.checkpoint;
+    this.history = opts.history ? [...opts.history] : [];
+    this.replanCount = opts.replanCount ?? 0;
   }
 
   private saveCheckpoint(): void {

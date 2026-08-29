@@ -1,0 +1,76 @@
+import { defineConfig } from "vitepress";
+
+export default defineConfig({
+  title: "⚡ DevAgent-TS",
+  description: "Autonomous, Developer-Focused AI Coding Assistant Runtime & TUI",
+  lastUpdated: true,
+  cleanUrls: true,
+  srcExclude: [
+    "**/superpowers/**",
+    "**/requirements/**",
+    "**/plan/**",
+    "SPEC.md",
+    "FEATURE_VERIFICATION_GUIDE.md",
+    "deep-research-report.md",
+    "tui-capability-spec.md",
+  ],
+  themeConfig: {
+    siteTitle: "⚡ DevAgent-TS",
+    nav: [
+      { text: "Home", link: "/" },
+      { text: "Guide", link: "/guide/getting-started" },
+      { text: "Architecture", link: "/guide/architecture" },
+      { text: "Tools", link: "/guide/tools" },
+      { text: "Benchmarks", link: "/guide/benchmarks" },
+      { text: "GitHub", link: "https://github.com/shubhamtaywade82/devagent-ts" },
+    ],
+    sidebar: [
+      {
+        text: "Introduction",
+        items: [
+          { text: "Getting Started", link: "/guide/getting-started" },
+          { text: "Configuration & Diagnostics", link: "/guide/configuration" },
+          { text: "Terminal UI & Keybindings", link: "/guide/tui" },
+        ],
+      },
+      {
+        text: "Core Architecture",
+        items: [
+          { text: "System Architecture", link: "/guide/architecture" },
+          { text: "Capability Router & Escalation", link: "/guide/capability-routing" },
+          { text: "DAG Planner & Parallel Execution", link: "/guide/planner" },
+          { text: "Docker Sandboxing", link: "/guide/sandboxing" },
+        ],
+      },
+      {
+        text: "Code Intelligence & Memory",
+        items: [
+          { text: "14 Language Server Protocols (LSP)", link: "/guide/code-intelligence" },
+          { text: "Offline DevDocs Search", link: "/guide/devdocs" },
+          { text: "Rails Semantic AST Index", link: "/guide/rails" },
+          { text: "Persistent Memory & Learning", link: "/guide/memory" },
+        ],
+      },
+      {
+        text: "Extensibility & Reference",
+        items: [
+          { text: "35+ Built-in Tools Reference", link: "/guide/tools" },
+          { text: "Model Context Protocol (MCP)", link: "/guide/mcp" },
+          { text: "Custom Skills & Prompts", link: "/guide/skills" },
+          { text: "Model Benchmark Harness", link: "/guide/benchmarks" },
+        ],
+      },
+    ],
+    search: {
+      provider: "local",
+    },
+    socialLinks: [
+      { icon: "github", link: "https://github.com/shubhamtaywade82/devagent-ts" },
+      { icon: "npm", link: "https://www.npmjs.com/package/@nemesis-oss/devagent-ts" },
+    ],
+    footer: {
+      message: "Released under the MIT License.",
+      copyright: "Copyright © 2026 Nemesis OSS & Shubham Taywade",
+    },
+  },
+});

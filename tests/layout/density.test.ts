@@ -1,4 +1,10 @@
-import { activeViewRows, densityForWidth, detailForDensity, MAX_COMPLETION_ROWS, promptAreaRows } from "../../src/layout/density.js";
+import {
+  activeViewRows,
+  densityForWidth,
+  detailForDensity,
+  MAX_COMPLETION_ROWS,
+  promptAreaRows,
+} from "../../src/layout/density.js";
 
 describe("density tiers", () => {
   it("maps widths to the frozen tiers", () => {
@@ -63,4 +69,3 @@ describe("promptAreaRows", () => {
     expect(promptAreaRows(2, 20)).toBe(8); // 2 + 6 (capped)
   });
 });
-

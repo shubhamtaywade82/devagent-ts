@@ -5,7 +5,15 @@
  * Context Strip: dynamic status for the current runtime mode.
  */
 
-import { ActorHealth, AGENT_MODE_LABELS, PRIMARY_VIEW_LABELS, PRIMARY_VIEWS, RuntimeState, StatusToken, ViewId } from "../runtime/types.js";
+import {
+  ActorHealth,
+  AGENT_MODE_LABELS,
+  PRIMARY_VIEW_LABELS,
+  PRIMARY_VIEWS,
+  RuntimeState,
+  StatusToken,
+  ViewId,
+} from "../runtime/types.js";
 import { semanticColor } from "./theme-map.js";
 
 /** Primary nav tabs: five workspace views, active one highlighted. Secondary
@@ -202,7 +210,8 @@ export function headerTokens(state: RuntimeState, now: number = Date.now()): Sta
     color: semanticColor(state.mode === "idle" ? "healthy" : state.mode === "approval" ? "waiting" : "thinking"),
   });
   if (state.session.workspace) tokens.push({ text: state.session.workspace, priority: HEADER_PRIORITY.workspace });
-  if (state.project?.language) tokens.push({ text: state.project.language, priority: HEADER_PRIORITY.language, color: semanticColor("muted") });
+  if (state.project?.language)
+    tokens.push({ text: state.project.language, priority: HEADER_PRIORITY.language, color: semanticColor("muted") });
   if (state.model.provider === "cloud") {
     tokens.push({ text: "☁ cloud", priority: HEADER_PRIORITY.cloudTag, color: semanticColor("thinking") });
   }
@@ -212,11 +221,19 @@ export function headerTokens(state: RuntimeState, now: number = Date.now()): Sta
   if (ctx) tokens.push({ text: ctx, priority: HEADER_PRIORITY.contextPct });
   // Git status
   if (state.git.files.length > 0) {
-    tokens.push({ text: `Git:${state.git.files.length}m`, priority: HEADER_PRIORITY.gitDirty, color: semanticColor("waiting") });
+    tokens.push({
+      text: `Git:${state.git.files.length}m`,
+      priority: HEADER_PRIORITY.gitDirty,
+      color: semanticColor("waiting"),
+    });
   }
   // Memory status
   if (state.memory.length > 0) {
-    tokens.push({ text: `Mem:${state.memory.length}`, priority: HEADER_PRIORITY.memory, color: semanticColor("healthy") });
+    tokens.push({
+      text: `Mem:${state.memory.length}`,
+      priority: HEADER_PRIORITY.memory,
+      color: semanticColor("healthy"),
+    });
   }
   // LSP status — only worth header space when something's wrong.
   const lspErrors = state.lspServers.reduce((sum, s) => sum + s.errorCount, 0);
@@ -242,7 +259,11 @@ export function headerTokens(state: RuntimeState, now: number = Date.now()): Sta
     tokens.push({ text: `Skills:${activeSkills}`, priority: HEADER_PRIORITY.skills, color: semanticColor("active") });
   }
   if (state.mission.goal) {
-    tokens.push({ text: `Mission: ${state.mission.goal}`, priority: HEADER_PRIORITY.mission, color: semanticColor("active") });
+    tokens.push({
+      text: `Mission: ${state.mission.goal}`,
+      priority: HEADER_PRIORITY.mission,
+      color: semanticColor("active"),
+    });
   }
   const clock = new Date(now);
   const hh = String(clock.getHours()).padStart(2, "0");

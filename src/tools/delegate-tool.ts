@@ -66,9 +66,7 @@ export class DelegateToLocalTool extends Tool {
       type: args.task_type as LocalTaskType,
       prompt: String(args.prompt ?? ""),
       expectedOutput: args.expected_output as LocalOutputType,
-      examples: Array.isArray(args.examples)
-        ? (args.examples as Array<{ input: string; output: string }>)
-        : undefined,
+      examples: Array.isArray(args.examples) ? (args.examples as Array<{ input: string; output: string }>) : undefined,
     };
 
     const result = await this.worker.execute(task);

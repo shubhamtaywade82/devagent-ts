@@ -66,7 +66,13 @@ describe("RoutesScanner", () => {
   });
 
   it("emits routes_to intents with camelized controller names", () => {
-    const content = ["Rails.application.routes.draw do", "  namespace :admin do", "    resources :reports, only: [:index]", "  end", "end"].join("\n");
+    const content = [
+      "Rails.application.routes.draw do",
+      "  namespace :admin do",
+      "    resources :reports, only: [:index]",
+      "  end",
+      "end",
+    ].join("\n");
     const result = new RoutesScanner().scan([{ relPath: "config/routes.rb", content }]);
     expect(result.intents[0]).toMatchObject({
       relationship: "routes_to",

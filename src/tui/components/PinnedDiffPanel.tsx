@@ -40,7 +40,9 @@ export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDi
     return (
       <Box height={1} width={width}>
         <Text wrap="truncate">
-          <Text bold>{paths.size} file{paths.size === 1 ? "" : "s"} changed</Text>
+          <Text bold>
+            {paths.size} file{paths.size === 1 ? "" : "s"} changed
+          </Text>
           <Text color="gray"> · </Text>
           <Text color="green">+{additions}</Text>
           <Text> </Text>
@@ -84,7 +86,7 @@ export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDi
         else if (line.startsWith("@")) color = "cyan";
         return (
           <Box key={i} height={1}>
-            <Text color={color as any} wrap="truncate">
+            <Text color={color} wrap="truncate">
               {line}
             </Text>
           </Box>

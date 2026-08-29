@@ -31,6 +31,24 @@ export class McpToolAdapter extends Tool {
   }
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
-    return this.client.callTool({ name: this.descriptor.name, arguments: args });
+    try {
+      const res = await this.client.callTool({ name: this.descriptor.name, arguments: args });
+      if (res && (res.isError || res.error)) {
+        const schemaString = JSON.stringify(this.descriptor.inputSchema ?? {});
+        return {
+          error: "McpError",
+          message: `${res.message ?? res.error ?? "MCP Tool Error"}. Expected Schema: ${schemaString}`,
+          ...res,
+        };
+      }
+      return res;
+    } catch (err: any) {
+      const msg = err?.message ?? String(err);
+      const schemaString = JSON.stringify(this.descriptor.inputSchema ?? {});
+      return {
+        error: "McpError",
+        message: `${msg}. Expected Schema: ${schemaString}`,
+      };
+    }
   }
 }

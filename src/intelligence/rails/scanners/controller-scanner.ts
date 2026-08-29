@@ -4,13 +4,7 @@
  * handlers, and concern includes from app/controllers.
  */
 
-import {
-  ControllerEntity,
-  RelationshipIntent,
-  Scanner,
-  ScannerResult,
-  SourceFile,
-} from "../types.js";
+import { ControllerEntity, RelationshipIntent, Scanner, ScannerResult, SourceFile } from "../types.js";
 import { logicalLines, parseMacroArgs, parseSymbolList } from "./ruby-source.js";
 
 export class ControllerScanner implements Scanner {
@@ -31,9 +25,10 @@ export class ControllerScanner implements Scanner {
       for (const line of logicalLines(file.content)) {
         const classDef = /^class\s+([A-Z][A-Za-z0-9_:]*Controller)\b/.exec(line.text);
         if (classDef) {
-          const name = line.namespace.length && !classDef[1].includes("::")
-            ? `${line.namespace.join("::")}::${classDef[1]}`
-            : classDef[1];
+          const name =
+            line.namespace.length && !classDef[1].includes("::")
+              ? `${line.namespace.join("::")}::${classDef[1]}`
+              : classDef[1];
           controller = {
             id: `controller:${name}`,
             type: "controller",

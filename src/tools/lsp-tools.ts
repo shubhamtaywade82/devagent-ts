@@ -20,7 +20,11 @@ abstract class LspTool extends Tool {
     // server hasn't gotten there yet. Flag it so callers retry instead of
     // concluding "no results".
     if (this.lsp.isIndexing(filePath)) {
-      return { ...result, indexing: true, note: "Language server is still indexing this project — results may be incomplete. Retry in a few seconds." };
+      return {
+        ...result,
+        indexing: true,
+        note: "Language server is still indexing this project — results may be incomplete. Retry in a few seconds.",
+      };
     }
     return result;
   }
@@ -81,7 +85,12 @@ export class FindReferencesTool extends LspTool {
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     return this.withSession(args, async (filePath) => {
       const includeDecl = args.includeDeclaration as boolean | undefined;
-      const locations = await this.lsp.getReferences(filePath, args.line as number, args.character as number, includeDecl);
+      const locations = await this.lsp.getReferences(
+        filePath,
+        args.line as number,
+        args.character as number,
+        includeDecl,
+      );
       return {
         references: locations.map((l) => ({
           uri: uriToPath(l.uri),
@@ -112,7 +121,12 @@ export class RenameSymbolTool extends LspTool {
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     return this.withSession(args, async (filePath) => {
-      const edit = await this.lsp.renameSymbol(filePath, args.line as number, args.character as number, args.newName as string);
+      const edit = await this.lsp.renameSymbol(
+        filePath,
+        args.line as number,
+        args.character as number,
+        args.newName as string,
+      );
       if (!edit) return { changes: [], error: "Rename not supported or symbol not found" };
 
       const changes = edit.changes
@@ -222,11 +236,12 @@ export class HoverTool extends LspTool {
       if (!hover) return { contents: null, message: "No hover information available" };
 
       const content = hover.contents;
-      const contentsStr = typeof content === "string"
-        ? content
-        : Array.isArray(content)
-          ? content.map((c: any) => (typeof c === "string" ? c : c.value ?? "")).join("\n")
-          : (content as any).value ?? JSON.stringify(content);
+      const contentsStr =
+        typeof content === "string"
+          ? content
+          : Array.isArray(content)
+            ? content.map((c: any) => (typeof c === "string" ? c : (c.value ?? ""))).join("\n")
+            : ((content as { value: string }).value ?? JSON.stringify(content));
 
       return {
         contents: contentsStr,

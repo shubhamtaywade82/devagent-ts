@@ -13,7 +13,10 @@ export async function buildExecutionCases(): Promise<AgenticBenchmarkCase[]> {
   const root = await mkdtemp(join(tmpdir(), "devagent-benchmark-"));
   await writeFile(join(root, "notes.txt"), "Project notes.\nThe secret code is 4471.\nEnd of notes.\n");
   await mkdir(join(root, "src"), { recursive: true });
-  await writeFile(join(root, "src", "auth.ts"), "// TODO: fix auth token refresh race condition\nexport function auth() {}\n");
+  await writeFile(
+    join(root, "src", "auth.ts"),
+    "// TODO: fix auth token refresh race condition\nexport function auth() {}\n",
+  );
 
   const readRegistry = new Registry().register(new ReadFileTool(root));
   const searchRegistry = new Registry().register(new SearchCodeTool(root));
@@ -33,7 +36,10 @@ export async function buildExecutionCases(): Promise<AgenticBenchmarkCase[]> {
           return { pass: false, reason: "never called read_file" };
         }
         if (!/4471/.test(trajectory.finalContent)) {
-          return { pass: false, reason: `final answer didn't contain the secret code (4471): "${trajectory.finalContent}"` };
+          return {
+            pass: false,
+            reason: `final answer didn't contain the secret code (4471): "${trajectory.finalContent}"`,
+          };
         }
         return { pass: true };
       },
@@ -43,7 +49,9 @@ export async function buildExecutionCases(): Promise<AgenticBenchmarkCase[]> {
       kind: "agentic",
       category: "execution",
       description: "Finds a real TODO comment via the real SearchCodeTool (ripgrep-backed)",
-      messages: [{ role: "user", content: "Search the codebase for TODO comments and tell me what the first one says." }],
+      messages: [
+        { role: "user", content: "Search the codebase for TODO comments and tell me what the first one says." },
+      ],
       tools: [new SearchCodeTool(root).schema],
       maxTurns: 4,
       resolveTool: (name, args) => searchRegistry.invoke(name, args),

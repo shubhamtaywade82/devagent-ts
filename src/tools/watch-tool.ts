@@ -4,9 +4,15 @@ import { resolveWorkspacePath } from "./path-utils.js";
 
 export class WatchTool extends Tool {
   private watchers = new Map<string, AbortController>();
-  constructor(private readonly root: string) { super(); }
-  get name(): string { return "watch"; }
-  get description(): string { return "Watch a file for changes and return on next modification."; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name(): string {
+    return "watch";
+  }
+  get description(): string {
+    return "Watch a file for changes and return on next modification.";
+  }
   get parameters(): Record<string, unknown> {
     return { type: "object", properties: { path: { type: "string" } }, required: ["path"] };
   }

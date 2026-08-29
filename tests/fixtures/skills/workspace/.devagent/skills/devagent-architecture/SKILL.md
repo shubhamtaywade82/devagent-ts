@@ -8,7 +8,7 @@ version: 0.1.0
 # DevAgent Architecture
 
 DevAgent models every subsystem as an always-alive **actor** (conversation, planner, executor, tasks,
-git, logs, memory, models, mcp, skills). Actors never stop; only what is *observed* changes when a
+git, logs, memory, models, mcp, skills). Actors never stop; only what is _observed_ changes when a
 view is focused. Views map to a frozen set of numbered keys 1-8 (see docs/SPEC.md §7-8); skills and a
 few other subsystems are overlay-only and never occupy a numbered view slot.
 

@@ -44,7 +44,7 @@ frameworks:
 ---
 # Workspace info
 `,
-      "utf8"
+      "utf8",
     );
 
     // 2. Setup task specs
@@ -59,7 +59,7 @@ status: completed
 goal: initial scaffold
 ---
 `,
-      "utf8"
+      "utf8",
     );
 
     fs.writeFileSync(
@@ -74,7 +74,7 @@ depends_on:
   - task.001
 ---
 `,
-      "utf8"
+      "utf8",
     );
 
     const ok = await validateAsl(tempWorkspace);
@@ -96,7 +96,7 @@ depends_on:
   - task.999
 ---
 `,
-      "utf8"
+      "utf8",
     );
 
     const ok = await validateAsl(tempWorkspace);
@@ -118,7 +118,7 @@ depends_on:
   - task.002
 ---
 `,
-      "utf8"
+      "utf8",
     );
     fs.writeFileSync(
       path.join(devagentDir, "tasks/TASK-002.md"),
@@ -132,7 +132,7 @@ depends_on:
   - task.001
 ---
 `,
-      "utf8"
+      "utf8",
     );
 
     const ok = await validateAsl(tempWorkspace);
@@ -152,7 +152,7 @@ status: completed
 goal: initial scaffold
 ---
 `,
-      "utf8"
+      "utf8",
     );
     fs.writeFileSync(
       path.join(devagentDir, "tasks/TASK-002.md"),
@@ -166,7 +166,7 @@ depends_on:
   - task.001
 ---
 `,
-      "utf8"
+      "utf8",
     );
 
     await generateAslGraph(tempWorkspace);

@@ -7,7 +7,8 @@
 import { PRIMARY_VIEWS, VIEW_ORDER, ViewId } from "../runtime/types.js";
 import { UiCommand } from "./keybindings.js";
 
-export type OverlayId = "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode" | "sessions" | "tools";
+export type OverlayId =
+  "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode" | "sessions" | "tools" | "dag";
 
 export interface UiState {
   activeView: ViewId;
@@ -59,6 +60,14 @@ export function uiReduce(state: UiState, command: UiCommand): UiState {
       return { ...state, overlay: "mode" };
     case "next-mode":
       return state; // handled by App.tsx
+    case "set-layout-preset":
+      if (command.preset === "focus") {
+        return { ...state, activeView: "conversation", sidebarVisible: false, overlay: null };
+      } else if (command.preset === "inspect") {
+        return { ...state, activeView: "execution", sidebarVisible: true, overlay: null };
+      } else {
+        return { ...state, activeView: "dashboard", sidebarVisible: true, overlay: null };
+      }
     case "cancel":
       return state;
     default:

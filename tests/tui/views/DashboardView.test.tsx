@@ -32,7 +32,10 @@ function makeWorld() {
 function renderApp(columns: number, rows: number, seed?: (world: ReturnType<typeof makeWorld>) => void) {
   const world = makeWorld();
   seed?.(world);
-  const r = renderWide(<App bus={world.bus} store={world.store} agent={world.agent} columns={columns} rows={rows} now={NOW} />, columns);
+  const r = renderWide(
+    <App bus={world.bus} store={world.store} agent={world.agent} columns={columns} rows={rows} now={NOW} />,
+    columns,
+  );
   return { ...world, ...r };
 }
 
@@ -78,7 +81,12 @@ describe("DashboardView", () => {
       seedExecuteMission(bus);
       bus.publish({
         type: "git.changed",
-        git: { branch: "main", ahead: 0, behind: 0, files: [{ path: "src/tools/fs.ts", status: "modified", staged: false }] },
+        git: {
+          branch: "main",
+          ahead: 0,
+          behind: 0,
+          files: [{ path: "src/tools/fs.ts", status: "modified", staged: false }],
+        },
       });
     });
     const frame = stripAnsi(lastFrame() ?? "");
@@ -142,7 +150,7 @@ describe("DashboardView", () => {
   it("falls back to the plain conversation view below 130 cols", () => {
     const { lastFrame, unmount } = renderApp(100, 30);
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("Resize to");
+    expect(frame).toContain("Type a message below");
     expect(frame).not.toContain("ACTIVITY STREAM");
     unmount();
   });

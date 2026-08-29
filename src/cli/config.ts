@@ -1,6 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, basename } from "node:path";
 
 export interface LanguageOverride {
   enabled?: boolean;
@@ -98,12 +98,25 @@ interface ConfigFile {
 }
 
 const DEFAULT_SYSTEM_PROMPT = `You are a focused coding assistant operating in a local workspace. \
-Use the provided tools to edit code, inspect files, and run commands from the workspace root, but only when the user's request actually calls for it — a greeting or general question doesn't need a tool call. \
-Prefer minimal, surgical changes. If a command fails, inspect the error and fix the cause; do not spin into broad refactors.`;
+Adhere strictly to Clean Code, KISS (Keep It Simple), YAGNI (You Aren't Gonna Need It), and SOLID principles. \
+Prefer minimal, surgical, and robust changes. Keep functions small, focused, and well-structured. \
+Do not introduce speculative abstractions, unused interfaces, or dead code. \
+Use the provided tools to edit code, inspect files, and run commands from the workspace root when the user's request calls for it. \
+If a command or test fails, inspect the error diagnostics and fix the exact cause rather than performing broad unneeded refactors.`;
 
 const GLOBAL_CONFIG_DIR = join(homedir(), ".devagent");
 
+/** Env override for a boolean flag, in both directions: "true"/"1" enable,
+ * "false"/"0" disable, anything else (including unset) defers to the config
+ * file / built-in default. */
+function boolFlag(envValue: string | undefined, fallback: boolean): boolean {
+  if (envValue === "true" || envValue === "1") return true;
+  if (envValue === "false" || envValue === "0") return false;
+  return fallback;
+}
+
 function loadGlobalConfig(): ConfigFile {
+  if (process.env.DEVAGENT_TEST_NO_GLOBAL === "true") return {};
   const p = join(GLOBAL_CONFIG_DIR, "config.json");
   if (!existsSync(p)) return {};
   try {
@@ -152,6 +165,36 @@ function loadWorkspaceConfig(root: string): ConfigFile {
   return {};
 }
 
+export function saveWorkspaceConfig(root: string, partial: Partial<ConfigFile>): void {
+  const dir = join(root, ".devagent");
+  const p = join(dir, "config.json");
+  try {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const current = loadWorkspaceConfig(root);
+    const merged = { ...current, ...partial };
+    writeFileSync(p, JSON.stringify(merged, null, 2), "utf8");
+  } catch {
+    // Non-fatal if directory is not writable
+  }
+}
+
+export function saveGlobalConfig(partial: Partial<ConfigFile>): void {
+  const dir = GLOBAL_CONFIG_DIR;
+  const p = join(dir, "config.json");
+  try {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const current = loadGlobalConfig();
+    const merged = { ...current, ...partial };
+    writeFileSync(p, JSON.stringify(merged, null, 2), "utf8");
+  } catch {
+    // Non-fatal if directory is not writable
+  }
+}
+
 function loadAgentsFile(root: string): string {
   for (const name of ["AGENTS.md", "DEVAGENT.md"]) {
     const p = join(root, name);
@@ -165,8 +208,27 @@ function loadAgentsFile(root: string): string {
   return "";
 }
 
+import { config as dotenvConfig } from "dotenv";
+
+function loadEnvFiles(workspaceRoot: string): void {
+  if (process.env.DEVAGENT_TEST_NO_GLOBAL === "true") return;
+  const globalEnv = join(homedir(), ".devagent", ".env");
+  if (existsSync(globalEnv)) {
+    dotenvConfig({ path: globalEnv, override: false, quiet: true } as any);
+  }
+  const cwdEnv = join(process.cwd(), ".env");
+  if (existsSync(cwdEnv)) {
+    dotenvConfig({ path: cwdEnv, override: true, quiet: true } as any);
+  }
+  const workspaceEnv = join(workspaceRoot, ".env");
+  if (existsSync(workspaceEnv) && workspaceEnv !== cwdEnv) {
+    dotenvConfig({ path: workspaceEnv, override: true, quiet: true } as any);
+  }
+}
+
 export function loadConfig(): CliConfig {
   const workspaceRoot = findWorkspaceRoot(process.cwd());
+  loadEnvFiles(workspaceRoot);
   const globalFile = loadGlobalConfig();
   const workspaceFile = loadWorkspaceConfig(workspaceRoot);
   // Workspace config overrides global, env vars override both
@@ -176,50 +238,78 @@ export function loadConfig(): CliConfig {
   const rawTimeout = fromEnv("DEVAGENT_TIMEOUT_MS") || String(file.timeoutMs ?? "");
   const timeoutMs = rawTimeout && Number.isFinite(Number(rawTimeout)) ? Number(rawTimeout) : undefined;
   const rawShellTimeout = fromEnv("DEVAGENT_SHELL_TIMEOUT_SEC") || String(file.shellTimeoutSec ?? "");
-  const shellTimeoutSec = rawShellTimeout && Number.isFinite(Number(rawShellTimeout)) ? Number(rawShellTimeout) : undefined;
+  const shellTimeoutSec =
+    rawShellTimeout && Number.isFinite(Number(rawShellTimeout)) ? Number(rawShellTimeout) : undefined;
 
   const basePrompt = fromEnv("DEVAGENT_SYSTEM_PROMPT") || file.systemPrompt || DEFAULT_SYSTEM_PROMPT;
   const agentsMd = loadAgentsFile(workspaceRoot);
-  const systemPrompt = agentsMd ? `${basePrompt}\n\n## Project Rules\n\n${agentsMd}` : basePrompt;
+  const folderName = basename(workspaceRoot);
+  const workspaceContext = `## Current Workspace Context\n- Workspace Name: ${folderName}\n- Workspace Root Directory: ${workspaceRoot}`;
+  const systemPrompt = agentsMd
+    ? `${basePrompt}\n\n${workspaceContext}\n\n## Project Rules\n\n${agentsMd}`
+    : `${basePrompt}\n\n${workspaceContext}`;
 
   const rawMaxActiveTools = fromEnv("DEVAGENT_MAX_ACTIVE_TOOLS") || String(file.maxActiveTools ?? "");
-  const maxActiveTools = rawMaxActiveTools && Number.isFinite(Number(rawMaxActiveTools)) ? Number(rawMaxActiveTools) : undefined;
+  const maxActiveTools =
+    rawMaxActiveTools && Number.isFinite(Number(rawMaxActiveTools)) ? Number(rawMaxActiveTools) : undefined;
   // Default to "hybrid": pure heuristic keyword/tag scoring can't tell that
   // e.g. "what does the map method do" needs search_docs — its content words
   // ("map", "method") don't appear in any tool's own name/tags/description.
   // Hybrid tries heuristic first and falls back to a real quick-tier model
   // classification call when heuristic is weak/ambiguous.
   const toolSelectionMode = (fromEnv("DEVAGENT_TOOL_SELECTION_MODE") || file.toolSelectionMode || "hybrid") as
-    | "heuristic"
-    | "llm"
-    | "hybrid";
+    "heuristic" | "llm" | "hybrid";
 
   // Pool of Ollama Cloud keys: primary single key, comma-separated OLLAMA_API_KEYS,
   // and any keys listed in the config file, deduped in that priority order.
   const primaryApiKey = fromEnv("OLLAMA_API_KEY") || file.apiKey;
-  const envKeys = (fromEnv("OLLAMA_API_KEYS") ?? "").split(",").map((k) => k.trim()).filter(Boolean);
+  const envKeys = (fromEnv("OLLAMA_API_KEYS") ?? "")
+    .split(",")
+    .map((k) => k.trim())
+    .filter(Boolean);
   const apiKeys = [...new Set([...(primaryApiKey ? [primaryApiKey] : []), ...envKeys, ...(file.apiKeys ?? [])])];
 
-  const selfConsistencyN = Number(fromEnv("DEVAGENT_SC_N") || String(file.selfConsistencyN ?? "3"));
-  const selfConsistencyThreshold = Number(
-    fromEnv("DEVAGENT_SC_THRESHOLD") || String(file.selfConsistencyThreshold ?? "0.5"),
+  // Number() on a malformed value yields NaN, which is not nullish and so
+  // sails straight past every `?? default` downstream. Validate here instead.
+  const positiveNumber = (raw: string | undefined, fallback: number): number => {
+    const n = Number(raw);
+    return raw !== undefined && raw !== "" && Number.isFinite(n) && n > 0 ? n : fallback;
+  };
+
+  const selfConsistencyN = positiveNumber(fromEnv("DEVAGENT_SC_N") || String(file.selfConsistencyN ?? ""), 3);
+  const selfConsistencyThreshold = positiveNumber(
+    fromEnv("DEVAGENT_SC_THRESHOLD") || String(file.selfConsistencyThreshold ?? ""),
+    0.5,
   );
-  const availabilityCheckTtlMs = Number(
-    fromEnv("DEVAGENT_AVAIL_TTL_MS") || String(file.availabilityCheckTtlMs ?? "86400000"),
+  const availabilityCheckTtlMs = positiveNumber(
+    fromEnv("DEVAGENT_AVAIL_TTL_MS") || String(file.availabilityCheckTtlMs ?? ""),
+    86_400_000,
   );
 
   const inputPerMillion = Number(fromEnv("DEVAGENT_PRICE_INPUT_PER_M") || String(file.pricing?.inputPerMillion ?? ""));
-  const outputPerMillion = Number(fromEnv("DEVAGENT_PRICE_OUTPUT_PER_M") || String(file.pricing?.outputPerMillion ?? ""));
+  const outputPerMillion = Number(
+    fromEnv("DEVAGENT_PRICE_OUTPUT_PER_M") || String(file.pricing?.outputPerMillion ?? ""),
+  );
   const pricing =
-    Number.isFinite(inputPerMillion) && Number.isFinite(outputPerMillion) && (inputPerMillion > 0 || outputPerMillion > 0)
+    Number.isFinite(inputPerMillion) &&
+    Number.isFinite(outputPerMillion) &&
+    (inputPerMillion > 0 || outputPerMillion > 0)
       ? { inputPerMillion, outputPerMillion }
       : undefined;
+
+  const tier: CliConfig["tier"] = (fromEnv("DEVAGENT_TIER") || file.tier) === "cloud" ? "cloud" : "local";
 
   return {
     model: fromEnv("DEVAGENT_MODEL") || file.model || "qwen3.5:4b",
     workspaceRoot,
-    tier: (fromEnv("DEVAGENT_TIER") || file.tier) === "cloud" ? "cloud" : "local",
-    host: fromEnv("OLLAMA_HOST") || file.host,
+    tier,
+    // OLLAMA_HOST is the local-Ollama convention, so it only applies to the
+    // local tier. It used to be returned regardless, which meant a user with
+    // OLLAMA_HOST set (normal for a local Ollama install) who switched to
+    // DEVAGENT_TIER=cloud silently sent Cloud requests -- Bearer token and all
+    // -- to their own localhost. An explicit `host` in config still wins for
+    // either tier, since that is a deliberate choice.
+    host: file.host || (tier === "local" ? fromEnv("OLLAMA_HOST") : undefined),
     apiKey: primaryApiKey,
     timeoutMs,
     systemPrompt,
@@ -230,16 +320,18 @@ export function loadConfig(): CliConfig {
     apiKeys: apiKeys.length ? apiKeys : undefined,
     quickModel: fromEnv("DEVAGENT_QUICK_MODEL") || file.quickModel,
     // Hybrid architecture flags
-    enableLocalWorker: fromEnv("DEVAGENT_LOCAL_WORKER") !== "false" && (file.enableLocalWorker ?? true),
-    enableVerifier: fromEnv("DEVAGENT_VERIFIER") === "true" || (file.enableVerifier ?? false),
-    enableSelfConsistency:
-      fromEnv("DEVAGENT_SELF_CONSISTENCY") === "true" || (file.enableSelfConsistency ?? false),
+    enableLocalWorker: boolFlag(fromEnv("DEVAGENT_LOCAL_WORKER"), file.enableLocalWorker ?? true),
+    // An explicit env value wins in BOTH directions. The previous
+    // `env === "true" || file` form meant DEVAGENT_VERIFIER=false could not
+    // switch off a config-file `true`, which is the opposite of how every
+    // sibling flag here behaves.
+    enableVerifier: boolFlag(fromEnv("DEVAGENT_VERIFIER"), file.enableVerifier ?? false),
+    enableSelfConsistency: boolFlag(fromEnv("DEVAGENT_SELF_CONSISTENCY"), file.enableSelfConsistency ?? false),
     selfConsistencyN,
     selfConsistencyThreshold,
     availabilityCheckTtlMs,
-    enableAvailabilityCheck:
-      fromEnv("DEVAGENT_AVAIL_CHECK") !== "false" && (file.enableAvailabilityCheck ?? true),
-    enableHeuristicGate: fromEnv("DEVAGENT_HEURISTIC_GATE") !== "false" && (file.enableHeuristicGate ?? true),
+    enableAvailabilityCheck: boolFlag(fromEnv("DEVAGENT_AVAIL_CHECK"), file.enableAvailabilityCheck ?? true),
+    enableHeuristicGate: boolFlag(fromEnv("DEVAGENT_HEURISTIC_GATE"), file.enableHeuristicGate ?? true),
     pricing,
     mcpServers: file.mcpServers,
   };

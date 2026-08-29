@@ -30,8 +30,14 @@ export class ShellTool extends Tool {
   private readonly cpus: string;
   private readonly logger: Pick<Console, "info" | "warn">;
   private readonly onOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
-  private dockerChecked = false;
-  private dockerAvailable = true;
+  /** In-flight probe, so concurrent calls share one result instead of the
+   * second racing past a half-finished check. */
+  private dockerProbe: Promise<boolean> | null = null;
+  private dockerAvailable: boolean | null = null;
+
+  /** Upper bound on a model-supplied timeoutSec. Without a ceiling the model
+   * could hand back a value that disables the sandbox's own time budget. */
+  static readonly MAX_TIMEOUT_SEC = 1800;
 
   constructor(opts: ShellToolOptions) {
     super();
@@ -44,9 +50,13 @@ export class ShellTool extends Tool {
     this.onOutput = opts.onOutput;
   }
 
-  get name(): string { return "run_shell"; }
+  get name(): string {
+    return "run_shell";
+  }
 
-  get description(): string { return "Run a shell command inside an isolated Docker sandbox rooted at the workspace."; }
+  get description(): string {
+    return "Run a shell command inside an isolated Docker sandbox rooted at the workspace.";
+  }
 
   override get capabilities(): string[] {
     return ["Terminal"];
@@ -67,29 +77,54 @@ export class ShellTool extends Tool {
     };
   }
 
-  private async ensureDockerAvailable(): Promise<boolean> {
-    if (this.dockerChecked) return this.dockerAvailable;
-    this.dockerChecked = true;
-    this.dockerAvailable = await new Promise((resolveCheck) => {
+  private ensureDockerAvailable(): Promise<boolean> {
+    if (this.dockerAvailable !== null) return Promise.resolve(this.dockerAvailable);
+    // Share the in-flight probe rather than flipping a "checked" flag before
+    // awaiting: that let a concurrent second call read the not-yet-written
+    // default and skip the check entirely.
+    if (this.dockerProbe) return this.dockerProbe;
+
+    this.dockerProbe = new Promise<boolean>((resolveCheck) => {
       const probe = spawn("docker", ["info"]);
       probe.on("close", (code) => resolveCheck(code === 0));
       probe.on("error", () => resolveCheck(false));
-    });
-    if (!this.dockerAvailable) {
-      this.logger.warn("[ShellTool] docker is not available — run_shell will fail until it is");
-    }
-    return this.dockerAvailable;
+    })
+      .then((available) => {
+        this.dockerAvailable = available;
+        if (!available) {
+          this.logger.warn("[ShellTool] docker is not available — run_shell will fail until it is");
+        }
+        return available;
+      })
+      .finally(() => {
+        this.dockerProbe = null;
+      });
+    return this.dockerProbe;
+  }
+
+  /** Coerces a model-supplied timeoutSec into a usable number. It arrives as
+   * untyped JSON: a string "30" made `(timeoutSec + 15) * 1000` evaluate to
+   * 3015000 (50 minutes instead of 45s), and a non-numeric value produced NaN,
+   * which makes setTimeout fire immediately so *every* run_shell returned
+   * "sandbox exceeded hard timeout". */
+  private resolveTimeoutSec(raw: unknown): number {
+    const n = typeof raw === "string" ? Number(raw) : typeof raw === "number" ? raw : NaN;
+    if (!Number.isFinite(n) || n <= 0) return this.timeoutSec;
+    return Math.min(Math.floor(n), ShellTool.MAX_TIMEOUT_SEC);
   }
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const command = args.command as string;
-    const timeoutSec = (args.timeoutSec as number | undefined) ?? this.timeoutSec;
+    const timeoutSec = this.resolveTimeoutSec(args.timeoutSec);
 
     if ((command ?? "").trim().length === 0) {
       return { exitCode: -1, stdout: "", stderr: "empty command", truncated: false, error: "EmptyCommandError" };
     }
 
-    const dockerAvailable = this.dockerChecked ? this.dockerAvailable : await this.ensureDockerAvailable();
+    // Stay synchronous once the answer is known, so the child's listeners are
+    // attached in the same tick as the call rather than a microtask later.
+    const known = this.dockerAvailable;
+    const dockerAvailable = known !== null ? known : await this.ensureDockerAvailable();
     if (!dockerAvailable) {
       return {
         exitCode: -1,
@@ -137,13 +172,30 @@ export class ShellTool extends Tool {
         checkOverflow();
       });
 
-      const hardTimeout = setTimeout(() => {
-        if (settled) return;
-        this.logger.warn(`[ShellTool] hard timeout on ${container}`);
-        void this.escalateKill(container).then(() => {
-          finish({ exitCode: -1, stdout: "", stderr: "sandbox exceeded hard timeout", truncated: false });
-        });
-      }, (timeoutSec + 15) * 1000);
+      const hardTimeout = setTimeout(
+        () => {
+          if (settled) return;
+          this.logger.warn(`[ShellTool] hard timeout on ${container}`);
+          void this.escalateKill(container).then(() => {
+            // Hand back whatever the command managed to emit. Returning an empty
+            // stdout gave the model zero diagnostics about an overrunning build
+            // or test run, so its only move was to retry the same command --
+            // straight into the loop detector.
+            finish({
+              exitCode: -1,
+              stdout: stdout.subarray(0, ShellTool.MAX_OUTPUT_BYTES).toString("utf-8"),
+              stderr:
+                stderr.subarray(0, ShellTool.MAX_OUTPUT_BYTES).toString("utf-8") +
+                `\n[sandbox exceeded hard timeout after ${timeoutSec}s]`,
+              truncated:
+                stdout.byteLength > ShellTool.MAX_OUTPUT_BYTES || stderr.byteLength > ShellTool.MAX_OUTPUT_BYTES,
+              timeoutSec,
+              error: "TimeoutError",
+            });
+          });
+        },
+        (timeoutSec + 15) * 1000,
+      );
 
       child.on("close", (exitCode) => {
         if (killedForOverflow) {

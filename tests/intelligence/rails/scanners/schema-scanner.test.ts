@@ -2,7 +2,7 @@ import { SchemaScanner } from "../../../../src/intelligence/rails/scanners/schem
 import { TableEntity } from "../../../../src/intelligence/rails/types.js";
 
 const SCHEMA = [
-  'ActiveRecord::Schema[7.1].define(version: 2024_01_02_000000) do',
+  "ActiveRecord::Schema[7.1].define(version: 2024_01_02_000000) do",
   '  create_table "users", force: :cascade do |t|',
   '    t.string "email", null: false',
   '    t.string "name"',

@@ -38,7 +38,22 @@ export interface ActorState {
 }
 
 /** The focusable views of the Active View zone. Focus never stops actors. */
-export type ViewId = "conversation" | "execution" | "tasks" | "git" | "logs" | "memory" | "models" | "mcp" | "lsp" | "files" | "settings" | "context" | "rails" | "timeline" | "dashboard";
+export type ViewId =
+  | "conversation"
+  | "execution"
+  | "tasks"
+  | "git"
+  | "logs"
+  | "memory"
+  | "models"
+  | "mcp"
+  | "lsp"
+  | "files"
+  | "settings"
+  | "context"
+  | "rails"
+  | "timeline"
+  | "dashboard";
 
 export const VIEW_ORDER: readonly ViewId[] = [
   "conversation",
@@ -208,15 +223,66 @@ export type ChatEntry =
   // model: "tier/name" of whichever model actually answered this entry (e.g.
   // "local/minicpm5-1b" or "cloud/gpt-oss:120b") — only set for assistant text.
   | { kind: "text"; role: ChatRole; text: string; at: number; model?: string; crumb?: string }
-  | { kind: "plan"; role: "assistant"; steps: ExecutionStep[]; status: "pending" | "running" | "completed" | "failed"; at: number }
-  | { kind: "decision"; role: "assistant"; options: string[]; selected: string; reason: string; confidence: number; at: number }
+  | {
+      kind: "plan";
+      role: "assistant";
+      steps: ExecutionStep[];
+      status: "pending" | "running" | "completed" | "failed";
+      at: number;
+    }
+  | {
+      kind: "decision";
+      role: "assistant";
+      options: string[];
+      selected: string;
+      reason: string;
+      confidence: number;
+      at: number;
+    }
   // crumb: "Execute > Generate migration" — the mission phase/step active when
   // this entry was created (see mission-derive.ts's missionCrumb), used by the
   // Dashboard's Activity Feed. Undefined outside an active mission.
-  | { kind: "tool_call"; role: "assistant"; id: string; name: string; args: Record<string, unknown>; status: ToolCallStatus; result?: string; error?: string; at: number; crumb?: string }
-  | { kind: "diff_preview"; role: "assistant"; filePath: string; diff: string; status: "pending_review" | "approved" | "rejected"; at: number; crumb?: string }
-  | { kind: "test_result"; role: "assistant"; command: string; passed: number; failed: number; failures: TestFailure[]; durationMs: number; at: number; crumb?: string }
-  | { kind: "card"; role: "assistant"; title: string; status: "running" | "completed" | "failed"; items: CardItem[]; at: number; crumb?: string };
+  | {
+      kind: "tool_call";
+      role: "assistant";
+      id: string;
+      name: string;
+      args: Record<string, unknown>;
+      status: ToolCallStatus;
+      result?: string;
+      error?: string;
+      at: number;
+      crumb?: string;
+    }
+  | {
+      kind: "diff_preview";
+      role: "assistant";
+      filePath: string;
+      diff: string;
+      status: "pending_review" | "approved" | "rejected";
+      at: number;
+      crumb?: string;
+    }
+  | {
+      kind: "test_result";
+      role: "assistant";
+      command: string;
+      passed: number;
+      failed: number;
+      failures: TestFailure[];
+      durationMs: number;
+      at: number;
+      crumb?: string;
+    }
+  | {
+      kind: "card";
+      role: "assistant";
+      title: string;
+      status: "running" | "completed" | "failed";
+      items: CardItem[];
+      at: number;
+      crumb?: string;
+    };
 
 export interface ExecutionStep {
   id: string;
@@ -242,7 +308,8 @@ export interface SessionState {
 }
 
 /** Whole-mission stages, coarser than a single PlanStep's lifecycle. */
-export type MissionPhaseId = "understand" | "inspect" | "plan" | "execute" | "validate" | "repair" | "review" | "complete";
+export type MissionPhaseId =
+  "understand" | "inspect" | "plan" | "execute" | "validate" | "repair" | "review" | "complete";
 
 export const MISSION_PHASE_ORDER: readonly MissionPhaseId[] = [
   "understand",
@@ -353,7 +420,14 @@ export interface RuntimeState {
   rails?: RailsIndexState;
   skills: SkillState[];
   /** Latest test run, persisted (feed's test_result entries scroll away). */
-  lastTestResult?: { command: string; passed: number; failed: number; failures: TestFailure[]; durationMs: number; at: number };
+  lastTestResult?: {
+    command: string;
+    passed: number;
+    failed: number;
+    failures: TestFailure[];
+    durationMs: number;
+    at: number;
+  };
   /** Per-file LSP diagnostic counts; errors aggregate = sum of values. */
   diagnosticsByPath: Record<string, number>;
   approval: ApprovalRequest | null;

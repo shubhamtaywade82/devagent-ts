@@ -15,10 +15,17 @@ import { validateAsl, generateAslGraph } from "../asl/commands.js";
 
 function enableTerminalFeatures(): () => void {
   if (!process.stdin.isTTY) return () => {};
-  process.stdout.write("\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h");
-  return () => {
-    process.stdout.write("\x1b[?2004l\x1b[?1006l\x1b[?1002l\x1b[?1000l");
+  process.stdout.write("\x1b[?1049h\x1b[2J\x1b[3J\x1b[H\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h");
+  let restored = false;
+  const cleanup = () => {
+    if (restored) return;
+    restored = true;
+    process.stdout.write("\x1b[?2004l\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h");
   };
+  process.once("SIGINT", cleanup);
+  process.once("SIGTERM", cleanup);
+  process.once("exit", cleanup);
+  return cleanup;
 }
 
 function currentBranch(workspaceRoot: string): string {
@@ -115,7 +122,7 @@ const cfg = loadConfig();
   const shellAgent = {
     runUserMessage: (message: string) => agent.runUserMessage(message),
     setModel: (model: string) => agent.setModel(model),
-    setTier: (tier: string) => agent.setTier(tier),
+    setTier: (tier: "local" | "cloud") => agent.setTier(tier),
     resetContext: () => agent.resetContext(),
     resumeSession: () => agent.resumeSession(),
     resumeSessionById: (id: string) => agent.resumeSessionById(id),

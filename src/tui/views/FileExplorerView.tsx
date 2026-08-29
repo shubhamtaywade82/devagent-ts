@@ -20,12 +20,13 @@ export function FileExplorerView({ rows }: ViewProps): React.JSX.Element {
     <Box flexDirection="column" height={rows}>
       <Box height={1} marginBottom={1}>
         <Text bold>Project Files</Text>
-        <Text color="gray">  (Ctrl+F to search)</Text>
+        <Text color="gray"> (Ctrl+F to search)</Text>
       </Box>
       {MOCK_TREE.slice(0, rows - 1).map((item, i) => (
         <Box key={i} height={1} marginLeft={item.depth * 2}>
           <Text color={item.type === "dir" ? "blue" : "white"}>
-            {item.type === "dir" ? "▸ " : "  "}{item.name}
+            {item.type === "dir" ? "▸ " : "  "}
+            {item.name}
           </Text>
         </Box>
       ))}

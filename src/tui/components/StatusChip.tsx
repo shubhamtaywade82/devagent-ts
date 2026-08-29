@@ -25,9 +25,5 @@ interface StatusChipProps {
 
 export function StatusChip({ status, label }: StatusChipProps): React.JSX.Element {
   const s = STATUS_GLYPH[status] ?? { glyph: "?", color: "gray" };
-  return (
-    <Text color={s.color}>
-      {label ? `${s.glyph} ${label}` : s.glyph}
-    </Text>
-  );
+  return <Text color={s.color}>{label ? `${s.glyph} ${label}` : s.glyph}</Text>;
 }

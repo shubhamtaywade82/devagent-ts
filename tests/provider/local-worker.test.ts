@@ -1,8 +1,6 @@
 import { LocalWorker, LocalTask } from "../../src/provider/local-worker.js";
 import type { Provider, ChatResponse } from "../../src/provider/provider.js";
 
-
-
 function makeProvider(responses: string[]): Provider {
   let call = 0;
   return {

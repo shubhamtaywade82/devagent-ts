@@ -71,9 +71,7 @@ export class WorkspaceKnowledgeEngine {
     return {
       results: all,
       byPlugin,
-      summary: all.length > 0
-        ? `Found ${all.length} result(s) across ${byPlugin.size} plugin(s)`
-        : "No results found",
+      summary: all.length > 0 ? `Found ${all.length} result(s) across ${byPlugin.size} plugin(s)` : "No results found",
     };
   }
 }

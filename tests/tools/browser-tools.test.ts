@@ -1,6 +1,11 @@
 import {
-  BrowserNavigateTool, BrowserClickTool, BrowserFillTool,
-  BrowserGetTextTool, BrowserScreenshotTool, BrowserEvaluateTool, BrowserCloseTool,
+  BrowserNavigateTool,
+  BrowserClickTool,
+  BrowserFillTool,
+  BrowserGetTextTool,
+  BrowserScreenshotTool,
+  BrowserEvaluateTool,
+  BrowserCloseTool,
 } from "../../src/tools/browser-tools.js";
 import { BrowserManager } from "../../src/browser/manager.js";
 

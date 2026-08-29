@@ -21,11 +21,8 @@ export function PlanCard({ entry, collapsed, onToggle, width }: PlanCardProps): 
         {steps.map((step) => (
           <Box key={step.id} height={1}>
             <Text>
-              <StatusChip status={step.status} />
-              {" "}
-              <Text color={step.status === "running" ? "blue" : undefined}>
-                {step.description}
-              </Text>
+              <StatusChip status={step.status} />{" "}
+              <Text color={step.status === "running" ? "blue" : undefined}>{step.description}</Text>
             </Text>
           </Box>
         ))}

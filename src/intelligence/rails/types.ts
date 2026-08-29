@@ -184,7 +184,8 @@ export interface ConcernEntity extends RsiEntity {
   macros: string[];
 }
 
-export type SpecType = "model" | "controller" | "request" | "service" | "job" | "mailer" | "policy" | "feature" | "system" | "other";
+export type SpecType =
+  "model" | "controller" | "request" | "service" | "job" | "mailer" | "policy" | "feature" | "system" | "other";
 
 export interface SpecEntity extends RsiEntity {
   type: "spec";

@@ -50,12 +50,26 @@ Rails semantic: `find_model`, `find_route`, `find_controller`, `find_service`, `
 Documentation: `search_docs` (workspace-scoped full-text search over ingested DevDocs sources), `get_doc` (fetch one section by source+path), `list_doc_sources` (ingested sources + workspace defaults).
 Plus anything registered via MCP servers (`agent.registerMcpServer(command, args)`).
 
-## Usage
+## Installation & CLI Usage
+
+### Global CLI
+Install globally via npm:
+
+```bash
+npm install -g @nemesis-oss/devagent-ts
+
+# Launch the terminal UI
+devagent
+# or
+devagent-ts
+```
+
+### Programmatic Usage
 
 ```typescript
-import { Provider } from "./src/provider/provider";
-import { ModelCatalog } from "./src/provider/catalog";
-import { Router } from "./src/provider/router";
+import { Provider } from "@nemesis-oss/devagent-ts/provider";
+import { ModelCatalog } from "@nemesis-oss/devagent-ts/catalog";
+import { Router } from "@nemesis-oss/devagent-ts/router";
 
 const local = new Provider({ tier: "local", model: "qwen3.5:4b" });
 const cloud = new Provider({ tier: "cloud", model: "qwen3.5:4b", apiKey: process.env.OLLAMA_API_KEY });
@@ -70,7 +84,7 @@ const response = await router.route("reasoning", [{ role: "user", content: "..."
 Or use the `Agent` class directly — it wires provider/catalog/router, tools, LSP, Rails index, memory, learning, and checkpointing together:
 
 ```typescript
-import { Agent } from "./src/cli/agent";
+import { Agent } from "@nemesis-oss/devagent-ts/agent";
 
 const agent = new Agent({ config: { workspaceRoot: "/path/to/project" } });
 const reply = await agent.runUserMessage("Add a null check to the parser");

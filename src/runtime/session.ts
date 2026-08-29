@@ -98,7 +98,9 @@ export class SessionStore {
   listSessions(): SessionMeta[] {
     // Reverse before a stable sort so ties (saves within the same millisecond)
     // still resolve most-recently-touched-first instead of by insertion order.
-    return this.readIndex().reverse().sort((a, b) => b.updatedAt - a.updatedAt);
+    return this.readIndex()
+      .reverse()
+      .sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
   mostRecentId(): string | null {

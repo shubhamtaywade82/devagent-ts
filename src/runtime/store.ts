@@ -25,10 +25,24 @@ import { setActiveTheme } from "../layout/theme-map.js";
 // concept of "rewind the line".
 /* eslint-disable no-control-regex -- intentionally matching C0/C1 control chars to strip them */
 export function sanitizeText(text: string): string {
-  return text
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
-    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "")
-    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
+  return (
+    text
+      // CSI sequences, including private-mode forms such as ESC[?25l (hide
+      // cursor) and ESC[?1049h (alternate screen). The parameter class must
+      // allow the private-marker and intermediate bytes or those sequences
+      // fell through to the control-character pass below, which stripped only
+      // the ESC and left "[?25l" as visible garbage in the layout.
+      .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, "")
+      // OSC (window title, hyperlinks), terminated by BEL or ST.
+      .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "")
+      // Charset designation, e.g. ESC(B — an intermediate byte then a final.
+      .replace(/\x1b[ -/]+[0-~]/g, "")
+      // Remaining single-character escapes (ESC7, ESC=, ESCM, ...). "[" and
+      // "]" are excluded above by construction so this can't eat a CSI/OSC
+      // introducer whose body was malformed.
+      .replace(/\x1b[@-Z\\-_]/g, "")
+      .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "")
+  );
 }
 /* eslint-enable no-control-regex */
 
@@ -97,6 +111,14 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
   };
 }
 
+// Monotonic counter, not `notifications.length`: once the buffer is full
+// `bounded()` pins that length at MAX_NOTIFICATIONS, so two notifications
+// raised in the same millisecond got identical ids — and these are React keys.
+let notificationSeq = 0;
+function nextNotificationId(): string {
+  return `n${Date.now()}-${notificationSeq++}`;
+}
+
 function bounded<T>(items: T[], max: number): T[] {
   return items.length > max ? items.slice(items.length - max) : items;
 }
@@ -112,12 +134,22 @@ function appendChunk(
   model?: string,
   crumb?: string,
 ): ChatEntry[] {
-  const last = conversation[conversation.length - 1];
-  if (last && last.kind === "text" && last.role === role) {
-    return conversation.slice(0, -1).concat({ ...last, text: last.text + chunk });
+  for (let i = conversation.length - 1; i >= 0; i--) {
+    const entry = conversation[i];
+    if (entry.kind === "text" && entry.role === role) {
+      const updated: ChatEntry = { ...entry, text: entry.text + chunk };
+      const next = [...conversation];
+      next[i] = updated;
+      return next;
+    }
+    if (entry.kind === "text" && entry.role === "user") break;
+    if (entry.kind === "tool_call") break;
   }
   // Stamped once, at entry creation — a turn's answering model doesn't change mid-stream.
-  return bounded([...conversation, { kind: "text", role, text: chunk, at: Date.now(), model, crumb }], MAX_CONVERSATION);
+  return bounded(
+    [...conversation, { kind: "text", role, text: chunk, at: Date.now(), model, crumb }],
+    MAX_CONVERSATION,
+  );
 }
 
 function taskDetail(tasks: Task[]): string {
@@ -128,7 +160,13 @@ function taskDetail(tasks: Task[]): string {
 export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
   switch (event.type) {
     case "conversation.message": {
-      const entry: ChatEntry = { kind: "text", role: event.role, text: sanitizeText(event.text), at: Date.now(), crumb: missionCrumb(state.mission) };
+      const entry: ChatEntry = {
+        kind: "text",
+        role: event.role,
+        text: sanitizeText(event.text),
+        at: Date.now(),
+        crumb: missionCrumb(state.mission),
+      };
       // A new user turn starts fresh — any prior turn's delegation label must not
       // bleed into this one if classifyCapability doesn't delegate this time.
       const lastTurnModel = event.role === "user" ? null : state.lastTurnModel;
@@ -142,7 +180,13 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       const modelLabel = state.lastTurnModel ?? `${state.model.provider}/${state.model.name}`;
       const next = {
         ...state,
-        conversation: appendChunk(state.conversation, event.role, sanitizeText(event.chunk), modelLabel, missionCrumb(state.mission)),
+        conversation: appendChunk(
+          state.conversation,
+          event.role,
+          sanitizeText(event.chunk),
+          modelLabel,
+          missionCrumb(state.mission),
+        ),
       };
       return withActor(next, "conversation", { health: event.role === "thinking" ? "thinking" : "active" });
     }
@@ -157,7 +201,11 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         at: Date.now(),
       };
       return withActor(
-        { ...state, execution: { ...state.execution, goal: event.goal, steps: event.steps }, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
+        {
+          ...state,
+          execution: { ...state.execution, goal: event.goal, steps: event.steps },
+          conversation: bounded([...state.conversation, entry], MAX_CONVERSATION),
+        },
         "planner",
         { health: event.status === "running" ? "thinking" : "healthy", detail: event.status === "running" ? "▶" : "✓" },
       );
@@ -179,9 +227,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       );
     }
     case "conversation.tool_call": {
-      const existingIdx = state.conversation.findIndex(
-        (e) => e.kind === "tool_call" && e.id === event.id,
-      );
+      const existingIdx = state.conversation.findIndex((e) => e.kind === "tool_call" && e.id === event.id);
       const existing = existingIdx >= 0 ? state.conversation[existingIdx] : undefined;
       const entry: ChatEntry = {
         kind: "tool_call",
@@ -206,7 +252,10 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         {
           ...state,
           conversation: bounded(updatedConversation, MAX_CONVERSATION),
-          execution: { ...state.execution, activeTool: event.status === "running" ? event.name : state.execution.activeTool },
+          execution: {
+            ...state.execution,
+            activeTool: event.status === "running" ? event.name : state.execution.activeTool,
+          },
         },
         "executor",
         { health: actorHealth, detail: event.status === "running" ? "▶" : event.status === "failed" ? "✗" : "✓" },
@@ -268,11 +317,10 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         at: Date.now(),
         crumb: missionCrumb(state.mission),
       };
-      return withActor(
-        { ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) },
-        "tasks",
-        { health: event.status === "running" ? "active" : "healthy", detail: event.status === "running" ? "▶" : "✓" },
-      );
+      return withActor({ ...state, conversation: bounded([...state.conversation, entry], MAX_CONVERSATION) }, "tasks", {
+        health: event.status === "running" ? "active" : "healthy",
+        detail: event.status === "running" ? "▶" : "✓",
+      });
     }
     case "conversation.card_item": {
       const last = state.conversation[state.conversation.length - 1];
@@ -532,7 +580,7 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       return { ...state, lastTurnModel: `${event.tier}/${event.model}` };
     case "notification": {
       const note = {
-        id: `n${Date.now()}-${state.notifications.length}`,
+        id: nextNotificationId(),
         text: event.text,
         kind: event.kind,
         at: Date.now(),
@@ -543,9 +591,13 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
       // Executor health flips to "✗" on any error, but that glyph alone gives
       // the user zero detail — surface the actual message as a notification
       // too, the same path a visible toast already uses elsewhere.
-      const note = { id: `n${Date.now()}-${state.notifications.length}`, text: event.message, kind: "error" as const, at: Date.now() };
+      const note = { id: nextNotificationId(), text: event.message, kind: "error" as const, at: Date.now() };
       return withActor(
-        { ...state, lastError: event.message, notifications: bounded([...state.notifications, note], MAX_NOTIFICATIONS) },
+        {
+          ...state,
+          lastError: event.message,
+          notifications: bounded([...state.notifications, note], MAX_NOTIFICATIONS),
+        },
         "executor",
         { health: "error", detail: "✗" },
       );

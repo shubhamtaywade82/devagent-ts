@@ -16,9 +16,7 @@ export const DEFAULT_LSP_CONFIG: LspGlobalConfig = {
   prewarm: [],
 };
 
-export function mergeLspConfig(
-  userConfig?: Partial<LspGlobalConfig>,
-): LspGlobalConfig {
+export function mergeLspConfig(userConfig?: Partial<LspGlobalConfig>): LspGlobalConfig {
   return {
     idleTimeoutMs: userConfig?.idleTimeoutMs ?? DEFAULT_LSP_CONFIG.idleTimeoutMs,
     maxServers: userConfig?.maxServers ?? DEFAULT_LSP_CONFIG.maxServers,

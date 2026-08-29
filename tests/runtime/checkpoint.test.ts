@@ -99,7 +99,15 @@ describe("sanitizeResumedSteps", () => {
       makeStep("g", "running"),
     ];
     const sanitized = sanitizeResumedSteps(steps);
-    expect(sanitized.map((s) => s.status)).toEqual(["pending", "pending", "pending", "pending", "pending", "pending", "pending"]);
+    expect(sanitized.map((s) => s.status)).toEqual([
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+    ]);
   });
 
   it("keeps completed, cancelled, and rolledback statuses as-is", () => {

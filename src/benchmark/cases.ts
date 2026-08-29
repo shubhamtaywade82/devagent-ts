@@ -57,10 +57,12 @@ const ALARM_TOOL = {
 };
 
 function firstToolCall(response: ChatResponse): { name: string; args: unknown } | undefined {
-  const toolCalls = response.message?.tool_calls as Array<{ function: { name: string; arguments: unknown } }> | undefined;
+  const toolCalls = response.message?.tool_calls as
+    Array<{ function: { name: string; arguments: unknown } }> | undefined;
   if (!toolCalls || toolCalls.length === 0) return undefined;
   const call = toolCalls[0];
-  const args = typeof call.function.arguments === "string" ? tryParse(call.function.arguments) : call.function.arguments;
+  const args =
+    typeof call.function.arguments === "string" ? tryParse(call.function.arguments) : call.function.arguments;
   return { name: call.function.name, args };
 }
 
@@ -84,7 +86,8 @@ export const BUILTIN_CASES: BenchmarkCase[] = [
     validate: (response) => {
       const parsed = parseContent(response.message?.content) as { answer?: unknown } | undefined;
       if (!parsed) return { pass: false, reason: "response was not valid JSON" };
-      if (parsed.answer !== 4) return { pass: false, reason: `expected answer:4, got ${JSON.stringify(parsed.answer)}` };
+      if (parsed.answer !== 4)
+        return { pass: false, reason: `expected answer:4, got ${JSON.stringify(parsed.answer)}` };
       return { pass: true };
     },
   },
@@ -127,7 +130,8 @@ export const BUILTIN_CASES: BenchmarkCase[] = [
       if (!call) return { pass: false, reason: "no tool call in response" };
       if (call.name !== "set_alarm") return { pass: false, reason: `called ${call.name} instead of set_alarm` };
       const args = call.args as { hour?: unknown; repeat?: unknown } | undefined;
-      if (Number(args?.hour) !== 7) return { pass: false, reason: `hour was ${JSON.stringify(args?.hour)}, expected 7` };
+      if (Number(args?.hour) !== 7)
+        return { pass: false, reason: `hour was ${JSON.stringify(args?.hour)}, expected 7` };
       const repeat = args?.repeat === true || args?.repeat === "true";
       if (!repeat) return { pass: false, reason: `repeat was ${JSON.stringify(args?.repeat)}, expected true` };
       return { pass: true };
@@ -141,7 +145,8 @@ export const BUILTIN_CASES: BenchmarkCase[] = [
     tools: [WEATHER_TOOL],
     validate: (response) => {
       const toolCalls = response.message?.tool_calls;
-      if (toolCalls && toolCalls.length > 0) return { pass: false, reason: "called a tool for a question answerable directly" };
+      if (toolCalls && toolCalls.length > 0)
+        return { pass: false, reason: "called a tool for a question answerable directly" };
       const content = response.message?.content ?? "";
       if (!/54/.test(content)) return { pass: false, reason: `expected "54" in response, got "${content}"` };
       return { pass: true };
@@ -187,14 +192,21 @@ export const BUILTIN_CASES: BenchmarkCase[] = [
     category: "thinking",
     description: "Reaches the correct answer on a problem that benefits from step-by-step reasoning",
     messages: [
-      { role: "user", content: "Solve step by step: what is 17 times 23? Show your reasoning, then give the final answer." },
+      {
+        role: "user",
+        content: "Solve step by step: what is 17 times 23? Show your reasoning, then give the final answer.",
+      },
     ],
     validate: (response) => {
       const content = response.message?.content ?? "";
       const thinking = (response.message as { thinking?: string } | undefined)?.thinking;
       const value = lastNumberIn(content);
-      if (value !== 391) return { pass: false, reason: `expected final answer 391, got ${value ?? "(no number found)"}` };
-      return { pass: true, reason: thinking ? "model returned a separate thinking field" : "no separate thinking field returned" };
+      if (value !== 391)
+        return { pass: false, reason: `expected final answer 391, got ${value ?? "(no number found)"}` };
+      return {
+        pass: true,
+        reason: thinking ? "model returned a separate thinking field" : "no separate thinking field returned",
+      };
     },
   },
 ];

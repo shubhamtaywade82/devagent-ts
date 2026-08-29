@@ -1,7 +1,13 @@
 import {
-  BinanceBacktestTool, BinanceWalkForwardTool, BinanceMonteCarloTool, BinanceParamSweepTool,
+  BinanceBacktestTool,
+  BinanceWalkForwardTool,
+  BinanceMonteCarloTool,
+  BinanceParamSweepTool,
 } from "../../src/tools/backtest-tools.js";
 import { StrategyConfig } from "../../src/backtest/types.js";
+
+const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
+const describeIfNetwork = skipNetwork ? describe.skip : describe;
 
 function fakeKlines(closes: number[]): unknown[][] {
   return closes.map((c, i) => {
@@ -26,7 +32,9 @@ describe("BinanceBacktestTool", () => {
   });
 
   it("fetches candles and runs a backtest", async () => {
-    (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
     const tool = new BinanceBacktestTool();
     const result = await tool.call({ symbol: "BTCUSDT", interval: "1h", strategy: STRATEGY });
     expect(result.symbol).toBe("BTCUSDT");
@@ -48,7 +56,9 @@ describe("BinanceWalkForwardTool", () => {
   });
 
   it("runs walk-forward across folds", async () => {
-    (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
     const tool = new BinanceWalkForwardTool();
     const result = await tool.call({ symbol: "BTCUSDT", interval: "1h", strategy: STRATEGY, folds: 4 });
     expect(result.windows).toHaveLength(4);
@@ -62,7 +72,9 @@ describe("BinanceMonteCarloTool", () => {
   });
 
   it("runs monte carlo on the backtest's trade sample", async () => {
-    (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
     const tool = new BinanceMonteCarloTool();
     const result = await tool.call({ symbol: "BTCUSDT", interval: "1h", strategy: STRATEGY, simulations: 100 });
     expect(result.simulations).toBe(100);
@@ -70,9 +82,15 @@ describe("BinanceMonteCarloTool", () => {
   });
 
   it("returns NoTrades when the strategy never fires", async () => {
-    (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
     const tool = new BinanceMonteCarloTool();
-    const neverFires: StrategyConfig = { direction: "long", entry: [{ type: "rsi_above", period: 14, value: 200 }], risk: { stopPct: 0.02, targetPct: 0.02 } };
+    const neverFires: StrategyConfig = {
+      direction: "long",
+      entry: [{ type: "rsi_above", period: 14, value: 200 }],
+      risk: { stopPct: 0.02, targetPct: 0.02 },
+    };
     const result = await tool.call({ symbol: "BTCUSDT", interval: "1h", strategy: neverFires });
     expect(result.error).toBe("NoTrades");
   });
@@ -85,10 +103,14 @@ describe("BinanceParamSweepTool", () => {
   });
 
   it("sweeps parameter ranges and ranks results", async () => {
-    (globalThis as any).fetch = jest.fn().mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValue({ ok: true, status: 200, json: async () => fakeKlines(RISING) });
     const tool = new BinanceParamSweepTool();
     const result = await tool.call({
-      symbol: "BTCUSDT", interval: "1h", strategy: STRATEGY,
+      symbol: "BTCUSDT",
+      interval: "1h",
+      strategy: STRATEGY,
       ranges: [{ conditionIndex: 0, field: "value", values: [90, 101] }],
     });
     expect(result.combinationsTested).toBe(2);
@@ -96,7 +118,7 @@ describe("BinanceParamSweepTool", () => {
   });
 });
 
-describe("Backtest tools (real network)", () => {
+describeIfNetwork("Backtest tools (real network)", () => {
   it("backtests a real BTCUSDT strategy against real Binance history", async () => {
     const tool = new BinanceBacktestTool();
     const result = await tool.call({ symbol: "BTCUSDT", interval: "1h", limit: 300, strategy: STRATEGY });
