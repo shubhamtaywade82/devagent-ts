@@ -31,6 +31,7 @@ export type CommandEffect =
   | { kind: "quit" }
   | { kind: "learn"; rule: string }
   | { kind: "replay-session"; id?: string }
+  | { kind: "doctor" }
   | { kind: "error"; text: string };
 
 export interface SlashCommand {
@@ -356,6 +357,13 @@ export function builtinCommands(): SlashCommandRegistry {
     category: "Memory",
     execute: (args) =>
       args.trim() ? { kind: "learn", rule: args.trim() } : { kind: "error", text: "Usage: /learn <preference>" },
+  });
+  registry.register({
+    name: "doctor",
+    aliases: ["doc", "diagnostics", "check"],
+    description: "Run system diagnostics (Ollama, models, LSP servers, workspace)",
+    category: "General",
+    execute: () => ({ kind: "doctor" }),
   });
   return registry;
 }

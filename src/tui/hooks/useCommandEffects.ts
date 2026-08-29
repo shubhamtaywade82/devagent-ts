@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { EventBus } from "../../runtime/events.js";
 import { Store } from "../../runtime/store.js";
 import { CommandEffect } from "../../interaction/slash-commands.js";
+import { runDoctor } from "../../cli/doctor.js";
 import type { AgentMode } from "../../runtime/types.js";
 import type { ShellAgent } from "../App.js";
 
@@ -208,6 +209,23 @@ export function useCommandEffects(
           const next = modeList[(idx + 1) % modeList.length] as AgentMode;
           bus.publish({ type: "mode.agent", mode: next });
           bus.publish({ type: "notification", kind: "info", text: `Mode: ${next}` });
+          break;
+        }
+        case "doctor": {
+          bus.publish({ type: "notification", kind: "info", text: "Running system doctor…" });
+          runDoctor()
+            .then((report) => {
+              const output = "🩺 **DevAgent System Health Report**\n\n" + report.lines.map((l) => `• ${l}`).join("\n");
+              bus.publish({ type: "conversation.message", role: "assistant", text: output });
+              bus.publish({ type: "notification", kind: "success", text: "System check completed" });
+            })
+            .catch((err) => {
+              bus.publish({
+                type: "notification",
+                kind: "error",
+                text: `Doctor failed: ${err instanceof Error ? err.message : String(err)}`,
+              });
+            });
           break;
         }
         case "error":

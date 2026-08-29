@@ -2,24 +2,48 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
-    branches: [main]
+    branches: [main, develop]
 
 jobs:
-  test:
+  validate:
+    name: Build & Test (Node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [22.x, 24.x]
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          node-version: ${{ matrix.node-version }}
           cache: "npm"
-      - run: sudo apt-get update && sudo apt-get install -y ripgrep
-      - run: npm ci
-      - run: npm run lint
-      - run: npx tsc -p tsconfig.json --noEmit
-      - run: node --experimental-vm-modules node_modules/.bin/jest --ci --testPathIgnorePatterns='browser/manager'
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y ripgrep
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Lint code
+        run: npm run lint
+
+      - name: Check formatting
+        run: npm run format:check
+
+      - name: Compile TypeScript
+        run: npm run build
+
+      - name: Verify Documentation Build
+        run: npm run docs:build
+
+      - name: Run Test Suite
+        run: npm test
         env:
           CI: true
           SKIP_NETWORK_TESTS: true
