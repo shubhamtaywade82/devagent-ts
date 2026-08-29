@@ -37,8 +37,8 @@
     "node": ">=22"
   },
   "bin": {
-    "devagent": "./bin/cli.js",
-    "devagent-ts": "./bin/cli.js"
+    "devagent": "bin/cli.js",
+    "devagent-ts": "bin/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
