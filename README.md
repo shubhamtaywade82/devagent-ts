@@ -53,6 +53,7 @@ Plus anything registered via MCP servers (`agent.registerMcpServer(command, args
 ## Installation & CLI Usage
 
 ### Global CLI
+
 Install globally via npm:
 
 ```bash
@@ -101,7 +102,7 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 ## Environment Variables
 
 | Variable | Default | Description |
-|----------|---------|-------------|
+| ---------- | --------- | ------------- |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL (local tier) |
 | `OLLAMA_API_KEY` | — | Primary API key for cloud tier — first in the key pool |
 | `OLLAMA_API_KEYS` | — | Comma-separated extra Ollama Cloud keys (e.g. separate accounts). On a 429 `Provider` rotates to the next key and retries before giving up — this is for availability across your own accounts, not multi-vendor routing to other providers |

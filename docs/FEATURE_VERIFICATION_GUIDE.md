@@ -74,9 +74,11 @@ npm run dev
 ## 3. Verifying Session Trajectory Recording & Time Machine Replay
 
 1. Execute any multi-step coding task in DevAgent:
+
    ```bash
    devagent "Refactor provider architecture and run tests"
    ```
+
 2. Note the generated **Session ID** printed in the summary banner (e.g. `sess-172`).
 3. **Replay the Session Trajectory**:
    - Via TUI slash command: `/replay sess-172`
@@ -99,9 +101,11 @@ npm run dev
 ## 5. Verifying Secret & Path Redaction Safety
 
 1. Submit a prompt or file containing sensitive test tokens:
+
    ```text
    > Test API key: AKIAIOSFODNN7EXAMPLE and Bearer secret_token_12345
    ```
+
 2. **Verify Redaction**: Confirm that `src/safety/redact.ts` masks the key to `AKIA[REDACTED_AWS_KEY]` before logging or sending context to LLMs.
 3. **Verify Sensitive Path Policy**: Attempt to write or read `.env` or `id_rsa`. `src/safety/path-policy.ts` blocks unauthorized access.
 
