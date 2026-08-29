@@ -58,7 +58,14 @@ export function PromptBar({ text, ghost, width, busy, focused = true }: PromptBa
         <Text key={visibleLine}>
           {visibleLine}
           {focused ? <Text inverse> </Text> : <Text color="green">│</Text>}
-          <Text color="gray">{visibleGhost}</Text>
+          {text === "" && !visibleGhost ? (
+            <Text color="gray" dimColor>
+              {" "}
+              Type a message or / for commands...
+            </Text>
+          ) : (
+            <Text color="gray">{visibleGhost}</Text>
+          )}
         </Text>
       </Box>
     </Box>

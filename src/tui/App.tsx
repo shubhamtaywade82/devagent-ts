@@ -242,6 +242,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const pasteBufRef = useRef("");
   const pasteCountRef = useRef(0);
   const focusReportRef = useRef(false);
+  const lastCtrlCTimeRef = useRef(0);
 
   // Burst detection: some terminals split a multi-line paste into one
   // "data" event PER LINE, each ending in a lone \r that Ink reads as a
@@ -577,6 +578,27 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     if (pastingRef.current) return; // let the data handler manage paste content
     if (focusReportRef.current) return; // terminal focus in/out escape, not real text
     if (MOUSE_SGR_PATTERN.test(input)) return; // scroll/click artifact, never real text
+
+    // Double Ctrl+C to exit cleanly; single Ctrl+C clears prompt and warns
+    if (key.ctrl && (input === "c" || input === "\u0003")) {
+      const now = Date.now();
+      if (now - lastCtrlCTimeRef.current < 1500) {
+        exit();
+        return;
+      }
+      lastCtrlCTimeRef.current = now;
+      if (prompt.length > 0) {
+        setPrompt("");
+        setCompletionIndex(0);
+        history.stopBrowsing();
+      }
+      bus.publish({
+        type: "notification",
+        kind: "warning",
+        text: "Press Ctrl+C again within 1.5s to exit",
+      });
+      return;
+    }
 
     const now = Date.now();
     const gapSincePrev = now - lastInputAtRef.current;

@@ -580,16 +580,50 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
   }, []);
 
   if (blocks.length === 0) {
+    const cardWidth = Math.min(width - 4, 72);
     return (
       <Box height={rows} width={width} flexDirection="column" justifyContent="center" alignItems="center">
-        <Text bold color="cyan">
-          DevAgent
-        </Text>
-        <Box height={1} />
-        <Text color="gray">Type a message below to start a conversation.</Text>
-        <Text color="gray" dimColor>
-          /plan {"<goal>"} start a mission · / commands · Ctrl+P palette · 1-5 tabs
-        </Text>
+        <Box flexDirection="column" alignItems="center" width={cardWidth}>
+          <Box flexDirection="row" alignItems="center">
+            <Text bold color="cyan">
+              ⚡ DevAgent
+            </Text>
+            <Text color="gray" dimColor>
+              {" · "}Autonomous AI Coding Assistant
+            </Text>
+          </Box>
+          <Box height={1} />
+          <Text color="white" bold>
+            Type a message below to start a conversation.
+          </Text>
+          <Box height={1} />
+          <Box flexDirection="column" alignItems="flex-start">
+            <Box flexDirection="row">
+              <Text color="cyan" bold>
+                {"  /plan <goal>"}
+              </Text>
+              <Text color="gray"> Start a multi-step autonomous plan</Text>
+            </Box>
+            <Box flexDirection="row">
+              <Text color="cyan" bold>
+                {"  /model       "}
+              </Text>
+              <Text color="gray"> Switch local & cloud models (Ctrl+M)</Text>
+            </Box>
+            <Box flexDirection="row">
+              <Text color="cyan" bold>
+                {"  /help        "}
+              </Text>
+              <Text color="gray"> Show commands and keyboard shortcuts</Text>
+            </Box>
+            <Box flexDirection="row">
+              <Text color="cyan" bold>
+                {"  1 - 5        "}
+              </Text>
+              <Text color="gray"> Quick switch: Chat, Plan, Tasks, Changes, Logs</Text>
+            </Box>
+          </Box>
+        </Box>
       </Box>
     );
   }

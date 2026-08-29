@@ -163,12 +163,14 @@ describe("Provider streaming", () => {
   });
 
   it("accumulates chunks and fires onChunk callback", async () => {
-    (globalThis as any).fetch = jest.fn().mockResolvedValue(
-      streamOf([
-        JSON.stringify({ message: { role: "assistant", content: "he" }, done: false }) + "\n",
-        JSON.stringify({ message: { role: "assistant", content: "llo" }, done: true }) + "\n",
-      ]),
-    );
+    (globalThis as any).fetch = jest
+      .fn()
+      .mockResolvedValue(
+        streamOf([
+          JSON.stringify({ message: { role: "assistant", content: "he" }, done: false }) + "\n",
+          JSON.stringify({ message: { role: "assistant", content: "llo" }, done: true }) + "\n",
+        ]),
+      );
     const provider = new Provider({ tier: "local", model: "m", host: "http://127.0.0.1:1" });
 
     const chunks: string[] = [];

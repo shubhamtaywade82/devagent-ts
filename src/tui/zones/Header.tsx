@@ -12,7 +12,7 @@ export interface HeaderProps {
 // Matches the existing hardcoded-version convention already used elsewhere
 // in this codebase (src/lsp/client.ts, src/mcp/client.ts), not read from
 // package.json at runtime.
-const APP_VERSION = "v0.1.0";
+const APP_VERSION = "v1.0.0";
 
 function formatClock(now: number): string {
   const d = new Date(now);

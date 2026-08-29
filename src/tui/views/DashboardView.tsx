@@ -1,5 +1,5 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box } from "ink";
 import { ConversationView, ViewProps } from "./ConversationView.js";
 import { MissionPanel } from "../components/MissionPanel.js";
 import { ToolsPanel } from "../components/ToolsPanel.js";
@@ -24,16 +24,7 @@ const GAP = 1; // one blank column either side of each vertical divider
  */
 export function DashboardView({ state, width, rows, detail, now }: ViewProps): React.JSX.Element {
   if (width < MIN_WIDTH_FOR_DASHBOARD) {
-    return (
-      <Box flexDirection="column" width={width} height={rows}>
-        <Box height={1}>
-          <Text color="yellow" dimColor>
-            Resize to ≥{MIN_WIDTH_FOR_DASHBOARD} cols for the full dashboard.
-          </Text>
-        </Box>
-        <ConversationView state={state} width={width} rows={Math.max(1, rows - 1)} detail={detail} />
-      </Box>
-    );
+    return <ConversationView state={state} width={width} rows={rows} detail={detail} now={now} />;
   }
 
   const rails = railsForPhase(layoutPhase(state));

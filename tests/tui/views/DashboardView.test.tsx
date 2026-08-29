@@ -150,7 +150,7 @@ describe("DashboardView", () => {
   it("falls back to the plain conversation view below 130 cols", () => {
     const { lastFrame, unmount } = renderApp(100, 30);
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("Resize to");
+    expect(frame).toContain("Type a message below");
     expect(frame).not.toContain("ACTIVITY STREAM");
     unmount();
   });
