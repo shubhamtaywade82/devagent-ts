@@ -9,14 +9,17 @@ const DEFAULT_FEE_BPS = 10;
 // or maxHoldBars timeout. One position at a time (no pyramiding/overlap) —
 // ponytail: add position sizing/overlap if a strategy genuinely needs it.
 export function runBacktest(candles: Candle[], config: StrategyConfig): BacktestResult {
-  const series = buildIndicatorSeries(candles, config.entry);
-  const feeFraction = (config.feeBps ?? DEFAULT_FEE_BPS) / 10000;
-  const maxHold = config.maxHoldBars ?? DEFAULT_MAX_HOLD_BARS;
+  const entry = config?.entry ?? [];
+  const series = buildIndicatorSeries(candles, entry);
+  const feeFraction = (config?.feeBps ?? DEFAULT_FEE_BPS) / 10000;
+  const maxHold = config?.maxHoldBars ?? DEFAULT_MAX_HOLD_BARS;
+  const stopPct = config?.risk?.stopPct ?? 0.02;
+  const targetPct = config?.risk?.targetPct ?? 0.04;
   const trades: Trade[] = [];
 
   let i = 0;
   while (i < candles.length) {
-    if (!evaluateAll(config.entry, series, i)) {
+    if (!evaluateAll(entry, series, i)) {
       i++;
       continue;
     }
@@ -24,9 +27,9 @@ export function runBacktest(candles: Candle[], config: StrategyConfig): Backtest
     const entryIndex = i;
     const entryPrice = candles[entryIndex].close;
     const stopPrice =
-      config.direction === "long" ? entryPrice * (1 - config.risk.stopPct) : entryPrice * (1 + config.risk.stopPct);
+      config.direction === "long" ? entryPrice * (1 - stopPct) : entryPrice * (1 + stopPct);
     const targetPrice =
-      config.direction === "long" ? entryPrice * (1 + config.risk.targetPct) : entryPrice * (1 - config.risk.targetPct);
+      config.direction === "long" ? entryPrice * (1 + targetPct) : entryPrice * (1 - targetPct);
 
     let exitIndex = candles.length - 1;
     let exitPrice = candles[exitIndex].close;

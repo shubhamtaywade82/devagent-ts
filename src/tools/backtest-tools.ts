@@ -31,7 +31,7 @@ const CONDITION_SCHEMA = {
 const STRATEGY_SCHEMA = {
   type: "object",
   properties: {
-    direction: { type: "string", enum: ["long", "short"] },
+    direction: { type: "string", enum: ["long", "short"], description: "Trade direction: 'long' or 'short'" },
     entry: { type: "array", items: CONDITION_SCHEMA, description: "AND of conditions — all must be true to enter" },
     risk: {
       type: "object",
@@ -43,6 +43,53 @@ const STRATEGY_SCHEMA = {
   },
   required: ["direction", "entry", "risk"],
 };
+
+export function validateStrategy(
+  strategy: unknown,
+): { valid: true; config: StrategyConfig } | { valid: false; error: string; message: string } {
+  if (!strategy || typeof strategy !== "object" || Array.isArray(strategy)) {
+    return {
+      valid: false,
+      error: "InvalidStrategy",
+      message:
+        "strategy must be an object with { direction: 'long'|'short', entry: [...], risk: { stopPct: number, targetPct: number } }. " +
+        'Example: {"direction": "long", "entry": [{"type": "rsi_below", "value": 40}], "risk": {"stopPct": 0.02, "targetPct": 0.04}}',
+    };
+  }
+  const s = strategy as Record<string, unknown>;
+  if (s.direction !== "long" && s.direction !== "short") {
+    return {
+      valid: false,
+      error: "InvalidStrategyDirection",
+      message: "strategy.direction must be 'long' or 'short'",
+    };
+  }
+  if (!Array.isArray(s.entry) || s.entry.length === 0) {
+    return {
+      valid: false,
+      error: "InvalidStrategyEntry",
+      message:
+        "strategy.entry must be a non-empty array of condition objects. " +
+        'Supported types: "rsi_below", "rsi_above", "price_above_sma", "price_below_sma", "price_above_ema", "price_below_ema", "macd_bullish_cross", "macd_bearish_cross", "bollinger_touch_lower", "bollinger_touch_upper".',
+    };
+  }
+  if (!s.risk || typeof s.risk !== "object" || Array.isArray(s.risk)) {
+    return {
+      valid: false,
+      error: "InvalidStrategyRisk",
+      message: "strategy.risk must be an object with { stopPct: number, targetPct: number } (e.g. { stopPct: 0.02, targetPct: 0.04 })",
+    };
+  }
+  const r = s.risk as Record<string, unknown>;
+  if (typeof r.stopPct !== "number" || typeof r.targetPct !== "number") {
+    return {
+      valid: false,
+      error: "InvalidStrategyRiskValues",
+      message: "strategy.risk.stopPct and strategy.risk.targetPct must be numbers. Example: { stopPct: 0.02, targetPct: 0.04 }",
+    };
+  }
+  return { valid: true, config: s as unknown as StrategyConfig };
+}
 
 async function fetchCandles(
   symbol: string,
@@ -112,7 +159,9 @@ export class BinanceBacktestTool extends Tool {
     const market = typeof args.market === "string" ? args.market : undefined;
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 500) || 500, 1000);
-    const strategy = args.strategy as StrategyConfig;
+    const val = validateStrategy(args.strategy);
+    if (!val.valid) return { error: val.error, message: val.message };
+    const strategy = val.config;
 
     const fetched = await fetchCandles(symbol, interval, limit, market);
     if ("error" in fetched) return fetched;
@@ -171,7 +220,9 @@ export class BinanceWalkForwardTool extends Tool {
     const market = typeof args.market === "string" ? args.market : undefined;
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 500) || 500, 1000);
-    const strategy = args.strategy as StrategyConfig;
+    const val = validateStrategy(args.strategy);
+    if (!val.valid) return { error: val.error, message: val.message };
+    const strategy = val.config;
     const folds = Number(args.folds ?? 4) || 4;
 
     const fetched = await fetchCandles(symbol, interval, limit, market);
@@ -231,7 +282,9 @@ export class BinanceMonteCarloTool extends Tool {
     const market = typeof args.market === "string" ? args.market : undefined;
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 500) || 500, 1000);
-    const strategy = args.strategy as StrategyConfig;
+    const val = validateStrategy(args.strategy);
+    if (!val.valid) return { error: val.error, message: val.message };
+    const strategy = val.config;
     const simulations = Number(args.simulations ?? 1000) || 1000;
 
     const fetched = await fetchCandles(symbol, interval, limit, market);
@@ -299,7 +352,9 @@ export class BinanceParamSweepTool extends Tool {
     const market = typeof args.market === "string" ? args.market : undefined;
     const interval = typeof args.interval === "string" ? args.interval : "1h";
     const limit = Math.min(Number(args.limit ?? 500) || 500, 1000);
-    const strategy = args.strategy as StrategyConfig;
+    const val = validateStrategy(args.strategy);
+    if (!val.valid) return { error: val.error, message: val.message };
+    const strategy = val.config;
     const ranges = args.ranges as ParamRange[];
 
     const fetched = await fetchCandles(symbol, interval, limit, market);
