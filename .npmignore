@@ -1,0 +1,16 @@
+src/
+tests/
+node_modules/
+.github/
+.devagent/
+.gitignore
+.eslintrc*
+.prettierrc*
+jest.config.js
+tsconfig*.json
+tsx.config.*
+*.map
+__pycache__/
+.env
+.env.*
+*.tgz

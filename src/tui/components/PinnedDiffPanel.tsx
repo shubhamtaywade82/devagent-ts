@@ -84,7 +84,7 @@ export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDi
         else if (line.startsWith("@")) color = "cyan";
         return (
           <Box key={i} height={1}>
-            <Text color={color as any} wrap="truncate">
+            <Text color={color} wrap="truncate">
               {line}
             </Text>
           </Box>

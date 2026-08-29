@@ -32,6 +32,7 @@ import { LocalWorker } from "../provider/local-worker.js";
 import { Verifier } from "../provider/verifier.js";
 import { SelfConsistency } from "../provider/self-consistency.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
+import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
 
 // Confirmation gate for irreversible actions — a UX safety net, not a
 // security boundary (Docker sandboxing already bounds worst-case blast
@@ -373,11 +374,11 @@ export class Agent {
     // unless the configured primary is cloud, see below) — kept as a
     // runUserMessage param for AgentStepRunner/Orchestrator interface
     // compatibility.
-    const escalationHint = this.detectEscalationHint(userMessage);
+    const escalationHint = detectEscalationHint(userMessage);
     // Lookup-style prompts ("where is X defined?") NEED a tool call (search/read)
     // to answer correctly; a small model that just prose-answers instead is wrong,
     // not merely low-quality. Verified below: escalate once if that happens.
-    const requiresToolEvidence = Agent.LOOKUP_PATTERN.test(userMessage.toLowerCase());
+    const requiresToolEvidence = isLookupPrompt(userMessage);
     // Local to this call, not a class field: AgentStepRunner reuses the same Agent
     // across plan steps and retries, each via a fresh runUserMessage call — a class
     // field would leak escalation state across unrelated steps/retries.
@@ -488,7 +489,7 @@ export class Agent {
         const makeChatOpts = () => ({
           stream: true,
           tools: activeTools.length > 0 ? activeTools.map((t) => t.schema) : undefined,
-          onChunk: (chunk: any) => {
+          onChunk: (chunk: ChatResponse) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
               if (buffered) buffered.push(delta);
@@ -497,7 +498,7 @@ export class Agent {
                 this.emit("onAssistantText", delta);
               }
             }
-            const thinking = (chunk.message as any)?.thinking;
+            const thinking = (chunk.message as { role: string; content: string; thinking?: string; tool_calls?: unknown[] })?.thinking;
             if (typeof thinking === "string" && thinking) {
               this.emit("onThinking", thinking);
             }
@@ -817,7 +818,6 @@ export class Agent {
    * switcher fell back to name-based inferCapabilities() guesses for it. */
   private static readonly CATALOG_TTL_MS = 60_000;
   private catalogRefreshedAt = 0;
-
   private ensureCatalog(): Promise<void> {
     // An empty catalog is never worth caching — it means discovery failed, not
     // that the user genuinely has no models.
@@ -880,8 +880,8 @@ export class Agent {
     }
   }
 
-  setTier(tier: string): void {
-    this.provider.setTier(tier as any);
+  setTier(tier: "local" | "cloud"): void {
+    this.provider.setTier(tier);
   }
 
   setRuntimeHost(host: string): void {

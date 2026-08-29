@@ -2,8 +2,23 @@ import { readFile, writeFile, rename, unlink, mkdir, stat } from "node:fs/promis
 import { dirname } from "node:path";
 import { Tool } from "./tool.js";
 import { resolveWorkspacePath, PathEscapeError } from "./path-utils.js";
+import { isSensitivePath } from "../safety/path-policy.js";
 
 export { PathEscapeError };
+
+/**
+ * Error thrown when a tool attempts to read or write a sensitive file
+ * (e.g. .env, credentials, private keys) that should not be exposed
+ * to the agent. This is a UX safety net, not a security boundary —
+ * the Docker sandbox and path containment already bound worst-case
+ * blast radius.
+ */
+export class SensitivePathError extends Error {
+  constructor(public readonly path: string, public readonly reason: string) {
+    super(`access to sensitive path blocked: ${path} (${reason})`);
+    this.name = "SensitivePathError";
+  }
+}
 
 export class ReadFileTool extends Tool {
   // The result is fed straight back into the model as a tool message, so this
@@ -39,6 +54,9 @@ export class ReadFileTool extends Tool {
 
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const relPath = args.path as string;
+    if (isSensitivePath(relPath)) {
+      throw new SensitivePathError(relPath, "reading sensitive files is not allowed");
+    }
     const path = resolveWorkspacePath(this.root, relPath);
 
     // Read as bytes and cut on a byte boundary, then decode — slicing the
@@ -88,6 +106,9 @@ export class WriteFileTool extends Tool {
   async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const relPath = args.path as string;
     const content = args.content as string;
+    if (isSensitivePath(relPath)) {
+      throw new SensitivePathError(relPath, "writing sensitive files is not allowed");
+    }
     const path = resolveWorkspacePath(this.root, relPath);
     await mkdir(dirname(path), { recursive: true });
 

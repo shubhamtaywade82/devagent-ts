@@ -1,10 +1,13 @@
 import { PaperTradingManager } from "../../src/exchange/paper-trading.js";
 import { BinanceStreamManager } from "../../src/exchange/binance-stream.js";
 
+const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
+const describeIfNetwork = skipNetwork ? describe.skip : describe;
+
 // Real WebSocket + real live BTCUSDT price — this manager never touches a
 // real exchange (no order placement, no keys), it just marks simulated
 // positions against the same live ticker feed the watch/alert tools use.
-describe("PaperTradingManager (real network)", () => {
+describeIfNetwork("PaperTradingManager (real network)", () => {
   let stream: BinanceStreamManager;
   let paper: PaperTradingManager;
 

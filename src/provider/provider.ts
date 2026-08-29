@@ -29,7 +29,7 @@ export interface OllamaToolSchema {
 }
 
 export interface ChatResponse {
-  message: { role: string; content: string; tool_calls?: unknown[] };
+  message: { role: string; content: string; tool_calls?: unknown[]; thinking?: string };
   done: boolean;
   /** Which tier/model actually served this response — stamped by Router.route,
    * since its candidate list can silently widen past whatever capability was
@@ -231,8 +231,8 @@ export class Provider {
         if (chunk.message.content) {
           accumulatedContent += chunk.message.content;
         }
-        if ((chunk.message as any).thinking) {
-          accumulatedThinking += (chunk.message as any).thinking;
+        if (chunk.message.thinking) {
+          accumulatedThinking += chunk.message.thinking;
         }
         if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
           accumulatedToolCalls.push(...chunk.message.tool_calls);
@@ -314,7 +314,7 @@ export class Provider {
       content: accumulatedContent,
     };
     if (accumulatedThinking) {
-      (final.message as any).thinking = accumulatedThinking;
+      final.message.thinking = accumulatedThinking;
     }
     if (accumulatedToolCalls.length > 0) {
       final.message.tool_calls = accumulatedToolCalls;

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Box, Text, useApp, useInput, useStdout } from "ink";
-import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { EventBus } from "../runtime/events.js";
 import { Store } from "../runtime/store.js";
@@ -9,7 +9,7 @@ import { activeViewRows, densityForWidth, detailForDensity, MAX_COMPLETION_ROWS 
 import { resolveKey, UiCommand } from "../interaction/keybindings.js";
 import { MOUSE_SGR_PATTERN } from "../interaction/mouse.js";
 import { initialUiState, uiReduce } from "../interaction/ui-state.js";
-import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
+import { builtinCommands, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
 import { HistoryManager } from "../interaction/history.js";
 import { acceptWord, completions, ghostSuffix, isNoOpCompletion } from "../interaction/completion.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
@@ -48,11 +48,12 @@ import { SessionMeta } from "../runtime/session.js";
 import { ToolPaletteOverlay, ToolInfo } from "./overlays/ToolPaletteOverlay.js";
 import { Sidebar, ToolCategoryCount } from "./zones/Sidebar.js";
 import { SkillsRegistry } from "../skills/registry.js";
+import { useCommandEffects } from "./hooks/useCommandEffects.js";
 
 export interface ShellAgent {
   runUserMessage(message: string): Promise<unknown>;
   setModel?(model: string): void;
-  setTier?(tier: string): void;
+  setTier?(tier: "local" | "cloud"): void;
   resetContext?(): void;
   resumeSession?(): Array<{ role: string; content: string }> | null;
   resumeSessionById?(id: string): Array<{ role: string; content: string }> | null;
@@ -122,22 +123,32 @@ const VIEW_LABELS: Record<ViewId, string> = {
   timeline: "Timeline",
 };
 
-function useTerminalSize(columns?: number, rows?: number): { width: number; height: number } {
+/**
+ * Terminal size tracker. When both dimensions are provided (always the case
+ * in tests and when the TUI bootstrap passes explicit values), we skip
+ * useStdout() entirely to avoid Ink's internal stdout listener keeping
+ * test processes alive.
+ */
+function TerminalSizeListener({ onSize, rows }: { onSize: (w: number, h: number) => void; rows?: number }) {
   const { stdout } = useStdout();
-  const [size, setSize] = useState({
-    width: columns ?? stdout?.columns ?? 100,
-    height: rows ?? stdout?.rows ?? 30,
-  });
   useEffect(() => {
-    if (columns != null && rows != null) return;
     if (!stdout) return;
-    const onResize = () => setSize({ width: columns ?? stdout.columns ?? 100, height: rows ?? stdout.rows ?? 30 });
+    const onResize = () => onSize(stdout.columns, rows ?? stdout.rows);
     stdout.on("resize", onResize);
-    return () => {
-      stdout.off("resize", onResize);
-    };
-  }, [stdout, columns, rows]);
-  return columns != null && rows != null ? { width: columns, height: rows } : size;
+    return () => { stdout.off("resize", onResize); };
+  }, [stdout, onSize, rows]);
+  return null;
+}
+
+function useTerminalSize(columns?: number, rows?: number) {
+  const [size, setSize] = useState({
+    width: columns ?? 100,
+    height: rows ?? 30,
+  });
+  const onSize = useCallback((w: number, h: number) => setSize({ width: w, height: h }), []);
+  const needsListener = columns == null || rows == null;
+  const listener = needsListener ? <TerminalSizeListener onSize={onSize} rows={rows} /> : null;
+  return { ...size, listener };
 }
 
 // Ink 3 bundles a React 17-era reconciler without useSyncExternalStore,
@@ -199,7 +210,7 @@ function useRuntimeState(store: Store): RuntimeState {
 export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const state = useRuntimeState(store);
-  const { width, height } = useTerminalSize(columns, rows);
+  const { width, height, listener: sizeListener } = useTerminalSize(columns, rows);
   const [ui, uiDispatch] = useReducer(uiReduce, undefined, initialUiState);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -449,238 +460,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const showViewTitle = ui.activeView !== "dashboard";
   const contentRows = Math.max(2, viewRows - 1);
 
-  const applyEffect = useCallback(
-    async (effect: CommandEffect): Promise<void> => {
-      switch (effect.kind) {
-        case "message":
-          bus.publish({ type: "conversation.message", role: "system", text: effect.text });
-          break;
-        case "open-overlay":
-          uiDispatch({ type: "open-overlay", overlay: effect.overlay });
-          break;
-        case "focus-view":
-          uiDispatch({ type: "focus-view", view: effect.view });
-          break;
-        case "clear-conversation":
-          bus.publish({ type: "conversation.clear" });
-          break;
-        case "set-model": {
-          const previous = store.getState().model.name;
-          if (effect.model === previous) break;
-          agent?.setModel?.(effect.model);
-          bus.publish({ type: "model.changed", name: effect.model });
-          if (!agent?.validateModel) {
-            bus.publish({ type: "notification", kind: "success", text: `Model: ${effect.model}` });
-            break;
-          }
-          bus.publish({ type: "notification", kind: "info", text: `Validating ${effect.model}…` });
-          const result = await agent.validateModel();
-          if (result === true) {
-            bus.publish({ type: "notification", kind: "success", text: `Model: ${effect.model}` });
-          } else {
-            agent?.setModel?.(previous);
-            bus.publish({ type: "model.changed", name: previous });
-            bus.publish({ type: "notification", kind: "error", text: `${effect.model} ${result}` });
-          }
-          break;
-        }
-        case "set-tier": {
-          const previousTier = store.getState().model.provider;
-          if (effect.tier === previousTier) break;
-          agent?.setTier?.(effect.tier);
-          setModels(null); // invalidate the Ctrl+M cache — it belongs to the old tier
-          setModelAvailability({});
-          setModelCapabilities({});
-          bus.publish({ type: "model.changed", name: store.getState().model.name, provider: effect.tier });
-          bus.publish({ type: "notification", kind: "success", text: `Tier: ${effect.tier}` });
-          break;
-        }
-        case "activate-skill": {
-          const registry = agent?.getSkillsRegistry?.();
-          const meta = registry?.get(effect.id);
-          if (!meta) {
-            bus.publish({ type: "notification", kind: "error", text: `Unknown skill: ${effect.id}` });
-            break;
-          }
-          agent?.pinSkill?.(effect.id);
-          bus.publish({ type: "notification", kind: "success", text: `Skill pinned: ${meta.name}` });
-          break;
-        }
-        case "init-workspace": {
-          const root = workspaceRoot ?? process.cwd();
-          const dir = join(root, ".devagent");
-          mkdirSync(join(dir, "skills"), { recursive: true });
-          writeFileSync(
-            join(dir, "config.json"),
-            JSON.stringify(
-              {
-                model: store.getState().model.name,
-                tier: store.getState().model.provider,
-                host: process.env.OLLAMA_HOST || null,
-              },
-              null,
-              2,
-            ),
-          );
-          bus.publish({ type: "notification", kind: "success", text: `.devagent/ created in ${dir}` });
-
-          const agentsPath = join(root, "AGENTS.md");
-          if (!existsSync(agentsPath) && agent) {
-            const initPrompt = [
-              `I just initialized DevAgent in \`${root}\`. Create \`AGENTS.md\` at the project root — this file tells future DevAgent sessions how to work with this codebase.`,
-              "",
-              "First explore the project (read key configs, understand the structure, check the tech stack, testing setup, linting rules, build system, etc).",
-              "Then write `AGENTS.md` using the write_file tool. Cover:",
-              "- Project purpose (brief)",
-              "- Tech stack (language, framework, runtime)",
-              "- Testing framework and how to run tests",
-              "- Linting/formatting conventions",
-              "- Build system and commands",
-              "- Key directory structure",
-              "- Any notable architecture decisions or conventions you observe",
-              "",
-              "Only create the file if you can successfully explore the project first. Be thorough.",
-            ].join("\n");
-            bus.publish({ type: "conversation.message", role: "user", text: initPrompt });
-            setBusy(true);
-            bus.publish({ type: "mode.changed", mode: "streaming" });
-            agent
-              .runUserMessage(initPrompt)
-              .catch(() => {})
-              .finally(() => {
-                setBusy(false);
-                bus.publish({ type: "model.streaming", streaming: false });
-                bus.publish({ type: "mode.changed", mode: "idle" });
-              });
-          }
-          break;
-        }
-        case "reset-context":
-          agent?.resetContext?.();
-          bus.publish({ type: "notification", kind: "info", text: "Context reset" });
-          break;
-        case "resume-session":
-        case "resume-session-by-id": {
-          const restored =
-            effect.kind === "resume-session-by-id" ? agent?.resumeSessionById?.(effect.id) : agent?.resumeSession?.();
-          if (!restored || restored.length === 0) {
-            bus.publish({ type: "notification", kind: "info", text: "No previous session to resume" });
-            break;
-          }
-          bus.publish({ type: "conversation.clear" });
-          for (const m of restored) {
-            if (m.role !== "user" && m.role !== "assistant") continue; // skip system/tool noise in the log
-            if (!m.content) continue;
-            bus.publish({ type: "conversation.message", role: m.role, text: m.content });
-          }
-          bus.publish({
-            type: "notification",
-            kind: "success",
-            text: `Resumed session (${restored.length} messages)`,
-          });
-          break;
-        }
-        case "toggle-sidebar":
-          uiDispatch({ type: "toggle-sidebar" });
-          break;
-        case "run-plan": {
-          if (!effect.goal && !agent?.hasResumablePlan?.()) {
-            bus.publish({ type: "notification", kind: "error", text: "Usage: /plan <task description>" });
-            break;
-          }
-          bus.publish({
-            type: "notification",
-            kind: "info",
-            text: effect.goal ? `Planning: ${effect.goal}` : "Resuming interrupted plan…",
-          });
-          agent
-            ?.runPlan?.(effect.goal)
-            .catch((e: unknown) =>
-              bus.publish({
-                type: "notification",
-                kind: "error",
-                text: `Plan failed: ${e instanceof Error ? e.message : String(e)}`,
-              }),
-            );
-          break;
-        }
-        case "set-theme":
-          bus.publish({ type: "theme.changed", theme: effect.theme });
-          bus.publish({ type: "notification", kind: "info", text: `Theme: ${effect.theme}` });
-          break;
-        case "next-theme": {
-          const order = ["default", "midnight", "solarized"] as const;
-          const next = order[(order.indexOf(state.theme) + 1) % order.length];
-          bus.publish({ type: "theme.changed", theme: next });
-          bus.publish({ type: "notification", kind: "info", text: `Theme: ${next}` });
-          break;
-        }
-        case "show-tool-info": {
-          const tool = agent?.getTools?.().find((t) => t.name === effect.name);
-          bus.publish({
-            type: "notification",
-            kind: "info",
-            text: tool ? `${tool.name} (${tool.category}): ${tool.description}` : `Unknown tool: ${effect.name}`,
-          });
-          break;
-        }
-        case "learn":
-          if (agent && agent.addLearning) {
-            agent.addLearning("user_preference", "user explicitly typed /learn", effect.rule);
-            bus.publish({
-              type: "notification",
-              kind: "success",
-              text: `Learned: ${effect.rule.slice(0, 40)}${effect.rule.length > 40 ? "..." : ""}`,
-            });
-          } else {
-            bus.publish({ type: "notification", kind: "error", text: "Learning not supported by agent" });
-          }
-          break;
-        case "set-agent-mode": {
-          const valid = ["ask", "code", "architect", "review", "debug", "autonomous"];
-          if (valid.includes(effect.mode)) {
-            bus.publish({ type: "mode.agent", mode: effect.mode as any });
-            bus.publish({ type: "notification", kind: "info", text: `Mode: ${effect.mode}` });
-          }
-          break;
-        }
-        case "run-shell": {
-          bus.publish({ type: "conversation.message", role: "user", text: `Run: ${effect.command}` });
-          if (agent) {
-            setBusy(true);
-            bus.publish({ type: "mode.changed", mode: "streaming" });
-            agent.runUserMessage(`Run the following shell command and show me the output:\n\n${effect.command}`)
-              .catch(() => {})
-              .finally(() => {
-                setBusy(false);
-                bus.publish({ type: "model.streaming", streaming: false });
-                bus.publish({ type: "mode.changed", mode: "idle" });
-              });
-          }
-          break;
-        }
-        case "search":
-          uiDispatch({ type: "open-overlay", overlay: "search" });
-          break;
-        case "next-mode": {
-          const modeList = ["ask", "code", "architect", "review", "debug", "autonomous"];
-          const current = store.getState().agentMode;
-          const idx = modeList.indexOf(current);
-          const next = modeList[(idx + 1) % modeList.length];
-          bus.publish({ type: "mode.agent", mode: next as any });
-          bus.publish({ type: "notification", kind: "info", text: `Mode: ${next}` });
-          break;
-        }
-        case "quit":
-          exit();
-          break;
-        case "error":
-          bus.publish({ type: "notification", kind: "error", text: effect.text });
-          break;
-      }
-    },
-    [agent, bus, exit, setBusy, store],
-  );
+  const applyEffect = useCommandEffects(bus, store, agent, workspaceRoot, setBusy, uiDispatch);
 
   const submitPrompt = useCallback(
     (text: string): void => {
@@ -920,6 +700,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
 
   return (
     <Box flexDirection="column" width={width} height={height}>
+      {sizeListener}
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
         <Box height={1}>

@@ -4,6 +4,10 @@ export default {
   testEnvironment: "node",
   roots: ["<rootDir>/tests"],
   setupFiles: ["<rootDir>/tests/jest.setup.js"],
+  testTimeout: 30_000,
+  // Ink's React reconciler can leave async handles open after tests finish;
+  // forceExit ensures the Jest process exits cleanly.
+  forceExit: true,
   extensionsToTreatAsEsm: [".ts", ".tsx"],
   // Source imports use explicit .js extensions (required for the real ESM
   // build); strip them back off so Jest's resolver finds the .ts source.
@@ -11,7 +15,10 @@ export default {
     "^(\\.{1,2}/.*)\\.js$": "$1",
   },
   transform: {
-    "^.+\\.tsx?$": [
+    // Include .js so the setup file (which uses ESM import) is transformed
+    // through ts-jest instead of being loaded raw, which fails under
+    // --experimental-vm-modules when setupFiles doesn't go through transforms.
+    "^.+\\.(tsx?|js)$": [
       "ts-jest",
       {
         useESM: true,

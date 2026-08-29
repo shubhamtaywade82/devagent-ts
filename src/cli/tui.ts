@@ -5,11 +5,17 @@ import * as path from "node:path";
 import chalk from "chalk";
 import ora from "ora";
 import boxen from "boxen";
-import { marked } from "marked";
+import { marked, Renderer } from "marked";
 import TerminalRenderer from "marked-terminal";
 
 import { Agent } from "./agent.js";
 import { CliConfig, loadConfig } from "./config.js";
+
+/** Node.js readline.Interface exposes a non-standard `history` array at runtime,
+ *  but the TypeScript declarations omit it. This extension bridges the gap. */
+interface ReadlineInterfaceWithHistory extends readline.Interface {
+  history: string[];
+}
 
 // Setup marked terminal styling for premium aesthetics
 marked.setOptions({
@@ -23,7 +29,7 @@ marked.setOptions({
     href: chalk.blue.underline,
     listitem: (text: string) => ` • ${text}`,
     tab: 2,
-  }) as any,
+  }) as unknown as InstanceType<typeof Renderer>,
 });
 
 async function listModels(host: string | undefined, tier: string): Promise<string[]> {
@@ -93,7 +99,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         });
         if (resp.status === 429) return [m, true];
         if (resp.status === 200) {
-          const body = await resp.json() as any;
+          const body = (await resp.json()) as { error?: string };
           const errMsg = typeof body?.error === "string" ? body.error : "";
           if (errMsg.includes("subscription") || errMsg.includes("upgrade")) return [m, false];
           return [m, true];
@@ -161,9 +167,12 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
         if (typeof result === "string") outcome = `${result.split("\n").length} lines read`;
         else if (result && result.error) { outcome = String(result.error); isError = true; }
       } else if (name === "write_file") {
-        const resObj = result as any;
-        if (resObj && resObj.error) { outcome = String(resObj.error); isError = true; }
-        else outcome = "written successfully";
+        if (typeof result === "object" && result !== null && "error" in result) {
+          outcome = String(result.error);
+          isError = true;
+        } else {
+          outcome = "written successfully";
+        }
       } else if (name === "run_shell") {
         if (result && typeof result === "object") {
           const code = result.exitCode as number;
@@ -244,7 +253,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
   // Assign history and ensure uniqueness
   const seenHistory = new Set<string>();
-  (rl as any).history = initialHistory.filter((item) => {
+  (rl as ReadlineInterfaceWithHistory).history = initialHistory.filter((item) => {
     const trimmed = item.trim();
     if (seenHistory.has(trimmed)) return false;
     seenHistory.add(trimmed);
@@ -254,7 +263,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   const saveHistory = () => {
     try {
       const seen = new Set<string>();
-      const uniqueHistory = ((rl as any).history as string[]).filter((item) => {
+      const uniqueHistory = (rl as ReadlineInterfaceWithHistory).history.filter((item) => {
         const trimmed = item.trim();
         if (!trimmed || trimmed.startsWith("/") || seen.has(trimmed)) {
           return false;
@@ -406,7 +415,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
           rl.prompt();
           return;
         }
-        (agent as any).provider.setTier?.(tierValue);
+        agent.setTier(tierValue as "local" | "cloud");
         console.log(chalk.green(`✔ Switched tier to: ${chalk.bold(tierValue)}`));
         updatePrompt();
         rl.prompt();
@@ -420,7 +429,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
           rl.prompt();
           return;
         }
-        (agent as any).provider.setRuntimeHost?.(hostValue);
+        agent.setRuntimeHost(hostValue);
         console.log(chalk.green(`✔ Switched host to: ${chalk.bold(hostValue)}`));
         updatePrompt();
         rl.prompt();

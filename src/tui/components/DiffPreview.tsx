@@ -26,7 +26,7 @@ export function DiffPreview({ entry, collapsed, onToggle, width }: DiffPreviewPr
           else if (line.startsWith("@")) color = "cyan";
           return (
             <Box key={i} height={1}>
-              <Text color={color as any}>{line}</Text>
+              <Text color={color}>{line}</Text>
             </Box>
           );
         })}
