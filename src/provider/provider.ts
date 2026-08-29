@@ -1,3 +1,15 @@
+import {
+  OllamaClient,
+  OllamaRateLimitError,
+  OllamaTimeoutError,
+  OllamaAbortError,
+  OllamaClientError,
+  type ChatResponse as SdkChatResponse,
+  type ChatRequestOptions,
+  type Message as OllamaMessage,
+  type ToolDefinition as OllamaToolDef,
+} from "@nemesis-oss/ollama-sdk";
+
 export class RateLimitError extends Error {}
 export class ProviderError extends Error {}
 export class TimeoutError extends Error {}
@@ -29,7 +41,7 @@ export interface OllamaToolSchema {
 }
 
 export interface ChatResponse {
-  message: { role: string; content: string; tool_calls?: unknown[] };
+  message: { role: string; content: string; tool_calls?: unknown[]; thinking?: string };
   done: boolean;
   /** Which tier/model actually served this response — stamped by Router.route,
    * since its candidate list can silently widen past whatever capability was
@@ -59,6 +71,14 @@ export interface ProviderOptions {
   timeoutMs?: number;
 }
 
+/**
+ * Thin adapter over `@nemesis-oss/ollama-sdk`, preserving the exact public contract
+ * this class had when it hand-rolled `fetch` calls directly: same methods,
+ * same error classes, same secret redaction, same per-tier timeout
+ * semantics. Retries are intentionally left at 0 here — `Router` (see
+ * router.ts) owns cross-tier fallback policy; retrying within a single tier
+ * before Router ever sees the failure would just slow that fallback down.
+ */
 export class Provider {
   private tier: Tier;
   private model: string;
@@ -66,6 +86,7 @@ export class Provider {
   private readonly apiKeys: string[];
   private apiKeyIndex = 0;
   private readonly timeoutMs: number;
+  private client: OllamaClient;
 
   constructor(opts: ProviderOptions) {
     this.tier = opts.tier;
@@ -75,7 +96,25 @@ export class Provider {
       (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
     this.apiKeys = opts.apiKeys && opts.apiKeys.length > 0 ? opts.apiKeys : opts.apiKey ? [opts.apiKey] : [];
     // Cloud has a 60s connect timeout; local has no timeout — never kill a running generation.
+    // (@nemesis-oss/ollama-sdk's timeoutMs bounds time-to-first-byte: the internal
+    // HttpClient clears its timer once the response headers arrive, before any
+    // streaming body is read — matching our prior connect-only timeout behavior.)
     this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 0);
+    this.client = this.buildClient();
+  }
+
+  private buildClient(): OllamaClient {
+    return new OllamaClient({
+      baseUrl: this.host,
+      apiKey: this.tier === "cloud" ? this.currentApiKey : undefined,
+      timeoutMs: this.timeoutMs > 0 ? this.timeoutMs : undefined,
+      retries: 0,
+    });
+  }
+
+  /** Returns the current API key from the pool (for cloud tier). */
+  private get currentApiKey(): string | undefined {
+    return this.apiKeys.length > 0 ? this.apiKeys[this.apiKeyIndex] : undefined;
   }
 
   get currentModel(): string {
@@ -92,10 +131,19 @@ export class Provider {
 
   setTier(tier: Tier): void {
     this.tier = tier;
+    // Host may need to change (e.g. cloud ↔ local). Rebuild if the host is default-derived.
+    this.host =
+      tier === "cloud"
+        ? this.host.replace(/^https?:\/\/localhost:\d+/, "https://ollama.com") || "https://ollama.com"
+        : this.host === "https://ollama.com"
+          ? process.env.OLLAMA_HOST ?? "http://localhost:11434"
+          : this.host;
+    this.client = this.buildClient();
   }
 
   setRuntimeHost(host: string): void {
     this.host = host;
+    this.client = this.buildClient();
   }
 
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {
@@ -103,183 +151,163 @@ export class Provider {
       throw new ProviderError("missing apiKey for cloud chat");
     }
 
-    const body: Record<string, unknown> = { model: this.model, messages, stream: opts.stream ?? false };
-    if (opts.tools) body.tools = opts.tools;
+    const wantStream = opts.stream ?? false;
+
+    // Convert our ChatMessage[] → SDK Message[] (shape-compatible, just need readonly cast)
+    const sdkMessages = messages as readonly OllamaMessage[];
+
+    // Convert OllamaToolSchema[] → SDK ToolDefinition[] (structurally identical)
+    const sdkTools = opts.tools as readonly OllamaToolDef[] | undefined;
+
+    const req: ChatRequestOptions = {
+      model: this.model,
+      messages: sdkMessages,
+      stream: wantStream,
+      tools: sdkTools,
+    };
 
     // Cloud with multiple keys: rotate to the next key on a 429 and retry
     // before giving up — resilience across your own accounts, not a router.
     const maxAttempts = this.tier === "cloud" ? this.apiKeys.length : 1;
 
+    let lastError: unknown;
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
-      if (this.tier === "cloud") headers.Authorization = `Bearer ${this.apiKeys[this.apiKeyIndex]}`;
-
-      let resp: Response;
-      if (this.tier === "local" || this.timeoutMs === 0) {
-        // Local: no timeout at all — let the model take as long as it needs.
-        resp = await fetch(`${this.host}/api/chat`, {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-        });
-      } else {
-        // Cloud: use a connect timeout only for the initial HTTP response headers.
-        // Once headers arrive the stream is open; we cancel the abort so the body
-        // reads freely without a hard deadline.
-        const connectAbort = new AbortController();
-        const connectTimer = setTimeout(
-          () => connectAbort.abort(new TimeoutError(`connect timeout after ${this.timeoutMs}ms`)),
-          this.timeoutMs,
-        );
-        try {
-          resp = await fetch(`${this.host}/api/chat`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify(body),
-            signal: connectAbort.signal,
-          });
-        } finally {
-          clearTimeout(connectTimer);
+      try {
+        if (wantStream) {
+          return await this.handleStream(req, opts.onChunk);
+        } else {
+          return this.toProviderResponse(await this.client.chat({ ...req, stream: false } as ChatRequestOptions & { stream?: false }) );
         }
-      }
-
-      if (resp.status === 429) {
-        if (attempt < maxAttempts - 1) {
-          this.apiKeyIndex = (this.apiKeyIndex + 1) % this.apiKeys.length;
-          continue;
+      } catch (error) {
+        lastError = error;
+        if (error instanceof OllamaRateLimitError && this.tier === "cloud") {
+          if (attempt < maxAttempts - 1) {
+            this.apiKeyIndex = (this.apiKeyIndex + 1) % this.apiKeys.length;
+            this.client = this.buildClient();
+            continue;
+          }
+          throw new RateLimitError(
+            `${this.model} (${this.tier}) rate limited on all ${this.apiKeys.length} key(s)`,
+          );
         }
-        throw new RateLimitError(`${this.model} (${this.tier}) rate limited on all ${this.apiKeys.length} key(s)`);
+        throw this.mapError(error);
       }
-      if (!resp.ok) {
-        throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${redactSecrets(await resp.text())}`);
-      }
-
-      return opts.stream ? this.streamChunks(resp, opts.onChunk) : ((await resp.json()) as ChatResponse);
     }
 
-    // Unreachable: maxAttempts is always >= 1 and the loop body always returns or throws.
-    throw new RateLimitError(`${this.model} (${this.tier}) rate limited`);
+    // Unreachable: maxAttempts >= 1 and the loop body always returns or throws.
+    throw lastError instanceof Error ? lastError : new ProviderError(String(lastError));
   }
 
   async availableModels(): Promise<unknown> {
-    const path = this.tier === "cloud" ? "/v1/models" : "/api/tags";
-    const headers: Record<string, string> = {};
     if (this.tier === "cloud") {
       if (this.apiKeys.length === 0) throw new ProviderError("missing apiKey for cloud availableModels");
-      headers.Authorization = `Bearer ${this.apiKeys[this.apiKeyIndex]}`;
+      // Cloud model listing uses OpenAI-compat /v1/models, not /api/tags.
+      try {
+        const resp = await this.client.openai.listModels();
+        return resp;
+      } catch (error) {
+        throw this.mapError(error);
+      }
     }
-
-    let resp: Response;
-    if (this.timeoutMs > 0) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(new TimeoutError(`availableModels timeout after ${this.timeoutMs}ms`)), this.timeoutMs);
-      try { resp = await fetch(`${this.host}${path}`, { headers, signal: controller.signal }); }
-      finally { clearTimeout(timer); }
-    } else {
-      resp = await fetch(`${this.host}${path}`, { headers });
+    try {
+      return await this.client.models.list();
+    } catch (error) {
+      throw this.mapError(error);
     }
-
-    if (!resp.ok) throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${redactSecrets(await resp.text())}`);
-    return resp.json();
   }
 
-  private async streamChunks(resp: Response, onChunk?: (chunk: ChatResponse) => void): Promise<ChatResponse> {
-    if (!resp.body) throw new ProviderError("empty stream body");
+  /**
+   * Streams via the SDK's OllamaStream, accumulating content/thinking/tool_calls
+   * and forwarding individual NDJSON chunks to onChunk.
+   */
+  private async handleStream(
+    req: ChatRequestOptions,
+    onChunk?: (chunk: ChatResponse) => void,
+  ): Promise<ChatResponse> {
+    const stream = await this.client.chatStream(req);
 
-    const reader = resp.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    let final: ChatResponse | null = null;
     let accumulatedContent = "";
     let accumulatedThinking = "";
-    const accumulatedToolCalls: any[] = [];
-
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      let newlineIdx: number;
-      while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, newlineIdx).trim();
-        buffer = buffer.slice(newlineIdx + 1);
-        if (!line) continue;
-
-        const chunk = JSON.parse(line) as ChatResponse;
+    const accumulatedToolCalls: unknown[] = [];
+    for await (const event of stream) {
+      if (event.type === "message") {
+        // Forward raw Ollama chunk to caller
+        const chunk = event.data.chunk as unknown as ChatResponse;
         onChunk?.(chunk);
 
+        // Accumulate
         if (chunk.message) {
-          if (chunk.message.content) {
-            accumulatedContent += chunk.message.content;
-          }
-          if ((chunk.message as any).thinking) {
-            accumulatedThinking += (chunk.message as any).thinking;
-          }
-          if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
+          if (chunk.message.content) accumulatedContent += chunk.message.content;
+          if (chunk.message.thinking) accumulatedThinking += chunk.message.thinking;
+          if (Array.isArray(chunk.message.tool_calls)) {
             accumulatedToolCalls.push(...chunk.message.tool_calls);
           }
         }
-
-        if (chunk.done) {
-          final = chunk;
-        }
       }
     }
 
-    // Parse any remaining content in the buffer (if it didn't end with a newline)
-    const remaining = buffer.trim();
-    if (remaining) {
-      try {
-        const chunk = JSON.parse(remaining) as ChatResponse;
-        onChunk?.(chunk);
+    // Wait for the stream's aggregated final result
+    const result = await stream.finalResult;
 
-        if (chunk.message) {
-          if (chunk.message.content) {
-            accumulatedContent += chunk.message.content;
-          }
-          if ((chunk.message as any).thinking) {
-            accumulatedThinking += (chunk.message as any).thinking;
-          }
-          if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
-            accumulatedToolCalls.push(...chunk.message.tool_calls);
-          }
-        }
-
-        if (chunk.done) {
-          final = chunk;
-        }
-      } catch {
-        // Ignore parse error for incomplete trailing chunks
-      }
-    }
-
-    if (!final) {
-      if (accumulatedContent || accumulatedThinking || accumulatedToolCalls.length > 0) {
-        final = {
-          message: {
-            role: "assistant",
-            content: accumulatedContent,
-          },
-          done: true,
-          done_reason: "stop",
-        };
-      } else {
-        throw new ProviderError("stream ended without a done:true chunk");
-      }
-    }
-
-    // Overwrite the final message with the fully accumulated values
-    final.message = {
-      role: final.message?.role || "assistant",
-      content: accumulatedContent,
+    // Build the accumulated response in the same shape our old hand-rolled stream produced
+    const response: ChatResponse = {
+      message: {
+        role: result.message.role,
+        content: accumulatedContent || result.message.content,
+      },
+      done: true,
+      done_reason: result.doneReason ?? "stop",
     };
+
     if (accumulatedThinking) {
-      (final.message as any).thinking = accumulatedThinking;
+      response.message.thinking = accumulatedThinking;
     }
     if (accumulatedToolCalls.length > 0) {
-      final.message.tool_calls = accumulatedToolCalls;
+      response.message.tool_calls = accumulatedToolCalls;
     }
 
-    return final;
+    return response;
+  }
+
+  /** Maps a non-streaming SDK ChatResponse into our local ChatResponse shape. */
+  private toProviderResponse(sdkResp: SdkChatResponse): ChatResponse {
+    const response: ChatResponse = {
+      message: {
+        role: sdkResp.message.role,
+        content: sdkResp.message.content,
+      },
+      done: sdkResp.done,
+      done_reason: sdkResp.done_reason,
+      model: sdkResp.model,
+    };
+
+    // Propagate thinking if present
+    if (sdkResp.message.thinking) {
+      response.message.thinking = sdkResp.message.thinking;
+    }
+    // Propagate tool_calls if present
+    if (sdkResp.message.tool_calls && sdkResp.message.tool_calls.length > 0) {
+      response.message.tool_calls = sdkResp.message.tool_calls as unknown[];
+    }
+
+    return response;
+  }
+
+  private mapError(error: unknown): Error {
+    if (error instanceof OllamaRateLimitError) {
+      return new RateLimitError(`${this.model} (${this.tier}) rate limited`);
+    }
+    if (error instanceof OllamaTimeoutError) {
+      return new TimeoutError(`connect timeout after ${error.timeoutMs ?? this.timeoutMs}ms`);
+    }
+    if (error instanceof OllamaAbortError) {
+      return new ProviderError(redactSecrets(error.message));
+    }
+    if (error instanceof OllamaClientError) {
+      const prefix = error.status ? `Ollama ${this.tier} ${error.status}: ` : `Ollama ${this.tier}: `;
+      return new ProviderError(redactSecrets(`${prefix}${error.message}`));
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    return new ProviderError(redactSecrets(message));
   }
 }
