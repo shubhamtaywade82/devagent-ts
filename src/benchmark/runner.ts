@@ -78,9 +78,36 @@ export async function runBenchmark(
 
     const caseList = typeof cases === "function" ? cases() : cases;
     const total = caseList.length;
+    let modelUnavailableError: string | null = null;
 
     for (let index = 0; index < caseList.length; index++) {
       const testCase = caseList[index];
+
+      if (modelUnavailableError) {
+        results.push({
+          model: target.model,
+          tier: target.tier,
+          caseId: testCase.id,
+          category: testCase.category,
+          pass: false,
+          latencyMs: 0,
+          tokensPerSec: null,
+          error: modelUnavailableError,
+        });
+        opts.onProgress?.({
+          model: target.model,
+          tier: target.tier,
+          caseId: testCase.id,
+          index,
+          total,
+          status: "done",
+          pass: false,
+          latencyMs: 0,
+          error: modelUnavailableError,
+        });
+        continue;
+      }
+
       opts.onProgress?.({
         model: target.model,
         tier: target.tier,
@@ -121,6 +148,9 @@ export async function runBenchmark(
       } catch (e) {
         const latencyMs = Date.now() - start;
         const error = e instanceof Error ? e.message : String(e);
+        if (error.includes("402") || error.includes("does not support chat")) {
+          modelUnavailableError = error;
+        }
         results.push({
           model: target.model,
           tier: target.tier,

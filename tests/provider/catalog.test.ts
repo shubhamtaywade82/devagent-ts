@@ -132,7 +132,7 @@ describe("ModelCatalog.refresh", () => {
     expect(models[0].capabilities).toEqual(expect.arrayContaining(["reasoning"]));
   });
 
-  it("does not tag an embedding-only model as coding — it can't generate text at all", async () => {
+  it("excludes embedding-only models from catalog — they cannot chat or run tools", async () => {
     const local = new Provider({ tier: "local", model: "x" });
     jest.spyOn(local, "availableModels").mockResolvedValue({
       models: [{ name: "nomic-embed-text:latest", details: { parameter_size: "137M" }, capabilities: ["embedding"] }],
@@ -141,9 +141,8 @@ describe("ModelCatalog.refresh", () => {
     const catalog = new ModelCatalog(local);
     const models = await catalog.refresh();
 
-    expect(models[0].capabilities).not.toContain("coding");
-    expect(models[0].capabilities).not.toContain("tools");
-    expect(models[0].capabilities).toContain("quick"); // size-based tagging still applies
+    expect(models).toHaveLength(0);
+    expect(inferCapabilities("nomic-embed-text:latest")).toEqual([]);
   });
 
   it("cloud models (no capabilities field in /v1/models) still use the name heuristic", async () => {

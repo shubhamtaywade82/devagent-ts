@@ -13,7 +13,16 @@ export interface ModelInfo {
 // Cloud's OpenAI-compatible /v1/models doesn't expose it, matching the
 // OpenAI models API shape). Local Ollama's /api/tags DOES report real
 // capabilities per model (see capabilitiesFromLocalTag) — prefer that.
+export function isEmbeddingModel(name: string): boolean {
+  return /(embed|bge-|gte-|minilm|paraphrase)/i.test(name);
+}
+
+// Fallback only — used when real capability metadata isn't available (Ollama
+// Cloud's OpenAI-compatible /v1/models doesn't expose it, matching the
+// OpenAI models API shape). Local Ollama's /api/tags DOES report real
+// capabilities per model (see capabilitiesFromLocalTag) — prefer that.
 export function inferCapabilities(name: string): Capability[] {
+  if (isEmbeddingModel(name)) return [];
   const n = name.toLowerCase();
   const caps: Capability[] = ["tools"];
 
@@ -53,6 +62,10 @@ interface LocalTagEntry {
 // (e.g. ["tools","vision","thinking","completion"]) and parameter_size —
 // no heuristic guessing needed, unlike the cloud tier.
 function capabilitiesFromLocalTag(entry: LocalTagEntry, name: string): Capability[] {
+  if (isEmbeddingModel(name)) return [];
+  if (entry.capabilities && !entry.capabilities.includes("completion") && !entry.capabilities.includes("tools")) {
+    return [];
+  }
   if (!entry.capabilities) return inferCapabilities(name);
 
   const caps: Capability[] = [];
@@ -113,7 +126,9 @@ export class ModelCatalog {
         for (const entry of localTagEntries(data)) {
           const name = entry.name ?? entry.model;
           if (!name) continue;
-          results.push({ name, tier: "local", capabilities: capabilitiesFromLocalTag(entry, name) });
+          const capabilities = capabilitiesFromLocalTag(entry, name);
+          if (capabilities.length === 0) continue;
+          results.push({ name, tier: "local", capabilities });
         }
       } catch {
         // local Ollama not running — leave local models empty
@@ -124,7 +139,9 @@ export class ModelCatalog {
       try {
         const data = await this.cloud.availableModels();
         for (const name of namesFromCloudModels(data)) {
-          results.push({ name, tier: "cloud", capabilities: inferCapabilities(name) });
+          const capabilities = inferCapabilities(name);
+          if (capabilities.length === 0) continue;
+          results.push({ name, tier: "cloud", capabilities });
         }
       } catch {
         // no cloud API key / unreachable — leave cloud models empty

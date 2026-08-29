@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
 import { Provider } from "../provider/provider.js";
-import { ModelCatalog } from "../provider/catalog.js";
+import { ModelCatalog, isEmbeddingModel } from "../provider/catalog.js";
 import { loadConfig } from "../cli/config.js";
 import { runBenchmark, BenchmarkTarget } from "./runner.js";
 import { BUILTIN_CASES } from "./cases.js";
@@ -36,7 +36,7 @@ async function main() {
     : undefined;
 
   const catalog = new ModelCatalog(local, cloud);
-  const allModels = await catalog.refresh();
+  const allModels = (await catalog.refresh()).filter((m) => m.capabilities.length > 0 && !isEmbeddingModel(m.name));
 
   const modelFilter = values.model?.toLowerCase();
   const models = modelFilter ? allModels.filter((m) => m.name.toLowerCase().includes(modelFilter)) : allModels;

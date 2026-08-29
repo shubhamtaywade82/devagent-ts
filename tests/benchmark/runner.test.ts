@@ -77,6 +77,25 @@ describe("runBenchmark", () => {
     expect(results[0].tokensPerSec).not.toBeNull();
     expect(results[0].tokensPerSec).toBeGreaterThan(0);
   });
+
+  it("fast-fails remaining cases for a target model that returns 402 subscription error", async () => {
+    const provider = new Provider({ tier: "cloud", model: "paid-model" });
+    const chatSpy = jest
+      .spyOn(provider, "chat")
+      .mockRejectedValue(new Error("Ollama cloud 402: requires a subscription"));
+
+    const results = await runBenchmark(
+      [{ model: "paid-model", tier: "cloud", provider }],
+      [passingCase, failingCase, passingCase],
+    );
+
+    expect(results).toHaveLength(3);
+    expect(chatSpy).toHaveBeenCalledTimes(1); // called only once, subsequent cases fast-failed
+    expect(results[0].error).toContain("402");
+    expect(results[1].error).toContain("402");
+    expect(results[2].error).toContain("402");
+    expect(results[1].latencyMs).toBe(0);
+  });
 });
 
 function toolCallResponse(name: string, args: Record<string, unknown>): ChatResponse {
