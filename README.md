@@ -4,7 +4,7 @@ A TypeScript developer agent runtime built on Ollama (local + cloud), with capab
 
 ## Architecture
 
-```
+```text
 src/
 ├── provider/       Ollama REST client (local + cloud), model catalog, capability router
 ├── benchmark/      Model scoring harness (JSON validity, tool-calling, latency, tok/s)
