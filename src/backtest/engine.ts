@@ -26,10 +26,8 @@ export function runBacktest(candles: Candle[], config: StrategyConfig): Backtest
 
     const entryIndex = i;
     const entryPrice = candles[entryIndex].close;
-    const stopPrice =
-      config.direction === "long" ? entryPrice * (1 - stopPct) : entryPrice * (1 + stopPct);
-    const targetPrice =
-      config.direction === "long" ? entryPrice * (1 + targetPct) : entryPrice * (1 - targetPct);
+    const stopPrice = config.direction === "long" ? entryPrice * (1 - stopPct) : entryPrice * (1 + stopPct);
+    const targetPrice = config.direction === "long" ? entryPrice * (1 + targetPct) : entryPrice * (1 - targetPct);
 
     let exitIndex = candles.length - 1;
     let exitPrice = candles[exitIndex].close;

@@ -126,5 +126,10 @@
     "bin/",
     "README.md",
     "LICENSE"
-  ]
+  ],
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.28.1": true,
+    "unrs-resolver@1.12.2": true
+  }
 }

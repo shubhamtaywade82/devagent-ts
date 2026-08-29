@@ -84,7 +84,7 @@ describe("App shell", () => {
   it("renders all five permanent zones", () => {
     const { lastFrame, unmount } = renderApp();
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("devagent-ts"); // branded header
+    expect(frame).toContain("DevAgent"); // branded header
     expect(frame).toContain("Type a message below"); // conversation area (dashboard's narrow fallback at 100 cols)
     expect(frame).toContain("Chat"); // activity strip
     expect(frame).toContain(">"); // prompt
@@ -522,7 +522,7 @@ describe("resize safety (regression)", () => {
     }
     // Every zone still present. (Dashboard shows no view-title row — the
     // branded header and its MODE token stand in for it.)
-    expect(frame).toContain("devagent-ts");
+    expect(frame).toContain("DevAgent");
     expect(frame).toContain("MODE:");
     expect(frame).toContain("Chat");
     expect(frame).toContain(">");

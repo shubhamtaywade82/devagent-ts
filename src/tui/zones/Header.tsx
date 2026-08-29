@@ -9,11 +9,6 @@ export interface HeaderProps {
   now?: number;
 }
 
-// Matches the existing hardcoded-version convention already used elsewhere
-// in this codebase (src/lsp/client.ts, src/mcp/client.ts), not read from
-// package.json at runtime.
-const APP_VERSION = "v1.0.0";
-
 function formatClock(now: number): string {
   const d = new Date(now);
   return [d.getHours(), d.getMinutes(), d.getSeconds()].map((n) => String(n).padStart(2, "0")).join(":");
@@ -29,7 +24,8 @@ export function Header({ state, width, now = Date.now() }: HeaderProps): React.J
   const modelName = state.model.name || "-";
   const clock = formatClock(now);
 
-  const leftPrefix = `devagent-ts ${APP_VERSION}`;
+  const showSubtitle = width >= 95;
+  const leftPrefix = showSubtitle ? "⚡ DevAgent · Autonomous AI Coding Assistant" : "⚡ DevAgent";
   const missionPrefix = state.mission.goal ? "  │ Mission: " : "";
   const rightText = `MODE: ${modeLabel}   MODEL: ${modelName}   ${clock}`;
 
@@ -39,12 +35,14 @@ export function Header({ state, width, now = Date.now() }: HeaderProps): React.J
   return (
     <Box width={width} height={1}>
       <Text bold color="cyan">
-        devagent-ts
+        ⚡ DevAgent
       </Text>
-      <Text color="gray" dimColor>
-        {" "}
-        {APP_VERSION}
-      </Text>
+      {showSubtitle && (
+        <Text color="gray" dimColor>
+          {" "}
+          · Autonomous AI Coding Assistant
+        </Text>
+      )}
       {mission && (
         <>
           <Text color="gray">{"  │ "}</Text>

@@ -77,7 +77,8 @@ export function validateStrategy(
     return {
       valid: false,
       error: "InvalidStrategyRisk",
-      message: "strategy.risk must be an object with { stopPct: number, targetPct: number } (e.g. { stopPct: 0.02, targetPct: 0.04 })",
+      message:
+        "strategy.risk must be an object with { stopPct: number, targetPct: number } (e.g. { stopPct: 0.02, targetPct: 0.04 })",
     };
   }
   const r = s.risk as Record<string, unknown>;
@@ -85,7 +86,8 @@ export function validateStrategy(
     return {
       valid: false,
       error: "InvalidStrategyRiskValues",
-      message: "strategy.risk.stopPct and strategy.risk.targetPct must be numbers. Example: { stopPct: 0.02, targetPct: 0.04 }",
+      message:
+        "strategy.risk.stopPct and strategy.risk.targetPct must be numbers. Example: { stopPct: 0.02, targetPct: 0.04 }",
     };
   }
   return { valid: true, config: s as unknown as StrategyConfig };
