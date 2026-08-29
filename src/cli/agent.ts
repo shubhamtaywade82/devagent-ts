@@ -489,7 +489,7 @@ export class Agent {
         const makeChatOpts = () => ({
           stream: true,
           tools: activeTools.length > 0 ? activeTools.map((t) => t.schema) : undefined,
-          onChunk: (chunk: any) => {
+          onChunk: (chunk: ChatResponse) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
               if (buffered) buffered.push(delta);
@@ -498,7 +498,7 @@ export class Agent {
                 this.emit("onAssistantText", delta);
               }
             }
-            const thinking = (chunk.message as any)?.thinking;
+            const thinking = (chunk.message as { role: string; content: string; thinking?: string; tool_calls?: unknown[] })?.thinking;
             if (typeof thinking === "string" && thinking) {
               this.emit("onThinking", thinking);
             }

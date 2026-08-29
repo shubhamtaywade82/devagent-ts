@@ -9,7 +9,7 @@ import { activeViewRows, densityForWidth, detailForDensity, MAX_COMPLETION_ROWS 
 import { resolveKey, UiCommand } from "../interaction/keybindings.js";
 import { MOUSE_SGR_PATTERN } from "../interaction/mouse.js";
 import { initialUiState, uiReduce } from "../interaction/ui-state.js";
-import { builtinCommands, CommandEffect, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
+import { builtinCommands, parseSlashInput, SlashCommandRegistry } from "../interaction/slash-commands.js";
 import { HistoryManager } from "../interaction/history.js";
 import { acceptWord, completions, ghostSuffix } from "../interaction/completion.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
@@ -123,22 +123,32 @@ const VIEW_LABELS: Record<ViewId, string> = {
   timeline: "Timeline",
 };
 
-function useTerminalSize(columns?: number, rows?: number): { width: number; height: number } {
+/**
+ * Terminal size tracker. When both dimensions are provided (always the case
+ * in tests and when the TUI bootstrap passes explicit values), we skip
+ * useStdout() entirely to avoid Ink's internal stdout listener keeping
+ * test processes alive.
+ */
+function TerminalSizeListener({ onSize, rows }: { onSize: (w: number, h: number) => void; rows?: number }) {
   const { stdout } = useStdout();
-  const [size, setSize] = useState({
-    width: columns ?? stdout?.columns ?? 100,
-    height: rows ?? stdout?.rows ?? 30,
-  });
   useEffect(() => {
-    if (columns != null && rows != null) return;
     if (!stdout) return;
-    const onResize = () => setSize({ width: columns ?? stdout.columns ?? 100, height: rows ?? stdout.rows ?? 30 });
+    const onResize = () => onSize(stdout.columns, rows ?? stdout.rows);
     stdout.on("resize", onResize);
-    return () => {
-      stdout.off("resize", onResize);
-    };
-  }, [stdout, columns, rows]);
-  return columns != null && rows != null ? { width: columns, height: rows } : size;
+    return () => { stdout.off("resize", onResize); };
+  }, [stdout, onSize, rows]);
+  return null;
+}
+
+function useTerminalSize(columns?: number, rows?: number) {
+  const [size, setSize] = useState({
+    width: columns ?? 100,
+    height: rows ?? 30,
+  });
+  const onSize = useCallback((w: number, h: number) => setSize({ width: w, height: h }), []);
+  const needsListener = columns == null || rows == null;
+  const listener = needsListener ? <TerminalSizeListener onSize={onSize} rows={rows} /> : null;
+  return { ...size, listener };
 }
 
 // Ink 3 bundles a React 17-era reconciler without useSyncExternalStore,
@@ -190,7 +200,7 @@ function useRuntimeState(store: Store): RuntimeState {
 export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const state = useRuntimeState(store);
-  const { width, height } = useTerminalSize(columns, rows);
+  const { width, height, listener: sizeListener } = useTerminalSize(columns, rows);
   const [ui, uiDispatch] = useReducer(uiReduce, undefined, initialUiState);
   const [prompt, setPrompt] = useState("");
   const [busy, setBusy] = useState(false);
@@ -652,6 +662,7 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
 
   return (
     <Box flexDirection="column" width={width} height={height}>
+      {sizeListener}
       <ErrorBoundary>
         <Header state={state} width={width} now={now} />
         <Box height={1}>

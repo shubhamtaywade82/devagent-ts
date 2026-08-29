@@ -226,7 +226,7 @@ export class HoverTool extends LspTool {
         ? content
         : Array.isArray(content)
           ? content.map((c: any) => (typeof c === "string" ? c : c.value ?? "")).join("\n")
-          : (content as any).value ?? JSON.stringify(content);
+          : (content as { value: string }).value ?? JSON.stringify(content);
 
       return {
         contents: contentsStr,
