@@ -133,15 +133,13 @@ export function useCommandEffects(
             kind: "info",
             text: effect.goal ? `Planning: ${effect.goal}` : "Resuming interrupted plan…",
           });
-          agent
-            ?.runPlan?.(effect.goal)
-            .catch((e: unknown) =>
-              bus.publish({
-                type: "notification",
-                kind: "error",
-                text: `Plan failed: ${e instanceof Error ? e.message : String(e)}`,
-              }),
-            );
+          agent?.runPlan?.(effect.goal).catch((e: unknown) =>
+            bus.publish({
+              type: "notification",
+              kind: "error",
+              text: `Plan failed: ${e instanceof Error ? e.message : String(e)}`,
+            }),
+          );
           break;
         }
         case "set-theme":

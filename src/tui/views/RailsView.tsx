@@ -8,7 +8,9 @@ export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element 
   if (!rails || rails.status === "disabled") {
     return (
       <Box flexDirection="column" height={rows}>
-        <Text color="gray">Rails project not detected. Start working in a Rails project to see Rails-specific information.</Text>
+        <Text color="gray">
+          Rails project not detected. Start working in a Rails project to see Rails-specific information.
+        </Text>
       </Box>
     );
   }
@@ -34,49 +36,65 @@ export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element 
   return (
     <Box flexDirection="column" height={rows}>
       <Box height={1} marginBottom={1}>
-        <Text bold color="red">Rails Project Metadata</Text>
-      </Box>
-      <Box height={1}>
-        <Text>
-          <Text color="gray">Rails Version : </Text>
-          <Text bold color="cyan">{rails.railsVersion ?? "unknown"}</Text>
+        <Text bold color="red">
+          Rails Project Metadata
         </Text>
       </Box>
       <Box height={1}>
         <Text>
-          <Text color="gray">Ruby Version  : </Text>
-          <Text bold color="cyan">{rails.rubyVersion ?? "unknown"}</Text>
+          <Text color="gray">Rails Version : </Text>
+          <Text bold color="cyan">
+            {rails.railsVersion ?? "unknown"}
+          </Text>
+        </Text>
+      </Box>
+      <Box height={1}>
+        <Text>
+          <Text color="gray">Ruby Version : </Text>
+          <Text bold color="cyan">
+            {rails.rubyVersion ?? "unknown"}
+          </Text>
         </Text>
       </Box>
       <Box height={1} marginBottom={1}>
         <Text>
           <Text color="gray">Test Framework: </Text>
-          <Text bold color="cyan">{rails.testFramework ?? "unknown"}</Text>
+          <Text bold color="cyan">
+            {rails.testFramework ?? "unknown"}
+          </Text>
         </Text>
       </Box>
 
       <Box height={1} marginBottom={1}>
-        <Text bold color="red">Semantic Graph Stats</Text>
+        <Text bold color="red">
+          Semantic Graph Stats
+        </Text>
       </Box>
       <Box height={1}>
         <Text>
           <Text color="gray">Total Entities: </Text>
-          <Text bold color="white">{rails.entityCount}</Text>
+          <Text bold color="white">
+            {rails.entityCount}
+          </Text>
         </Text>
       </Box>
       <Box height={1} marginBottom={1}>
         <Text>
           <Text color="gray">Relationships : </Text>
-          <Text bold color="white">{rails.edgeCount}</Text>
+          <Text bold color="white">
+            {rails.edgeCount}
+          </Text>
         </Text>
       </Box>
 
       <Box height={1} marginBottom={1}>
-        <Text bold color="red">Entity Breakdown</Text>
+        <Text bold color="red">
+          Entity Breakdown
+        </Text>
       </Box>
       <Box flexDirection="column">
         {(() => {
-          const chunked: typeof entries[] = [];
+          const chunked: (typeof entries)[] = [];
           for (let i = 0; i < entries.length; i += 3) {
             chunked.push(entries.slice(i, i + 3));
           }
@@ -86,7 +104,9 @@ export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element 
                 <Box key={label} width={colWidth} height={1}>
                   <Text>
                     <Text color="gray">{label.padEnd(12)}: </Text>
-                    <Text bold color="yellow">{count}</Text>
+                    <Text bold color="yellow">
+                      {count}
+                    </Text>
                   </Text>
                 </Box>
               ))}

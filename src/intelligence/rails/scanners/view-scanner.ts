@@ -22,17 +22,20 @@ const RENDER_CALL = /\brender\s*(?:\(|\s+)?(?:partial:\s*)?/;
 const QUOTED_PATH = /["']([a-z0-9_./-]+)["']/;
 const COMPONENT_NEW = /\b([A-Z][A-Za-z0-9]*(?:::[A-Z][A-Za-z0-9]*)*)\.new\s*\(/;
 const INSTANCE_VAR = /@([a-z][a-z0-9_]*)/g;
-const MODEL_RECEIVER = /\b([A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)*)\.(?:all|find|find_by|where|create|new|update|destroy|delete|exists\?|count|order|limit|joins|includes|select|pluck|first|last|take|find_each)\b/g;
-const HELPERS = /\b(?:link_to|form_with|form_for|button_to|mail_to|image_tag|asset_path|content_tag|tag\.|javascript_tag|stylesheet_link_tag|render|redirect_to)\b/g;
+const MODEL_RECEIVER =
+  /\b([A-Z][a-z0-9]+(?:[A-Z][a-z0-9]*)*)\.(?:all|find|find_by|where|create|new|update|destroy|delete|exists\?|count|order|limit|joins|includes|select|pluck|first|last|take|find_each)\b/g;
+const HELPERS =
+  /\b(?:link_to|form_with|form_for|button_to|mail_to|image_tag|asset_path|content_tag|tag\.|javascript_tag|stylesheet_link_tag|render|redirect_to)\b/g;
 
-const COMPONENT_CLASS = /^class\s+([A-Z][A-Za-z0-9_:]*)\s*<\s*(ViewComponent::Base|ApplicationComponent|Phlex::HTML|Phlex::View|Phlex::Component)\b/;
+const COMPONENT_CLASS =
+  /^class\s+([A-Z][A-Za-z0-9_:]*)\s*<\s*(ViewComponent::Base|ApplicationComponent|Phlex::HTML|Phlex::View|Phlex::Component)\b/;
 
 export class ViewScanner implements Scanner {
   readonly name = "view";
 
   appliesTo(relPath: string): boolean {
     return !!(
-      VIEW_EXT.test(relPath) && /(?:^|\/)app\/views\//.test(relPath) ||
+      (VIEW_EXT.test(relPath) && /(?:^|\/)app\/views\//.test(relPath)) ||
       /(?:^|\/)app\/components\/.*\.rb$/.test(relPath)
     );
   }
@@ -54,18 +57,17 @@ export class ViewScanner implements Scanner {
 
   // ─── template scanning (ERB / HAML / Slim) ─────────────────────────
 
-  private scanTemplate(
-    file: SourceFile,
-    entities: ViewEntity[],
-    intents: RelationshipIntent[],
-  ): void {
+  private scanTemplate(file: SourceFile, entities: ViewEntity[], intents: RelationshipIntent[]): void {
     const { relPath, content } = file;
     const isPartial = /\/_/.test(relPath);
     const [controller, action] = isPartial ? [undefined, undefined] : this.conventionFromPath(relPath);
     const viewFormat = this.detectViewFormat(relPath);
     const format = this.responseFormat(relPath);
 
-    const entityName = relPath.replace(/^app\/views\//, "").replace(/\.\w+\.(erb|haml|slim|builder)$/, ".$1").replace(VIEW_EXT, "");
+    const entityName = relPath
+      .replace(/^app\/views\//, "")
+      .replace(/\.\w+\.(erb|haml|slim|builder)$/, ".$1")
+      .replace(VIEW_EXT, "");
 
     const entity: ViewEntity = {
       id: `view:${relPath}`,
@@ -151,12 +153,7 @@ export class ViewScanner implements Scanner {
   }
 
   /** `render UserComponent.new(...)` or `render(Admin::MyComponent.new(...))`. */
-  private extractComponent(
-    expr: string,
-    entity: ViewEntity,
-    intents: RelationshipIntent[],
-    seen: Set<string>,
-  ): void {
+  private extractComponent(expr: string, entity: ViewEntity, intents: RelationshipIntent[], seen: Set<string>): void {
     const cm = expr.match(COMPONENT_NEW);
     if (!cm) return;
     const name = cm[1];
@@ -172,12 +169,7 @@ export class ViewScanner implements Scanner {
   }
 
   /** `@user` → User, `@users` → User, `User.all` → User. */
-  private extractModelRefs(
-    expr: string,
-    entity: ViewEntity,
-    intents: RelationshipIntent[],
-    seen: Set<string>,
-  ): void {
+  private extractModelRefs(expr: string, entity: ViewEntity, intents: RelationshipIntent[], seen: Set<string>): void {
     for (const m of expr.matchAll(INSTANCE_VAR)) {
       const modelName = this.instanceToModel(m[1]);
       if (!modelName) continue;
@@ -220,11 +212,7 @@ export class ViewScanner implements Scanner {
 
   // ─── component scanning (ViewComponent / Phlex .rb files) ──────────
 
-  private scanComponentFile(
-    file: SourceFile,
-    entities: ViewEntity[],
-    intents: RelationshipIntent[],
-  ): void {
+  private scanComponentFile(file: SourceFile, entities: ViewEntity[], intents: RelationshipIntent[]): void {
     const { relPath, content } = file;
 
     for (const line of logicalLines(content)) {
@@ -233,12 +221,11 @@ export class ViewScanner implements Scanner {
 
       const bareName = cm[1];
       const superclass = cm[2];
-      const viewFormat = superclass.startsWith("Phlex") ? "phlex" : "view_component" as "view_component" | "phlex";
+      const viewFormat = superclass.startsWith("Phlex") ? "phlex" : ("view_component" as "view_component" | "phlex");
 
       // Prepend namespace from enclosing class/module nesting
-      const qualifiedName = line.namespace.length && !bareName.includes("::")
-        ? `${line.namespace.join("::")}::${bareName}`
-        : bareName;
+      const qualifiedName =
+        line.namespace.length && !bareName.includes("::") ? `${line.namespace.join("::")}::${bareName}` : bareName;
 
       const modelName = this.componentToModel(qualifiedName);
 
@@ -278,7 +265,10 @@ export class ViewScanner implements Scanner {
   /** `app/views/users/index.html.erb` → `["Users", "index"]`. */
   private conventionFromPath(relPath: string): [string | undefined, string | undefined] {
     // Strip template extension(s) — handles both .erb and .html.erb
-    const stripped = relPath.replace(/^app\/views\//, "").replace(/\.\w+\.(erb|haml|slim|builder)$/, "").replace(VIEW_EXT, "");
+    const stripped = relPath
+      .replace(/^app\/views\//, "")
+      .replace(/\.\w+\.(erb|haml|slim|builder)$/, "")
+      .replace(VIEW_EXT, "");
     // stripped is now e.g. "users/index", "admin/users/index", "layouts/application"
     const segs = stripped.split("/");
     if (segs.length < 2) return [undefined, undefined];
@@ -288,7 +278,12 @@ export class ViewScanner implements Scanner {
     if (controllerPath === "layouts") return [undefined, undefined];
     const controller = controllerPath
       .split("/")
-      .map((seg) => seg.split("_").map((w) => w[0].toUpperCase() + w.slice(1)).join(""))
+      .map((seg) =>
+        seg
+          .split("_")
+          .map((w) => w[0].toUpperCase() + w.slice(1))
+          .join(""),
+      )
       .join("::");
     return [controller, action];
   }

@@ -1,5 +1,11 @@
 import { Provider, ChatMessage, ChatResponse, Tier } from "../provider/provider.js";
-import { AgenticBenchmarkCase, AgenticTrajectory, BenchmarkCase, BenchmarkResult, SingleTurnBenchmarkCase } from "./types.js";
+import {
+  AgenticBenchmarkCase,
+  AgenticTrajectory,
+  BenchmarkCase,
+  BenchmarkResult,
+  SingleTurnBenchmarkCase,
+} from "./types.js";
 
 export interface BenchmarkTarget {
   model: string;
@@ -75,7 +81,14 @@ export async function runBenchmark(
 
     for (let index = 0; index < caseList.length; index++) {
       const testCase = caseList[index];
-      opts.onProgress?.({ model: target.model, tier: target.tier, caseId: testCase.id, index, total, status: "running" });
+      opts.onProgress?.({
+        model: target.model,
+        tier: target.tier,
+        caseId: testCase.id,
+        index,
+        total,
+        status: "running",
+      });
 
       const start = Date.now();
       try {
@@ -118,7 +131,17 @@ export async function runBenchmark(
           tokensPerSec: null,
           error,
         });
-        opts.onProgress?.({ model: target.model, tier: target.tier, caseId: testCase.id, index, total, status: "done", pass: false, latencyMs, error });
+        opts.onProgress?.({
+          model: target.model,
+          tier: target.tier,
+          caseId: testCase.id,
+          index,
+          total,
+          status: "done",
+          pass: false,
+          latencyMs,
+          error,
+        });
       }
     }
   }

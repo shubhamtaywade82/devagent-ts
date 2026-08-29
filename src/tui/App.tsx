@@ -135,7 +135,9 @@ function TerminalSizeListener({ onSize, rows }: { onSize: (w: number, h: number)
     if (!stdout) return;
     const onResize = () => onSize(stdout.columns, rows ?? stdout.rows);
     stdout.on("resize", onResize);
-    return () => { stdout.off("resize", onResize); };
+    return () => {
+      stdout.off("resize", onResize);
+    };
   }, [stdout, onSize, rows]);
   return null;
 }

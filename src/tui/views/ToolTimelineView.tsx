@@ -18,7 +18,9 @@ export function ToolTimelineView({ state, rows }: ViewProps): React.JSX.Element 
   return (
     <Box flexDirection="column" height={rows}>
       <Box height={1} marginBottom={1}>
-        <Text bold color="magenta">Tool Execution Timeline</Text>
+        <Text bold color="magenta">
+          Tool Execution Timeline
+        </Text>
       </Box>
       {visible.map((call, idx) => {
         const time = new Date(call.startedAt);

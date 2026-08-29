@@ -23,8 +23,10 @@ export function runBacktest(candles: Candle[], config: StrategyConfig): Backtest
 
     const entryIndex = i;
     const entryPrice = candles[entryIndex].close;
-    const stopPrice = config.direction === "long" ? entryPrice * (1 - config.risk.stopPct) : entryPrice * (1 + config.risk.stopPct);
-    const targetPrice = config.direction === "long" ? entryPrice * (1 + config.risk.targetPct) : entryPrice * (1 - config.risk.targetPct);
+    const stopPrice =
+      config.direction === "long" ? entryPrice * (1 - config.risk.stopPct) : entryPrice * (1 + config.risk.stopPct);
+    const targetPrice =
+      config.direction === "long" ? entryPrice * (1 + config.risk.targetPct) : entryPrice * (1 - config.risk.targetPct);
 
     let exitIndex = candles.length - 1;
     let exitPrice = candles[exitIndex].close;
@@ -56,7 +58,8 @@ export function runBacktest(candles: Candle[], config: StrategyConfig): Backtest
       }
     }
 
-    const rawReturn = config.direction === "long" ? (exitPrice - entryPrice) / entryPrice : (entryPrice - exitPrice) / entryPrice;
+    const rawReturn =
+      config.direction === "long" ? (exitPrice - entryPrice) / entryPrice : (entryPrice - exitPrice) / entryPrice;
     const returnPct = rawReturn - feeFraction;
 
     trades.push({ entryIndex, exitIndex, entryPrice, exitPrice, direction: config.direction, returnPct, exitReason });
@@ -78,7 +81,16 @@ export function computeEquityCurve(trades: Trade[]): number[] {
 
 export function computeMetrics(trades: Trade[]): BacktestMetrics {
   if (trades.length === 0) {
-    return { totalTrades: 0, winRate: 0, avgWinPct: 0, avgLossPct: 0, expectancyPct: 0, profitFactor: 0, totalReturnPct: 0, maxDrawdownPct: 0 };
+    return {
+      totalTrades: 0,
+      winRate: 0,
+      avgWinPct: 0,
+      avgLossPct: 0,
+      expectancyPct: 0,
+      profitFactor: 0,
+      totalReturnPct: 0,
+      maxDrawdownPct: 0,
+    };
   }
 
   const wins = trades.filter((t) => t.returnPct > 0);
@@ -103,5 +115,14 @@ export function computeMetrics(trades: Trade[]): BacktestMetrics {
     if (drawdown > maxDrawdownPct) maxDrawdownPct = drawdown;
   }
 
-  return { totalTrades: trades.length, winRate, avgWinPct, avgLossPct, expectancyPct, profitFactor, totalReturnPct, maxDrawdownPct };
+  return {
+    totalTrades: trades.length,
+    winRate,
+    avgWinPct,
+    avgLossPct,
+    expectancyPct,
+    profitFactor,
+    totalReturnPct,
+    maxDrawdownPct,
+  };
 }

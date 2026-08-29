@@ -98,12 +98,7 @@ describe("DynamicToolSelector", () => {
       // zero real content words with the query, only "the"/"and"/"this" —
       // pre-fix this scored 2.0 (three uncapped filler-word hits) and was a
       // false-positive "active tool" for a completely unrelated question.
-      const unrelated = new MockTool(
-        "some_tool",
-        "Handles the request and the response for this task",
-        [],
-        [],
-      );
+      const unrelated = new MockTool("some_tool", "Handles the request and the response for this task", [], []);
       const selector = new DynamicToolSelector({ mode: "heuristic" });
       const selected = await selector.selectTools("what is the difference between this and that", [], [unrelated]);
 

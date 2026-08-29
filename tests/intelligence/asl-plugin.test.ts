@@ -32,7 +32,7 @@ targets:
   - entity: TokenAuthService
 ---
 `,
-      "utf8"
+      "utf8",
     );
 
     const plugin = new AslSemanticPlugin(tempWorkspace);

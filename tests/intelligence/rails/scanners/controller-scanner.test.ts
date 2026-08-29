@@ -25,7 +25,9 @@ const CONTROLLER = [
 
 describe("ControllerScanner", () => {
   it("extracts public actions only", () => {
-    const result = new ControllerScanner().scan([{ relPath: "app/controllers/users_controller.rb", content: CONTROLLER }]);
+    const result = new ControllerScanner().scan([
+      { relPath: "app/controllers/users_controller.rb", content: CONTROLLER },
+    ]);
     const controller = result.entities[0] as ControllerEntity;
 
     expect(controller.name).toBe("UsersController");
@@ -33,7 +35,9 @@ describe("ControllerScanner", () => {
   });
 
   it("extracts before_actions with only/except and rescue_from", () => {
-    const result = new ControllerScanner().scan([{ relPath: "app/controllers/users_controller.rb", content: CONTROLLER }]);
+    const result = new ControllerScanner().scan([
+      { relPath: "app/controllers/users_controller.rb", content: CONTROLLER },
+    ]);
     const controller = result.entities[0] as ControllerEntity;
 
     expect(controller.beforeActions).toEqual([
@@ -48,8 +52,17 @@ describe("ControllerScanner", () => {
   });
 
   it("qualifies module-nested controllers", () => {
-    const source = ["module Admin", "  class ReportsController < ApplicationController", "    def index", "    end", "  end", "end"].join("\n");
-    const result = new ControllerScanner().scan([{ relPath: "app/controllers/admin/reports_controller.rb", content: source }]);
+    const source = [
+      "module Admin",
+      "  class ReportsController < ApplicationController",
+      "    def index",
+      "    end",
+      "  end",
+      "end",
+    ].join("\n");
+    const result = new ControllerScanner().scan([
+      { relPath: "app/controllers/admin/reports_controller.rb", content: source },
+    ]);
     const controller = result.entities[0] as ControllerEntity;
 
     expect(controller.name).toBe("Admin::ReportsController");

@@ -19,8 +19,7 @@ export interface LogicalLine {
   namespace: string[];
 }
 
-const BLOCK_OPENERS =
-  /^(?:class|module|def|if|unless|case|while|until|for|begin)\b|(?:^|[\s)])do\s*(?:\|[^|]*\|)?\s*$/;
+const BLOCK_OPENERS = /^(?:class|module|def|if|unless|case|while|until|for|begin)\b|(?:^|[\s)])do\s*(?:\|[^|]*\|)?\s*$/;
 const MODIFIER_KEYWORD = /\b(?:if|unless|while|until)\b/;
 
 /** Remove `#` comments while respecting string literals. */
@@ -62,7 +61,11 @@ function isBlockOpener(text: string): boolean {
   if (!BLOCK_OPENERS.test(text)) return false;
   // `x = 1 if cond` style modifiers do not open a block.
   if (/^(?:if|unless|while|until)\b/.test(text)) return true;
-  if (MODIFIER_KEYWORD.test(text) && !/^(?:class|module|def|case|for|begin)\b/.test(text) && !/\bdo\s*(?:\|[^|]*\|)?\s*$/.test(text)) {
+  if (
+    MODIFIER_KEYWORD.test(text) &&
+    !/^(?:class|module|def|case|for|begin)\b/.test(text) &&
+    !/\bdo\s*(?:\|[^|]*\|)?\s*$/.test(text)
+  ) {
     return false;
   }
   return true;
@@ -246,9 +249,7 @@ export function singularize(word: string): string {
 }
 
 function matchCase(result: string, original: string): string {
-  return original[0] === original[0].toUpperCase()
-    ? result[0].toUpperCase() + result.slice(1)
-    : result;
+  return original[0] === original[0].toUpperCase() ? result[0].toUpperCase() + result.slice(1) : result;
 }
 
 /** `admin/user_accounts` → `Admin::UserAccounts`. */
@@ -273,12 +274,19 @@ export function underscore(constant: string): string {
 }
 
 /** Association name → resolved class name (`:orders` → `Order`). */
-export function classify(associationName: string, kind: "belongs_to" | "has_many" | "has_one" | "has_and_belongs_to_many"): string {
-  const base = kind === "has_many" || kind === "has_and_belongs_to_many" ? singularize(associationName) : associationName;
+export function classify(
+  associationName: string,
+  kind: "belongs_to" | "has_many" | "has_one" | "has_and_belongs_to_many",
+): string {
+  const base =
+    kind === "has_many" || kind === "has_and_belongs_to_many" ? singularize(associationName) : associationName;
   return camelize(base);
 }
 
 /** Strip surrounding quotes/symbol colon from a raw option value. */
 export function unquote(value: string): string {
-  return value.trim().replace(/^:/, "").replace(/^["']|["']$/g, "");
+  return value
+    .trim()
+    .replace(/^:/, "")
+    .replace(/^["']|["']$/g, "");
 }

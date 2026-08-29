@@ -36,12 +36,9 @@ export function ModeSwitcher({ current, width, rows }: ModeSwitcherProps): React
           return (
             <Box key={mode} height={2}>
               <Box marginLeft={1}>
-                <Text
-                  color={isSelected ? "blue" : isCurrent ? "green" : "white"}
-                  inverse={isSelected}
-                  bold={isCurrent}
-                >
-                  {isCurrent ? "▸ " : "  "}{info.label}
+                <Text color={isSelected ? "blue" : isCurrent ? "green" : "white"} inverse={isSelected} bold={isCurrent}>
+                  {isCurrent ? "▸ " : "  "}
+                  {info.label}
                 </Text>
               </Box>
               <Box marginLeft={2}>

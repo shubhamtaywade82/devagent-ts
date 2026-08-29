@@ -115,7 +115,16 @@ describe("MailerScanner", () => {
 
 describe("PolicyScanner", () => {
   it("extracts permissions and authorizes intent", () => {
-    const source = ["class UserPolicy < ApplicationPolicy", "  def show?", "    true", "  end", "  def update?", "    false", "  end", "end"].join("\n");
+    const source = [
+      "class UserPolicy < ApplicationPolicy",
+      "  def show?",
+      "    true",
+      "  end",
+      "  def update?",
+      "    false",
+      "  end",
+      "end",
+    ].join("\n");
     const result = new PolicyScanner().scan([{ relPath: "app/policies/user_policy.rb", content: source }]);
     const policy = result.entities[0] as PolicyEntity;
 

@@ -107,9 +107,7 @@ export async function dispatchToolCall(
     const result = await ctx.tools.registry.invoke(name, args);
 
     if (result.error === "PathEscapeError") {
-      ctx.conversation.pushToolResult(
-        JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
-      );
+      ctx.conversation.pushToolResult(JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2));
       ctx.onToolResult(name, result);
       ctx.conversation.pushSystemMessage(
         "[system] The previous tool call escaped the workspace root. Retry with a path under the current workspace root.",
@@ -142,9 +140,7 @@ export async function dispatchToolCall(
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));
     ctx.onError(err);
-    ctx.conversation.pushToolResult(
-      JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
-    );
+    ctx.conversation.pushToolResult(JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2));
     return { kind: "error", name, error: err };
   }
 }

@@ -16,10 +16,7 @@ export class LspPool {
     this.onStateChange?.();
   }
 
-  async acquire(
-    workspacePath: string,
-    provider: LanguageProviderConfig,
-  ): Promise<LspServerSession> {
+  async acquire(workspacePath: string, provider: LanguageProviderConfig): Promise<LspServerSession> {
     const key = `${workspacePath}:${provider.id}`;
     let session = this.sessions.get(key);
 

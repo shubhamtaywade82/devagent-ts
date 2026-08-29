@@ -26,6 +26,7 @@ let lastClickX = 0;
 let lastClickY = 0;
 
 export function parseSgrMouseEvent(input: string): MouseEventInfo | null {
+  // eslint-disable-next-line no-control-regex
   const match = input.match(/\x1b?\[<(\d+);(\d+);(\d+)([Mm])/);
   if (!match) return null;
 
@@ -34,7 +35,7 @@ export function parseSgrMouseEvent(input: string): MouseEventInfo | null {
   const y = parseInt(match[3], 10);
   const isRelease = match[4] === "m";
 
-  let button: MouseEventInfo["button"] = "left";
+  let button: MouseEventInfo["button"];
   if (cb === 64) button = "scroll_up";
   else if (cb === 65) button = "scroll_down";
   else if ((cb & 3) === 2) button = "right";

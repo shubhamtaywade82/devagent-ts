@@ -17,10 +17,11 @@ export class AgentConversation {
   private currentTurnUserMessage: ChatMessage | null = null;
 
   buildSystemPrompt(config: CliConfig, learnings: LearningEntry[], _skills: SkillContent[]): string {
-    const learningsBlock = learnings.length > 0
-      ? "\n\n[Recalled Past Learnings & User Preferences]:\n" +
-        learnings.map((l) => `- [${l.category}] Lesson: ${l.lesson}`).join("\n")
-      : "";
+    const learningsBlock =
+      learnings.length > 0
+        ? "\n\n[Recalled Past Learnings & User Preferences]:\n" +
+          learnings.map((l) => `- [${l.category}] Lesson: ${l.lesson}`).join("\n")
+        : "";
 
     // Cloud-primary sessions start already-escalated (see agent.ts's
     // `escalated` initializer), so the per-turn escalation-triggered
@@ -133,17 +134,9 @@ export class AgentConversation {
     const pinned = dropped.filter((m) => this.pinned.has(m));
 
     const preserved =
-      this.currentTurnUserMessage && !recent.includes(this.currentTurnUserMessage)
-        ? [this.currentTurnUserMessage]
-        : [];
+      this.currentTurnUserMessage && !recent.includes(this.currentTurnUserMessage) ? [this.currentTurnUserMessage] : [];
 
-    this.messages = [
-      systemPrompt,
-      ...pinned,
-      { role: "system", content: summaryText },
-      ...preserved,
-      ...recent,
-    ];
+    this.messages = [systemPrompt, ...pinned, { role: "system", content: summaryText }, ...preserved, ...recent];
   }
 
   reset(): void {

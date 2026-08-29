@@ -2,7 +2,17 @@ import React from "react";
 import { Box, Text } from "ink";
 
 /** CAPS section title + content — no box borders; separation comes from the column dividers and section rules. */
-export function Section({ title, width, rows, children }: { title: string; width: number; rows: number; children: React.ReactNode }): React.JSX.Element {
+export function Section({
+  title,
+  width,
+  rows,
+  children,
+}: {
+  title: string;
+  width: number;
+  rows: number;
+  children: React.ReactNode;
+}): React.JSX.Element {
   return (
     <Box flexDirection="column" width={width} height={rows}>
       <Box height={1}>

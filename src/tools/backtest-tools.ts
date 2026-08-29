@@ -10,9 +10,16 @@ const CONDITION_SCHEMA = {
     type: {
       type: "string",
       enum: [
-        "rsi_below", "rsi_above", "price_above_sma", "price_below_sma",
-        "price_above_ema", "price_below_ema", "macd_bullish_cross",
-        "macd_bearish_cross", "bollinger_touch_lower", "bollinger_touch_upper",
+        "rsi_below",
+        "rsi_above",
+        "price_above_sma",
+        "price_below_sma",
+        "price_above_ema",
+        "price_below_ema",
+        "macd_bullish_cross",
+        "macd_bearish_cross",
+        "bollinger_touch_lower",
+        "bollinger_touch_upper",
       ],
     },
     period: { type: "number", description: "Indicator period, e.g. 14 for RSI, 20 for SMA/EMA/Bollinger" },
@@ -37,9 +44,19 @@ const STRATEGY_SCHEMA = {
   required: ["direction", "entry", "risk"],
 };
 
-async function fetchCandles(symbol: string, interval: string, limit: number, rawMarket?: string): Promise<{ candles: ReturnType<typeof parseKlineRows> } | { error: string; message: string }> {
+async function fetchCandles(
+  symbol: string,
+  interval: string,
+  limit: number,
+  rawMarket?: string,
+): Promise<{ candles: ReturnType<typeof parseKlineRows> } | { error: string; message: string }> {
   const market = normalizeMarket(rawMarket);
-  const base = market === "usdm" ? "https://fapi.binance.com" : market === "coinm" ? "https://dapi.binance.com" : "https://api.binance.com";
+  const base =
+    market === "usdm"
+      ? "https://fapi.binance.com"
+      : market === "coinm"
+        ? "https://dapi.binance.com"
+        : "https://api.binance.com";
   const path = market === "usdm" ? "/fapi/v1/klines" : market === "coinm" ? "/dapi/v1/klines" : "/api/v3/klines";
   const url = new URL(path, base);
   url.searchParams.set("symbol", symbol);
@@ -78,7 +95,10 @@ export class BinanceBacktestTool extends Tool {
       type: "object",
       properties: {
         symbol: { type: "string" },
-        market: { type: "string", description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)" },
+        market: {
+          type: "string",
+          description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)",
+        },
         interval: { type: "string", description: "e.g. 1h, 4h, 1d" },
         limit: { type: "number", description: "Candles to fetch, max 1000 (default 500)" },
         strategy: STRATEGY_SCHEMA,
@@ -133,7 +153,10 @@ export class BinanceWalkForwardTool extends Tool {
       type: "object",
       properties: {
         symbol: { type: "string" },
-        market: { type: "string", description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)" },
+        market: {
+          type: "string",
+          description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)",
+        },
         interval: { type: "string" },
         limit: { type: "number", description: "Candles to fetch, max 1000 (default 500)" },
         strategy: STRATEGY_SCHEMA,
@@ -190,7 +213,10 @@ export class BinanceMonteCarloTool extends Tool {
       type: "object",
       properties: {
         symbol: { type: "string" },
-        market: { type: "string", description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)" },
+        market: {
+          type: "string",
+          description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)",
+        },
         interval: { type: "string" },
         limit: { type: "number", description: "Candles to fetch, max 1000 (default 500)" },
         strategy: STRATEGY_SCHEMA,
@@ -244,7 +270,10 @@ export class BinanceParamSweepTool extends Tool {
       type: "object",
       properties: {
         symbol: { type: "string" },
-        market: { type: "string", description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)" },
+        market: {
+          type: "string",
+          description: "Market type: 'usdm' (USD-M futures), 'coinm' (COIN-M futures), 'spot' (default)",
+        },
         interval: { type: "string" },
         limit: { type: "number", description: "Candles to fetch, max 1000 (default 500)" },
         strategy: STRATEGY_SCHEMA,
@@ -277,6 +306,12 @@ export class BinanceParamSweepTool extends Tool {
     if ("error" in fetched) return fetched;
 
     const results = paramSweep(fetched.candles, strategy, ranges);
-    return { symbol, interval, combinationsTested: results.length, top: results.slice(0, 10), bottom: results.slice(-5) };
+    return {
+      symbol,
+      interval,
+      combinationsTested: results.length,
+      top: results.slice(0, 10),
+      bottom: results.slice(-5),
+    };
   }
 }

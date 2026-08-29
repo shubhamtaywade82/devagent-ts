@@ -86,9 +86,7 @@ export async function validateAsl(workspaceRoot: string): Promise<boolean> {
       for (const dep of task.depends_on) {
         if (!taskIds.has(dep)) {
           hasErrors = true;
-          console.error(
-            `\x1b[31m[DEPENDENCY ERROR]\x1b[0m Task '${task.id}' depends on unknown task '${dep}'`
-          );
+          console.error(`\x1b[31m[DEPENDENCY ERROR]\x1b[0m Task '${task.id}' depends on unknown task '${dep}'`);
         }
       }
     }

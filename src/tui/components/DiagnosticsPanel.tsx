@@ -10,7 +10,17 @@ export interface DiagnosticsPanelProps {
   rows: number;
 }
 
-function Row({ label, value, color, width }: { label: string; value: string; color?: string; width: number }): React.JSX.Element {
+function Row({
+  label,
+  value,
+  color,
+  width,
+}: {
+  label: string;
+  value: string;
+  color?: string;
+  width: number;
+}): React.JSX.Element {
   const gap = Math.max(1, width - label.length - value.length);
   return (
     <Box height={1}>
@@ -27,7 +37,13 @@ function Row({ label, value, color, width }: { label: string; value: string; col
  * existing signal anywhere in RuntimeState — rendered as "—" (unknown),
  * never a fabricated 0. Tests row shows the last persisted test run.
  */
-export function DiagnosticsPanel({ lspServers, diagnosticsByPath, lastTestResult, width, rows }: DiagnosticsPanelProps): React.JSX.Element {
+export function DiagnosticsPanel({
+  lspServers,
+  diagnosticsByPath,
+  lastTestResult,
+  width,
+  rows,
+}: DiagnosticsPanelProps): React.JSX.Element {
   const lspErrors = lspServers.reduce((sum, s) => sum + s.errorCount, 0);
   const pathErrors = Object.values(diagnosticsByPath ?? {}).reduce((sum, n) => sum + n, 0);
   const errors = lspErrors + pathErrors;
@@ -39,7 +55,11 @@ export function DiagnosticsPanel({ lspServers, diagnosticsByPath, lastTestResult
       {lastTestResult ? (
         <Row
           label="Tests"
-          value={lastTestResult.failed > 0 ? `✗ ${lastTestResult.failed} of ${lastTestResult.passed + lastTestResult.failed}` : `✓ ${lastTestResult.passed}`}
+          value={
+            lastTestResult.failed > 0
+              ? `✗ ${lastTestResult.failed} of ${lastTestResult.passed + lastTestResult.failed}`
+              : `✓ ${lastTestResult.passed}`
+          }
           color={lastTestResult.failed > 0 ? "red" : "green"}
           width={width}
         />

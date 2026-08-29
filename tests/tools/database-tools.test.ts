@@ -34,7 +34,11 @@ describe("SqliteQueryTool", () => {
 
   it("runs a SELECT query", async () => {
     const tool = new SqliteQueryTool(dir);
-    const result = await tool.call({ dbPath: "app.sqlite3", operation: "query", sql: "SELECT name FROM users ORDER BY name" });
+    const result = await tool.call({
+      dbPath: "app.sqlite3",
+      operation: "query",
+      sql: "SELECT name FROM users ORDER BY name",
+    });
     expect(result.rows).toEqual([{ name: "ada" }, { name: "grace" }]);
   });
 

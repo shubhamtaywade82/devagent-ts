@@ -178,7 +178,11 @@ describe("Orchestrator", () => {
 
   it("aborts after exceeding the max re-plan count instead of looping forever", async () => {
     let counter = 0;
-    const runner: StepRunner = { async run(): Promise<StepOutcome> { return { kind: "blocking", error: "stuck" }; } };
+    const runner: StepRunner = {
+      async run(): Promise<StepOutcome> {
+        return { kind: "blocking", error: "stuck" };
+      },
+    };
     const planner = new StubPlanner(() => {
       counter += 1;
       return [makeStep(`a${counter}`)];
@@ -326,9 +330,7 @@ describe("Orchestrator checkpointing", () => {
 // zero (so a crash-loop could never exhaust it).
 describe("Orchestrator resume state", () => {
   it("carries a checkpoint's history into the planner", async () => {
-    const priorHistory = [
-      { stepId: "a", outcome: { kind: "fatal", error: "compile error" } as StepOutcome, at: 1 },
-    ];
+    const priorHistory = [{ stepId: "a", outcome: { kind: "fatal", error: "compile error" } as StepOutcome, at: 1 }];
     const seen: unknown[] = [];
     const planner: Planner = {
       async replan(_remaining, history) {
@@ -336,7 +338,11 @@ describe("Orchestrator resume state", () => {
         return [];
       },
     };
-    const runner: StepRunner = { async run() { return { kind: "fatal", error: "still broken" }; } };
+    const runner: StepRunner = {
+      async run() {
+        return { kind: "fatal", error: "still broken" };
+      },
+    };
 
     const orchestrator = new Orchestrator({
       steps: [makeStep("a")],
@@ -353,7 +359,11 @@ describe("Orchestrator resume state", () => {
 
   it("resumes the replan budget instead of restarting it", async () => {
     const planner = new StubPlanner((remaining) => remaining.map((s) => ({ ...s, status: "pending" as const })));
-    const runner: StepRunner = { async run() { return { kind: "fatal", error: "always fails" }; } };
+    const runner: StepRunner = {
+      async run() {
+        return { kind: "fatal", error: "always fails" };
+      },
+    };
 
     const orchestrator = new Orchestrator({
       steps: [makeStep("a")],
@@ -372,7 +382,11 @@ describe("Orchestrator resume state", () => {
     const priorHistory = [{ stepId: "a", outcome: { kind: "success", output: {} } as StepOutcome, at: 1 }];
     const orchestrator = new Orchestrator({
       steps: [makeStep("a")],
-      runner: { async run() { return { kind: "success", output: {} }; } },
+      runner: {
+        async run() {
+          return { kind: "success", output: {} };
+        },
+      },
       planner: new StubPlanner(),
       runRollback: jest.fn(async () => {}),
       logger: noopLogger,

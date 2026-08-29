@@ -18,8 +18,7 @@ export const REASONING_PATTERN =
  * evidence on quick-routed lookup turns (a prose-only answer is wrong,
  * not just low quality).
  */
-export const LOOKUP_PATTERN =
-  /\b(where is|where's|find the|show me|list the|which file|how many|what does .* do)\b/;
+export const LOOKUP_PATTERN = /\b(where is|where's|find the|show me|list the|which file|how many|what does .* do)\b/;
 
 export type EscalationHint = "vision" | "reasoning" | null;
 

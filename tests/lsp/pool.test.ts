@@ -14,7 +14,9 @@ let startSpy: jest.SpyInstance;
 let stopSpy: jest.SpyInstance;
 
 beforeEach(() => {
-  startSpy = jest.spyOn(LspServerSession.prototype, "start").mockImplementation(async function (this: LspServerSession) {
+  startSpy = jest.spyOn(LspServerSession.prototype, "start").mockImplementation(async function (
+    this: LspServerSession,
+  ) {
     this.status = "running";
   });
   stopSpy = jest.spyOn(LspServerSession.prototype, "stop").mockImplementation(async function (this: LspServerSession) {

@@ -108,7 +108,10 @@ describe("SessionStore", () => {
   it("listSessions returns most recently updated first, with metadata", () => {
     const store = new SessionStore(sessionsDir);
     const a = store.startNew();
-    store.save(a, [{ role: "user", content: "first conversation" }, { role: "assistant", content: "hi" }]);
+    store.save(a, [
+      { role: "user", content: "first conversation" },
+      { role: "assistant", content: "hi" },
+    ]);
     const b = store.startNew();
     store.save(b, [{ role: "user", content: "second conversation" }]);
 

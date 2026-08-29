@@ -16,7 +16,7 @@ describe("ruby-source", () => {
     });
 
     it("keeps # inside strings", () => {
-      expect(stripComment('scope :tagged, -> { where("name LIKE \'#a\'") }')).toContain("#a");
+      expect(stripComment("scope :tagged, -> { where(\"name LIKE '#a'\") }")).toContain("#a");
     });
   });
 
@@ -60,7 +60,9 @@ describe("ruby-source", () => {
     });
 
     it("does not treat trailing-if modifiers as block openers", () => {
-      const lines = logicalLines(["class Foo", "  validate :bar if Rails.env.test?", "  def baz", "  end", "end"].join("\n"));
+      const lines = logicalLines(
+        ["class Foo", "  validate :bar if Rails.env.test?", "  def baz", "  end", "end"].join("\n"),
+      );
       const def = lines.find((l) => l.text.startsWith("def baz"));
       expect(def?.namespace).toEqual(["Foo"]);
       expect(def?.depth).toBe(1);
@@ -76,7 +78,7 @@ describe("ruby-source", () => {
     });
 
     it("ignores commas inside nested brackets", () => {
-      const call = parseMacroArgs(":email, format: { with: /a,b/, message: \"bad\" }, presence: true");
+      const call = parseMacroArgs(':email, format: { with: /a,b/, message: "bad" }, presence: true');
       expect(call.args).toEqual(["email"]);
       expect(call.opts.presence).toBe("true");
       expect(call.opts.format).toContain("message");

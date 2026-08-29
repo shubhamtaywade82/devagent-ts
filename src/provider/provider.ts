@@ -84,7 +84,7 @@ export const DEFAULT_LOCAL_HOST = "http://localhost:11434";
  * a cloud host — pointing Cloud traffic (with a Bearer token attached) at
  * someone's localhost is both broken and a credential leak. */
 export function defaultHostForTier(tier: Tier): string {
-  return tier === "cloud" ? DEFAULT_CLOUD_HOST : process.env.OLLAMA_HOST ?? DEFAULT_LOCAL_HOST;
+  return tier === "cloud" ? DEFAULT_CLOUD_HOST : (process.env.OLLAMA_HOST ?? DEFAULT_LOCAL_HOST);
 }
 
 // Maps an SDK error onto this module's error hierarchy so existing

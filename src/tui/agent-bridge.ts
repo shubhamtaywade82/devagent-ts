@@ -41,7 +41,10 @@ export interface BridgeableAgent {
 
 export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   let toolSeq = 0;
-  interface OpenCall { id: string; args: Record<string, unknown> }
+  interface OpenCall {
+    id: string;
+    args: Record<string, unknown>;
+  }
   const openCalls = new Map<string, OpenCall[]>(); // tool name -> stack of open calls
 
   agent.on("onAssistantText", (chunk: string) => {

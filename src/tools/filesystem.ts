@@ -14,7 +14,10 @@ export { PathEscapeError };
  * blast radius.
  */
 export class SensitivePathError extends Error {
-  constructor(public readonly path: string, public readonly reason: string) {
+  constructor(
+    public readonly path: string,
+    public readonly reason: string,
+  ) {
     super(`access to sensitive path blocked: ${path} (${reason})`);
     this.name = "SensitivePathError";
   }

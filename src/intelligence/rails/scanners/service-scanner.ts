@@ -27,9 +27,10 @@ export class ServiceScanner implements Scanner {
       for (const line of logicalLines(file.content)) {
         const classDef = /^class\s+([A-Z][A-Za-z0-9_:]*)/.exec(line.text);
         if (classDef) {
-          const name = line.namespace.length && !classDef[1].includes("::")
-            ? `${line.namespace.join("::")}::${classDef[1]}`
-            : classDef[1];
+          const name =
+            line.namespace.length && !classDef[1].includes("::")
+              ? `${line.namespace.join("::")}::${classDef[1]}`
+              : classDef[1];
           service = {
             id: `service:${name}`,
             type: "service",
@@ -68,7 +69,11 @@ export class ServiceScanner implements Scanner {
             intents.push({ fromId: service.id, relationship: "enqueues", toType: "job", toName: constant });
           } else if (/Mailer$/.test(constant)) {
             intents.push({ fromId: service.id, relationship: "delivers", toType: "mailer", toName: constant });
-          } else if (/^(?:create|create!|find|find_by|find_by!|where|new|update|update!|destroy|delete|upsert|insert_all|transaction)$/.test(method)) {
+          } else if (
+            /^(?:create|create!|find|find_by|find_by!|where|new|update|update!|destroy|delete|upsert|insert_all|transaction)$/.test(
+              method,
+            )
+          ) {
             intents.push({ fromId: service.id, relationship: "calls", toType: "model", toName: constant });
           } else if (method === "call") {
             intents.push({ fromId: service.id, relationship: "calls", toType: "service", toName: constant });

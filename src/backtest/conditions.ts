@@ -24,8 +24,10 @@ export function buildIndicatorSeries(candles: Candle[], conditions: Condition[])
   let needsBollinger = false;
 
   for (const c of conditions) {
-    if (c.type === "price_above_sma" || c.type === "price_below_sma") smaPeriods.add(c.period ?? DEFAULT_SMA_EMA_PERIOD);
-    if (c.type === "price_above_ema" || c.type === "price_below_ema") emaPeriods.add(c.period ?? DEFAULT_SMA_EMA_PERIOD);
+    if (c.type === "price_above_sma" || c.type === "price_below_sma")
+      smaPeriods.add(c.period ?? DEFAULT_SMA_EMA_PERIOD);
+    if (c.type === "price_above_ema" || c.type === "price_below_ema")
+      emaPeriods.add(c.period ?? DEFAULT_SMA_EMA_PERIOD);
     if (c.type === "rsi_below" || c.type === "rsi_above") rsiPeriods.add(c.period ?? DEFAULT_RSI_PERIOD);
     if (c.type === "macd_bullish_cross" || c.type === "macd_bearish_cross") needsMacd = true;
     if (c.type === "bollinger_touch_lower" || c.type === "bollinger_touch_upper") needsBollinger = true;

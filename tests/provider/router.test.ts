@@ -243,9 +243,7 @@ describe("Router concurrency", () => {
   it("does not let concurrent routes clobber each other's model", async () => {
     const local = new Provider({ tier: "local", model: "base" });
     const catalog = new ModelCatalog(local);
-    jest
-      .spyOn(local, "availableModels")
-      .mockResolvedValue({ models: [{ name: "qwen3:8b" }, { name: "minicpm5:1b" }] });
+    jest.spyOn(local, "availableModels").mockResolvedValue({ models: [{ name: "qwen3:8b" }, { name: "minicpm5:1b" }] });
     await catalog.refresh();
 
     const seen: string[] = [];

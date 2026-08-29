@@ -89,14 +89,25 @@ export class RoutesScanner implements Scanner {
     for (const file of files) {
       const stack: Frame[] = [];
 
-      const currentPrefix = () => stack.map((f) => f.pathPrefix).filter(Boolean).join("");
+      const currentPrefix = () =>
+        stack
+          .map((f) => f.pathPrefix)
+          .filter(Boolean)
+          .join("");
       const currentModule = () =>
         stack
           .map((f) => f.modulePrefix)
           .filter(Boolean)
           .join("/");
 
-      const addRoute = (verb: string, path: string, controller: string, action: string, line: number, routeName?: string) => {
+      const addRoute = (
+        verb: string,
+        path: string,
+        controller: string,
+        action: string,
+        line: number,
+        routeName?: string,
+      ) => {
         const fullController = currentModule() ? `${currentModule()}/${controller}` : controller;
         const normalizedPath = path.replace(/\/+/g, "/") || "/";
         const route: RouteEntity = {
@@ -226,15 +237,36 @@ export class RoutesScanner implements Scanner {
 
           if (target && target.includes("#")) {
             const [controller, action] = target.split("#");
-            addRoute(verb, `${currentPrefix()}/${pathArg.replace(/^\//, "")}`, controller, action, line.line, routeName);
+            addRoute(
+              verb,
+              `${currentPrefix()}/${pathArg.replace(/^\//, "")}`,
+              controller,
+              action,
+              line.line,
+              routeName,
+            );
           } else if (memberFrame && resourceFrame?.resource) {
-            addRoute(verb, `${currentPrefix()}/${pathArg}`, resourceFrame.resource.controller, pathArg, line.line, routeName);
+            addRoute(
+              verb,
+              `${currentPrefix()}/${pathArg}`,
+              resourceFrame.resource.controller,
+              pathArg,
+              line.line,
+              routeName,
+            );
           } else {
             // `get "pages/about"` — controller#action inferred from path.
             const segments = pathArg.replace(/^\//, "").split("/");
             if (segments.length >= 2) {
               const action = segments.pop() as string;
-              addRoute(verb, `${currentPrefix()}/${pathArg.replace(/^\//, "")}`, segments.join("/"), action, line.line, routeName);
+              addRoute(
+                verb,
+                `${currentPrefix()}/${pathArg.replace(/^\//, "")}`,
+                segments.join("/"),
+                action,
+                line.line,
+                routeName,
+              );
             }
           }
           continue;

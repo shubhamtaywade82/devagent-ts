@@ -62,9 +62,7 @@ export function deriveCapabilities(serverCaps: ServerCapabilities): LspCapabilit
     ),
     references: !!serverCaps.referencesProvider,
     diagnostics: textDocument && !!serverCaps.codeActionProvider,
-    semanticTokens:
-      !!serverCaps.semanticTokensProvider &&
-      typeof serverCaps.semanticTokensProvider !== "boolean",
+    semanticTokens: !!serverCaps.semanticTokensProvider && typeof serverCaps.semanticTokensProvider !== "boolean",
     formatting: !!serverCaps.documentFormattingProvider,
     codeAction: !!serverCaps.codeActionProvider,
     signatureHelp: !!serverCaps.signatureHelpProvider,

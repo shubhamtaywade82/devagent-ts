@@ -21,8 +21,16 @@ export function ema(values: number[], period: number): number {
 // Wilder's RSI.
 export function rsi(values: number[], period = 14): number {
   const changes = values.slice(1).map((v, i) => v - values[i]);
-  let avgGain = changes.slice(0, period).filter((c) => c > 0).reduce((s, c) => s + c, 0) / period;
-  let avgLoss = changes.slice(0, period).filter((c) => c < 0).reduce((s, c) => s - c, 0) / period;
+  let avgGain =
+    changes
+      .slice(0, period)
+      .filter((c) => c > 0)
+      .reduce((s, c) => s + c, 0) / period;
+  let avgLoss =
+    changes
+      .slice(0, period)
+      .filter((c) => c < 0)
+      .reduce((s, c) => s - c, 0) / period;
 
   for (const change of changes.slice(period)) {
     const gain = change > 0 ? change : 0;
@@ -36,7 +44,12 @@ export function rsi(values: number[], period = 14): number {
   return 100 - 100 / (1 + rs);
 }
 
-export function macd(values: number[], fast = 12, slow = 26, signalPeriod = 9): { macd: number; signal: number; histogram: number } {
+export function macd(
+  values: number[],
+  fast = 12,
+  slow = 26,
+  signalPeriod = 9,
+): { macd: number; signal: number; histogram: number } {
   const fastSeries = emaSeries(values, fast);
   const slowSeries = emaSeries(values, slow);
   // Align series (fastSeries is longer since it starts earlier) to the tail shared by both.
@@ -71,14 +84,22 @@ export function macdSeries(
   values: number[],
   fast = 12,
   slow = 26,
-  signalPeriod = 9
+  signalPeriod = 9,
 ): Array<{ macd: number; signal: number; histogram: number }> {
   const warmup = slow + signalPeriod;
-  return values.map((_, i) => (i + 1 >= warmup ? macd(values.slice(0, i + 1), fast, slow, signalPeriod) : { macd: NaN, signal: NaN, histogram: NaN }));
+  return values.map((_, i) =>
+    i + 1 >= warmup
+      ? macd(values.slice(0, i + 1), fast, slow, signalPeriod)
+      : { macd: NaN, signal: NaN, histogram: NaN },
+  );
 }
 
-export function bollingerSeries(values: number[], period = 20, k = 2): Array<{ upper: number; middle: number; lower: number }> {
+export function bollingerSeries(
+  values: number[],
+  period = 20,
+  k = 2,
+): Array<{ upper: number; middle: number; lower: number }> {
   return values.map((_, i) =>
-    i + 1 >= period ? bollingerBands(values.slice(0, i + 1), period, k) : { upper: NaN, middle: NaN, lower: NaN }
+    i + 1 >= period ? bollingerBands(values.slice(0, i + 1), period, k) : { upper: NaN, middle: NaN, lower: NaN },
   );
 }

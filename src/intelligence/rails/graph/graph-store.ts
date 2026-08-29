@@ -48,10 +48,7 @@ export class GraphStore {
 
   /** True when the cache exists and matches both schema and manifest hash. */
   isFresh(manifestHash: string): boolean {
-    return (
-      this.getMeta("schema_version") === SCHEMA_VERSION &&
-      this.getMeta("manifest_hash") === manifestHash
-    );
+    return this.getMeta("schema_version") === SCHEMA_VERSION && this.getMeta("manifest_hash") === manifestHash;
   }
 
   /** Replace the persisted graph and intent list in one transaction. */

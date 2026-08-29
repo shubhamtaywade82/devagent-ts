@@ -31,7 +31,10 @@ export class SqliteQueryTool extends Tool {
         dbPath: { type: "string", description: "Path to the .sqlite3/.db file, relative to the workspace root" },
         operation: { type: "string", enum: ["tables", "schema", "query"] },
         table: { type: "string", description: "Required for operation=schema" },
-        sql: { type: "string", description: "Required for operation=query — must start with SELECT, PRAGMA, or EXPLAIN" },
+        sql: {
+          type: "string",
+          description: "Required for operation=query — must start with SELECT, PRAGMA, or EXPLAIN",
+        },
       },
       required: ["dbPath", "operation"],
     };

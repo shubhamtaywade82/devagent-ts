@@ -81,9 +81,17 @@ export class KnowledgeGraph {
     for (const edge of touched) {
       const other = edge.from === id ? edge.to : edge.from;
       const otherOut = this.outgoing.get(other);
-      if (otherOut) this.outgoing.set(other, otherOut.filter((e) => !gone.has(e)));
+      if (otherOut)
+        this.outgoing.set(
+          other,
+          otherOut.filter((e) => !gone.has(e)),
+        );
       const otherIn = this.incoming.get(other);
-      if (otherIn) this.incoming.set(other, otherIn.filter((e) => !gone.has(e)));
+      if (otherIn)
+        this.incoming.set(
+          other,
+          otherIn.filter((e) => !gone.has(e)),
+        );
     }
   }
 
@@ -101,9 +109,7 @@ export class KnowledgeGraph {
   /** Case/underscore-insensitive name lookup, optionally scoped to a type. */
   findByName(name: string, type?: EntityType): RsiEntity[] {
     const ids = this.byName.get(normalizeName(name)) ?? new Set();
-    const found = [...ids]
-      .map((id) => this.entities.get(id))
-      .filter((e): e is RsiEntity => e != null);
+    const found = [...ids].map((id) => this.entities.get(id)).filter((e): e is RsiEntity => e != null);
     return type ? found.filter((e) => e.type === type) : found;
   }
 

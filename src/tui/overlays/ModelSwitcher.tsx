@@ -28,7 +28,16 @@ const CAP_SHORT: Record<string, string> = {
 };
 
 /** Ctrl+M — switch model via the universal picker. */
-export function ModelSwitcher({ current, models, availability, capabilities, width, rows, active, onSelect }: ModelSwitcherProps): React.JSX.Element {
+export function ModelSwitcher({
+  current,
+  models,
+  availability,
+  capabilities,
+  width,
+  rows,
+  active,
+  onSelect,
+}: ModelSwitcherProps): React.JSX.Element {
   if (models === null) {
     return (
       <OverlayFrame title="Switch Model" width={width} rows={rows}>

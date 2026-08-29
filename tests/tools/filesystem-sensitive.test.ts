@@ -68,7 +68,7 @@ describe("WriteFileTool sensitive path blocking", () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     const tool = new WriteFileTool(dir);
 
-    await expect(tool.call({ path: "credentials.json", content: '{}' })).rejects.toThrow(SensitivePathError);
+    await expect(tool.call({ path: "credentials.json", content: "{}" })).rejects.toThrow(SensitivePathError);
   });
 
   it("allows writing normal files", async () => {

@@ -6,7 +6,15 @@
  */
 
 import { QueryEngine } from "./query-engine.js";
-import { ControllerEntity, ModelEntity, RouteEntity, RsiEntity, TableEntity, ViewEntity, WorkspaceInfo } from "./types.js";
+import {
+  ControllerEntity,
+  ModelEntity,
+  RouteEntity,
+  RsiEntity,
+  TableEntity,
+  ViewEntity,
+  WorkspaceInfo,
+} from "./types.js";
 import { KnowledgeGraph } from "./graph/graph.js";
 
 export interface RailsContext {
@@ -83,7 +91,10 @@ export class RailsContextBuilder {
   }
 
   private routeSection(route: RouteEntity): string {
-    const lines = [`## Route ${route.verb} ${route.path}`, `- handled by \`${route.controller}#${route.action}\` (${route.file}:${route.line})`];
+    const lines = [
+      `## Route ${route.verb} ${route.path}`,
+      `- handled by \`${route.controller}#${route.action}\` (${route.file}:${route.line})`,
+    ];
     const target = this.graph.edgesFrom(route.id, "routes_to")[0];
     if (target) {
       const controller = this.graph.getEntity(target.to);
@@ -114,10 +125,14 @@ export class RailsContextBuilder {
       lines.push(`- table \`${table.name}\`: ${table.columns.map((c) => `${c.name}:${c.columnType}`).join(", ")}`);
     }
     if (model.associations.length) {
-      lines.push(`- associations: ${model.associations.map((a) => `${a.kind} :${a.name}${a.through ? ` (through :${a.through})` : ""}`).join("; ")}`);
+      lines.push(
+        `- associations: ${model.associations.map((a) => `${a.kind} :${a.name}${a.through ? ` (through :${a.through})` : ""}`).join("; ")}`,
+      );
     }
     if (model.validations.length) {
-      lines.push(`- validations: ${model.validations.map((v) => `${v.attributes.join("/") || "custom"} (${v.rules.join(", ")})`).join("; ")}`);
+      lines.push(
+        `- validations: ${model.validations.map((v) => `${v.attributes.join("/") || "custom"} (${v.rules.join(", ")})`).join("; ")}`,
+      );
     }
     if (model.callbacks.length) {
       lines.push(`- callbacks: ${model.callbacks.map((c) => `${c.kind} :${c.handler}`).join("; ")}`);
@@ -129,7 +144,8 @@ export class RailsContextBuilder {
     if (specs.length) {
       lines.push(`- specs: ${specs.map((s) => s.file).join(", ")}`);
     }
-    const views = this.graph.edgesTo(model.id, "references_model")
+    const views = this.graph
+      .edgesTo(model.id, "references_model")
       .map((e) => this.graph.getEntity(e.from))
       .filter((e): e is ViewEntity => e?.type === "view" || e?.type === "component");
     if (views.length) {
@@ -179,7 +195,10 @@ function controllerDetails(entity: RsiEntity): string[] {
   if (controller.beforeActions?.length) {
     details.push(
       `- before_actions: ${controller.beforeActions
-        .map((b) => `${b.handler}${b.only ? ` only=[${b.only.join(",")}]` : ""}${b.except ? ` except=[${b.except.join(",")}]` : ""}`)
+        .map(
+          (b) =>
+            `${b.handler}${b.only ? ` only=[${b.only.join(",")}]` : ""}${b.except ? ` except=[${b.except.join(",")}]` : ""}`,
+        )
         .join("; ")}`,
     );
   }
@@ -196,7 +215,9 @@ export function extractCandidates(request: string): Candidates {
   const names = new Set<string>();
   const paths = new Set<string>();
 
-  for (const m of request.matchAll(/\b([A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)*(?:::[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)*)*)\b/g)) {
+  for (const m of request.matchAll(
+    /\b([A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)*(?:::[A-Z][a-z0-9]+(?:[A-Z][a-z0-9]+)*)*)\b/g,
+  )) {
     names.add(m[1]);
   }
   for (const m of request.matchAll(/[`"']([A-Za-z_/:.-]+)[`"']/g)) {

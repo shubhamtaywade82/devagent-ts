@@ -50,9 +50,13 @@ export class ShellTool extends Tool {
     this.onOutput = opts.onOutput;
   }
 
-  get name(): string { return "run_shell"; }
+  get name(): string {
+    return "run_shell";
+  }
 
-  get description(): string { return "Run a shell command inside an isolated Docker sandbox rooted at the workspace."; }
+  get description(): string {
+    return "Run a shell command inside an isolated Docker sandbox rooted at the workspace.";
+  }
 
   override get capabilities(): string[] {
     return ["Terminal"];
@@ -168,26 +172,30 @@ export class ShellTool extends Tool {
         checkOverflow();
       });
 
-      const hardTimeout = setTimeout(() => {
-        if (settled) return;
-        this.logger.warn(`[ShellTool] hard timeout on ${container}`);
-        void this.escalateKill(container).then(() => {
-          // Hand back whatever the command managed to emit. Returning an empty
-          // stdout gave the model zero diagnostics about an overrunning build
-          // or test run, so its only move was to retry the same command --
-          // straight into the loop detector.
-          finish({
-            exitCode: -1,
-            stdout: stdout.subarray(0, ShellTool.MAX_OUTPUT_BYTES).toString("utf-8"),
-            stderr:
-              stderr.subarray(0, ShellTool.MAX_OUTPUT_BYTES).toString("utf-8") +
-              `\n[sandbox exceeded hard timeout after ${timeoutSec}s]`,
-            truncated: stdout.byteLength > ShellTool.MAX_OUTPUT_BYTES || stderr.byteLength > ShellTool.MAX_OUTPUT_BYTES,
-            timeoutSec,
-            error: "TimeoutError",
+      const hardTimeout = setTimeout(
+        () => {
+          if (settled) return;
+          this.logger.warn(`[ShellTool] hard timeout on ${container}`);
+          void this.escalateKill(container).then(() => {
+            // Hand back whatever the command managed to emit. Returning an empty
+            // stdout gave the model zero diagnostics about an overrunning build
+            // or test run, so its only move was to retry the same command --
+            // straight into the loop detector.
+            finish({
+              exitCode: -1,
+              stdout: stdout.subarray(0, ShellTool.MAX_OUTPUT_BYTES).toString("utf-8"),
+              stderr:
+                stderr.subarray(0, ShellTool.MAX_OUTPUT_BYTES).toString("utf-8") +
+                `\n[sandbox exceeded hard timeout after ${timeoutSec}s]`,
+              truncated:
+                stdout.byteLength > ShellTool.MAX_OUTPUT_BYTES || stderr.byteLength > ShellTool.MAX_OUTPUT_BYTES,
+              timeoutSec,
+              error: "TimeoutError",
+            });
           });
-        });
-      }, (timeoutSec + 15) * 1000);
+        },
+        (timeoutSec + 15) * 1000,
+      );
 
       child.on("close", (exitCode) => {
         if (killedForOverflow) {

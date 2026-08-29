@@ -24,9 +24,10 @@ export class JobScanner implements Scanner {
       for (const line of logicalLines(file.content)) {
         const classDef = /^class\s+([A-Z][A-Za-z0-9_:]*)/.exec(line.text);
         if (classDef) {
-          const name = line.namespace.length && !classDef[1].includes("::")
-            ? `${line.namespace.join("::")}::${classDef[1]}`
-            : classDef[1];
+          const name =
+            line.namespace.length && !classDef[1].includes("::")
+              ? `${line.namespace.join("::")}::${classDef[1]}`
+              : classDef[1];
           job = {
             id: `job:${name}`,
             type: "job",

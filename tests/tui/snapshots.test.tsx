@@ -68,7 +68,10 @@ describe("layout snapshots", () => {
 
   it.each(sizes)("same structure, density-only changes at %dx%d", (columns, rows) => {
     const { bus, store } = seededWorld();
-    const { lastFrame, unmount } = renderWide(<App bus={bus} store={store} columns={columns} rows={rows} now={NOW} />, columns);
+    const { lastFrame, unmount } = renderWide(
+      <App bus={bus} store={store} columns={columns} rows={rows} now={NOW} />,
+      columns,
+    );
     expect(lastFrame()).toMatchSnapshot();
     unmount();
   });
@@ -89,7 +92,10 @@ describe("layout snapshots", () => {
       step: { id: "s2", description: "Add Devise gem", status: "implementing", dependencies: [], retryCount: 0 },
     });
     bus.publish({ type: "conversation.diff", filePath: "Gemfile", diff: "+gem 'devise'", status: "pending_review" });
-    bus.publish({ type: "project.detected", info: { language: "TypeScript", framework: "React", testFramework: "Jest" } });
+    bus.publish({
+      type: "project.detected",
+      info: { language: "TypeScript", framework: "React", testFramework: "Jest" },
+    });
 
     // Dashboard is the default view now — no navigation needed.
     const { lastFrame, unmount } = renderWide(<App bus={bus} store={store} columns={140} rows={40} now={NOW} />, 140);

@@ -113,9 +113,7 @@ export class LspManager {
     }
   }
 
-  private async getSession(
-    filePath: string,
-  ): Promise<LspServerSession | null> {
+  private async getSession(filePath: string): Promise<LspServerSession | null> {
     const provider = this.registry.getProviderForFile(filePath);
     if (!provider) return null;
 
@@ -183,11 +181,7 @@ export class LspManager {
 
   // --- Semantic Operations ---
 
-  async getDefinition(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<Location[]> {
+  async getDefinition(filePath: string, line: number, character: number): Promise<Location[]> {
     const session = await this.getSession(filePath);
     if (!session?.client) return [];
 
@@ -259,10 +253,8 @@ export class LspManager {
     if (!session?.client || !session.capabilities.documentSymbol) return [];
 
     const uri = pathToUri(this.workspaceRoot, filePath);
-    const result = (await session.client.sendRequest(
-      "textDocument/documentSymbol",
-      { textDocument: { uri } },
-    )) as SymbolInformation[] | { name: string; kind: number; range: unknown; children?: unknown[] }[];
+    const result = (await session.client.sendRequest("textDocument/documentSymbol", { textDocument: { uri } })) as
+      SymbolInformation[] | { name: string; kind: number; range: unknown; children?: unknown[] }[];
 
     if (!result || result.length === 0) return [];
 
@@ -272,17 +264,16 @@ export class LspManager {
     // childless top-level DocumentSymbol as flat SymbolInformation, which then
     // crashes downstream on the missing `.location`.
     if (!("location" in result[0])) {
-      return this.flattenDocumentSymbols(result as Array<{ name: string; kind: number; range: unknown; children?: unknown[] }>, uri);
+      return this.flattenDocumentSymbols(
+        result as Array<{ name: string; kind: number; range: unknown; children?: unknown[] }>,
+        uri,
+      );
     }
 
     return result as SymbolInformation[];
   }
 
-  async getHover(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<Hover | null> {
+  async getHover(filePath: string, line: number, character: number): Promise<Hover | null> {
     const session = await this.getSession(filePath);
     if (!session?.client) return null;
 
@@ -331,11 +322,7 @@ export class LspManager {
     return all;
   }
 
-  async getCodeActions(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<CodeAction[]> {
+  async getCodeActions(filePath: string, line: number, character: number): Promise<CodeAction[]> {
     const session = await this.getSession(filePath);
     if (!session?.client) return [];
 
@@ -352,11 +339,7 @@ export class LspManager {
     return (result ?? []) as CodeAction[];
   }
 
-  async getCompletion(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<CompletionItem[]> {
+  async getCompletion(filePath: string, line: number, character: number): Promise<CompletionItem[]> {
     const session = await this.getSession(filePath);
     if (!session?.client) return [];
 
@@ -372,19 +355,15 @@ export class LspManager {
     return (result as { items: CompletionItem[] }).items ?? [];
   }
 
-  async getSignatureHelp(
-    filePath: string,
-    line: number,
-    character: number,
-  ): Promise<SignatureHelp | null> {
+  async getSignatureHelp(filePath: string, line: number, character: number): Promise<SignatureHelp | null> {
     const session = await this.getSession(filePath);
     if (!session?.client) return null;
 
     const uri = pathToUri(this.workspaceRoot, filePath);
-    const result = (await session.client.sendRequest(
-      "textDocument/signatureHelp",
-      { textDocument: { uri }, position: { line, character } },
-    )) as SignatureHelp | null;
+    const result = (await session.client.sendRequest("textDocument/signatureHelp", {
+      textDocument: { uri },
+      position: { line, character },
+    })) as SignatureHelp | null;
 
     return result;
   }
@@ -408,10 +387,9 @@ export class LspManager {
 
     const uri = pathToUri(this.workspaceRoot, filePath);
     try {
-      const result = (await session.client.sendRequest(
-        "textDocument/semanticTokens/full",
-        { textDocument: { uri } },
-      )) as { data: number[] } | null;
+      const result = (await session.client.sendRequest("textDocument/semanticTokens/full", {
+        textDocument: { uri },
+      })) as { data: number[] } | null;
 
       return result?.data ?? null;
     } catch {

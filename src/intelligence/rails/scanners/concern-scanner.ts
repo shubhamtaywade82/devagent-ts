@@ -25,9 +25,10 @@ export class ConcernScanner implements Scanner {
       for (const line of logicalLines(file.content)) {
         const moduleDef = /^module\s+([A-Z][A-Za-z0-9_:]*)/.exec(line.text);
         if (moduleDef) {
-          const name = line.namespace.length && !moduleDef[1].includes("::")
-            ? `${line.namespace.join("::")}::${moduleDef[1]}`
-            : moduleDef[1];
+          const name =
+            line.namespace.length && !moduleDef[1].includes("::")
+              ? `${line.namespace.join("::")}::${moduleDef[1]}`
+              : moduleDef[1];
           concern = {
             id: `concern:${name}`,
             type: "concern",

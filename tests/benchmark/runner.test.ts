@@ -25,10 +25,7 @@ describe("runBenchmark", () => {
     const provider = new Provider({ tier: "local", model: "placeholder" });
     jest.spyOn(provider, "chat").mockResolvedValue(response("ok"));
 
-    const results = await runBenchmark(
-      [{ model: "qwen3:8b", tier: "local", provider }],
-      [passingCase, failingCase],
-    );
+    const results = await runBenchmark([{ model: "qwen3:8b", tier: "local", provider }], [passingCase, failingCase]);
 
     expect(results).toHaveLength(2);
     expect(results.find((r) => r.caseId === "always-pass")?.pass).toBe(true);
@@ -71,9 +68,9 @@ describe("runBenchmark", () => {
 
   it("falls back to a content-length estimate when eval fields are absent", async () => {
     const provider = new Provider({ tier: "local", model: "x" });
-    jest.spyOn(provider, "chat").mockImplementation(
-      () => new Promise((resolve) => setTimeout(() => resolve(response("a".repeat(40))), 5)),
-    );
+    jest
+      .spyOn(provider, "chat")
+      .mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(response("a".repeat(40))), 5)));
 
     const results = await runBenchmark([{ model: "qwen3:8b", tier: "local", provider }], [passingCase]);
 
@@ -83,7 +80,10 @@ describe("runBenchmark", () => {
 });
 
 function toolCallResponse(name: string, args: Record<string, unknown>): ChatResponse {
-  return { message: { role: "assistant", content: "", tool_calls: [{ function: { name, arguments: args } }] }, done: true };
+  return {
+    message: { role: "assistant", content: "", tool_calls: [{ function: { name, arguments: args } }] },
+    done: true,
+  };
 }
 
 describe("runBenchmark — agentic cases", () => {
@@ -107,7 +107,8 @@ describe("runBenchmark — agentic cases", () => {
       resolveTool: async (name) => ({ ok: true, from: name }),
       validate: (trajectory) => {
         const names = trajectory.toolCallsMade.map((c) => c.name);
-        if (names.join(",") !== "step_one,step_two") return { pass: false, reason: `wrong tool order: ${names.join(",")}` };
+        if (names.join(",") !== "step_one,step_two")
+          return { pass: false, reason: `wrong tool order: ${names.join(",")}` };
         if (!trajectory.finalContent.includes("42")) return { pass: false, reason: "final content missing 42" };
         if (trajectory.hitMaxTurns) return { pass: false, reason: "should not have hit max turns" };
         return { pass: true };
@@ -132,7 +133,10 @@ describe("runBenchmark — agentic cases", () => {
       tools: [],
       maxTurns: 3,
       resolveTool: async () => ({ ok: true }),
-      validate: (trajectory) => ({ pass: !trajectory.hitMaxTurns, reason: trajectory.hitMaxTurns ? "hit max turns" : undefined }),
+      validate: (trajectory) => ({
+        pass: !trajectory.hitMaxTurns,
+        reason: trajectory.hitMaxTurns ? "hit max turns" : undefined,
+      }),
     };
 
     const results = await runBenchmark([{ model: "qwen3:8b", tier: "local", provider }], [agenticCase]);
@@ -213,7 +217,9 @@ describe("runBenchmark — progress events and timeouts", () => {
 
     expect(results[0].pass).toBe(false);
     expect(results[0].error).toMatch(/timed out after 20ms/);
-    expect(events[events.length - 1]).toEqual(expect.objectContaining({ status: "done", error: expect.stringMatching(/timed out/) }));
+    expect(events[events.length - 1]).toEqual(
+      expect.objectContaining({ status: "done", error: expect.stringMatching(/timed out/) }),
+    );
   });
 
   it("moves on to the next case after one times out, rather than blocking the run", async () => {

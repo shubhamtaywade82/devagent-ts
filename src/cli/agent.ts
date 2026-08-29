@@ -496,7 +496,9 @@ export class Agent {
                 this.emit("onAssistantText", delta);
               }
             }
-            const thinking = (chunk.message as { role: string; content: string; thinking?: string; tool_calls?: unknown[] })?.thinking;
+            const thinking = (
+              chunk.message as { role: string; content: string; thinking?: string; tool_calls?: unknown[] }
+            )?.thinking;
             if (typeof thinking === "string" && thinking) {
               this.emit("onThinking", thinking);
             }

@@ -27,7 +27,12 @@ async function main() {
 
   const local = new Provider({ tier: "local", model: cfg.model, host: cfg.tier === "local" ? cfg.host : undefined });
   const cloud = cfg.apiKey
-    ? new Provider({ tier: "cloud", model: cfg.model, apiKey: cfg.apiKey, host: cfg.tier === "cloud" ? cfg.host : undefined })
+    ? new Provider({
+        tier: "cloud",
+        model: cfg.model,
+        apiKey: cfg.apiKey,
+        host: cfg.tier === "cloud" ? cfg.host : undefined,
+      })
     : undefined;
 
   const catalog = new ModelCatalog(local, cloud);
@@ -42,7 +47,9 @@ async function main() {
     return;
   }
   if (models.length === 0) {
-    console.error(`No discovered model matches --model "${values.model}". Available: ${allModels.map((m) => m.name).join(", ")}`);
+    console.error(
+      `No discovered model matches --model "${values.model}". Available: ${allModels.map((m) => m.name).join(", ")}`,
+    );
     process.exitCode = 1;
     return;
   }
@@ -81,7 +88,9 @@ async function main() {
       } else {
         const outcome = e.error ? `ERROR: ${e.error}` : e.pass ? "pass" : "fail";
         const reasonSuffix = verbose && e.reason ? ` — ${e.reason}` : "";
-        console.log(`  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} -> ${outcome} (${e.latencyMs}ms)${reasonSuffix}`);
+        console.log(
+          `  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} -> ${outcome} (${e.latencyMs}ms)${reasonSuffix}`,
+        );
       }
     },
     onToolCall: verbose

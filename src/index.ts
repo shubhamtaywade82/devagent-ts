@@ -1,4 +1,4 @@
-// devagent-ollama — public API surface
+// @nemesis-oss/devagent-ts — public API surface
 // Re-exports the core classes for programmatic use.
 
 export { Agent, type AgentEvents, type AgentOptions } from "./cli/agent.js";

@@ -1,12 +1,44 @@
 {
-  "name": "devagent-ollama",
-  "version": "0.1.0",
+  "name": "@nemesis-oss/devagent-ts",
+  "version": "1.0.0",
+  "description": "Autonomous, developer-focused AI coding assistant runtime and terminal UI powered by local & cloud Ollama models with capability routing, Docker sandbox, and LSP code intelligence.",
+  "keywords": [
+    "ollama",
+    "devagent",
+    "devagent-ts",
+    "agent",
+    "ai",
+    "llm",
+    "coding-assistant",
+    "tui",
+    "cli",
+    "typescript",
+    "docker",
+    "sandbox",
+    "lsp",
+    "mcp"
+  ],
+  "license": "MIT",
+  "author": "Shubham Taywade <shubhamtaywade82@gmail.com>",
+  "homepage": "https://github.com/shubhamtaywade82/devagent-ts#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shubhamtaywade82/devagent-ts.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shubhamtaywade82/devagent-ts/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
   "type": "module",
   "engines": {
     "node": ">=22"
   },
   "bin": {
-    "devagent": "./bin/cli.js"
+    "devagent": "./bin/cli.js",
+    "devagent-ts": "./bin/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -19,6 +51,7 @@
     "doctor": "tsx src/cli/doctor.ts",
     "lint": "eslint src tests",
     "format:check": "prettier --check src tests",
+    "prepack": "npm run build",
     "prepare": "npm run build"
   },
   "devDependencies": {

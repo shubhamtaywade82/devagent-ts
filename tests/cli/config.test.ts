@@ -174,10 +174,7 @@ describe("loadConfig host/tier interaction", () => {
 
   it("still honours an explicit host from the config file on the cloud tier", () => {
     mkdirSync(join(workspaceRoot, ".devagent"), { recursive: true });
-    writeFileSync(
-      join(workspaceRoot, ".devagent", "config.json"),
-      JSON.stringify({ host: "https://proxy.example" }),
-    );
+    writeFileSync(join(workspaceRoot, ".devagent", "config.json"), JSON.stringify({ host: "https://proxy.example" }));
     process.env.OLLAMA_HOST = "http://127.0.0.1:9999";
     process.env.DEVAGENT_TIER = "cloud";
     expect(loadConfig().host).toBe("https://proxy.example");

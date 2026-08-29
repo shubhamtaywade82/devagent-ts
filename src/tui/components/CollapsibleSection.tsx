@@ -15,9 +15,7 @@ export function CollapsibleSection({ title, status, collapsed, children }: Colla
   const header = (
     <Box>
       <Text>
-        <StatusChip status={status} />
-        {" "}
-        <Text bold>{title}</Text>
+        <StatusChip status={status} /> <Text bold>{title}</Text>
         <Text color="gray">{collapsed ? " ▸" : " ▾"}</Text>
       </Text>
     </Box>

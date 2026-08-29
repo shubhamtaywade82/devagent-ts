@@ -1,6 +1,5 @@
 import { ModelAvailabilityChecker } from "../../src/provider/availability.js";
 
-
 describe("ModelAvailabilityChecker", () => {
   let originalFetch: typeof fetch;
 

@@ -55,9 +55,7 @@ export function uriToPath(uri: string): string {
   return URI.parse(uri).fsPath;
 }
 
-export function lspSeverityToLabel(
-  severity: number | undefined,
-): "error" | "warning" | "info" | "hint" {
+export function lspSeverityToLabel(severity: number | undefined): "error" | "warning" | "info" | "hint" {
   switch (severity) {
     case 1:
       return "error";

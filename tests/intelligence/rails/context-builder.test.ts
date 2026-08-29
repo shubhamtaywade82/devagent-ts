@@ -12,7 +12,9 @@ const FIXTURE = join(__dirname, "..", "..", "fixtures", "rails-app");
 
 describe("extractCandidates", () => {
   it("extracts CamelCase constants, snake_case words, and route paths", () => {
-    const { names, paths } = extractCandidates('Fix the bug in UsersController where POST /users breaks user_params for Admin::Report');
+    const { names, paths } = extractCandidates(
+      "Fix the bug in UsersController where POST /users breaks user_params for Admin::Report",
+    );
     expect(names).toEqual(expect.arrayContaining(["UsersController", "Admin::Report", "user_params"]));
     expect(paths).toContain("/users");
   });

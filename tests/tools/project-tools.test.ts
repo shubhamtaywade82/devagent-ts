@@ -14,7 +14,7 @@ describe("RunTestsTool", () => {
   jest.setTimeout(10000);
 
   it("runs the test script and reports exit code", async () => {
-    const dir = await initProject({ test: "node -e \"process.exit(0)\"" });
+    const dir = await initProject({ test: 'node -e "process.exit(0)"' });
     const tool = new RunTestsTool(dir);
 
     const result = await tool.call({});
@@ -36,9 +36,9 @@ describe("RunTestsTool", () => {
 describe("RunLintTool / RunFormatTool / RunBuildTool", () => {
   it("each map to their respective package.json script", async () => {
     const dir = await initProject({
-      lint: "node -e \"process.exit(0)\"",
-      format: "node -e \"process.exit(0)\"",
-      build: "node -e \"process.exit(0)\"",
+      lint: 'node -e "process.exit(0)"',
+      format: 'node -e "process.exit(0)"',
+      build: 'node -e "process.exit(0)"',
     });
 
     expect((await new RunLintTool(dir).call({})).exitCode).toBe(0);

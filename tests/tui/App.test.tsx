@@ -218,9 +218,7 @@ describe("App shell", () => {
       { role: "user", content: "earlier question" },
       { role: "assistant", content: "earlier answer" },
     ]);
-    const r = render(
-      <App bus={world.bus} store={world.store} agent={world.agent} columns={100} rows={30} now={NOW} />,
-    );
+    const r = render(<App bus={world.bus} store={world.store} agent={world.agent} columns={100} rows={30} now={NOW} />);
     await tick();
     r.stdin.write("/resume");
     await tick();

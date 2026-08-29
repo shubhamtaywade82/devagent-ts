@@ -94,10 +94,14 @@ describe("rails semantic tools", () => {
     });
 
     it("find_association and find_callback answer model questions", async () => {
-      const assoc = (await toolByName(tools, "find_association").call({ name: "User" })) as { associations: { name: string }[] };
+      const assoc = (await toolByName(tools, "find_association").call({ name: "User" })) as {
+        associations: { name: string }[];
+      };
       expect(assoc.associations.map((a) => a.name)).toContain("orders");
 
-      const callbacks = (await toolByName(tools, "find_callback").call({ name: "User" })) as { callbacks: { handler: string }[] };
+      const callbacks = (await toolByName(tools, "find_callback").call({ name: "User" })) as {
+        callbacks: { handler: string }[];
+      };
       expect(callbacks.callbacks.map((c) => c.handler)).toContain("normalize_email");
     });
 

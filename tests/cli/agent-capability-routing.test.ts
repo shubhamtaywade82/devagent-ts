@@ -227,7 +227,9 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
       events: { onStatus },
     });
 
-    const reply = await agent.runUserMessage("reorganize the user settings module so it matches the rest of the codebase");
+    const reply = await agent.runUserMessage(
+      "reorganize the user settings module so it matches the rest of the codebase",
+    );
 
     expect(reply).toBe("done by primary");
     expect(onStatus).toHaveBeenCalledWith(expect.stringContaining("escalating to the primary model"));
@@ -239,13 +241,17 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     // Context preservation: the escalated call sees the original ask, plus
     // minicpm5's escalate_task call and its result — same shared history, nothing reset.
     const turn1Messages = bodies[1].messages;
-    expect(turn1Messages.some((m) => m.role === "user" && String(m.content).includes("user settings module"))).toBe(true);
+    expect(turn1Messages.some((m) => m.role === "user" && String(m.content).includes("user settings module"))).toBe(
+      true,
+    );
     expect(
       turn1Messages.some(
         (m) => m.role === "assistant" && JSON.stringify((m as any).tool_calls ?? "").includes("escalate_task"),
       ),
     ).toBe(true);
-    expect(turn1Messages.some((m) => m.role === "tool" && String(m.content).includes("needs a real multi-file refactor"))).toBe(true);
+    expect(
+      turn1Messages.some((m) => m.role === "tool" && String(m.content).includes("needs a real multi-file refactor")),
+    ).toBe(true);
   });
 
   it("auto-escalates when a tool call errors and the quick model answers instead of retrying or calling escalate_task", async () => {
@@ -356,7 +362,11 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
       if (call === 1) {
         return modelsListResponse([
           { name: "minicpm5-1b", capabilities: ["completion", "tools"], details: { parameter_size: "1B" } },
-          { name: "deepseek-r1:8b", capabilities: ["thinking", "completion", "tools"], details: { parameter_size: "8B" } },
+          {
+            name: "deepseek-r1:8b",
+            capabilities: ["thinking", "completion", "tools"],
+            details: { parameter_size: "8B" },
+          },
         ]);
       }
       return chatResponse("here are the trade-offs");
@@ -516,9 +526,7 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     // turn 1: primary model, now offered delegate_to_local and the delegation
     // system-prompt addendum, calls it.
     expect(bodies[1].tools?.some((t: any) => t.function.name === "delegate_to_local")).toBe(true);
-    expect(
-      bodies[1].messages.some((m: any) => String(m.content ?? "").includes("delegate_to_local")),
-    ).toBe(true);
+    expect(bodies[1].messages.some((m: any) => String(m.content ?? "").includes("delegate_to_local"))).toBe(true);
   });
 
   it("goes straight to the configured cloud primary model by default — no quick-model attempt, no self-consistency sampling", async () => {

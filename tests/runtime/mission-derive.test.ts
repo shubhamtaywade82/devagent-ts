@@ -53,7 +53,10 @@ describe("deriveMissionPhases", () => {
 
   it("marks validate/review completed once execute finishes", () => {
     let mission = createMissionState("x");
-    mission = { ...mission, phases: mission.phases.map((p) => (p.id === "execute" ? { ...p, status: "completed" } : p)) };
+    mission = {
+      ...mission,
+      phases: mission.phases.map((p) => (p.id === "execute" ? { ...p, status: "completed" } : p)),
+    };
     const phases = deriveMissionPhases(mission.phases, [step({ status: "completed" })]);
     expect(phases.find((p) => p.id === "validate")!.status).toBe("completed");
     expect(phases.find((p) => p.id === "review")!.status).toBe("completed");
@@ -61,7 +64,10 @@ describe("deriveMissionPhases", () => {
 
   it("marks repair completed once execute finishes after a retry occurred", () => {
     let mission = createMissionState("x");
-    mission = { ...mission, phases: mission.phases.map((p) => (p.id === "execute" ? { ...p, status: "completed" } : p)) };
+    mission = {
+      ...mission,
+      phases: mission.phases.map((p) => (p.id === "execute" ? { ...p, status: "completed" } : p)),
+    };
     const phases = deriveMissionPhases(mission.phases, [step({ status: "completed", retryCount: 2 })]);
     expect(phases.find((p) => p.id === "repair")!.status).toBe("completed");
   });

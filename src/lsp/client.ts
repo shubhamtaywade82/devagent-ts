@@ -64,10 +64,7 @@ export class LspClient extends EventEmitter {
     await this.waitForProcess();
   }
 
-  async initialize(
-    rootUri: string,
-    capabilities: Record<string, unknown> = {},
-  ): Promise<Record<string, unknown>> {
+  async initialize(rootUri: string, capabilities: Record<string, unknown> = {}): Promise<Record<string, unknown>> {
     return this.sendRequest("initialize", {
       processId: process.pid,
       rootUri,

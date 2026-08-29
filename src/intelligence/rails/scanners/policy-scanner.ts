@@ -23,9 +23,10 @@ export class PolicyScanner implements Scanner {
       for (const line of logicalLines(file.content)) {
         const classDef = /^class\s+([A-Z][A-Za-z0-9_:]*Policy)\b/.exec(line.text);
         if (classDef) {
-          const name = line.namespace.length && !classDef[1].includes("::")
-            ? `${line.namespace.join("::")}::${classDef[1]}`
-            : classDef[1];
+          const name =
+            line.namespace.length && !classDef[1].includes("::")
+              ? `${line.namespace.join("::")}::${classDef[1]}`
+              : classDef[1];
           policy = {
             id: `policy:${name}`,
             type: "policy",

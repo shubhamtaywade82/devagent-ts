@@ -1,10 +1,6 @@
 import { readFileSync } from "node:fs";
 import matter from "gray-matter";
-import {
-  AslTaskKind,
-  AslTaskStatus,
-  AslDocument,
-} from "./types.js";
+import { AslTaskKind, AslTaskStatus, AslDocument } from "./types.js";
 
 const VALID_TASK_KINDS: AslTaskKind[] = [
   "implementation",
@@ -68,15 +64,11 @@ export function validateTaskSpec(spec: any, filePath: string): string[] {
   }
 
   if (typeof spec.kind !== "string" || !VALID_TASK_KINDS.includes(spec.kind.toLowerCase() as AslTaskKind)) {
-    errors.push(
-      `${filePath}: 'kind' must be one of: ${VALID_TASK_KINDS.join(", ")} (got: ${spec.kind})`
-    );
+    errors.push(`${filePath}: 'kind' must be one of: ${VALID_TASK_KINDS.join(", ")} (got: ${spec.kind})`);
   }
 
   if (typeof spec.status !== "string" || !VALID_TASK_STATUSES.includes(spec.status.toLowerCase() as AslTaskStatus)) {
-    errors.push(
-      `${filePath}: 'status' must be one of: ${VALID_TASK_STATUSES.join(", ")} (got: ${spec.status})`
-    );
+    errors.push(`${filePath}: 'status' must be one of: ${VALID_TASK_STATUSES.join(", ")} (got: ${spec.status})`);
   }
 
   if (spec.priority && !["low", "medium", "high", "critical"].includes(spec.priority.toLowerCase())) {
@@ -197,9 +189,7 @@ export function validateResultContract(spec: any, filePath: string): string[] {
     return errors;
   }
   if (typeof spec.status !== "string" || !VALID_TASK_STATUSES.includes(spec.status.toLowerCase() as AslTaskStatus)) {
-    errors.push(
-      `${filePath}: 'status' must be one of: ${VALID_TASK_STATUSES.join(", ")} (got: ${spec.status})`
-    );
+    errors.push(`${filePath}: 'status' must be one of: ${VALID_TASK_STATUSES.join(", ")} (got: ${spec.status})`);
   }
   if (typeof spec.summary !== "string" || !spec.summary.trim()) {
     errors.push(`${filePath}: 'summary' is required and must be a non-empty string`);

@@ -7,9 +7,25 @@ import { Column, Scanner, ScannerResult, SourceFile, TableEntity, TableIndex } f
 import { logicalLines, parseMacroArgs, parseSymbolList, splitTopLevel, unquote } from "./ruby-source.js";
 
 const COLUMN_TYPES = new Set([
-  "string", "text", "integer", "bigint", "float", "decimal", "numeric",
-  "datetime", "timestamp", "time", "date", "binary", "boolean", "json",
-  "jsonb", "uuid", "citext", "inet", "virtual",
+  "string",
+  "text",
+  "integer",
+  "bigint",
+  "float",
+  "decimal",
+  "numeric",
+  "datetime",
+  "timestamp",
+  "time",
+  "date",
+  "binary",
+  "boolean",
+  "json",
+  "jsonb",
+  "uuid",
+  "citext",
+  "inet",
+  "virtual",
 ]);
 
 export class SchemaScanner implements Scanner {

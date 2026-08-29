@@ -102,7 +102,12 @@ describe("RoutesScanner.exec", () => {
     const scanner = new RoutesScanner();
     const promise = scanner.exec("/fake/root");
 
-    proc.stdout.emit("data", Buffer.from("                    Prefix Verb   URI Pattern                                                                              Controller#Action\n"));
+    proc.stdout.emit(
+      "data",
+      Buffer.from(
+        "                    Prefix Verb   URI Pattern                                                                              Controller#Action\n",
+      ),
+    );
     proc.stderr.emit("data", Buffer.from(""));
     proc.emit("close", 0);
 

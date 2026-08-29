@@ -40,7 +40,9 @@ export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDi
     return (
       <Box height={1} width={width}>
         <Text wrap="truncate">
-          <Text bold>{paths.size} file{paths.size === 1 ? "" : "s"} changed</Text>
+          <Text bold>
+            {paths.size} file{paths.size === 1 ? "" : "s"} changed
+          </Text>
           <Text color="gray"> · </Text>
           <Text color="green">+{additions}</Text>
           <Text> </Text>

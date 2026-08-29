@@ -20,9 +20,7 @@ const items: CompletionItem[] = [
 
 describe("CompletionRow", () => {
   it("shows › for selected row", () => {
-    const { lastFrame, unmount } = render(
-      <CompletionRow item={items[0]} selected={true} width={80} />,
-    );
+    const { lastFrame, unmount } = render(<CompletionRow item={items[0]} selected={true} width={80} />);
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("›");
     expect(frame).toContain("/clear");
@@ -30,9 +28,7 @@ describe("CompletionRow", () => {
   });
 
   it("shows space for unselected row", () => {
-    const { lastFrame, unmount } = render(
-      <CompletionRow item={items[0]} selected={false} width={80} />,
-    );
+    const { lastFrame, unmount } = render(<CompletionRow item={items[0]} selected={false} width={80} />);
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).not.toContain("›");
     expect(frame).toContain("/clear");
@@ -40,9 +36,7 @@ describe("CompletionRow", () => {
   });
 
   it("renders detail and group", () => {
-    const { lastFrame, unmount } = render(
-      <CompletionRow item={items[0]} selected={false} width={80} />,
-    );
+    const { lastFrame, unmount } = render(<CompletionRow item={items[0]} selected={false} width={80} />);
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("Clear the conversation view");
     expect(frame).toContain("General");
@@ -52,18 +46,14 @@ describe("CompletionRow", () => {
 
 describe("CompletionSurface", () => {
   it("renders nothing when items is empty", () => {
-    const { lastFrame, unmount } = render(
-      <CompletionSurface items={[]} selectedIndex={0} width={80} />,
-    );
+    const { lastFrame, unmount } = render(<CompletionSurface items={[]} selectedIndex={0} width={80} />);
     expect(lastFrame()).toBe("");
     unmount();
   });
 
   it("renders all items when count is below maxVisible", () => {
     const few = items.slice(0, 3);
-    const { lastFrame, unmount } = render(
-      <CompletionSurface items={few} selectedIndex={0} width={80} />,
-    );
+    const { lastFrame, unmount } = render(<CompletionSurface items={few} selectedIndex={0} width={80} />);
     const frame = stripAnsi(lastFrame() ?? "");
     expect(frame).toContain("/clear");
     expect(frame).toContain("/commit");
@@ -74,9 +64,7 @@ describe("CompletionSurface", () => {
 
   it("highlights the selected row with ›", () => {
     const few = items.slice(0, 3);
-    const { lastFrame, unmount } = render(
-      <CompletionSurface items={few} selectedIndex={1} width={80} />,
-    );
+    const { lastFrame, unmount } = render(<CompletionSurface items={few} selectedIndex={1} width={80} />);
     const frame = stripAnsi(lastFrame() ?? "");
     // ›  should appear on the line with /commit
     const lines = frame.split("\n");
@@ -109,9 +97,7 @@ describe("CompletionSurface", () => {
 
   it("clamps selectedIndex to valid range", () => {
     const few = items.slice(0, 3);
-    const { lastFrame, unmount } = render(
-      <CompletionSurface items={few} selectedIndex={99} width={80} />,
-    );
+    const { lastFrame, unmount } = render(<CompletionSurface items={few} selectedIndex={99} width={80} />);
     const frame = stripAnsi(lastFrame() ?? "");
     // Should still render without crashing, with last item selected
     const lines = frame.split("\n");

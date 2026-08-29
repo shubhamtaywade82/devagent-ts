@@ -4,10 +4,22 @@ import { Tool, ToolError } from "./tool.js";
 import { resolveWorkspacePath } from "./path-utils.js";
 
 export class PatchTool extends Tool {
-  constructor(private readonly root: string) { super(); }
-  get name() { return "patch_file"; }
-  get description() { return "Apply a find/replace patch to a UTF-8 file in the workspace."; }
-  get parameters() { return { type: "object", properties: { path: { type: "string" }, find: { type: "string" }, replace: { type: "string" } }, required: ["path", "find", "replace"] }; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name() {
+    return "patch_file";
+  }
+  get description() {
+    return "Apply a find/replace patch to a UTF-8 file in the workspace.";
+  }
+  get parameters() {
+    return {
+      type: "object",
+      properties: { path: { type: "string" }, find: { type: "string" }, replace: { type: "string" } },
+      required: ["path", "find", "replace"],
+    };
+  }
   async call(args: Record<string, unknown>) {
     const path = args.path as string;
     const find = args.find as string;
@@ -22,16 +34,33 @@ export class PatchTool extends Tool {
 }
 
 export class AppendTool extends Tool {
-  constructor(private readonly root: string) { super(); }
-  get name() { return "append_file"; }
-  get description() { return "Append text to a UTF-8 file in the workspace."; }
-  get parameters() { return { type: "object", properties: { path: { type: "string" }, content: { type: "string" } }, required: ["path", "content"] }; }
+  constructor(private readonly root: string) {
+    super();
+  }
+  get name() {
+    return "append_file";
+  }
+  get description() {
+    return "Append text to a UTF-8 file in the workspace.";
+  }
+  get parameters() {
+    return {
+      type: "object",
+      properties: { path: { type: "string" }, content: { type: "string" } },
+      required: ["path", "content"],
+    };
+  }
   async call(args: Record<string, unknown>) {
     const path = args.path as string;
     const content = args.content as string;
     const target = resolveWorkspacePath(this.root, path);
     await mkdir(dirname(target), { recursive: true });
     await writeFile(target, content, { encoding: "utf-8", flag: "a+" });
-    try { const { size } = await stat(target); return { path, size }; } catch { return { path }; }
+    try {
+      const { size } = await stat(target);
+      return { path, size };
+    } catch {
+      return { path };
+    }
   }
 }

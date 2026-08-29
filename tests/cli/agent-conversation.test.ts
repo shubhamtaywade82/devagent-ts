@@ -70,7 +70,10 @@ describe("AgentConversation context pruning", () => {
     convo.pushUserMessage("will be cleared");
 
     convo.reset();
-    convo.loadMessages([{ role: "system", content: "sys" }, ...Array.from({ length: 30 }, (_, i) => ({ role: "user" as const, content: `m${i}` }))]);
+    convo.loadMessages([
+      { role: "system", content: "sys" },
+      ...Array.from({ length: 30 }, (_, i) => ({ role: "user" as const, content: `m${i}` })),
+    ]);
 
     expect(() => convo.pruneContext(25)).not.toThrow();
     expect(convo.getMessages().some((m) => m.content === "will be cleared")).toBe(false);
@@ -100,7 +103,11 @@ describe("AgentConversation.loadMessages", () => {
       { role: "user", content: "hi" },
     ]);
 
-    convo.refreshSystemPrompt({ model: "test", workspaceRoot: ".", tier: "local", systemPrompt: "fresh prompt" }, [], []);
+    convo.refreshSystemPrompt(
+      { model: "test", workspaceRoot: ".", tier: "local", systemPrompt: "fresh prompt" },
+      [],
+      [],
+    );
 
     expect(convo.getMessages()[0].content).toContain("fresh prompt");
     expect(convo.getMessages()[1]).toEqual({ role: "user", content: "hi" });
@@ -123,11 +130,8 @@ describe("Agent quick-model delegation picks the first catalog candidate", () =>
           ok: true,
           status: 200,
           json: async () => ({
-            models: [
-              { name: "hermes3:latest" },
-              { name: "opencode:latest" }
-            ]
-          })
+            models: [{ name: "hermes3:latest" }, { name: "opencode:latest" }],
+          }),
         };
       }
 
@@ -176,11 +180,8 @@ describe("Agent quick-model delegation picks the first catalog candidate", () =>
           ok: true,
           status: 200,
           json: async () => ({
-            models: [
-              { name: "opencode:latest" },
-              { name: "hermes3:latest" }
-            ]
-          })
+            models: [{ name: "opencode:latest" }, { name: "hermes3:latest" }],
+          }),
         };
       }
 

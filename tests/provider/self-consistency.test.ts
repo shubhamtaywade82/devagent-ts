@@ -1,15 +1,16 @@
 import { SelfConsistency } from "../../src/provider/self-consistency.js";
 import type { Provider, ChatResponse } from "../../src/provider/provider.js";
 
-
-
 function makeProvider(replies: string[]): Provider {
   let call = 0;
   return {
-    chat: jest.fn(async () => ({
-      message: { role: "assistant", content: replies[call++ % replies.length] },
-      done: true,
-    }) as ChatResponse),
+    chat: jest.fn(
+      async () =>
+        ({
+          message: { role: "assistant", content: replies[call++ % replies.length] },
+          done: true,
+        }) as ChatResponse,
+    ),
   } as unknown as Provider;
 }
 

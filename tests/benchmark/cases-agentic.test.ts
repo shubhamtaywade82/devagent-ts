@@ -65,8 +65,12 @@ describe("react-two-step-tool-chain case", () => {
 describe("react-error-recovery case", () => {
   it("errors on the first call and succeeds after, per case instance", async () => {
     const recoveryCase = findCase("react-error-recovery");
-    expect(await recoveryCase.resolveTool("fetch_note", { id: "n1" })).toEqual({ error: "transient failure, please retry" });
-    expect(await recoveryCase.resolveTool("fetch_note", { id: "n1" })).toEqual({ content: "the launch code is orion-seven" });
+    expect(await recoveryCase.resolveTool("fetch_note", { id: "n1" })).toEqual({
+      error: "transient failure, please retry",
+    });
+    expect(await recoveryCase.resolveTool("fetch_note", { id: "n1" })).toEqual({
+      content: "the launch code is orion-seven",
+    });
   });
 
   it("a fresh call to buildAgenticCases() gets an independent call counter", async () => {
@@ -111,7 +115,9 @@ describe("escalate-on-hard-task case", () => {
 
   it("passes when escalate_task was called", () => {
     const result = hardCase.validate(
-      trajectory({ toolCallsMade: [{ name: "escalate_task", args: { reason: "too complex" }, result: { escalate: true } }] }),
+      trajectory({
+        toolCallsMade: [{ name: "escalate_task", args: { reason: "too complex" }, result: { escalate: true } }],
+      }),
     );
     expect(result.pass).toBe(true);
   });
@@ -133,7 +139,10 @@ describe("no-false-escalate-on-easy-task case", () => {
 
   it("fails when the model escalates an easy question", () => {
     const result = easyCase.validate(
-      trajectory({ toolCallsMade: [{ name: "escalate_task", args: {}, result: { escalate: true } }], finalContent: "" }),
+      trajectory({
+        toolCallsMade: [{ name: "escalate_task", args: {}, result: { escalate: true } }],
+        finalContent: "",
+      }),
     );
     expect(result.pass).toBe(false);
     expect(result.reason).toMatch(/escalated an easy/);

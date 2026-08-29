@@ -32,9 +32,7 @@ export function LspView({ state, rows }: ViewProps): React.JSX.Element {
     <Box flexDirection="column" height={rows}>
       {servers.map((server) => (
         <Text key={server.language} wrap="truncate">
-          <Text color={STATUS_COLORS[server.status] ?? "gray"}>
-            {STATUS_GLYPH[server.status] ?? " ○ "}
-          </Text>
+          <Text color={STATUS_COLORS[server.status] ?? "gray"}>{STATUS_GLYPH[server.status] ?? " ○ "}</Text>
           <Text bold>{server.language}</Text>
           <Text color="gray">{`  ${server.status}`}</Text>
           {server.documentsCount > 0 && (

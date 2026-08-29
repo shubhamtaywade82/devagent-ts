@@ -33,7 +33,8 @@ marked.setOptions({
 });
 
 async function listModels(host: string | undefined, tier: string): Promise<string[]> {
-  const base = host ?? (tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
+  const base =
+    host ?? (tier === "cloud" ? "https://ollama.com" : (process.env.OLLAMA_HOST ?? "http://localhost:11434"));
   const path = tier === "cloud" ? "/v1/models" : "/api/tags";
   try {
     const resp = await fetch(`${base}${path}`);
@@ -120,8 +121,14 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   agent
     .on("onStatus", (status: string) => {
       const s = runState;
-      if (s.isThinking) { process.stdout.write("\n"); s.isThinking = false; }
-      if (s.isStreaming) { process.stdout.write("\n"); s.isStreaming = false; }
+      if (s.isThinking) {
+        process.stdout.write("\n");
+        s.isThinking = false;
+      }
+      if (s.isStreaming) {
+        process.stdout.write("\n");
+        s.isStreaming = false;
+      }
       const turnMatch = status.match(/^turn (\d+)$/);
       const label = turnMatch ? `Thinking (turn ${turnMatch[1]})...` : status;
       spinner.text = chalk.cyan(label);
@@ -130,23 +137,41 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     .on("onThinking", (thinkingChunk: string) => {
       const s = runState;
       if (spinner.isSpinning) spinner.stop();
-      if (s.isStreaming) { process.stdout.write("\n"); s.isStreaming = false; }
-      if (!s.isThinking) { s.isThinking = true; process.stdout.write(chalk.gray.italic(" Thinking: ")); }
+      if (s.isStreaming) {
+        process.stdout.write("\n");
+        s.isStreaming = false;
+      }
+      if (!s.isThinking) {
+        s.isThinking = true;
+        process.stdout.write(chalk.gray.italic(" Thinking: "));
+      }
       process.stdout.write(chalk.gray.italic(thinkingChunk));
     })
     .on("onAssistantText", (chunk: string) => {
       const s = runState;
       if (spinner.isSpinning) spinner.stop();
-      if (s.isThinking) { process.stdout.write("\n"); s.isThinking = false; }
-      if (!s.isStreaming) { s.isStreaming = true; process.stdout.write(chalk.magenta.bold(" DevAgent: ")); }
+      if (s.isThinking) {
+        process.stdout.write("\n");
+        s.isThinking = false;
+      }
+      if (!s.isStreaming) {
+        s.isStreaming = true;
+        process.stdout.write(chalk.magenta.bold(" DevAgent: "));
+      }
       process.stdout.write(chunk);
     })
     .on("onToolCall", (name: string, args: Record<string, unknown>) => {
       const s = runState;
       s.lastToolName = name;
       s.lastToolArgs = args;
-      if (s.isThinking) { process.stdout.write("\n"); s.isThinking = false; }
-      if (s.isStreaming) { process.stdout.write("\n"); s.isStreaming = false; }
+      if (s.isThinking) {
+        process.stdout.write("\n");
+        s.isThinking = false;
+      }
+      if (s.isStreaming) {
+        process.stdout.write("\n");
+        s.isStreaming = false;
+      }
       if (spinner.isSpinning) spinner.stop();
       let desc = "";
       if (name === "read_file") desc = args.path as string;
@@ -165,7 +190,10 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       let isError = false;
       if (name === "read_file") {
         if (typeof result === "string") outcome = `${result.split("\n").length} lines read`;
-        else if (result && result.error) { outcome = String(result.error); isError = true; }
+        else if (result && result.error) {
+          outcome = String(result.error);
+          isError = true;
+        }
       } else if (name === "write_file") {
         if (typeof result === "object" && result !== null && "error" in result) {
           outcome = String(result.error);
@@ -200,10 +228,10 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     `${chalk.bold("Workspace:")}  ${chalk.gray(cfg.workspaceRoot)}`,
     `${chalk.bold("Host:")}       ${chalk.gray(cfg.host ?? "default local Ollama")}`,
     `${chalk.bold("Tools:")}      ${chalk.yellow(
-      [...agent.getRegistry().schemas()].map((s) => s.function.name).join(", ")
+      [...agent.getRegistry().schemas()].map((s) => s.function.name).join(", "),
     )}`,
     "",
-    chalk.dim("Press [Tab] for commands, type /help, or use Ctrl-C to quit.")
+    chalk.dim("Press [Tab] for commands, type /help, or use Ctrl-C to quit."),
   ].join("\n");
 
   console.log(
@@ -214,13 +242,13 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       borderStyle: "double",
       title: "DevAgent",
       titleAlignment: "center",
-    })
+    }),
   );
 
   // Tab completion implementation
   const completer = (line: string) => {
     const completions = ["/help", "/models", "/model ", "/clear", "/reset", "/exit", "/quit"];
-    
+
     if (line.startsWith("/model ")) {
       const partialModel = line.slice("/model ".length);
       const modelHits = modelsList.filter((m) => m.startsWith(partialModel));
@@ -279,10 +307,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
   const updatePrompt = () => {
     rl.setPrompt(
-      chalk.magenta.bold("devagent-ts") +
-        " " +
-        chalk.cyan(`(${agent.currentModel})`) +
-        chalk.green.bold(" ❯ ")
+      chalk.magenta.bold("devagent-ts") + " " + chalk.cyan(`(${agent.currentModel})`) + chalk.green.bold(" ❯ "),
     );
   };
 
@@ -322,7 +347,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
             margin: { top: 0, bottom: 1, left: 0, right: 0 },
             borderColor: "blue",
             borderStyle: "round",
-          })
+          }),
         );
         rl.prompt();
         return;
@@ -449,7 +474,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     spinner.start("Initializing task execution...");
     try {
       await agent.runUserMessage(text);
-      
+
       if (spinner.isSpinning) {
         spinner.stop();
       }

@@ -26,10 +26,6 @@ const MAX_LIQUIDATIONS_BUFFERED = 200;
  * which hangs the tool call and the agent turn behind it. */
 const CONNECT_TIMEOUT_MS = 10_000;
 
-function tickerStreamBase(market: string): string {
-  return market === "usdm" || market === "coinm" ? FUTURES_STREAM_BASE : STREAM_BASE;
-}
-
 function socketKey(stream: string, market: string): string {
   return `${stream}:${market}`;
 }
@@ -154,6 +150,7 @@ export class BinanceStreamManager {
    * silent symbols. */
   listSubscriptions(): string[] {
     return [...this.sockets.keys()]
+      .map((key) => key.split(":")[0])
       .filter((stream) => stream.endsWith("@ticker"))
       .map((stream) => stream.slice(0, -"@ticker".length).toUpperCase());
   }

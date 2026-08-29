@@ -50,7 +50,7 @@ export function CompletionSurface({
       )}
       <Box height={1}>
         <Text color="gray" dimColor>
-          ↑↓ navigate  → select  tab complete  esc close  ctrl+c cancel
+          ↑↓ navigate → select tab complete esc close ctrl+c cancel
         </Text>
       </Box>
     </Box>

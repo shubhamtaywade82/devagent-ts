@@ -95,7 +95,9 @@ describe("formatCategoryReport", () => {
       { category: "reasoning", cases: 2, passRate: 1 },
     ]);
     const lines = report.split("\n");
-    expect(lines.findIndex((l) => l.includes("reasoning"))).toBeLessThan(lines.findIndex((l) => l.includes("tool-calling")));
+    expect(lines.findIndex((l) => l.includes("reasoning"))).toBeLessThan(
+      lines.findIndex((l) => l.includes("tool-calling")),
+    );
   });
 
   it("handles no results", () => {

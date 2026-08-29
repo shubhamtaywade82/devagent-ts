@@ -33,8 +33,8 @@ export function TestResultCard({ entry, collapsed, onToggle, width }: TestResult
         <Box height={1}>
           <Text>
             <Text color="green">✓ {passed} passed</Text>
-            {failed > 0 && <Text color="red">  ✗ {failed} failed</Text>}
-            <Text color="gray">  ({durationMs}ms)</Text>
+            {failed > 0 && <Text color="red"> ✗ {failed} failed</Text>}
+            <Text color="gray"> ({durationMs}ms)</Text>
           </Text>
         </Box>
         {failures.map((f, i) => (
@@ -46,7 +46,8 @@ export function TestResultCard({ entry, collapsed, onToggle, width }: TestResult
             </Box>
             <Box height={1}>
               <Text color="gray" wrap="truncate">
-                {"  "}{f.message}
+                {"  "}
+                {f.message}
               </Text>
             </Box>
           </Box>

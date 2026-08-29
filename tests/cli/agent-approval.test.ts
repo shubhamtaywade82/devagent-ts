@@ -104,7 +104,11 @@ describe("Agent approval gate", () => {
     let approvalRequested = false;
     const agent = new Agent({
       config: { workspaceRoot: tempDir, tier: "local", model: "m" },
-      events: { onApprovalRequested: () => { approvalRequested = true; } },
+      events: {
+        onApprovalRequested: () => {
+          approvalRequested = true;
+        },
+      },
     });
 
     await agent.runUserMessage("list the workspace");

@@ -21,7 +21,9 @@ describe("LspManager.getDocumentSymbols", () => {
         name: "Foo",
         kind: 5,
         range: { start: { line: 0, character: 0 }, end: { line: 5, character: 1 } },
-        children: [{ name: "bar", kind: 6, range: { start: { line: 1, character: 2 }, end: { line: 1, character: 5 } } }],
+        children: [
+          { name: "bar", kind: 6, range: { start: { line: 1, character: 2 }, end: { line: 1, character: 5 } } },
+        ],
       },
     ];
     const manager = managerWithFakeSession(hierarchical);
@@ -45,7 +47,10 @@ describe("LspManager.getDocumentSymbols", () => {
     const manager = managerWithFakeSession(childless);
 
     await expect(manager.getDocumentSymbols("/workspace/foo.rb")).resolves.toEqual([
-      expect.objectContaining({ name: "CONST", location: expect.objectContaining({ uri: expect.stringContaining("foo.rb") }) }),
+      expect.objectContaining({
+        name: "CONST",
+        location: expect.objectContaining({ uri: expect.stringContaining("foo.rb") }),
+      }),
     ]);
   });
 

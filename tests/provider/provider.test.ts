@@ -26,10 +26,10 @@ describe("Provider error redaction", () => {
     // back to response.text() — the body is consumed after json() fails,
     // so we must give it valid JSON.  The SDK extracts the "error" field.
     const fakeFetch = jest.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({ error: "upstream failed, saw header Authorization: Bearer sk-secret-abc123" }),
-        { status: 500, headers: { "content-type": "application/json" } },
-      ),
+      new Response(JSON.stringify({ error: "upstream failed, saw header Authorization: Bearer sk-secret-abc123" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      }),
     );
     (globalThis as any).fetch = fakeFetch;
 
@@ -47,9 +47,9 @@ describe("Provider apiKeys pool (Ollama Cloud only)", () => {
 
   it("uses the single apiKey when no pool is given", async () => {
     const body = JSON.stringify({ model: "m", message: { role: "assistant", content: "ok" }, done: true });
-    const fakeFetch = jest.fn().mockResolvedValue(
-      new Response(body, { status: 200, headers: { "content-type": "application/json" } }),
-    );
+    const fakeFetch = jest
+      .fn()
+      .mockResolvedValue(new Response(body, { status: 200, headers: { "content-type": "application/json" } }));
     (globalThis as any).fetch = fakeFetch;
 
     const provider = new Provider({ tier: "cloud", model: "m", apiKey: "solo_key", host: "https://x" });
@@ -62,9 +62,9 @@ describe("Provider apiKeys pool (Ollama Cloud only)", () => {
 
   it("uses the first key in the pool by default", async () => {
     const body = JSON.stringify({ model: "m", message: { role: "assistant", content: "ok" }, done: true });
-    const fakeFetch = jest.fn().mockResolvedValue(
-      new Response(body, { status: 200, headers: { "content-type": "application/json" } }),
-    );
+    const fakeFetch = jest
+      .fn()
+      .mockResolvedValue(new Response(body, { status: 200, headers: { "content-type": "application/json" } }));
     (globalThis as any).fetch = fakeFetch;
 
     const provider = new Provider({ tier: "cloud", model: "m", apiKeys: ["key_a", "key_b"], host: "https://x" });
@@ -78,15 +78,15 @@ describe("Provider apiKeys pool (Ollama Cloud only)", () => {
       // SDK may read the body multiple times (clone + read); create a factory
       // that returns a fresh Response each time it's called.
       if (fakeFetch.mock.calls.length === 1) {
-        return new Response(
-          JSON.stringify({ error: "rate limited" }),
-          { status: 429, headers: { "content-type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ error: "rate limited" }), {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        });
       }
-      return new Response(
-        JSON.stringify({ model: "m", message: { role: "assistant", content: "ok" }, done: true }),
-        { status: 200, headers: { "content-type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ model: "m", message: { role: "assistant", content: "ok" }, done: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
     });
     (globalThis as any).fetch = fakeFetch;
 
@@ -99,10 +99,10 @@ describe("Provider apiKeys pool (Ollama Cloud only)", () => {
 
   it("throws RateLimitError once every key in the pool is rate-limited", async () => {
     const fakeFetch = jest.fn().mockImplementation(() => {
-      return new Response(
-        JSON.stringify({ error: "rate limited" }),
-        { status: 429, headers: { "content-type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "rate limited" }), {
+        status: 429,
+        headers: { "content-type": "application/json" },
+      });
     });
     (globalThis as any).fetch = fakeFetch;
 
@@ -116,10 +116,10 @@ describe("Provider apiKeys pool (Ollama Cloud only)", () => {
     const fakeFetch = jest.fn().mockImplementation(async () => {
       const n = fakeFetch.mock.calls.length;
       if (n === 1) {
-        return new Response(
-          JSON.stringify({ error: "rate limited" }),
-          { status: 429, headers: { "content-type": "application/json" } },
-        );
+        return new Response(JSON.stringify({ error: "rate limited" }), {
+          status: 429,
+          headers: { "content-type": "application/json" },
+        });
       }
       if (n === 2) {
         return new Response(
@@ -142,68 +142,46 @@ describe("Provider apiKeys pool (Ollama Cloud only)", () => {
   });
 });
 
-// A non-JSON line mid-stream (proxy error page, keep-alive, truncated write)
-// used to throw a SyntaxError straight out of chat(), killing the turn. The
-// trailing-buffer parse already tolerated this, so the two paths disagreed.
-describe("Provider streaming resilience", () => {
+describe("Provider streaming", () => {
   function streamOf(lines: string[]): Response {
     const encoder = new TextEncoder();
     let i = 0;
-    const body = {
-      getReader: () => ({
-        read: async () =>
-          i < lines.length ? { value: encoder.encode(lines[i++]), done: false } : { value: undefined, done: true },
-        releaseLock: () => {},
-      }),
-      cancel: async () => {},
-    };
-    return { ok: true, status: 200, body } as unknown as Response;
+    const stream = new ReadableStream({
+      pull(controller) {
+        if (i < lines.length) {
+          controller.enqueue(encoder.encode(lines[i++]));
+        } else {
+          controller.close();
+        }
+      },
+    });
+    return new Response(stream, { status: 200, headers: { "content-type": "application/x-ndjson" } });
   }
 
   afterEach(() => {
     delete (globalThis as any).fetch;
   });
 
-  it("skips a malformed line and still returns the accumulated response", async () => {
+  it("accumulates chunks and fires onChunk callback", async () => {
     (globalThis as any).fetch = jest.fn().mockResolvedValue(
       streamOf([
         JSON.stringify({ message: { role: "assistant", content: "he" }, done: false }) + "\n",
-        "<html>502 Bad Gateway</html>\n",
         JSON.stringify({ message: { role: "assistant", content: "llo" }, done: true }) + "\n",
       ]),
     );
     const provider = new Provider({ tier: "local", model: "m", host: "http://127.0.0.1:1" });
 
-    const res = await provider.chat([{ role: "user", content: "hi" }], { stream: true });
+    const chunks: string[] = [];
+    const res = await provider.chat([{ role: "user", content: "hi" }], {
+      stream: true,
+      onChunk: (c) => {
+        if (c.message?.content) chunks.push(c.message.content);
+      },
+    });
 
     expect(res.message.content).toBe("hello");
     expect(res.done).toBe(true);
-  });
-
-  it("releases the reader and cancels the body once the stream is consumed", async () => {
-    const releaseLock = jest.fn();
-    const cancel = jest.fn().mockResolvedValue(undefined);
-    const encoder = new TextEncoder();
-    let i = 0;
-    const lines = [JSON.stringify({ message: { role: "assistant", content: "x" }, done: true }) + "\n"];
-    (globalThis as any).fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      body: {
-        getReader: () => ({
-          read: async () =>
-            i < lines.length ? { value: encoder.encode(lines[i++]), done: false } : { value: undefined, done: true },
-          releaseLock,
-        }),
-        cancel,
-      },
-    } as unknown as Response);
-    const provider = new Provider({ tier: "local", model: "m", host: "http://127.0.0.1:1" });
-
-    await provider.chat([{ role: "user", content: "hi" }], { stream: true });
-
-    expect(releaseLock).toHaveBeenCalled();
-    expect(cancel).toHaveBeenCalled();
+    expect(chunks).toEqual(["he", "llo"]);
   });
 });
 

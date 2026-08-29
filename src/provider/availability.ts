@@ -26,11 +26,7 @@ export interface AvailabilityCheckerOptions {
 const TRANSIENT_REASONS = new Set(["timeout", "network_error"]);
 
 function isTransient(entry: ModelAvailability): boolean {
-  return (
-    TRANSIENT_REASONS.has(entry.reason) ||
-    entry.reason === "http_429" ||
-    /^http_5\d\d$/.test(entry.reason)
-  );
+  return TRANSIENT_REASONS.has(entry.reason) || entry.reason === "http_429" || /^http_5\d\d$/.test(entry.reason);
 }
 
 /**
@@ -242,7 +238,11 @@ export class ModelAvailabilityChecker {
 
       if (resp.status === 200) return { ...base, available: true, reason: "ok" };
       if (resp.status === 403) {
-        return { ...base, available: false, reason: text.toLowerCase().includes("subscription") ? "subscription_required" : "forbidden" };
+        return {
+          ...base,
+          available: false,
+          reason: text.toLowerCase().includes("subscription") ? "subscription_required" : "forbidden",
+        };
       }
       if (resp.status === 404) return { ...base, available: false, reason: "not_found" };
       return { ...base, available: false, reason: `http_${resp.status}` };
