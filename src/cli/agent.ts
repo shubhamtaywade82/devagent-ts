@@ -133,11 +133,13 @@ export class Agent {
   readonly workspaceRoot: string;
   private readonly mcpServerConfigs: Array<{ name: string; command: string; args?: string[] }>;
   private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
+  private readonly autoApprove: boolean;
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
     this.workspaceRoot = cfg.workspaceRoot;
     this.mcpServerConfigs = cfg.mcpServers ?? [];
+    this.autoApprove = cfg.autoApprove ?? false;
 
     this.provider = new Provider({
       tier: cfg.tier,
@@ -736,6 +738,13 @@ export class Agent {
    * The ApprovalOverlay/approval.requested plumbing already existed on the
    * TUI side but had no producer — this is that producer. */
   private async requestApproval(title: string, summary: string): Promise<boolean> {
+    if (this.autoApprove) return true;
+
+    // Deny by default when nobody can answer. Without a listener the promise
+    // below never resolves, so a library consumer (the published ./agent
+    // export) that wires no UI would deadlock on the first destructive call.
+    if (!this.events.onApprovalRequested && !this.listeners.get("onApprovalRequested")?.size) return false;
+
     const id = `appr${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
     const request: ApprovalRequest = { id, title, summary, filesChanged: 0, additions: 0, deletions: 0 };
     const approved = await new Promise<boolean>((resolve) => {

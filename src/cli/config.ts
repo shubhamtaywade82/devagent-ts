@@ -63,6 +63,10 @@ export interface CliConfig {
    * billing) — this only computes a cost estimate if you supply your own
    * real rate. Omit to leave cost tracking off (the honest default). */
   pricing?: { inputPerMillion: number; outputPerMillion: number };
+  /** Approve every destructive tool call (delete_file, `rm -rf`-class shell
+   * commands) without prompting. Off by default; only for CI/benchmark runs
+   * and throwaway containers. Enable with DEVAGENT_AUTO_APPROVE=true. */
+  autoApprove?: boolean;
   /** External MCP (Model Context Protocol) servers to connect at startup —
    * each spawns `command args...` over stdio and registers its tools.
    * Configure in .devagent/config.json; there is no in-session "/mcp add". */
@@ -90,6 +94,7 @@ interface ConfigFile {
   availabilityCheckTtlMs?: number;
   enableAvailabilityCheck?: boolean;
   enableHeuristicGate?: boolean;
+  autoApprove?: boolean;
   /** Ollama itself has no published per-token price (subscription/GPU-time
    * billing) — this only computes a cost estimate if you supply your own
    * real rate. Omit to leave cost tracking off (the honest default). */
@@ -332,6 +337,7 @@ export function loadConfig(): CliConfig {
     availabilityCheckTtlMs,
     enableAvailabilityCheck: boolFlag(fromEnv("DEVAGENT_AVAIL_CHECK"), file.enableAvailabilityCheck ?? true),
     enableHeuristicGate: boolFlag(fromEnv("DEVAGENT_HEURISTIC_GATE"), file.enableHeuristicGate ?? true),
+    autoApprove: boolFlag(fromEnv("DEVAGENT_AUTO_APPROVE"), file.autoApprove ?? false),
     pricing,
     mcpServers: file.mcpServers,
   };

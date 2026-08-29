@@ -93,7 +93,7 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 
 ## Requirements
 
-- Node.js >= 20
+- Node.js >= 22
 - Ollama running locally, or `OLLAMA_API_KEY` set for cloud tier
 - Docker (for the sandboxed `shell` tool and the `docker` tool)
 - `gh` CLI on PATH (for the `github` tool)
@@ -113,9 +113,57 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 | `DEVAGENT_SYSTEM_PROMPT` | *(built-in)* | Custom system prompt |
 | `DEVAGENT_SHELL_IMAGE` | `devagent-sandbox:latest` | Docker image for sandbox |
 | `DEVAGENT_SHELL_TIMEOUT_SEC` | `30` | Shell command timeout in seconds |
-| `DEVAGENT_TOOL_SELECTION_MODE` | `heuristic` | `heuristic` \| `llm` \| `hybrid` — how `DynamicToolSelector` prunes exposed tools |
+| `DEVAGENT_TOOL_SELECTION_MODE` | `hybrid` | `heuristic` \| `llm` \| `hybrid` — how `DynamicToolSelector` prunes exposed tools |
 | `DEVAGENT_MAX_ACTIVE_TOOLS` | — | Cap on tools exposed per turn |
 | `DEVAGENT_MAX_LOGS` / `DEVAGENT_MAX_CONVERSATION` / `DEVAGENT_MAX_TOOL_CALLS` / `DEVAGENT_MAX_NOTIFICATIONS` | 500/500/200/20 | Bounded buffer sizes (`src/runtime/config.ts`) |
+| `DEVAGENT_AUTO_APPROVE` | `false` | Approve every destructive tool call without prompting — see [Configuration files](#configuration-files) |
+
+## Configuration files
+
+Settings resolve in this order, each layer overriding the one before:
+
+1. `~/.devagent/config.json` — global defaults
+2. `<workspace>/.devagent/config.json` — per-project overrides
+3. environment variables (also read from `~/.devagent/.env`, `./.env`, `<workspace>/.env`)
+
+Every `DEVAGENT_*` variable above has a config-file equivalent using the camelCase
+key name (`DEVAGENT_MODEL` → `model`, `DEVAGENT_AUTO_APPROVE` → `autoApprove`, ...).
+Boolean env values accept `true`/`1` and `false`/`0`, and win over the file in both
+directions.
+
+```jsonc
+// ~/.devagent/config.json
+{
+  "model": "qwen3.5:4b",
+  "tier": "local",
+  "quickModel": "minicpm5-1b",
+  "toolSelectionMode": "hybrid",
+  "maxActiveTools": 8,
+  "autoApprove": false,
+  "mcpServers": [{ "name": "fs", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "."] }]
+}
+```
+
+### Approval gate
+
+Destructive tool calls (`delete_file`, and `run_shell` commands matching `rm -rf`,
+`git push --force`, `DROP TABLE`, `mkfs`, fork bombs) pause for a yes/no prompt in
+the TUI. Three ways to answer them:
+
+| Mode | How |
+| --- | --- |
+| Interactive (default) | The TUI's approval overlay. |
+| Programmatic | Register a handler: `agent.on("onApprovalRequested", (r) => agent.resolveApproval(r.id, true))` |
+| Auto-approve | `"autoApprove": true` in a config file, or `DEVAGENT_AUTO_APPROVE=true` |
+
+With no handler registered and `autoApprove` off, destructive calls are **denied**
+rather than left hanging — relevant when embedding `Agent` as a library.
+
+**Auto-approve removes the only confirmation on irreversible actions.** `run_shell`
+still executes inside the Docker sandbox rooted at the workspace, but `delete_file`
+does not — it deletes real files with no prompt and no undo. Use it in CI, benchmark
+runs, and throwaway containers; prefer the workspace-level `.devagent/config.json`
+over `~/.devagent/config.json` so it can't follow you into another project.
 
 ## Development
 

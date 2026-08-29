@@ -49,6 +49,47 @@ describe("Agent approval gate", () => {
     expect(() => agent.resolveApproval("nonexistent", true)).not.toThrow();
   });
 
+  it("denies a destructive call instead of hanging when no approval listener is wired", async () => {
+    const target = join(tempDir, "unwatched.txt");
+    await writeFile(target, "still here");
+
+    (globalThis as any).fetch = mockChatFetch([
+      { tool_calls: [{ function: { name: "delete_file", arguments: { path: "unwatched.txt" } } }] },
+      { content: "done" },
+    ]);
+
+    const agent = new Agent({ config: { workspaceRoot: tempDir, tier: "local", model: "m" } });
+
+    await agent.runUserMessage("delete the unwatched file");
+
+    expect(await fileExists(target)).toBe(true);
+  });
+
+  it("skips the prompt entirely when autoApprove is set", async () => {
+    const target = join(tempDir, "auto.txt");
+    await writeFile(target, "bye");
+
+    (globalThis as any).fetch = mockChatFetch([
+      { tool_calls: [{ function: { name: "delete_file", arguments: { path: "auto.txt" } } }] },
+      { content: "done" },
+    ]);
+
+    let approvalRequested = false;
+    const agent = new Agent({
+      config: { workspaceRoot: tempDir, tier: "local", model: "m", autoApprove: true },
+      events: {
+        onApprovalRequested: () => {
+          approvalRequested = true;
+        },
+      },
+    });
+
+    await agent.runUserMessage("delete the auto file");
+
+    expect(approvalRequested).toBe(false);
+    expect(await fileExists(target)).toBe(false);
+  });
+
   it("requests approval before delete_file and actually deletes once approved", async () => {
     const target = join(tempDir, "doomed.txt");
     await writeFile(target, "bye");
