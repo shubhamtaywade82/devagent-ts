@@ -1,6 +1,7 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
+  base: "/devagent-ts/",
   title: "⚡ DevAgent-TS",
   description: "Autonomous, Developer-Focused AI Coding Assistant Runtime & TUI",
   lastUpdated: true,
