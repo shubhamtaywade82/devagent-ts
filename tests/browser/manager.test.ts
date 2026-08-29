@@ -21,7 +21,7 @@ try {
   await testBrowser.close();
   hasChromium = true;
 } catch {
-  hasChromium = false;
+  // Chromium binary is not installed in the environment
 }
 
 const describeBrowser = hasChromium ? describe : describe.skip;
