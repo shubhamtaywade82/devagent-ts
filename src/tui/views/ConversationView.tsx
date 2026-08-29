@@ -73,16 +73,34 @@ function TurnSeparator({ width }: { width: number }): React.JSX.Element {
   );
 }
 
+function getToolOutputLines(text: string | undefined, maxLines = 4, maxWidth = 80): string[] {
+  if (!text) return [];
+  const lines = text
+    .split("\n")
+    .map((l) => l.trimEnd())
+    .filter((l) => l.length > 0);
+  if (lines.length === 0) return [];
+  const shown = lines.slice(0, maxLines).map((l) => truncate(l, maxWidth));
+  if (lines.length > maxLines) {
+    shown.push(`… (${lines.length - maxLines} more lines)`);
+  }
+  return shown;
+}
+
 function ToolCallBlock({
   entry,
   collapsed,
   width,
   isLast,
+  errorLines,
+  resultLines,
 }: {
   entry: ChatEntry & { kind: "tool_call" };
   collapsed: boolean;
   width: number;
   isLast: boolean;
+  errorLines: string[];
+  resultLines: string[];
 }): React.JSX.Element {
   const args = formatArgs(entry.args);
   const isRunning = entry.status === "running";
@@ -106,22 +124,22 @@ function ToolCallBlock({
           [{statusLabel}]
         </Text>
       </Box>
-      {!collapsed && (entry.result || entry.error) && (
+      {!collapsed && (errorLines.length > 0 || resultLines.length > 0) && (
         <Box marginLeft={5} flexDirection="column">
-          {entry.error && (
-            <Box height={1}>
+          {errorLines.map((line, i) => (
+            <Box key={`err-${i}`} height={1}>
               <Text color="red" wrap="truncate">
-                Error: {truncate(entry.error.replace(/\n/g, " "), width - 10)}
+                {i === 0 ? `Error: ${line}` : `  ${line}`}
               </Text>
             </Box>
-          )}
-          {entry.result && (
-            <Box height={1}>
+          ))}
+          {resultLines.map((line, i) => (
+            <Box key={`res-${i}`} height={1}>
               <Text color="gray" wrap="truncate">
-                Result: {truncate(entry.result.replace(/\n/g, " "), width - 10)}
+                {i === 0 ? `Output: ${line}` : `  ${line}`}
               </Text>
             </Box>
-          )}
+          ))}
         </Box>
       )}
     </Box>
@@ -323,12 +341,23 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
         }
       } else if (entry.kind === "tool_call") {
         const isCollapsed = collapsed.has(entry.at);
-        const extraHeight = isCollapsed ? 0 : (entry.result ? 1 : 0) + (entry.error ? 1 : 0);
+        const errorLines = isCollapsed || !entry.error ? [] : getToolOutputLines(entry.error, 4, bodyWidth - 10);
+        const resultLines = isCollapsed || !entry.result ? [] : getToolOutputLines(entry.result, 4, bodyWidth - 10);
+        const extraHeight = errorLines.length + resultLines.length;
         const isLast = state.conversation[idx + 1]?.kind !== "tool_call";
         b.push({
           key: `tool-${entry.at}`,
           height: 1 + extraHeight,
-          render: () => <ToolCallBlock entry={entry} collapsed={isCollapsed} width={bodyWidth} isLast={isLast} />,
+          render: () => (
+            <ToolCallBlock
+              entry={entry}
+              collapsed={isCollapsed}
+              width={bodyWidth}
+              isLast={isLast}
+              errorLines={errorLines}
+              resultLines={resultLines}
+            />
+          ),
         });
       } else if (entry.kind === "plan") {
         const headerText = `📋 Plan (${entry.steps.length} steps) [${entry.status}]`;

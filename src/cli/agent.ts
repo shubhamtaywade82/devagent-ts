@@ -1,6 +1,6 @@
 import { join } from "node:path";
 import { mkdirSync } from "node:fs";
-import { CliConfig, loadConfig } from "./config.js";
+import { CliConfig, loadConfig, saveWorkspaceConfig } from "./config.js";
 import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
 import { Capability, inferCapabilities, ModelCatalog } from "../provider/catalog.js";
@@ -130,11 +130,13 @@ export class Agent {
   readonly selfConsistency: SelfConsistency | undefined;
   readonly availabilityChecker: ModelAvailabilityChecker | undefined;
   readonly keyManager: KeyManager | undefined;
+  readonly workspaceRoot: string;
   private readonly mcpServerConfigs: Array<{ name: string; command: string; args?: string[] }>;
   private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
+    this.workspaceRoot = cfg.workspaceRoot;
     this.mcpServerConfigs = cfg.mcpServers ?? [];
 
     this.provider = new Provider({
@@ -786,10 +788,12 @@ export class Agent {
   setModel(model: string): void {
     this.provider.setModel(model);
     this.conversation.reset();
+    saveWorkspaceConfig(this.workspaceRoot, { model });
   }
 
   setModelWithoutReset(model: string): void {
     this.provider.setModel(model);
+    saveWorkspaceConfig(this.workspaceRoot, { model });
   }
 
   // ponytail: keyword classification, not an LLM intent classifier — cheap and
@@ -886,6 +890,7 @@ export class Agent {
 
   setTier(tier: "local" | "cloud"): void {
     this.provider.setTier(tier);
+    saveWorkspaceConfig(this.workspaceRoot, { tier });
   }
 
   setRuntimeHost(host: string): void {

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve, basename } from "node:path";
 
@@ -163,6 +163,36 @@ function loadWorkspaceConfig(root: string): ConfigFile {
     // skip malformed config file
   }
   return {};
+}
+
+export function saveWorkspaceConfig(root: string, partial: Partial<ConfigFile>): void {
+  const dir = join(root, ".devagent");
+  const p = join(dir, "config.json");
+  try {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const current = loadWorkspaceConfig(root);
+    const merged = { ...current, ...partial };
+    writeFileSync(p, JSON.stringify(merged, null, 2), "utf8");
+  } catch {
+    // Non-fatal if directory is not writable
+  }
+}
+
+export function saveGlobalConfig(partial: Partial<ConfigFile>): void {
+  const dir = GLOBAL_CONFIG_DIR;
+  const p = join(dir, "config.json");
+  try {
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
+    }
+    const current = loadGlobalConfig();
+    const merged = { ...current, ...partial };
+    writeFileSync(p, JSON.stringify(merged, null, 2), "utf8");
+  } catch {
+    // Non-fatal if directory is not writable
+  }
 }
 
 function loadAgentsFile(root: string): string {
