@@ -575,16 +575,24 @@ export class Agent {
           const name = toolCall.function.name;
           const rawArguments = toolCall.function.arguments;
           let args: Record<string, unknown> = {};
+          let parseError: string | null = null;
 
           if (typeof rawArguments === "object" && rawArguments !== null) {
             args = rawArguments as Record<string, unknown>;
           } else if (typeof rawArguments === "string" && rawArguments) {
             try {
               args = JSON.parse(rawArguments);
-            } catch {
+            } catch (err) {
+              parseError = err instanceof Error ? err.message : String(err);
               const parts = rawArguments.split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
               args = parts as unknown as Record<string, unknown>;
             }
+          }
+
+          if (parseError) {
+            this.conversation.pushSystemMessage(
+              `[system] Argument parsing error for tool "${name}": ${parseError}. Ensure JSON arguments match the tool schema.`,
+            );
           }
 
           this.emit("onToolCall", name, args);
@@ -647,6 +655,9 @@ export class Agent {
             this.emit("onError", err);
             this.conversation.pushToolResult(
               JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
+            );
+            this.conversation.pushSystemMessage(
+              `[system] Tool execution for "${name}" failed: ${err.message}. Analyze the error and adjust your parameters or approach.`,
             );
             previousTurnHadToolError = true;
           }

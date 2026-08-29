@@ -1,5 +1,6 @@
 import { PlanStep, StepRunner, Planner, HistoryEntry, StepStatus } from "./types.js";
 import { CheckpointStore } from "../runtime/checkpoint.js";
+import { ConcurrencyGate } from "../runtime/concurrency-gate.js";
 
 export class OrchestratorError extends Error {}
 
@@ -31,6 +32,8 @@ export interface OrchestratorOptions {
   runRollback: (command: string) => Promise<void>;
   maxRetries?: number;
   maxReplans?: number;
+  concurrencyLimit?: number;
+  gate?: ConcurrencyGate;
   logger?: Pick<Console, "info" | "warn" | "error">;
   onStepChange?: (step: PlanStep) => void;
   checkpoint?: CheckpointStore;
@@ -49,6 +52,7 @@ export class Orchestrator {
   private readonly runRollback: (command: string) => Promise<void>;
   private readonly maxRetries: number;
   private readonly maxReplans: number;
+  private readonly gate: ConcurrencyGate;
   private readonly logger: Pick<Console, "info" | "warn" | "error">;
   private readonly executedOrder: PlanStep[] = [];
   private readonly history: HistoryEntry[];
@@ -63,6 +67,7 @@ export class Orchestrator {
     this.runRollback = opts.runRollback;
     this.maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.maxReplans = opts.maxReplans ?? DEFAULT_MAX_REPLANS;
+    this.gate = opts.gate ?? new ConcurrencyGate({ maxConcurrent: opts.concurrencyLimit ?? 4, label: "orchestrator" });
     this.logger = opts.logger ?? console;
     this.onStepChange = opts.onStepChange;
     this.checkpoint = opts.checkpoint;
@@ -83,13 +88,13 @@ export class Orchestrator {
 
     for (;;) {
       // All steps whose dependencies are already satisfied run concurrently —
-      // e.g. independent coder/reviewer/tester steps fan out in one round
-      // instead of executing one at a time. Steps that only become ready
-      // because this round completed are picked up in the next round.
+      // bounded by the ConcurrencyGate so independent steps don't overwhelm resources.
       const ready = order.filter((s) => s.status === "pending" && this.dependenciesSatisfied(s));
       if (!ready.length) break;
 
-      const results = await Promise.all(ready.map((s) => this.runStep(s)));
+      const results = await Promise.all(
+        ready.map((s) => this.gate.run(() => this.runStep(s), s.priority === "critical" ? "critical" : "normal")),
+      );
       const replanNeeded = results.some(Boolean);
       if (!replanNeeded) continue;
 

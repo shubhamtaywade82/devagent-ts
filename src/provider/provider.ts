@@ -6,10 +6,29 @@ import {
   type Message as SdkMessage,
   type ChatResponse as SdkChatResponse,
 } from "@nemesis-oss/ollama-sdk";
+import {
+  AgentRuntimeError,
+  TransportFailure,
+  RateLimitError,
+  ProviderError,
+  TimeoutError,
+  InferenceQualityError,
+  ToolFailure,
+  BudgetExhaustedError,
+  ConcurrencyDeniedError,
+} from "./errors.js";
 
-export class RateLimitError extends Error {}
-export class ProviderError extends Error {}
-export class TimeoutError extends Error {}
+export {
+  AgentRuntimeError,
+  TransportFailure,
+  RateLimitError,
+  ProviderError,
+  TimeoutError,
+  InferenceQualityError,
+  ToolFailure,
+  BudgetExhaustedError,
+  ConcurrencyDeniedError,
+};
 
 const MAX_ERROR_BODY_CHARS = 500;
 
