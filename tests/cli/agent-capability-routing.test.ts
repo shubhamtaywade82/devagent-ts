@@ -307,6 +307,10 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     const agent = new Agent({ config: { workspaceRoot: dir, tier: "local", model: "primary-model" } });
 
     await agent.runUserMessage("a hard task");
+    // Background summarization is fire-and-forget: give its promise chain
+    // (routed through the SDK's request pipeline, a few microtask ticks
+    // deeper than a bare fetch) a turn of the event loop to reach `fetch`.
+    await new Promise((r) => setImmediate(r));
     const bodiesAfterFirst = chatBodies();
     expect(bodiesAfterFirst[0].model).toBe("minicpm5-1b"); // turn 0: quick
     expect(bodiesAfterFirst[1].model).toBe("primary-model"); // turn 1: escalated, stays there
