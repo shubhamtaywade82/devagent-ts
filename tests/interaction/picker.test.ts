@@ -41,3 +41,25 @@ describe("visibleWindow", () => {
     expect(visibleWindow(list, 1, 0)).toEqual({ start: 0, items: [] });
   });
 });
+
+// The model switcher's `detail` carries live availability text that updates as
+// background checks land. Letting that drive the filter meant the visible list
+// could shrink between render and keypress while the picker held a fixed
+// numeric index -- so Enter selected a different row than the highlighted one.
+describe("filterPickerItems filterText override", () => {
+  it("matches filterText instead of label + detail when provided", () => {
+    const items = [
+      { id: "a", label: "qwen3:8b", detail: "current · code/tools", filterText: "qwen3:8b" },
+      { id: "b", label: "llama3:70b", detail: "🔒 Subscription · code", filterText: "llama3:70b" },
+    ];
+
+    // "code" appears in both details but neither name.
+    expect(filterPickerItems(items, "code")).toEqual([]);
+    expect(filterPickerItems(items, "llama").map((i) => i.id)).toEqual(["b"]);
+  });
+
+  it("still falls back to label + detail when filterText is absent", () => {
+    const items = [{ id: "a", label: "run tests", detail: "execute the suite" }];
+    expect(filterPickerItems(items, "execute").map((i) => i.id)).toEqual(["a"]);
+  });
+});

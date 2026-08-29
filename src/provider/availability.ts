@@ -13,6 +13,24 @@ export interface AvailabilityCheckerOptions {
   ttlMs?: number;
   /** Per-request HTTP timeout in ms. Default 10_000. */
   timeoutMs?: number;
+  /** TTL for results that reflect a transient condition (timeout, 429, 5xx)
+   * rather than a real entitlement answer. Default 60_000. */
+  transientTtlMs?: number;
+}
+
+/** Reasons that mean "we didn't get an answer", as opposed to a definitive
+ * "this key may not use this model". Caching these for the full 24h TTL made
+ * one slow cold start permanently exclude a perfectly good model from routing
+ * for the rest of the process — and the probe is a real completion, which is
+ * exactly the request most likely to exceed the timeout on a cold model. */
+const TRANSIENT_REASONS = new Set(["timeout", "network_error"]);
+
+function isTransient(entry: ModelAvailability): boolean {
+  return (
+    TRANSIENT_REASONS.has(entry.reason) ||
+    entry.reason === "http_429" ||
+    /^http_5\d\d$/.test(entry.reason)
+  );
 }
 
 /**
@@ -28,6 +46,7 @@ export class ModelAvailabilityChecker {
   private readonly cache = new Map<string, Map<string, ModelAvailability>>();
   private readonly ttlMs: number;
   private readonly timeoutMs: number;
+  private readonly transientTtlMs: number;
   /** Deduplicate concurrent refreshAll() calls. */
   private refreshPromise: Promise<void> | null = null;
 
@@ -35,8 +54,14 @@ export class ModelAvailabilityChecker {
     private readonly apiKeys: string[],
     opts: AvailabilityCheckerOptions = {},
   ) {
-    this.ttlMs = opts.ttlMs ?? 86_400_000;
-    this.timeoutMs = opts.timeoutMs ?? 10_000;
+    // Number.isFinite, not ??: these come straight from Number(env ?? file) in
+    // config.ts, and NaN is not nullish — it would slip past ?? and make
+    // isFresh() permanently false, turning every lookup into a live (billed)
+    // probe.
+    this.ttlMs = Number.isFinite(opts.ttlMs) && opts.ttlMs! > 0 ? opts.ttlMs! : 86_400_000;
+    this.timeoutMs = Number.isFinite(opts.timeoutMs) && opts.timeoutMs! > 0 ? opts.timeoutMs! : 10_000;
+    this.transientTtlMs =
+      Number.isFinite(opts.transientTtlMs) && opts.transientTtlMs! > 0 ? opts.transientTtlMs! : 60_000;
     for (const k of apiKeys) this.cache.set(k, new Map());
   }
 
@@ -169,8 +194,11 @@ export class ModelAvailabilityChecker {
   // Private helpers
   // ---------------------------------------------------------------------------
 
+  /** Transient failures expire quickly so a cold-start timeout or a 429 can't
+   * exclude a working model from routing for the full 24h TTL. */
   private isFresh(entry: ModelAvailability): boolean {
-    return Date.now() - entry.checkedAt < this.ttlMs;
+    const ttl = isTransient(entry) ? this.transientTtlMs : this.ttlMs;
+    return Date.now() - entry.checkedAt < ttl;
   }
 
   private async doRefreshAll(): Promise<void> {

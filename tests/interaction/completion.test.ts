@@ -1,4 +1,4 @@
-import { acceptWord, completions, ghostSuffix } from "../../src/interaction/completion.js";
+import { acceptWord, completions, ghostSuffix, isNoOpCompletion } from "../../src/interaction/completion.js";
 import { builtinCommands } from "../../src/interaction/slash-commands.js";
 
 describe("ghostSuffix", () => {
@@ -78,3 +78,48 @@ describe("completions", () => {
   });
 });
 
+
+describe("isNoOpCompletion", () => {
+  const registry = builtinCommands();
+
+  // registry.complete() matches exact names, so a fully typed zero-arg command
+  // always ranks itself first. Enter used to accept that instead of
+  // submitting, so /help, /clear, /resume, /model and /quit all needed two
+  // presses of Enter to run. App's Enter handler checks the *selected* entry,
+  // which is index 0 until the user arrows away.
+  it.each(["/help", "/clear", "/resume", "/model", "/quit", "/plan"])(
+    "reports the selected completion for %s as a no-op",
+    (input) => {
+      const items = completions(input, registry);
+      expect(items.length).toBeGreaterThan(0);
+      expect(isNoOpCompletion(input, items[0])).toBe(true);
+    },
+  );
+
+  // "/model" is also a strict prefix of "/models", so the list is non-empty
+  // even after no-op entries are discounted. Guarding only the list (and not
+  // the selected entry) would leave Enter stuck on "/model" forever.
+  it("keeps the no-op entry selected when a longer command shares the prefix", () => {
+    const items = completions("/model", registry);
+    expect(items.map((i) => i.insert)).toEqual(["/model ", "/models "]);
+    expect(isNoOpCompletion("/model", items[0])).toBe(true);
+    expect(isNoOpCompletion("/model", items[1])).toBe(false);
+  });
+
+  it("still treats a genuine prefix completion as actionable", () => {
+    const items = completions("/mod", registry);
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.some((i) => !isNoOpCompletion("/mod", i))).toBe(true);
+  });
+
+  it("treats an argument completion as actionable", () => {
+    const items = completions("/mode a", registry);
+    expect(items.length).toBeGreaterThan(0);
+    expect(items.some((i) => !isNoOpCompletion("/mode a", i))).toBe(true);
+  });
+
+  it("ignores trailing whitespace, since parseSlashInput trims", () => {
+    expect(isNoOpCompletion("/resume", { label: "/resume", detail: "", insert: "/resume " })).toBe(true);
+    expect(isNoOpCompletion("/resume ", { label: "/resume", detail: "", insert: "/resume " })).toBe(true);
+  });
+});

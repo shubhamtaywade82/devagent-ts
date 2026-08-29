@@ -60,8 +60,23 @@ export class AgentConversation {
     }
   }
 
+  /** Skill bodies already present in the transcript, so a skill that stays
+   * active across many turns is injected once rather than re-appended every
+   * turn — that duplicated the full body per turn and crowded out real
+   * context. Cleared by reset()/loadMessages(), which replace the transcript. */
+  private readonly injectedSkills = new Set<string>();
+
+  /** Messages that survive pruning — skill bodies are standing instructions,
+   * like the system prompt, not conversational history. Identity-based so
+   * pruneContext can keep exactly these without pattern-matching content. */
+  private readonly pinned = new Set<ChatMessage>();
+
   injectSkill(skill: SkillContent): void {
-    this.messages.push({ role: "system", content: `Skill: ${skill.name}\n\n${skill.body}` });
+    if (this.injectedSkills.has(skill.id)) return;
+    this.injectedSkills.add(skill.id);
+    const message: ChatMessage = { role: "system", content: `Skill: ${skill.name}\n\n${skill.body}` };
+    this.pinned.add(message);
+    this.messages.push(message);
   }
 
   pushUserMessage(content: string): void {
@@ -92,17 +107,30 @@ export class AgentConversation {
   loadMessages(messages: ChatMessage[]): void {
     this.messages = messages;
     this.currentTurnUserMessage = null;
+    this.injectedSkills.clear();
+    this.pinned.clear();
   }
 
   pruneContext(maxMessages = 25): void {
     if (this.messages.length <= maxMessages) return;
 
     const systemPrompt = this.messages[0];
-    const recent = this.messages.slice(-10);
-    const middle = this.messages.slice(1, -10);
+    // A `role:"tool"` message only makes sense directly after the assistant
+    // message whose tool_calls produced it. Cutting on a fixed message count
+    // could put an orphaned tool result at the head of the window, which
+    // providers either reject or silently misread. Walk forward to the first
+    // message that can legally start a window instead.
+    let recent = this.messages.slice(-10);
+    while (recent.length > 0 && recent[0].role === "tool") recent = recent.slice(1);
 
-    const toolRunCount = middle.filter((m) => m.role === "tool").length;
-    const summaryText = `[system] Bypassed ${middle.length} intermediate turns (${toolRunCount} tool calls) to save context window.`;
+    const dropped = this.messages.slice(1, this.messages.length - recent.length);
+    const toolRunCount = dropped.filter((m) => m.role === "tool").length;
+    const summaryText = `[system] Bypassed ${dropped.length} intermediate turns (${toolRunCount} tool calls) to save context window.`;
+
+    // Skills are standing instructions; dropping them mid-task silently
+    // changed the agent's behaviour, and injectSkill's dedup meant they were
+    // never re-added.
+    const pinned = dropped.filter((m) => this.pinned.has(m));
 
     const preserved =
       this.currentTurnUserMessage && !recent.includes(this.currentTurnUserMessage)
@@ -111,6 +139,7 @@ export class AgentConversation {
 
     this.messages = [
       systemPrompt,
+      ...pinned,
       { role: "system", content: summaryText },
       ...preserved,
       ...recent,
@@ -120,6 +149,8 @@ export class AgentConversation {
   reset(): void {
     this.messages = [];
     this.currentTurnUserMessage = null;
+    this.injectedSkills.clear();
+    this.pinned.clear();
   }
 
   isEmpty(): boolean {

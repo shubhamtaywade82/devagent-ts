@@ -288,3 +288,40 @@ describe("rails.index event", () => {
     expect(s.rails).toEqual({ status: "building", entityCount: 0, edgeCount: 0, scannerErrors: [] });
   });
 });
+
+describe("sanitizeText private-mode and charset escapes", () => {
+  // The CSI pattern only allowed [0-9;] parameters, so private-mode sequences
+  // fell through to the control-character pass, which stripped just the ESC
+  // and left the rest as visible garbage in the fixed layout.
+  it.each([
+    ["\x1b[?25l", "hide cursor"],
+    ["\x1b[?25h", "show cursor"],
+    ["\x1b[?1049h", "alternate screen"],
+    ["\x1b[?1004l", "focus reporting off"],
+  ])("strips %s (%s) completely", (seq) => {
+    expect(sanitizeText(`a${seq}b`)).toBe("ab");
+  });
+
+  it("strips a charset-selection escape", () => {
+    expect(sanitizeText("a\x1b(Bb")).toBe("ab");
+  });
+
+  it("still strips ordinary SGR colour codes and keeps text", () => {
+    expect(sanitizeText("\x1b[38;2;255;0;0mred\x1b[0m")).toBe("red");
+  });
+
+  it("preserves newlines and tabs", () => {
+    expect(sanitizeText("a\nb\tc")).toBe("a\nb\tc");
+  });
+});
+
+describe("notification ids stay unique once the buffer is full", () => {
+  it("does not reuse an id when notifications.length has stopped growing", () => {
+    let state = initialRuntimeState();
+    for (let i = 0; i < 60; i++) {
+      state = reduce(state, { type: "notification", kind: "info", text: `n${i}` });
+    }
+    const ids = state.notifications.map((n) => n.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+});

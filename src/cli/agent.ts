@@ -700,6 +700,12 @@ export class Agent {
       },
       checkpoint: this.planCheckpoint,
       onStepChange: (step) => this.emit("onMissionStep", step),
+      // The checkpoint has persisted these all along but nothing read them
+      // back: a resumed run replanned with an empty history (so the model
+      // never saw the failures that caused the checkpoint) and a replan budget
+      // reset to zero (so a crash-loop could never exhaust it).
+      history: saved.history,
+      replanCount: saved.replanCount,
     });
     return orchestrator.run();
   }
@@ -803,11 +809,35 @@ export class Agent {
     return null;
   }
 
-  // Refreshed once, on first delegation attempt, and cached for the Agent's lifetime.
+  /** How long a catalog snapshot is trusted before the next lookup refreshes
+   * it. Previously the refresh happened exactly once per process, which meant
+   * (a) if Ollama was down at startup the catalog stayed empty forever and
+   * capability delegation was disabled for the whole session even after it
+   * came back, and (b) a model pulled mid-session never showed up — the model
+   * switcher fell back to name-based inferCapabilities() guesses for it. */
+  private static readonly CATALOG_TTL_MS = 60_000;
+  private catalogRefreshedAt = 0;
+
   private ensureCatalog(): Promise<void> {
-    if (!this.catalogRefreshed) {
-      this.catalogRefreshed = this.catalog.refresh().then(() => undefined);
-    }
+    // An empty catalog is never worth caching — it means discovery failed, not
+    // that the user genuinely has no models.
+    const usable = this.catalog.all().length > 0;
+    const fresh = Date.now() - this.catalogRefreshedAt < Agent.CATALOG_TTL_MS;
+    if (usable && fresh) return Promise.resolve();
+
+    // `catalogRefreshed` is only an in-flight handle, so concurrent callers
+    // share one refresh; it is cleared on settle so the next stale lookup
+    // starts a fresh one instead of resolving against a stale result forever.
+    if (this.catalogRefreshed) return this.catalogRefreshed;
+
+    this.catalogRefreshed = this.catalog
+      .refresh()
+      .then(() => {
+        this.catalogRefreshedAt = Date.now();
+      })
+      .finally(() => {
+        this.catalogRefreshed = null;
+      });
     return this.catalogRefreshed;
   }
 

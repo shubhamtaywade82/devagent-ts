@@ -71,9 +71,13 @@ export class Router {
       const provider = candidate.tier === "local" ? this.local : this.cloud;
       if (!provider) continue;
 
-      provider.setModel(candidate.name);
+      // Per-request model, not provider.setModel(): mutating shared instance
+      // state before an await meant two concurrent routes (e.g. the
+      // fire-and-forget summarization alongside the next turn, or parallel
+      // plan steps) clobbered each other's model mid-flight, and the
+      // routedModel stamped below named a model that never served the request.
       try {
-        const response = await provider.chat(messages, opts);
+        const response = await provider.chat(messages, { ...opts, model: candidate.name });
         response.routedTier = candidate.tier;
         response.routedModel = candidate.name;
         return response;

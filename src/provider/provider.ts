@@ -45,6 +45,13 @@ export interface ChatOptions {
   tools?: OllamaToolSchema[];
   stream?: boolean;
   onChunk?: (chunk: ChatResponse) => void;
+  /** Model for this request only, leaving the provider's configured model
+   * untouched. Router uses this to try candidates: it previously called
+   * setModel() before awaiting chat(), so two concurrent routes through the
+   * same Provider instance raced — the second overwrote the first's model
+   * mid-flight, and both requests went to whichever model was set last while
+   * `routedModel` reported the wrong one. */
+  model?: string;
 }
 
 export interface ProviderOptions {
@@ -59,10 +66,22 @@ export interface ProviderOptions {
   timeoutMs?: number;
 }
 
+export const DEFAULT_CLOUD_HOST = "https://ollama.com";
+export const DEFAULT_LOCAL_HOST = "http://localhost:11434";
+
+/** The endpoint a tier talks to when nothing is explicitly configured.
+ * OLLAMA_HOST is a local-Ollama convention, so it must never be picked up as
+ * a cloud host — pointing Cloud traffic (with a Bearer token attached) at
+ * someone's localhost is both broken and a credential leak. */
+export function defaultHostForTier(tier: Tier): string {
+  return tier === "cloud" ? DEFAULT_CLOUD_HOST : process.env.OLLAMA_HOST ?? DEFAULT_LOCAL_HOST;
+}
+
 export class Provider {
   private tier: Tier;
   private model: string;
-  private host: string;
+  /** Explicitly configured host, or undefined to track the tier default. */
+  private hostOverride: string | undefined;
   private readonly apiKeys: string[];
   private apiKeyIndex = 0;
   private readonly timeoutMs: number;
@@ -70,12 +89,14 @@ export class Provider {
   constructor(opts: ProviderOptions) {
     this.tier = opts.tier;
     this.model = opts.model;
-    this.host =
-      opts.host ??
-      (opts.tier === "cloud" ? "https://ollama.com" : process.env.OLLAMA_HOST ?? "http://localhost:11434");
+    this.hostOverride = opts.host;
     this.apiKeys = opts.apiKeys && opts.apiKeys.length > 0 ? opts.apiKeys : opts.apiKey ? [opts.apiKey] : [];
     // Cloud has a 60s connect timeout; local has no timeout — never kill a running generation.
     this.timeoutMs = opts.timeoutMs ?? (opts.tier === "cloud" ? 60_000 : 0);
+  }
+
+  private get host(): string {
+    return this.hostOverride ?? defaultHostForTier(this.tier);
   }
 
   get currentModel(): string {
@@ -90,12 +111,20 @@ export class Provider {
     this.model = model;
   }
 
+  /** Switching tier re-derives the host unless one was explicitly configured.
+   * The host used to be resolved once in the constructor, so setTier("cloud")
+   * on a local-built Provider kept talking to localhost:11434 while attaching
+   * a cloud Bearer token to every request. */
   setTier(tier: Tier): void {
     this.tier = tier;
   }
 
   setRuntimeHost(host: string): void {
-    this.host = host;
+    this.hostOverride = host;
+  }
+
+  get currentHost(): string {
+    return this.host;
   }
 
   async chat(messages: ChatMessage[], opts: ChatOptions = {}): Promise<ChatResponse> {
@@ -103,7 +132,8 @@ export class Provider {
       throw new ProviderError("missing apiKey for cloud chat");
     }
 
-    const body: Record<string, unknown> = { model: this.model, messages, stream: opts.stream ?? false };
+    const model = opts.model ?? this.model;
+    const body: Record<string, unknown> = { model, messages, stream: opts.stream ?? false };
     if (opts.tools) body.tools = opts.tools;
 
     // Cloud with multiple keys: rotate to the next key on a 429 and retry
@@ -148,7 +178,7 @@ export class Provider {
           this.apiKeyIndex = (this.apiKeyIndex + 1) % this.apiKeys.length;
           continue;
         }
-        throw new RateLimitError(`${this.model} (${this.tier}) rate limited on all ${this.apiKeys.length} key(s)`);
+        throw new RateLimitError(`${model} (${this.tier}) rate limited on all ${this.apiKeys.length} key(s)`);
       }
       if (!resp.ok) {
         throw new ProviderError(`Ollama ${this.tier} ${resp.status}: ${redactSecrets(await resp.text())}`);
@@ -158,7 +188,7 @@ export class Provider {
     }
 
     // Unreachable: maxAttempts is always >= 1 and the loop body always returns or throws.
-    throw new RateLimitError(`${this.model} (${this.tier}) rate limited`);
+    throw new RateLimitError(`${model} (${this.tier}) rate limited`);
   }
 
   async availableModels(): Promise<unknown> {
@@ -194,35 +224,62 @@ export class Provider {
     let accumulatedThinking = "";
     const accumulatedToolCalls: any[] = [];
 
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
+    const consume = (chunk: ChatResponse): void => {
+      onChunk?.(chunk);
 
-      buffer += decoder.decode(value, { stream: true });
-      let newlineIdx: number;
-      while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
-        const line = buffer.slice(0, newlineIdx).trim();
-        buffer = buffer.slice(newlineIdx + 1);
-        if (!line) continue;
-
-        const chunk = JSON.parse(line) as ChatResponse;
-        onChunk?.(chunk);
-
-        if (chunk.message) {
-          if (chunk.message.content) {
-            accumulatedContent += chunk.message.content;
-          }
-          if ((chunk.message as any).thinking) {
-            accumulatedThinking += (chunk.message as any).thinking;
-          }
-          if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
-            accumulatedToolCalls.push(...chunk.message.tool_calls);
-          }
+      if (chunk.message) {
+        if (chunk.message.content) {
+          accumulatedContent += chunk.message.content;
         }
-
-        if (chunk.done) {
-          final = chunk;
+        if ((chunk.message as any).thinking) {
+          accumulatedThinking += (chunk.message as any).thinking;
         }
+        if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
+          accumulatedToolCalls.push(...chunk.message.tool_calls);
+        }
+      }
+
+      if (chunk.done) {
+        final = chunk;
+      }
+    };
+
+    try {
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        let newlineIdx: number;
+        while ((newlineIdx = buffer.indexOf("\n")) >= 0) {
+          const line = buffer.slice(0, newlineIdx).trim();
+          buffer = buffer.slice(newlineIdx + 1);
+          if (!line) continue;
+
+          // A single non-JSON line (a proxy error page, a keep-alive, a
+          // truncated response) used to throw straight out of chat(). Skip it
+          // and keep reading — the trailing-buffer parse below already did
+          // exactly this, so the two paths were inconsistent.
+          let chunk: ChatResponse;
+          try {
+            chunk = JSON.parse(line) as ChatResponse;
+          } catch {
+            continue;
+          }
+          consume(chunk);
+        }
+      }
+    } finally {
+      // Without this, an error mid-stream leaves the body unread and the
+      // underlying socket held open. Guarded because not every ReadableStream
+      // implementation we're handed (test doubles, older fetch polyfills)
+      // provides the full reader/cancel surface — cleanup must never be the
+      // thing that fails the request.
+      try {
+        reader.releaseLock?.();
+        await resp.body.cancel?.();
+      } catch {
+        // best-effort
       }
     }
 
@@ -230,24 +287,7 @@ export class Provider {
     const remaining = buffer.trim();
     if (remaining) {
       try {
-        const chunk = JSON.parse(remaining) as ChatResponse;
-        onChunk?.(chunk);
-
-        if (chunk.message) {
-          if (chunk.message.content) {
-            accumulatedContent += chunk.message.content;
-          }
-          if ((chunk.message as any).thinking) {
-            accumulatedThinking += (chunk.message as any).thinking;
-          }
-          if (chunk.message.tool_calls && Array.isArray(chunk.message.tool_calls)) {
-            accumulatedToolCalls.push(...chunk.message.tool_calls);
-          }
-        }
-
-        if (chunk.done) {
-          final = chunk;
-        }
+        consume(JSON.parse(remaining) as ChatResponse);
       } catch {
         // Ignore parse error for incomplete trailing chunks
       }
