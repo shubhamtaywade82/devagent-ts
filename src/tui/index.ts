@@ -15,7 +15,7 @@ import { validateAsl, generateAslGraph } from "../asl/commands.js";
 
 function enableTerminalFeatures(): () => void {
   if (!process.stdin.isTTY) return () => {};
-  process.stdout.write("\x1b[?1049h\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h\x1b[H");
+  process.stdout.write("\x1b[?1049h\x1b[2J\x1b[3J\x1b[H\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h");
   let restored = false;
   const cleanup = () => {
     if (restored) return;

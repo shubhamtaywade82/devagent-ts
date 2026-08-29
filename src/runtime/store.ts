@@ -134,9 +134,16 @@ function appendChunk(
   model?: string,
   crumb?: string,
 ): ChatEntry[] {
-  const last = conversation[conversation.length - 1];
-  if (last && last.kind === "text" && last.role === role) {
-    return conversation.slice(0, -1).concat({ ...last, text: last.text + chunk });
+  for (let i = conversation.length - 1; i >= 0; i--) {
+    const entry = conversation[i];
+    if (entry.kind === "text" && entry.role === role) {
+      const updated: ChatEntry = { ...entry, text: entry.text + chunk };
+      const next = [...conversation];
+      next[i] = updated;
+      return next;
+    }
+    if (entry.kind === "text" && entry.role === "user") break;
+    if (entry.kind === "tool_call") break;
   }
   // Stamped once, at entry creation — a turn's answering model doesn't change mid-stream.
   return bounded(

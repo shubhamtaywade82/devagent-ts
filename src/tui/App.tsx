@@ -143,10 +143,10 @@ function TerminalSizeListener({ onSize, rows }: { onSize: (w: number, h: number)
 }
 
 function useTerminalSize(columns?: number, rows?: number) {
-  const [size, setSize] = useState({
-    width: columns ?? 100,
-    height: rows ?? 30,
-  });
+  const [size, setSize] = useState(() => ({
+    width: columns ?? (process.stdout?.columns || 100),
+    height: rows ?? (process.stdout?.rows || 30),
+  }));
   const onSize = useCallback((w: number, h: number) => setSize({ width: w, height: h }), []);
   const needsListener = columns == null || rows == null;
   const listener = needsListener ? <TerminalSizeListener onSize={onSize} rows={rows} /> : null;
