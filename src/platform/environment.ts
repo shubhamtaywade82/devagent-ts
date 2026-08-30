@@ -14,7 +14,7 @@
 import { BRAND } from "./brand.js";
 
 const warnedKeys = new Set<string>();
-let warningsSuppressed = process.env.NEXUM_NO_DEPRECATION_WARNINGS === "1";
+let warningsSuppressed = false;
 
 /** Programmatically (de)authorize deprecation warnings — for tests and CLI. */
 export function suppressDeprecationWarnings(suppress: boolean): void {
@@ -27,7 +27,7 @@ export function resetDeprecationWarnings(): void {
 }
 
 function warnLegacy(legacyName: string, canonicalName: string): void {
-  if (warningsSuppressed || warnedKeys.has(legacyName)) return;
+  if (warningsSuppressed || process.env.NEXUM_NO_DEPRECATION_WARNINGS === "1" || warnedKeys.has(legacyName)) return;
   warnedKeys.add(legacyName);
   // stderr, not stdout — never corrupts piped/JSON output.
   console.error(`${legacyName} is deprecated. Use ${canonicalName} instead.`);

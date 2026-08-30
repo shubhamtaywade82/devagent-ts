@@ -100,11 +100,17 @@ export function discoverSkills(opts: DiscoverOptions): SkillMeta[] {
     .filter((s): s is SkillMeta => s != null);
 
   const byId = new Map<string, SkillMeta>();
+  // First-wins per id per scope: canonical roots are listed before legacy, so
+  // a migrated/canonical skill is never shadowed by its stale legacy copy;
+  // workspace always beats global.
   for (const skill of global) {
     const existing = byId.get(skill.id);
     if (!existing || existing.scope !== skill.scope) byId.set(skill.id, skill);
   }
-  for (const skill of workspace) byId.set(skill.id, skill); // workspace wins
+  for (const skill of workspace) {
+    const existing = byId.get(skill.id);
+    if (!existing || existing.scope !== skill.scope) byId.set(skill.id, skill); // workspace wins
+  }
   return [...byId.values()];
 }
 

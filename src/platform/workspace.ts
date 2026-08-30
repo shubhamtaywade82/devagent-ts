@@ -130,6 +130,13 @@ export class WorkspaceManager {
       marker: null,
     };
 
+    // Completed migration: the marker is the commit point — nothing to do.
+    if (hasCurrent && this.hasMigrationMarker()) {
+      report.alreadyMigrated = true;
+      report.marker = this.markerFile;
+      return report;
+    }
+
     try {
       // Ensure the target exists before copying anything (initializes a fresh
       // .nexum even for workspaces with no legacy state at all).

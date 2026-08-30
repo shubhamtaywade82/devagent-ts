@@ -10,10 +10,17 @@
  */
 
 import { existsSync } from "node:fs";
+import { homedir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { activeLegacyEnvVariables } from "../platform/environment.js";
 import { findWorkspaceRoot, legacyHistoryFile, legacyGlobalStateDir } from "../platform/paths.js";
 import { WorkspaceManager, migrateGlobalState } from "../platform/workspace.js";
+
+export interface MigrateOptions {
+  cwd?: string;
+  /** Override the home directory (tests) — defaults to os.homedir(). */
+  homeDir?: string;
+}
 
 export interface MigrateReport {
   workspaceRoot: string;
@@ -34,13 +41,13 @@ export interface MigrateReport {
 }
 
 /** Inspect + migrate, returning a structured report (tests use this). */
-export function runMigrate(opts: { cwd?: string } = {}): MigrateReport {
+export function runMigrate(opts: MigrateOptions = {}): MigrateReport {
   const workspaceRoot = findWorkspaceRoot(opts.cwd ?? process.cwd());
   const mgr = new WorkspaceManager(workspaceRoot);
   const detection = mgr.detect();
 
   const report = mgr.migrate();
-  const global = migrateGlobalState();
+  const global = migrateGlobalState(opts.homeDir ?? homedir());
 
   const legacyEnv = activeLegacyEnvVariables();
 
