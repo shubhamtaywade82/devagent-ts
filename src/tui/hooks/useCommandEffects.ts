@@ -1,10 +1,10 @@
 import { useCallback } from "react";
 import { mkdirSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
 import { EventBus } from "../../runtime/events.js";
 import { Store } from "../../runtime/store.js";
 import { CommandEffect } from "../../interaction/slash-commands.js";
 import { runDoctor } from "../../cli/doctor.js";
+import { WorkspaceManager } from "../../platform/workspace.js";
 import type { AgentMode } from "../../runtime/types.js";
 import type { ShellAgent } from "../App.js";
 
@@ -79,10 +79,15 @@ export function useCommandEffects(
         }
         case "init-workspace": {
           const root = workspaceRoot ?? process.cwd();
-          const dir = join(root, ".devagent");
-          mkdirSync(join(dir, "skills"), { recursive: true });
+          // Route every state-path decision through the WorkspaceManager:
+          // init creates `.nexum` (never the legacy `.devagent`) and migrates
+          // any legacy workspace as a side effect (docs/REBRANDING.md §4).
+          const mgr = new WorkspaceManager(root);
+          mgr.ensure();
+          const paths = mgr.paths();
+          mkdirSync(paths.skillsDir, { recursive: true });
           writeFileSync(
-            join(dir, "config.json"),
+            paths.configFile,
             JSON.stringify(
               {
                 model: store.getState().model.name,
@@ -93,7 +98,7 @@ export function useCommandEffects(
               2,
             ),
           );
-          bus.publish({ type: "notification", kind: "success", text: `.devagent/ created in ${dir}` });
+          bus.publish({ type: "notification", kind: "success", text: `Workspace initialized at ${mgr.dir}` });
           break;
         }
         case "reset-context":

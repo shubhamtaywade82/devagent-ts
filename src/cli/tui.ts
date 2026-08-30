@@ -10,6 +10,7 @@ import TerminalRenderer from "marked-terminal";
 
 import { Agent } from "./agent.js";
 import { CliConfig, loadConfig } from "./config.js";
+import { historyFile, workspaceStateDir } from "../platform/paths.js";
 
 /** Node.js readline.Interface exposes a non-standard `history` array at runtime,
  *  but the TypeScript declarations omit it. This extension bridges the gap. */
@@ -59,7 +60,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
   // Model accessibility cache: true = free/accessible, false = requires subscription
   // Lives under .nexum (migrated from legacy .devagent by the WorkspaceManager).
-  const modelCachePath = path.join(cfg.workspaceRoot, ".nexum", "models.json");
+  const modelCachePath = path.join(workspaceStateDir(cfg.workspaceRoot), "models.json");
   const modelAccess = new Map<string, boolean>();
 
   function loadModelCache(): void {
@@ -260,7 +261,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     return [hits.length ? hits : completions, line];
   };
 
-  const historyPath = path.join(cfg.workspaceRoot, ".nexum_history");
+  const historyPath = historyFile(cfg.workspaceRoot);
   let initialHistory: string[] = [];
   try {
     if (fs.existsSync(historyPath)) {
