@@ -1,6 +1,6 @@
 # Capability-Based Model Router & Escalation
 
-DevAgent-TS introduces a local-first capability router that optimizes latency, cost, and task success.
+Nexum introduces a local-first capability router that optimizes latency, cost, and task success.
 
 ---
 

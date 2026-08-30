@@ -1,6 +1,6 @@
 # Custom Skills & Prompts
 
-Skills are reusable Markdown instructions placed in `.devagent/skills/<skill-name>/SKILL.md`.
+Skills are reusable Markdown instructions placed in `.nexum/skills/<skill-name>/SKILL.md`.
 
 ---
 

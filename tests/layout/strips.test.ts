@@ -101,6 +101,6 @@ describe("headerTokens", () => {
   it("shows product, model, mode, workspace, branch, and clock in priority order", () => {
     const now = new Date(2026, 0, 1, 10, 42, 11).getTime();
     const texts = headerTokens(fresh(), now).map((t) => t.text);
-    expect(texts).toEqual(["DevAgent", "qwen3:30b", "Code", "IDLE", "ollama-agent", "⎇ main", "10:42"]);
+    expect(texts).toEqual(["Nexum", "qwen3:30b", "Code", "IDLE", "ollama-agent", "⎇ main", "10:42"]);
   });
 });

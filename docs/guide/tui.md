@@ -1,6 +1,6 @@
 # Terminal UI & Keybindings
 
-DevAgent-TS features an interactive React terminal interface built on Ink with alternate screen buffer support (`\x1b[?1049h`).
+Nexum features an interactive React terminal interface built on Ink with alternate screen buffer support (`\x1b[?1049h`).
 
 ---
 

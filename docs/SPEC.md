@@ -1,17 +1,17 @@
-# DevAgent Terminal Specification (Frozen)
+# Nexum Terminal Specification (Frozen)
 
 This document freezes the product model. Changes here are breaking changes
 and require deliberate review — the point of this file is that the product
 cannot drift back into a web-dashboard shape.
 
-## 1. What DevAgent is
+## 1. What Nexum is
 
 - A terminal-native agent operating environment.
 - Built around always-running actors.
 - One fixed layout; only content density changes with terminal size.
 - The bottom HUD always exposes the most relevant live state.
 
-What DevAgent is **not**: a browser UI in a terminal, a dashboard app, a
+What Nexum is **not**: a browser UI in a terminal, a dashboard app, a
 page-based navigation app, or a file-explorer replacement.
 
 > **The design principle:** everything is alive. You are only changing what

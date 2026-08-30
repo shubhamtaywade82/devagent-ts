@@ -157,7 +157,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       }
       if (!s.isStreaming) {
         s.isStreaming = true;
-        process.stdout.write(chalk.magenta.bold(" DevAgent: "));
+        process.stdout.write(chalk.magenta.bold(" Nexum: "));
       }
       process.stdout.write(chunk);
     })
@@ -223,7 +223,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
 
   // Render a high-fidelity startup banner
   const bannerText = [
-    chalk.bold.magenta("⚡ DevAgent TS Ecosystem CLI ⚡"),
+    chalk.bold.magenta("⚡ Nexum Agent Runtime & Harness ⚡"),
     "",
     `${chalk.bold("Model:")}      ${chalk.cyan(agent.currentModel)}`,
     `${chalk.bold("Workspace:")}  ${chalk.gray(cfg.workspaceRoot)}`,
@@ -241,7 +241,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
       margin: { top: 1, bottom: 1, left: 0, right: 0 },
       borderColor: "magenta",
       borderStyle: "double",
-      title: "DevAgent",
+      title: "Nexum",
       titleAlignment: "center",
     }),
   );
@@ -307,9 +307,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   };
 
   const updatePrompt = () => {
-    rl.setPrompt(
-      chalk.magenta.bold("devagent-ts") + " " + chalk.cyan(`(${agent.currentModel})`) + chalk.green.bold(" ❯ "),
-    );
+    rl.setPrompt(chalk.magenta.bold("nexum") + " " + chalk.cyan(`(${agent.currentModel})`) + chalk.green.bold(" ❯ "));
   };
 
   updatePrompt();
@@ -339,8 +337,8 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
           `${chalk.cyan("/models")}        List available models tagged Free/Subscription`,
           `${chalk.cyan("/clear")}         Clear the terminal screen`,
           `${chalk.cyan("/reset")}         Reset conversation history`,
-          `${chalk.cyan("/exit")}          Exit DevAgent`,
-          `${chalk.cyan("/quit")}          Exit DevAgent`,
+          `${chalk.cyan("/exit")}          Exit Nexum`,
+          `${chalk.cyan("/quit")}          Exit Nexum`,
         ].join("\n");
         console.log(
           boxen(helpText, {

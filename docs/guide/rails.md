@@ -1,6 +1,6 @@
 # Rails Semantic AST Index
 
-DevAgent-TS includes a specialized semantic graph engine for Ruby on Rails codebases.
+Nexum includes a specialized semantic graph engine for Ruby on Rails codebases.
 
 ---
 

@@ -6,7 +6,7 @@ Executing untrusted AI-generated scripts directly on your host machine introduce
 
 ## Security Guarantees
 
-DevAgent-TS runs every `shell` command inside an isolated container with:
+Nexum runs every `shell` command inside an isolated container with:
 
 1. **No Network Access (`--network=none`)**: Blocks data exfiltration and external malware downloads.
 2. **Resource Bounds**: Caps memory (2 GB) and CPU cores to avoid resource starvation.

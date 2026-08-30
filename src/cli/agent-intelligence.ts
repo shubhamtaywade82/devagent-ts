@@ -4,6 +4,7 @@ import { LspManager } from "../lsp/manager.js";
 import { LanguageRegistry } from "../lsp/registry.js";
 import { SemanticIndex } from "../intelligence/rails/index.js";
 import { WorkspaceKnowledgeEngine } from "../intelligence/knowledge-engine.js";
+import { workspaceStateDir } from "../platform/paths.js";
 import { LspSemanticPlugin } from "../intelligence/semantic-plugin.js";
 import { RailsSemanticPlugin } from "../intelligence/rails/rails-plugin.js";
 import { AslSemanticPlugin } from "../intelligence/asl-plugin.js";
@@ -43,11 +44,11 @@ export class AgentIntelligence {
       this.lspManager.prewarm(opts.prewarm).catch(() => {});
     }
 
-    const devagentDir = join(opts.workspaceRoot, ".devagent");
-    mkdirSync(devagentDir, { recursive: true });
+    const stateDir = workspaceStateDir(opts.workspaceRoot);
+    mkdirSync(stateDir, { recursive: true });
 
     this.railsIndex = SemanticIndex.create(opts.workspaceRoot, {
-      cachePath: join(devagentDir, "rails-index.db"),
+      cachePath: join(stateDir, "rails-index.db"),
     });
 
     if (this.railsIndex.enabled) {

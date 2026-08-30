@@ -215,7 +215,7 @@ export function useCommandEffects(
           bus.publish({ type: "notification", kind: "info", text: "Running system doctor…" });
           runDoctor()
             .then((report) => {
-              const output = "🩺 **DevAgent System Health Report**\n\n" + report.lines.map((l) => `• ${l}`).join("\n");
+              const output = "🩺 **Nexum System Health Report**\n\n" + report.lines.map((l) => `• ${l}`).join("\n");
               bus.publish({ type: "conversation.message", role: "assistant", text: output });
               bus.publish({ type: "notification", kind: "success", text: "System check completed" });
             })

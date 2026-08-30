@@ -43,7 +43,7 @@ describe("Agent Rails semantic index wiring", () => {
     expect(result.found).toBe(true);
     expect(result.specs).toContain("spec/models/user_spec.rb");
 
-    // Build persisted the cache under .devagent/.
-    expect(existsSync(join(dir, ".devagent", "rails-index.db"))).toBe(true);
+    // Build persisted the cache under .nexum/.
+    expect(existsSync(join(dir, ".nexum", "rails-index.db"))).toBe(true);
   });
 });

@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { SkillUsageStats } from "../skills/types.js";
 import { LessonStore } from "./lesson-store.js";
 import { Lesson } from "./types.js";
+import { workspaceStateDir } from "../platform/paths.js";
 
 /**
  * Materializes promoted lessons as ordinary workspace skills and demotes
@@ -64,7 +65,7 @@ export class SkillSynthesizer {
       const successRate = stat.successCount / stat.useCount;
       if (successRate >= DEMOTE_BELOW_SUCCESS_RATE) continue;
 
-      const dir = join(this.workspaceRoot, ".devagent", "skills", stat.skillId);
+      const dir = join(workspaceStateDir(this.workspaceRoot), "skills", stat.skillId);
       if (existsSync(dir)) rmSync(dir, { recursive: true, force: true });
       this.lessons.demote(stat.skillId);
       demoted.push(stat.skillId);
@@ -80,7 +81,7 @@ export class SkillSynthesizer {
   }
 
   private writeSkill(skillId: string, topic: string, lessons: Lesson[]): void {
-    const dir = join(this.workspaceRoot, ".devagent", "skills", skillId);
+    const dir = join(workspaceStateDir(this.workspaceRoot), "skills", skillId);
     mkdirSync(dir, { recursive: true });
 
     const tags = [...new Set(lessons.flatMap((lesson) => lesson.tags))].slice(0, 10);

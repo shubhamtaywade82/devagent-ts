@@ -27,13 +27,13 @@ The current zone skeleton (Header, ContextStrip, ActivityStrip, PromptBar, Token
    - Header shows the current checkpoint id.
 
 4. **Headless mode**
-   - Add `devagent -p "task" --output-format json|stream`.
+   - Add `nexum -p "task" --output-format json|stream`.
    - Reuse the existing `Agent` event surface; emit JSONL rather than Ink UI.
    - This enables CI, cron, shell pipelines, and integration with other agents.
 
 5. **Session persistence**
-   - Store `Agent` messages and edit-tracker state under `.devagent/sessions/<session-id>/`.
-   - Add `devagent --resume <session-id>` and `devagent --continue`.
+   - Store `Agent` messages and edit-tracker state under `.nexum/sessions/<session-id>/`.
+   - Add `nexum --resume <session-id>` and `nexum --continue`.
    - Keep `resetContext()` as an explicit lifecycle action.
 
 6. **Header/status additions**

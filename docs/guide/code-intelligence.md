@@ -1,6 +1,6 @@
 # 14 Language Server Protocols (LSP)
 
-DevAgent-TS integrates directly with the Language Server Protocol (LSP) to provide true semantic code understanding across 14 programming languages.
+Nexum integrates directly with the Language Server Protocol (LSP) to provide true semantic code understanding across 14 programming languages.
 
 ---
 
@@ -27,4 +27,4 @@ DevAgent-TS integrates directly with the Language Server Protocol (LSP) to provi
 
 ## Graceful Fallback
 
-If an LSP binary is not installed on the system, DevAgent gracefully falls back to fuzzy AST and ripgrep text matching, ensuring the turn succeeds without error.
+If an LSP binary is not installed on the system, Nexum gracefully falls back to fuzzy AST and ripgrep text matching, ensuring the turn succeeds without error.

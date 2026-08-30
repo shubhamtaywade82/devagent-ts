@@ -1,5 +1,5 @@
 /**
- * Core domain model for the DevAgent runtime.
+ * Core domain model for the Nexum agent runtime.
  *
  * The UI is a pure reflection of this state: actors are always alive,
  * views only change what is observed, never what is running.

@@ -15,7 +15,7 @@ function formatClock(now: number): string {
 }
 
 /**
- * Top bar: "devagent-ts v0.1.0 │ Mission: <goal>" on the left, "MODE: X
+ * Top bar: "nexum v0.1.0 │ Mission: <goal>" on the left, "MODE: X
  * MODEL: Y HH:MM:SS" right-aligned. MODE shows the real AgentMode label
  * (Code/Ask/Architect/...), not a fabricated build-status word.
  */
@@ -25,7 +25,7 @@ export function Header({ state, width, now = Date.now() }: HeaderProps): React.J
   const clock = formatClock(now);
 
   const showSubtitle = width >= 95;
-  const leftPrefix = showSubtitle ? "⚡ DevAgent · Autonomous AI Coding Assistant" : "⚡ DevAgent";
+  const leftPrefix = showSubtitle ? "⚡ Nexum · Autonomous Coding Agent" : "⚡ Nexum";
   const missionPrefix = state.mission.goal ? "  │ Mission: " : "";
   const rightText = `MODE: ${modeLabel}   MODEL: ${modelName}   ${clock}`;
 
@@ -35,12 +35,12 @@ export function Header({ state, width, now = Date.now() }: HeaderProps): React.J
   return (
     <Box width={width} height={1}>
       <Text bold color="cyan">
-        ⚡ DevAgent
+        ⚡ Nexum
       </Text>
       {showSubtitle && (
         <Text color="gray" dimColor>
           {" "}
-          · Autonomous AI Coding Assistant
+          · Autonomous Coding Agent
         </Text>
       )}
       {mission && (

@@ -218,8 +218,8 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
   const [completionIndex, setCompletionIndex] = useState(0);
   const [history] = useState(() => {
     const root = workspaceRoot ?? process.cwd();
-    const historyFile = join(root, ".devagent", "history.json");
-    // Also load legacy flat file for backwards compat
+    const historyFile = join(root, ".nexum", "history.json");
+    // Also load legacy flat file for backwards compat (pre-rename DevAgent)
     const legacyPath = join(root, ".devagent_history");
     let initialHistory: string[] = [];
     try {

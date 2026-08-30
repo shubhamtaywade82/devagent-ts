@@ -2,7 +2,7 @@
 layout: home
 
 hero:
-  name: "⚡ DevAgent-TS"
+  name: "⚡ Nexum"
   text: "Autonomous AI Coding Assistant Runtime & TUI"
   tagline: "Local-first Ollama models, Docker sandboxing, 14 LSP language servers, offline DevDocs FTS5, and parallel DAG planning."
   actions:

@@ -27,8 +27,17 @@ import {
 } from "./paths.js";
 
 /** State entries carried over from a legacy `.devagent` workspace. */
-const FILE_ENTRIES = ["memory.db", "checkpoint.json", "docs.db", "config.json", "models.json"] as const;
-const DIR_ENTRIES = ["sessions", "skills"] as const;
+const FILE_ENTRIES = [
+  "memory.db",
+  "checkpoint.json",
+  "docs.db",
+  "config.json",
+  "models.json",
+  "lessons.db",
+  "history.json",
+  "rails-index.db",
+] as const;
+const DIR_ENTRIES = ["sessions", "skills", "backups"] as const;
 
 export type EntryStatus = "copied" | "skipped" | "failed";
 
@@ -64,6 +73,12 @@ export interface WorkspacePaths {
   configFile: string;
   skillsDir: string;
   modelsCache: string;
+  /** Learning engine database (`lessons.db`). */
+  lessonsDb: string;
+  /** TUI command history (`history.json`). */
+  historyFile: string;
+  /** Snapshot backup root (`backups/`). */
+  backupsDir: string;
 }
 
 export interface WorkspaceDetection {
@@ -213,6 +228,9 @@ export class WorkspaceManager {
       configFile: join(this.dir, "config.json"),
       skillsDir: join(this.dir, "skills"),
       modelsCache: join(this.dir, "models.json"),
+      lessonsDb: join(this.dir, "lessons.db"),
+      historyFile: join(this.dir, "history.json"),
+      backupsDir: join(this.dir, "backups"),
     };
   }
 

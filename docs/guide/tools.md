@@ -1,6 +1,6 @@
 # 35+ Built-in Tools Reference
 
-DevAgent-TS includes over 35 safety-guarded tools exposed to the agent loop with dynamic tool pruning.
+Nexum includes over 35 safety-guarded tools exposed to the agent loop with dynamic tool pruning.
 
 ---
 

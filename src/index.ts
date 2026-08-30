@@ -1,4 +1,4 @@
-// @nemesis-oss/devagent-ts — public API surface
+// @nemesis-oss/nexum — public API surface
 // Re-exports the core classes for programmatic use.
 
 export { Agent, type AgentEvents, type AgentOptions } from "./cli/agent.js";

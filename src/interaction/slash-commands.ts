@@ -219,14 +219,14 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register({
     name: "init",
     aliases: ["setup"],
-    description: "Create .devagent/ workspace config with defaults",
+    description: "Create .nexum/ workspace config with defaults",
     category: "Workspace",
     execute: () => ({ kind: "init-workspace" }),
   });
   registry.register({
     name: "quit",
     aliases: ["exit"],
-    description: "Quit DevAgent",
+    description: "Quit Nexum",
     category: "General",
     execute: () => ({ kind: "quit" }),
   });

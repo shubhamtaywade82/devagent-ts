@@ -1,13 +1,14 @@
 import { defineConfig } from "vitepress";
 
 export default defineConfig({
-  base: "/devagent-ts/",
-  title: "⚡ DevAgent-TS",
-  description: "Autonomous, Developer-Focused AI Coding Assistant Runtime & TUI",
+  base: "/nexum/",
+  title: "⚡ Nexum",
+  description: "Open-Source Agent Runtime & Harness for Autonomous Software Engineering",
   lastUpdated: true,
   cleanUrls: true,
   srcExclude: [
     "**/superpowers/**",
+    "**/REBRANDING.md",
     "**/requirements/**",
     "**/plan/**",
     "SPEC.md",
@@ -16,14 +17,14 @@ export default defineConfig({
     "tui-capability-spec.md",
   ],
   themeConfig: {
-    siteTitle: "⚡ DevAgent-TS",
+    siteTitle: "⚡ Nexum",
     nav: [
       { text: "Home", link: "/" },
       { text: "Guide", link: "/guide/getting-started" },
       { text: "Architecture", link: "/guide/architecture" },
       { text: "Tools", link: "/guide/tools" },
       { text: "Benchmarks", link: "/guide/benchmarks" },
-      { text: "GitHub", link: "https://github.com/shubhamtaywade82/devagent-ts" },
+      { text: "GitHub", link: "https://github.com/nemesis-oss/nexum" },
     ],
     sidebar: [
       {
@@ -66,8 +67,8 @@ export default defineConfig({
       provider: "local",
     },
     socialLinks: [
-      { icon: "github", link: "https://github.com/shubhamtaywade82/devagent-ts" },
-      { icon: "npm", link: "https://www.npmjs.com/package/@nemesis-oss/devagent-ts" },
+      { icon: "github", link: "https://github.com/nemesis-oss/nexum" },
+      { icon: "npm", link: "https://www.npmjs.com/package/@nemesis-oss/nexum" },
     ],
     footer: {
       message: "Released under the MIT License.",

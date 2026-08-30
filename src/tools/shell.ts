@@ -136,7 +136,7 @@ export class ShellTool extends Tool {
       };
     }
 
-    const container = `devagent-${randomBytes(4).toString("hex")}`;
+    const container = `nexum-${randomBytes(4).toString("hex")}`;
 
     return new Promise((resolvePromise) => {
       const child = spawn("docker", this.dockerArgs(container, command, timeoutSec));
