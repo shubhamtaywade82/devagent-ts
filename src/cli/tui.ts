@@ -58,7 +58,8 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
   let runState = { isStreaming: false, isThinking: false, lastToolName: "", lastToolArgs: {} as Record<string, any> };
 
   // Model accessibility cache: true = free/accessible, false = requires subscription
-  const modelCachePath = path.join(cfg.workspaceRoot, ".devagent", "models.json");
+  // Lives under .nexum (migrated from legacy .devagent by the WorkspaceManager).
+  const modelCachePath = path.join(cfg.workspaceRoot, ".nexum", "models.json");
   const modelAccess = new Map<string, boolean>();
 
   function loadModelCache(): void {
@@ -259,7 +260,7 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     return [hits.length ? hits : completions, line];
   };
 
-  const historyPath = path.join(cfg.workspaceRoot, ".devagent_history");
+  const historyPath = path.join(cfg.workspaceRoot, ".nexum_history");
   let initialHistory: string[] = [];
   try {
     if (fs.existsSync(historyPath)) {

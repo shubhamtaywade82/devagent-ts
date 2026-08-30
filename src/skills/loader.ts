@@ -9,6 +9,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import matter from "gray-matter";
 import { SkillContent, SkillMeta, SkillScope } from "./types.js";
+import { legacyWorkspaceStateDir, workspaceStateDir } from "../platform/paths.js";
 
 export interface DiscoverOptions {
   workspaceRoot: string;
@@ -16,20 +17,28 @@ export interface DiscoverOptions {
   homeDir?: string;
 }
 
-function skillsDir(root: string): string {
-  return join(root, ".devagent", "skills");
+function skillsDirs(root: string): string[] {
+  // Canonical .nexum/skills, plus legacy .devagent/skills as a deprecated
+  // fallback so pre-rename workspaces keep working until migrated
+  // (docs/REBRANDING.md §4).
+  return [join(workspaceStateDir(root), "skills"), join(legacyWorkspaceStateDir(root), "skills")];
 }
 
 function listSkillDirs(root: string): string[] {
-  const dir = skillsDir(root);
-  if (!existsSync(dir)) return [];
-  try {
-    return readdirSync(dir, { withFileTypes: true })
-      .filter((e) => e.isDirectory())
-      .map((e) => join(dir, e.name));
-  } catch {
-    return [];
+  const dirs: string[] = [];
+  for (const dir of skillsDirs(root)) {
+    if (!existsSync(dir)) continue;
+    try {
+      dirs.push(
+        ...readdirSync(dir, { withFileTypes: true })
+          .filter((e) => e.isDirectory())
+          .map((e) => join(dir, e.name)),
+      );
+    } catch {
+      // unreadable skills directory — skip, not fatal
+    }
   }
+  return dirs;
 }
 
 function listResourceFiles(dir: string): string[] {
@@ -73,12 +82,17 @@ export function loadSkillMeta(skillDir: string, scope: SkillScope): SkillMeta | 
 }
 
 /**
- * Scans .devagent/skills/ (workspace) and ~/.devagent/skills/ (global) for
- * skill directories, parsing SKILL.md frontmatter only (cheap). Workspace
+ * Scans .nexum/skills/ (workspace) and ~/.nexum/skills/ (global) for skill
+ * directories, parsing SKILL.md frontmatter only (cheap). Legacy
+ * .devagent/skills/ locations are scanned as deprecated fallbacks. Workspace
  * skills override global skills sharing an id.
  */
 export function discoverSkills(opts: DiscoverOptions): SkillMeta[] {
-  const global = listSkillDirs(opts.homeDir ?? homedir())
+  const home = opts.homeDir ?? homedir();
+  // listSkillDirs already scans both .nexum/skills and .devagent/skills
+  // under the given root (canonical first, so a migrated skill is never
+  // shadowed by its stale legacy copy — same id, same scope → first wins).
+  const global = listSkillDirs(home)
     .map((dir) => loadSkillMeta(dir, "global"))
     .filter((s): s is SkillMeta => s != null);
   const workspace = listSkillDirs(opts.workspaceRoot)
@@ -86,7 +100,10 @@ export function discoverSkills(opts: DiscoverOptions): SkillMeta[] {
     .filter((s): s is SkillMeta => s != null);
 
   const byId = new Map<string, SkillMeta>();
-  for (const skill of global) byId.set(skill.id, skill);
+  for (const skill of global) {
+    const existing = byId.get(skill.id);
+    if (!existing || existing.scope !== skill.scope) byId.set(skill.id, skill);
+  }
   for (const skill of workspace) byId.set(skill.id, skill); // workspace wins
   return [...byId.values()];
 }

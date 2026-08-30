@@ -1,7 +1,5 @@
-import * as fs from "node:fs";
-import * as path from "node:path";
 import { parseAslFile, validateTaskSpec } from "../asl/parser.js";
-import { getAslFiles } from "../asl/commands.js";
+import { aslStateDir, getAslFiles } from "../asl/commands.js";
 import { AslTaskSpec } from "../asl/types.js";
 import { SemanticPlugin, DiscoveredEntity, SemanticQuery, QueryResult, PluginKind } from "./types.js";
 import { SemanticOperation } from "../lsp/manager.js";
@@ -20,18 +18,18 @@ export class AslSemanticPlugin implements SemanticPlugin {
   }
 
   detect(): boolean {
-    const devagentDir = path.join(this.workspaceRoot, ".devagent");
-    return fs.existsSync(devagentDir);
+    // Canonical .nexum state dir, or legacy .devagent (deprecated fallback).
+    return aslStateDir(this.workspaceRoot) != null;
   }
 
   async discover(): Promise<DiscoveredEntity[]> {
-    const devagentDir = path.join(this.workspaceRoot, ".devagent");
-    if (!fs.existsSync(devagentDir)) {
+    const stateDir = aslStateDir(this.workspaceRoot);
+    if (!stateDir) {
       this.entities = [];
       return [];
     }
 
-    const files = getAslFiles(devagentDir).filter((f) => f.includes("/tasks/"));
+    const files = getAslFiles(stateDir).filter((f) => f.includes("/tasks/"));
     const discovered: DiscoveredEntity[] = [];
 
     for (const file of files) {

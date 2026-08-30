@@ -305,7 +305,11 @@ export function migrateGlobalState(home: string = homedirSafe()): MigrationRepor
   try {
     writeFileSync(
       markerPath,
-      JSON.stringify({ product: BRAND.cli, migratedAt: new Date().toISOString(), source: BRAND.legacyConfigDir }, null, 2),
+      JSON.stringify(
+        { product: BRAND.cli, migratedAt: new Date().toISOString(), source: BRAND.legacyConfigDir },
+        null,
+        2,
+      ),
       "utf8",
     );
     report.marker = markerPath;

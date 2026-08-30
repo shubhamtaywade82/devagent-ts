@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Tool } from "./tool.js";
+import { BRAND } from "../platform/brand.js";
 
 export interface ShellToolOptions {
   workspaceRoot: string;
@@ -19,7 +20,7 @@ export class ShellTool extends Tool {
   // window on a single tool call (unlike raw capture, this isn't for storage).
   static readonly MAX_OUTPUT_BYTES = 32 * 1024;
   static readonly DEFAULT_TIMEOUT_SEC = 30;
-  static readonly DEFAULT_IMAGE = "devagent-sandbox:latest";
+  static readonly DEFAULT_IMAGE = BRAND.sandboxImage;
   static readonly KILL_POLL_INTERVAL_MS = 300;
   static readonly KILL_ESCALATION_MS = 3000;
 
