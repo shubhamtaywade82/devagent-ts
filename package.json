@@ -1,11 +1,10 @@
 {
-  "name": "@nemesis-oss/devagent-ts",
-  "version": "1.0.0",
-  "description": "Autonomous, developer-focused AI coding assistant runtime and terminal UI powered by local & cloud Ollama models with capability routing, Docker sandbox, and LSP code intelligence.",
+  "name": "@nemesis-oss/nexum",
+  "version": "2.0.0",
+  "description": "Nexum — open-source agent runtime and harness for autonomous software engineering: capability-routed local & cloud models, Docker sandbox, LSP code intelligence, and a terminal UI.",
   "keywords": [
-    "ollama",
-    "devagent",
-    "devagent-ts",
+    "nexum",
+    "agent-runtime",
     "agent",
     "ai",
     "llm",
@@ -16,17 +15,18 @@
     "docker",
     "sandbox",
     "lsp",
-    "mcp"
+    "mcp",
+    "ollama"
   ],
   "license": "MIT",
   "author": "Shubham Taywade <shubhamtaywade82@gmail.com>",
-  "homepage": "https://github.com/shubhamtaywade82/devagent-ts#readme",
+  "homepage": "https://github.com/nemesis-oss/nexum#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/shubhamtaywade82/devagent-ts.git"
+    "url": "git+https://github.com/nemesis-oss/nexum.git"
   },
   "bugs": {
-    "url": "https://github.com/shubhamtaywade82/devagent-ts/issues"
+    "url": "https://github.com/nemesis-oss/nexum/issues"
   },
   "publishConfig": {
     "access": "public",
@@ -37,18 +37,20 @@
     "node": ">=22"
   },
   "bin": {
+    "nexum": "bin/cli.js",
     "devagent": "bin/cli.js",
     "devagent-ts": "bin/cli.js"
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "DEVAGENT_TEST_NO_GLOBAL=true node --experimental-vm-modules node_modules/.bin/jest",
+    "test": "NEXUM_TEST_NO_GLOBAL=true node --experimental-vm-modules node_modules/.bin/jest",
     "start": "node dist/tui/index.js",
     "dev": "tsx src/tui/index.ts",
     "dev:legacy": "tsx src/cli/tui.ts",
     "benchmark": "tsx src/benchmark/cli.ts",
     "docs:ingest": "tsx src/docs/cli.ts",
     "doctor": "tsx src/cli/doctor.ts",
+    "migrate": "tsx src/cli/migrate.ts",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",

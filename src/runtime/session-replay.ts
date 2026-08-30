@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ExecutionNode } from "./event-node.js";
+import { workspaceStateDir } from "../platform/paths.js";
 
 export interface SessionTrajectory {
   sessionId: string;
@@ -13,7 +14,7 @@ export class SessionReplayManager {
   private sessionsDir: string;
 
   constructor(workspaceRoot: string) {
-    this.sessionsDir = join(workspaceRoot, ".devagent", "sessions");
+    this.sessionsDir = join(workspaceStateDir(workspaceRoot), "sessions");
     if (!existsSync(this.sessionsDir)) {
       mkdirSync(this.sessionsDir, { recursive: true });
     }

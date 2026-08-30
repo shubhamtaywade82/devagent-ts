@@ -271,7 +271,7 @@ describe("Agent skills activation", () => {
 
     await agent.runUserMessage("help me build a rails endpoint");
 
-    const store = new MemoryStore(join(dir, ".devagent", "memory.db"));
+    const store = new MemoryStore(join(dir, ".nexum", "memory.db"));
     expect(store.getSkillUsage("rails-api")).toMatchObject({ useCount: 1, successCount: 1 });
     store.close();
   });

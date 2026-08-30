@@ -197,7 +197,7 @@ const HEADER_PRIORITY = {
 /** Header zone: product, workspace, model, branch, context usage, mode, state, clock. */
 export function headerTokens(state: RuntimeState, now: number = Date.now()): StatusToken[] {
   const tokens: StatusToken[] = [
-    { text: "DevAgent", priority: HEADER_PRIORITY.product, color: semanticColor("thinking") },
+    { text: "Nexum", priority: HEADER_PRIORITY.product, color: semanticColor("thinking") },
   ];
   if (state.model.name) {
     tokens.push({ text: state.model.name, priority: HEADER_PRIORITY.model, color: semanticColor("active") });

@@ -1,6 +1,5 @@
-import { join } from "node:path";
-import { mkdirSync } from "node:fs";
 import { CliConfig, loadConfig, saveWorkspaceConfig } from "./config.js";
+import { WorkspaceManager } from "../platform/workspace.js";
 import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
 import { Capability, inferCapabilities, ModelCatalog } from "../provider/catalog.js";
@@ -259,15 +258,17 @@ export class Agent {
     this.lspManager = this.intelligence.lspManager;
     this.railsIndex = this.intelligence.railsIndex;
 
-    const devagentDir = join(cfg.workspaceRoot, ".devagent");
-    mkdirSync(devagentDir, { recursive: true });
+    // Workspace state (memory/checkpoint/sessions/docs) lives under .nexum —
+    // resolved (and migrated from legacy .devagent when present) by the
+    // WorkspaceManager, the single owner of that decision (docs/REBRANDING.md §4).
+    const statePaths = new WorkspaceManager(cfg.workspaceRoot).ensure();
 
-    this.memory = new MemoryStore(join(devagentDir, "memory.db"));
-    this.planCheckpoint = new CheckpointStore(join(devagentDir, "checkpoint.json"));
-    this.sessionStore = new SessionStore(join(devagentDir, "sessions"));
+    this.memory = new MemoryStore(statePaths.memoryDb);
+    this.planCheckpoint = new CheckpointStore(statePaths.checkpoint);
+    this.sessionStore = new SessionStore(statePaths.sessionsDir);
     this.currentSessionId = this.sessionStore.startNew();
 
-    this.docs = new DocsStore(join(devagentDir, "docs.db"));
+    this.docs = new DocsStore(statePaths.docsDb);
     this.tools.registerDocsTools(this.docs, cfg.workspaceRoot);
 
     const projectLanguage = this.intelligence.railsIndex.enabled

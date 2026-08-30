@@ -8,6 +8,7 @@ import { LessonStore } from "./lesson-store.js";
 import { reflect } from "./reflector.js";
 import { SkillSynthesizer } from "./skill-synthesizer.js";
 import { Episode } from "./types.js";
+import { workspaceStateDir } from "../platform/paths.js";
 
 export interface LearningEngineOptions {
   workspaceRoot: string;
@@ -33,7 +34,7 @@ export class LearningEngine {
   private inFlight: Promise<void> = Promise.resolve();
 
   constructor(private readonly opts: LearningEngineOptions) {
-    const dbPath = join(opts.workspaceRoot, ".devagent", "lessons.db");
+    const dbPath = join(workspaceStateDir(opts.workspaceRoot), "lessons.db");
     mkdirSync(dirname(dbPath), { recursive: true });
     this.lessons = new LessonStore(dbPath);
     this.synthesizer = new SkillSynthesizer(opts.workspaceRoot, this.lessons, opts.logger);

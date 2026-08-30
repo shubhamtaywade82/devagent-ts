@@ -1,12 +1,12 @@
 # Persistent Memory & Learning
 
-DevAgent-TS remembers past lessons, mistakes, and user preferences across terminal sessions.
+Nexum remembers past lessons, mistakes, and user preferences across terminal sessions.
 
 ---
 
 ## Storage & Architecture
 
-- SQLite database stored at `.devagent/memory.db`.
+- SQLite database stored at `.nexum/memory.db`.
 - Post-mission reflection automatically extracts rules and lessons.
 - Developers can explicitly teach preferences using the `/learn <rule>` command.
 

@@ -1,6 +1,6 @@
 # Getting Started
 
-**DevAgent-TS** is an autonomous, developer-focused AI coding assistant designed to run local-first with Ollama, with failover to cloud reasoning models.
+**Nexum** is an autonomous, developer-focused AI coding assistant designed to run local-first with Ollama, with failover to cloud reasoning models.
 
 ---
 
@@ -19,14 +19,14 @@
 Install globally from npm:
 
 ```bash
-npm install -g @nemesis-oss/devagent-ts
+npm install -g @nemesis-oss/nexum
 ```
 
 ### 2. From Source
 
 ```bash
-git clone https://github.com/shubhamtaywade82/devagent-ts.git
-cd devagent-ts
+git clone https://github.com/nemesis-oss/nexum.git
+cd nexum
 npm install
 npm run build
 npm link --force
@@ -36,20 +36,20 @@ npm link --force
 
 ## Building the Docker Sandbox
 
-DevAgent isolates command execution inside a secure container. Build the sandbox image:
+Nexum isolates command execution inside a secure container. Build the sandbox image:
 
 ```bash
-docker build -t devagent-sandbox:latest docker/devagent-sandbox/
+docker build -t nexum-sandbox:latest docker/nexum-sandbox/
 ```
 
 ---
 
-## Running DevAgent
+## Running Nexum
 
-Navigate to any project directory and launch DevAgent:
+Navigate to any project directory and launch Nexum:
 
 ```bash
-devagent
+nexum
 ```
 
 ### Quick Commands inside TUI

@@ -1,12 +1,12 @@
 # Model Context Protocol (MCP)
 
-DevAgent-TS supports connecting to external MCP servers to extend its capabilities.
+Nexum supports connecting to external MCP servers to extend its capabilities.
 
 ---
 
 ## Configuration
 
-Add MCP servers to `.devagent/config.json`:
+Add MCP servers to `.nexum/config.json`:
 
 ```json
 {

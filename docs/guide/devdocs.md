@@ -1,6 +1,6 @@
 # Offline DevDocs Search
 
-DevAgent-TS features an embedded SQLite FTS5 documentation search engine powered by pre-packaged DevDocs bundles.
+Nexum features an embedded SQLite FTS5 documentation search engine powered by pre-packaged DevDocs bundles.
 
 ---
 
@@ -15,7 +15,7 @@ DevAgent-TS features an embedded SQLite FTS5 documentation search engine powered
 
 ## Ingesting Documentation
 
-Download and index documentation bundles into your local `.devagent/docs.db`:
+Download and index documentation bundles into your local `.nexum/docs.db`:
 
 ```bash
 # Ingest specific docs

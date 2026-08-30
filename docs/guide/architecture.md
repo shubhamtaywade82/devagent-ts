@@ -1,6 +1,6 @@
 # Architecture Overview
 
-DevAgent-TS is built around an event-driven, sandboxed, multi-tier agent architecture designed for maximum autonomy, privacy, and safety.
+Nexum is built around an event-driven, sandboxed, multi-tier agent architecture designed for maximum autonomy, privacy, and safety.
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -10,7 +10,7 @@ DevAgent-TS is built around an event-driven, sandboxed, multi-tier agent archite
                              │ Events & Dispatch
 ┌────────────────────────────▼─────────────────────────────┐
 │               Centralized State Store (Redux)            │
-│               .devagent/checkpoint.json                  │
+│               .nexum/checkpoint.json                  │
 └────────────────────────────┬─────────────────────────────┘
                              │
 ┌────────────────────────────▼─────────────────────────────┐
@@ -39,4 +39,4 @@ DevAgent-TS is built around an event-driven, sandboxed, multi-tier agent archite
    The entire UI is driven by an immutable event-reduced state store, ensuring clean rendering and time-travel replay capabilities.
 
 4. **Fault Recovery & Checkpointing**:
-   Multi-step plans are checkpointed to `.devagent/checkpoint.json` after every step transition. Crashed or aborted sessions resume seamlessly via `/resume`.
+   Multi-step plans are checkpointed to `.nexum/checkpoint.json` after every step transition. Crashed or aborted sessions resume seamlessly via `/resume`.

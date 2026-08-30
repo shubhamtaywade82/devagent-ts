@@ -1,6 +1,6 @@
 # Model Benchmark Harness
 
-DevAgent-TS includes a built-in benchmark harness to evaluate local and cloud LLMs for agentic coding readiness.
+Nexum includes a built-in benchmark harness to evaluate local and cloud LLMs for agentic coding readiness.
 
 ---
 

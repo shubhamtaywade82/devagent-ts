@@ -84,7 +84,7 @@ describe("App shell", () => {
   it("renders all five permanent zones", () => {
     const { lastFrame, unmount } = renderApp();
     const frame = stripAnsi(lastFrame() ?? "");
-    expect(frame).toContain("DevAgent"); // branded header
+    expect(frame).toContain("Nexum"); // branded header
     expect(frame).toContain("Type a message below"); // conversation area (dashboard's narrow fallback at 100 cols)
     expect(frame).toContain("Chat"); // activity strip
     expect(frame).toContain(">"); // prompt
@@ -456,12 +456,12 @@ describe("App shell", () => {
     unmount();
   });
 
-  it("persists command history to .devagent/history.json and loads from it", async () => {
+  it("persists command history to .nexum/history.json and loads from it", async () => {
     const tempDir = join(__dirname, "temp-history-test");
     // Clean slate: remove any leftover from interrupted runs
     rmSync(tempDir, { recursive: true, force: true });
     mkdirSync(tempDir, { recursive: true });
-    const historyDir = join(tempDir, ".devagent");
+    const historyDir = join(tempDir, ".nexum");
     const historyFile = join(historyDir, "history.json");
 
     // Initial run - add a command to history
@@ -522,7 +522,7 @@ describe("resize safety (regression)", () => {
     }
     // Every zone still present. (Dashboard shows no view-title row — the
     // branded header and its MODE token stand in for it.)
-    expect(frame).toContain("DevAgent");
+    expect(frame).toContain("Nexum");
     expect(frame).toContain("MODE:");
     expect(frame).toContain("Chat");
     expect(frame).toContain(">");

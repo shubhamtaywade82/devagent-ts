@@ -1,13 +1,13 @@
 ---
-name: DevAgent Architecture
-description: Explains DevAgent's actor model, runtime state store, and TUI overlay system so the agent can answer questions about its own architecture accurately.
-tags: [architecture, runtime, tui, devagent, actors, overlays]
-version: 0.1.0
+name: Nexum Architecture
+description: Explains Nexum's actor model, runtime state store, and TUI overlay system so the agent can answer questions about its own architecture accurately.
+tags: [architecture, runtime, tui, nexum, actors, overlays]
+version: 0.2.0
 ---
 
-# DevAgent Architecture
+# Nexum Architecture
 
-DevAgent models every subsystem as an always-alive **actor** (conversation, planner, executor, tasks,
+Nexum models every subsystem as an always-alive **actor** (conversation, planner, executor, tasks,
 git, logs, memory, models, mcp, skills). Actors never stop; only what is *observed* changes when a
 view is focused. Views map to a frozen set of numbered keys 1-8 (see docs/SPEC.md §7-8); skills and a
 few other subsystems are overlay-only and never occupy a numbered view slot.
@@ -22,3 +22,6 @@ zones themselves never rearrange, and no zone is ever removed.
 Overlays (command palette, model switcher, search everywhere, skills) are ephemeral: they render over
 the Active View, never mutate runtime state directly, and always close with Esc. Every searchable
 overlay reuses one component, `UniversalPicker`, rather than reimplementing list UI per overlay.
+
+Brand, environment-variable, and workspace-path identity live in `src/platform/` — the single source
+of truth (see docs/REBRANDING.md) — so product naming never leaks into runtime code.

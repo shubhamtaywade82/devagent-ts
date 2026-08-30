@@ -10,7 +10,7 @@ import { AgenticBenchmarkCase } from "./types.js";
 // workspace, so these cases exercise the actual Tool implementations
 // (filesystem I/O, ripgrep-backed search) the real agent uses.
 export async function buildExecutionCases(): Promise<AgenticBenchmarkCase[]> {
-  const root = await mkdtemp(join(tmpdir(), "devagent-benchmark-"));
+  const root = await mkdtemp(join(tmpdir(), "nexum-benchmark-"));
   await writeFile(join(root, "notes.txt"), "Project notes.\nThe secret code is 4471.\nEnd of notes.\n");
   await mkdir(join(root, "src"), { recursive: true });
   await writeFile(

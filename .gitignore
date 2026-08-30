@@ -2,7 +2,10 @@
 node_modules/
 dist/
 .env
+.nexum_history
+.nexum/*
+!.nexum/skills/
+# legacy DevAgent state (migrated to .nexum, never tracked)
+.devagent/
 .devagent_history
-.devagent/*
-!.devagent/skills/
 __pycache__

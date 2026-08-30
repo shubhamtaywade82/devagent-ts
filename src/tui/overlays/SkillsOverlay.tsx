@@ -19,7 +19,7 @@ export function SkillsOverlay({ skills, usage, width, rows, active, onSelect }: 
     return (
       <OverlayFrame title="Skills" width={width} rows={rows}>
         <Box>
-          <Text color="magenta">No skills found in .devagent/skills or ~/.devagent/skills</Text>
+          <Text color="magenta">No skills found in .nexum/skills or ~/.nexum/skills</Text>
         </Box>
       </OverlayFrame>
     );

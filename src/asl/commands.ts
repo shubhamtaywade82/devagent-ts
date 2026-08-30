@@ -11,6 +11,19 @@ import {
   validateReviewContract,
 } from "./parser.js";
 import { AslTaskSpec } from "./types.js";
+import { legacyWorkspaceStateDir, workspaceStateDir } from "../platform/paths.js";
+
+/**
+ * First existing ASL state directory: canonical .nexum, falling back to
+ * legacy .devagent (deprecated) — see docs/REBRANDING.md §4.
+ */
+export function aslStateDir(workspaceRoot: string): string | null {
+  const canonical = workspaceStateDir(workspaceRoot);
+  if (fs.existsSync(canonical)) return canonical;
+  const legacy = legacyWorkspaceStateDir(workspaceRoot);
+  if (fs.existsSync(legacy)) return legacy;
+  return null;
+}
 
 export function getAslFiles(dir: string): string[] {
   const results: string[] = [];
@@ -30,13 +43,13 @@ export function getAslFiles(dir: string): string[] {
 }
 
 export async function validateAsl(workspaceRoot: string): Promise<boolean> {
-  const devagentDir = path.join(workspaceRoot, ".devagent");
-  if (!fs.existsSync(devagentDir)) {
-    console.error(`Error: .devagent directory does not exist at ${workspaceRoot}`);
+  const stateDir = aslStateDir(workspaceRoot);
+  if (!stateDir) {
+    console.error(`Error: no .nexum (or legacy .devagent) directory exists at ${workspaceRoot}`);
     return false;
   }
 
-  const files = getAslFiles(devagentDir);
+  const files = getAslFiles(stateDir);
   let hasErrors = false;
   const allTasks: AslTaskSpec[] = [];
 
@@ -102,8 +115,8 @@ export async function validateAsl(workspaceRoot: string): Promise<boolean> {
 }
 
 export async function generateAslGraph(workspaceRoot: string): Promise<void> {
-  const devagentDir = path.join(workspaceRoot, ".devagent");
-  const files = getAslFiles(devagentDir).filter((f) => f.includes("/tasks/"));
+  const stateDir = aslStateDir(workspaceRoot) ?? workspaceStateDir(workspaceRoot);
+  const files = getAslFiles(stateDir).filter((f) => f.includes("/tasks/"));
   const tasks: AslTaskSpec[] = [];
 
   for (const file of files) {
@@ -118,7 +131,7 @@ export async function generateAslGraph(workspaceRoot: string): Promise<void> {
   }
 
   if (tasks.length === 0) {
-    console.log("No valid tasks found under .devagent/tasks/");
+    console.log("No valid tasks found under .nexum/tasks/ (or legacy .devagent/tasks/)");
     return;
   }
 

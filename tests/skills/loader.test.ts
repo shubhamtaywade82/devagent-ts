@@ -104,4 +104,56 @@ describe("loadSkillContent", () => {
     expect(content.scripts).toEqual(["run.sh"]);
     expect(content.templates).toEqual([]);
   });
+
+  it("discovers skills from the canonical .nexum/skills location", () => {
+    const ws = mkdtempSync(join(tmpdir(), "nexum-skills-ws-"));
+    const home = mkdtempSync(join(tmpdir(), "nexum-skills-home-"));
+    try {
+      const dir = join(ws, ".nexum", "skills", "nexum-skill");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "SKILL.md"), "---\nname: Nexum Skill\ndescription: canonical location\n---\nbody");
+
+      const found = discoverSkills({ workspaceRoot: ws, homeDir: home });
+      expect(found.map((s) => s.id)).toContain("nexum-skill");
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("still discovers legacy .devagent/skills as a deprecated fallback", () => {
+    const ws = mkdtempSync(join(tmpdir(), "nexum-skills-ws-"));
+    const home = mkdtempSync(join(tmpdir(), "nexum-skills-home-"));
+    try {
+      const dir = join(ws, ".devagent", "skills", "legacy-skill");
+      mkdirSync(dir, { recursive: true });
+      writeFileSync(join(dir, "SKILL.md"), "---\nname: Legacy Skill\ndescription: legacy location\n---\nbody");
+
+      const found = discoverSkills({ workspaceRoot: ws, homeDir: home });
+      expect(found.map((s) => s.id)).toContain("legacy-skill");
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it("canonical .nexum/skills wins over a same-id legacy .devagent/skills copy", () => {
+    const ws = mkdtempSync(join(tmpdir(), "nexum-skills-ws-"));
+    const home = mkdtempSync(join(tmpdir(), "nexum-skills-home-"));
+    try {
+      for (const [dirName, skillName] of [
+        [".devagent", "Legacy Version"],
+        [".nexum", "Canonical Version"],
+      ] as const) {
+        const dir = join(ws, dirName, "skills", "dupe");
+        mkdirSync(dir, { recursive: true });
+        writeFileSync(join(dir, "SKILL.md"), `---\nname: ${skillName}\ndescription: d\n---\nbody`);
+      }
+      const found = discoverSkills({ workspaceRoot: ws, homeDir: home });
+      expect(found.find((s) => s.id === "dupe")?.name).toBe("Canonical Version");
+    } finally {
+      rmSync(ws, { recursive: true, force: true });
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
 });

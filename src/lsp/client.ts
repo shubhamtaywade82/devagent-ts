@@ -70,7 +70,7 @@ export class LspClient extends EventEmitter {
       rootUri,
       capabilities,
       workspaceFolders: [{ uri: rootUri, name: "workspace" }],
-      clientInfo: { name: "devagent", version: "0.1.0" },
+      clientInfo: { name: "nexum", version: "0.1.0" },
     }) as Promise<Record<string, unknown>>;
   }
 

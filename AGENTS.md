@@ -1,8 +1,8 @@
-# AGENTS.md – DevAgent‑TS Project Overview
+# AGENTS.md – Nexum Project Overview
 
 ## 1. Project Purpose
 
-**DevAgent‑TS** is a TypeScript‑based developer‑agent runtime that enables LLM‑driven coding assistants. It provides:
+**Nexum** (formerly DevAgent‑TS) is a TypeScript‑based agent runtime and harness that enables LLM‑driven coding assistants. It provides:
 - A **capability-based model router** (`src/provider/`) — a `ModelCatalog` discovers installed local + Ollama Cloud models, tags them by capability (coding/vision/reasoning/quick/tools), and a `Router` picks a local-first candidate per request, falling back through the rest on rate-limit/timeout/network errors.
 - **Checkpoint/resume** (`src/runtime/checkpoint.ts`) — the orchestrator persists plan state after every step transition; a crashed multi-step task resumes instead of restarting, without re-running completed steps. Separately, `src/runtime/session.ts`'s `SessionStore` persists the LLM conversation transcript after every turn; `Agent.resumeSession()` / the `/resume` slash command restore it in a new process.
 - **Browser automation** (`src/browser/manager.ts`) — a lazily-launched headless Chromium (Playwright), one reused page, exposed as `browser_navigate`/`click`/`fill`/`get_text`/`screenshot`/`evaluate`/`close` tools.
@@ -16,7 +16,7 @@
 - A **plugin‑style tool registry** (`src/tools/`, 35+ tools) for safely exposing filesystem, git, docker, github, sqlite, shell, LSP, and Rails capabilities to the LLM, with `DynamicToolSelector` (`src/tools/discovery.ts`) pruning which tools are exposed per turn.
 - **Learning + memory** (`src/learning/`, `src/memory/`) — episode recording, grading, reflection, skill synthesis, and a SQLite conversation store.
 - An **MCP client** (`src/mcp/`) for registering external MCP servers' tools into the same registry.
-- **Documentation index** (`src/docs/`) — `npm run docs:ingest -- <id...>` fetches DevDocs' pre-built per-library JSON bundles (no live scraping) and indexes them into a local SQLite FTS5 store (`.devagent/docs.db`); `search_docs`/`get_doc`/`list_doc_sources` tools expose it, auto-scoped to doc sources relevant to the current workspace (`src/docs/workspace-detect.ts` — reuses the Rails module's `discoverWorkspace` for Ruby/Rails, plus `package.json`/`tsconfig.json`/`go.mod`/`Cargo.toml`/Python markers for the rest).
+- **Documentation index** (`src/docs/`) — `npm run docs:ingest -- <id...>` fetches DevDocs' pre-built per-library JSON bundles (no live scraping) and indexes them into a local SQLite FTS5 store (`.nexum/docs.db`); `search_docs`/`get_doc`/`list_doc_sources` tools expose it, auto-scoped to doc sources relevant to the current workspace (`src/docs/workspace-detect.ts` — reuses the Rails module's `discoverWorkspace` for Ruby/Rails, plus `package.json`/`tsconfig.json`/`go.mod`/`Cargo.toml`/Python markers for the rest).
 
 The repository contains the full runtime, CLI, TUI, provider, and a large suite of unit tests that validate core behaviour.
 
@@ -27,15 +27,15 @@ The repository contains the full runtime, CLI, TUI, provider, and a large suite 
 | Layer | Technology |
 |------|--------------|
 | **Language** | TypeScript (target ES2022) |
-| **Runtime** | Node.js ≥ 20 |
+| **Runtime** | Node.js ≥ 22 |
 | **Package manager** | npm (lockfile `package-lock.json`) |
 | **Testing** | Jest with `ts-jest` preset |
 | **Linting** | ESLint (`.eslintrc.cjs`) with `@typescript-eslint` plugin |
 | **Formatting** | Prettier (`.prettierrc.json`) |
 | **CLI / UI** | Ink (React‑style terminal UI) |
-| **Docker sandbox** | Custom Docker image `devagent-sandbox:latest` used by `ShellTool` |
+| **Docker sandbox** | Custom Docker image `nexum-sandbox:latest` used by `ShellTool` |
 | **LLM provider** | Ollama REST API – local (`http://localhost:11434`) or cloud (`OLLAMA_API_KEY`); both speak the same native `/api/chat` shape |
-| **Local database** | `better-sqlite3` — agent memory (`.devagent/memory.db`) and the `sqlite_query` tool |
+| **Local database** | `better-sqlite3` — agent memory (`.nexum/memory.db`) and the `sqlite_query` tool |
 | **Build** | TypeScript compiler (`tsc`) producing `dist/` |
 | **Version control** | Git (runtime tracks branch, ahead/behind, file list) |
 
@@ -78,7 +78,7 @@ You can also watch tests during development with the standard Jest `--watch` fla
 | `npm run benchmark` | Scores installed local + cloud models on JSON validity + tool-calling (`src/benchmark/cli.ts`). |
 | `npm run lint` | Executes ESLint over source and test files. |
 | `npm run format:check` | Runs Prettier in check mode. |
-| `docker build -t devagent-sandbox:latest docker/devagent-sandbox/` | Builds the sandbox image used by `ShellTool`. |
+| `docker build -t nexum-sandbox:latest docker/nexum-sandbox/` | Builds the sandbox image used by `ShellTool`. |
 
 ---
 
@@ -86,8 +86,8 @@ You can also watch tests during development with the standard Jest `--watch` fla
 
 ```
 .
-├── .agents/                # internal DevAgent metadata (runtime, history)
-├── .devagent/               # DevAgent runtime files (memory.db, checkpoint.json, config.json)
+├── .agents/                # internal agent metadata (runtime, history)
+├── .nexum/                  # Nexum runtime files (memory.db, checkpoint.json, config.json); legacy .devagent/ is migrated on first run
 ├── bin/                     # CLI entry point (compiled JavaScript)
 ├── docker/                  # Dockerfile for sandbox image
 ├── docs/                    # Project documentation
@@ -124,7 +124,7 @@ You can also watch tests during development with the standard Jest `--watch` fla
 1. **Single Source of Truth – the Store**
    - All UI components read from `src/runtime/store.ts`.  Events flow from actors → `EventBus` → `reduce` → new immutable state.  This guarantees deterministic rendering and makes time‑travel debugging possible.
 2. **Bounded Buffers**
-   - Conversation, logs, tool‑calls, and notifications have hard caps (`MAX_CONVERSATION = 500`, etc., `src/runtime/config.ts`, overridable via `DEVAGENT_MAX_*` env vars) to keep long sessions bounded in memory.
+   - Conversation, logs, tool‑calls, and notifications have hard caps (`MAX_CONVERSATION = 500`, etc., `src/runtime/config.ts`, overridable via `NEXUM_MAX_*` env vars) to keep long sessions bounded in memory.
 3. **Sanitisation of Text**
    - `sanitizeText` strips ANSI escape sequences and control characters before they enter the store, protecting the TUI from malicious output.
 4. **Docker‑Sandboxed Shell Tool**
@@ -144,11 +144,11 @@ You can also watch tests during development with the standard Jest `--watch` fla
 11. **Destructive-Action Guardrails on Infra Tools**
     - `DockerTool` blocks `--privileged`; `GitHubTool` blocks `merge`/`delete`/`close`; `SqliteQueryTool` is read-only (SELECT/PRAGMA/EXPLAIN only); `GitTool` blocks force/hard operations. None of these tools can be used to silently take an irreversible action.
 12. **Environment‑Driven Configuration**
-    - Runtime values such as `DEVAGENT_MODEL`, `DEVAGENT_TIMEOUT_MS`, `DEVAGENT_SHELL_IMAGE`, `DEVAGENT_TOOL_SELECTION_MODE` are read from `process.env` (via `dotenv`), see `src/cli/config.ts` and the README's environment variable table.
+    - Runtime values such as `NEXUM_MODEL`, `NEXUM_TIMEOUT_MS`, `NEXUM_SHELL_IMAGE`, `NEXUM_TOOL_SELECTION_MODE` are read from `process.env` (via `dotenv`, with deprecated `DEVAGENT_*` fallbacks — see `src/platform/environment.ts`), see `src/cli/config.ts` and the README's environment variable table.
 13. **Multiple API Keys — Ollama Cloud Key Pool, Not Multi-Vendor Routing**
     - `CliConfig.apiKeys: string[]` (`src/cli/config.ts`, from `OLLAMA_API_KEY` + comma-separated `OLLAMA_API_KEYS` + config-file `apiKeys`, deduped) is a pool of Ollama Cloud keys for one provider — e.g. separate accounts for availability. `Provider` (`src/provider/provider.ts`) tracks a rotation index; on a cloud-tier 429 it rotates to the next key and retries before throwing `RateLimitError`. It does not route by model vendor and does not reach non-Ollama endpoints — `Provider.chat` always POSTs to Ollama's native `/api/chat` shape.
 14. **Workspace Root Resolution — Git Root First, Like Most Editor Tooling**
-    - `findWorkspaceRoot` (`src/cli/config.ts`) walks up from `cwd` to the nearest `.git` (dir or file — worktrees work), then falls back to the nearest existing `.devagent/`, then `cwd`. Git-first avoids the old chicken-and-egg bug where a first-ever run in a project, or a run from a subdirectory that hadn't had `.devagent` created yet, silently fell back to `cwd` and started a disconnected `.devagent/` (fragmented history/memory/config per launch directory). All workspace-scoped state hangs off this resolution — `DEVAGENT_WORKSPACE` overrides it outright.
+    - `findWorkspaceRoot` (`src/platform/paths.ts`) walks up from `cwd` to the nearest `.git` (dir or file — worktrees work), then falls back to the nearest existing `.nexum/` (or legacy `.devagent/`), then `cwd`. Git-first avoids the old chicken-and-egg bug where a first-ever run in a project, or a run from a subdirectory that hadn't had a state dir created yet, silently fell back to `cwd` and started a disconnected state dir (fragmented history/memory/config per launch directory). All workspace-scoped state hangs off this resolution — `NEXUM_WORKSPACE` overrides it outright (deprecated `DEVAGENT_WORKSPACE` also honored).
 15. **Testing Philosophy**
     - Unit tests mock Docker `/run_shell` calls and provider responses (`fetch`); tools that wrap real CLIs (`git`, `docker`, `gh`) are tested against the real binaries for allowlist/rejection behavior, not mocked. Browser tools (`src/browser/`) are tested against a real headless Chromium (`data:` URLs, offline/deterministic), not a Playwright mock. Tests assert state transitions and tool outputs rather than UI output, making them fast and deterministic.
 16. **ESM Migration — Jest Runs in Real ESM Mode, Pinned to Jest 30**
@@ -164,7 +164,7 @@ You can also watch tests during development with the standard Jest `--watch` fla
    ```
 2. **Build the sandbox image** (required for any `shell`/`docker` tool usage)
    ```bash
-   docker build -t devagent-sandbox:latest docker/devagent-sandbox/
+   docker build -t nexum-sandbox:latest docker/nexum-sandbox/
    ```
 3. **Run the test suite** to ensure everything works
    ```bash
@@ -185,4 +185,4 @@ You can also watch tests during development with the standard Jest `--watch` fla
 
 ---
 
-*This file is intended for future DevAgent sessions to quickly understand the repository layout, tooling, and architectural conventions.*
+*This file is intended for future Nexum sessions to quickly understand the repository layout, tooling, and architectural conventions.*

@@ -54,7 +54,7 @@ describe("summarizeGroup", () => {
 });
 
 describe("ConversationView activity stream", () => {
-  it("renders You / DevAgent speaker rows", () => {
+  it("renders You / Nexum speaker rows", () => {
     const state = stateWith([
       { type: "conversation.message", role: "user", text: "hello" },
       { type: "conversation.chunk", role: "assistant", chunk: "hi there" },
@@ -62,7 +62,7 @@ describe("ConversationView activity stream", () => {
     const { lastFrame, unmount } = render(<ConversationView state={state} width={80} rows={20} detail="full" />);
     const frame = lastFrame()!;
     expect(frame).toContain("You");
-    expect(frame).toContain("DevAgent");
+    expect(frame).toContain("Nexum");
     expect(frame).toContain("hello");
     expect(frame).toContain("hi there");
     unmount();

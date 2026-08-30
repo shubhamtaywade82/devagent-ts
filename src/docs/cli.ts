@@ -1,10 +1,9 @@
 #!/usr/bin/env node
-import { join } from "node:path";
-import { mkdirSync } from "node:fs";
 import { loadConfig } from "../cli/config.js";
 import { DocsStore } from "./store.js";
 import { ingestDocSource } from "./ingest.js";
 import { DOC_CATALOG } from "./catalog.js";
+import { WorkspaceManager } from "../platform/workspace.js";
 
 async function main() {
   const ids = process.argv.slice(2);
@@ -16,9 +15,10 @@ async function main() {
   }
 
   const cfg = loadConfig();
-  const devagentDir = join(cfg.workspaceRoot, ".devagent");
-  mkdirSync(devagentDir, { recursive: true });
-  const store = new DocsStore(join(devagentDir, "docs.db"));
+  // Resolve .nexum (migrating a legacy .devagent workspace if present) —
+  // the store path is owned by the WorkspaceManager.
+  const statePaths = new WorkspaceManager(cfg.workspaceRoot).ensure();
+  const store = new DocsStore(statePaths.docsDb);
 
   try {
     for (const id of ids) {

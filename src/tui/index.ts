@@ -12,6 +12,8 @@ import { detectProjectInfo } from "../runtime/project-info.js";
 import { wireAgentBridge, BridgeableAgent } from "./agent-bridge.js";
 import { App } from "./App.js";
 import { validateAsl, generateAslGraph } from "../asl/commands.js";
+import { envIs } from "../platform/environment.js";
+import { workspaceStateDir } from "../platform/paths.js";
 
 function enableTerminalFeatures(): () => void {
   if (!process.stdin.isTTY) return () => {};
@@ -55,13 +57,13 @@ function checkDockerAvailable(): Promise<boolean> {
 }
 
 // Debug-only: dump every raw stdin chunk (as JSON-escaped text) to
-// .devagent/paste-debug.log when DEVAGENT_DEBUG_STDIN=1, registered before
+// .nexum/paste-debug.log when NEXUM_DEBUG_STDIN=1, registered before
 // anything else touches stdin so it sees genuinely raw terminal bytes.
 // Kept as a standing diagnostic — terminals disagree wildly on how they
 // encode paste/line-break bytes (see App.tsx's \r-vs-\n handling), and this
 // is the fastest way to root-cause the next one.
-if (process.env.DEVAGENT_DEBUG_STDIN === "1" && process.stdin.isTTY) {
-  const debugDir = path.join(process.cwd(), ".devagent");
+if (envIs("DEBUG_STDIN", "1") && process.stdin.isTTY) {
+  const debugDir = workspaceStateDir(process.cwd());
   mkdirSync(debugDir, { recursive: true });
   const logPath = path.join(debugDir, "paste-debug.log");
   process.stdin.prependListener("data", (data: Buffer) => {
@@ -83,7 +85,7 @@ const cfg = loadConfig();
       process.exit(0);
     } else {
       console.error(`Unknown ASL command: ${cmd}`);
-      console.error("Usage: devagent asl [validate|graph]");
+      console.error("Usage: nexum asl [validate|graph]");
       process.exit(1);
     }
   }

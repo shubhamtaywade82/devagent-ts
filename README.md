@@ -1,12 +1,37 @@
-# DevAgent TS
+# Nexum
 
-A TypeScript developer agent runtime built on Ollama (local + cloud), with capability-based model routing, LSP-backed code intelligence, a Rails semantic index, a checkpoint/resume-able orchestrator, and a tool-first architecture (35+ tools).
+Open-source agent runtime and harness for autonomous software engineering — capability-routed models (local-first), Docker-sandboxed execution, LSP-backed code intelligence, a checkpoint/resume-able orchestrator, and a tool-first architecture (35+ tools) with a terminal UI.
+
+> **Renamed from DevAgent TS.** Nexum 2.0 is the successor to `@nemesis-oss/devagent-ts` 1.x.
+> Your `.devagent/` workspace and `DEVAGENT_*` variables keep working — see
+> [Migration](#migration-from-devagent-ts) and [docs/REBRANDING.md](docs/REBRANDING.md).
 
 ## Architecture
 
+Nexum is the product; the agent runtime is the architecture underneath it:
+
+```text
+Nexum
+├── Agent Runtime        plan steps, parallel execution, checkpoint/resume
+├── Model Gateway        provider client, model catalog, capability router
+├── Tool Runtime         35+ tools: filesystem, git, docker, shell, sqlite...
+├── Code Intelligence    LSP pool (14 languages) + Rails semantic index
+├── Context Engine       memory, summarizer, docs index, tool selection
+├── Learning             episodes, grading, reflection, skill synthesis
+├── Skills               Markdown skill packages (workspace + global)
+├── MCP                  external MCP servers as tools
+└── CLI / TUI            Ink terminal UI (see docs/SPEC.md)
+```
+
+The model gateway is provider-neutral by design: Ollama (local and cloud) is the
+currently shipped provider, not the product's identity.
+
 ```text
 src/
-├── provider/       Ollama REST client (local + cloud), model catalog, capability router
+├── platform/       Brand, environment, paths, workspace — the single source
+│                   of truth for product identity (see docs/REBRANDING.md)
+├── provider/       Model gateway: provider client (local + cloud), model
+│                   catalog, capability router
 ├── benchmark/      Model scoring harness (JSON validity, tool-calling, latency, tok/s)
 ├── orchestrator/   Plan steps, parallel dependency-aware execution, checkpoint/resume
 ├── runtime/        Checkpoint store, config constants, event bus, state store, task machine
@@ -24,16 +49,16 @@ src/
 
 ## Key Features
 
-- **Capability-based model routing, local-first with self-escalation** — `ModelCatalog` discovers installed local + Ollama Cloud models and tags them (`coding`/`vision`/`reasoning`/`quick`/`tools`) by name heuristic; `Router` picks a local-first candidate per capability and falls back through the rest on rate-limit/timeout/network errors. Every turn attempts the `quick` model (an always-resident small local model, e.g. minicpm5-1b, pinned by name via `quickModel`/`DEVAGENT_QUICK_MODEL`) first — there is no content-based pre-filter. The model itself decides when it's out of its depth by calling the `escalate_task` tool; once called, the rest of that turn routes to a stronger model (a vision/reasoning-tagged one if the original message hinted at it, otherwise the primary/cloud model), reusing the exact same conversation history so nothing done so far is lost. There's also a heuristic backstop for when a small model doesn't self-escalate: if a tool call errors and the very next turn answers with plain text instead of retrying or calling `escalate_task`, that answer is discarded (never shown) and the turn is silently re-run on the primary model. Escalation is scoped to a single turn — the next user message starts back on the quick model.
+- **Capability-based model routing, local-first with self-escalation** — `ModelCatalog` discovers installed local + cloud models and tags them (`coding`/`vision`/`reasoning`/`quick`/`tools`) by name heuristic; `Router` picks a local-first candidate per capability and falls back through the rest on rate-limit/timeout/network errors. Every turn attempts the `quick` model (an always-resident small local model, e.g. minicpm5-1b, pinned by name via `quickModel`/`NEXUM_QUICK_MODEL`) first — there is no content-based pre-filter. The model itself decides when it's out of its depth by calling the `escalate_task` tool; once called, the rest of that turn routes to a stronger model (a vision/reasoning-tagged one if the original message hinted at it, otherwise the primary/cloud model), reusing the exact same conversation history so nothing done so far is lost. There's also a heuristic backstop for when a small model doesn't self-escalate: if a tool call errors and the very next turn answers with plain text instead of retrying or calling `escalate_task`, that answer is discarded (never shown) and the turn is silently re-run on the primary model. Escalation is scoped to a single turn — the next user message starts back on the quick model.
 - **Checkpoint/resume** — the orchestrator persists plan state (`CheckpointStore`, atomic JSON) after every step transition; `Agent.resumePlannedTask()` picks a crashed run back up, resetting only non-terminal step statuses so completed work is never re-run. Separately, `SessionStore` persists the full LLM conversation transcript after every turn; `Agent.resumeSession()` / the `/resume` slash command restore it in a fresh process, verified to correctly re-send prior context to the model.
 - **Browser tool** — `src/browser/manager.ts` wraps a lazily-launched headless Chromium (Playwright) with one reused page; `browser_navigate`/`click`/`fill`/`get_text`/`screenshot`/`evaluate`/`close` tools expose it to the agent.
 - **Parallel step execution** — independent plan steps (no dependency between them) run concurrently via `Promise.all` each round; dependents still wait for their dependency's batch to finish.
 - **Tool-first architecture** — the LLM never searches files, greps, or runs git/docker/gh by itself; every such action is a deterministic `Tool` with a JSON-schema signature. `DynamicToolSelector` prunes which tool schemas are exposed per turn instead of dumping the full registry.
 - **LSP intelligence** — 14 languages configured (TypeScript, Ruby, Python, Go, Rust, Java, C#, C/C++, PHP, Swift, Kotlin, Dart, YAML, Docker), with definition/references/hover/diagnostics/rename/completion/etc. exposed as tools.
 - **Rails semantic index** — 12 scanners (controller, model, job, mailer, policy, concern, migration, schema, view, rspec, routes, gem) feeding a graph store and query engine, exposed as `find_model`/`find_route`/`find_controller`/etc. tools.
-- **Benchmark harness** — `npm run benchmark` runs built-in cases against every discovered local + cloud model (or one, via `--model <substring>`; a category, via `--category <name>`), reporting pass rate, latency, and tokens/sec per model plus a pass-rate breakdown per category. Prints a running/done progress line per case (`[3/14] local/model — case-id ...`) and enforces a per-case timeout (`--timeout <ms>`, default 2 minutes) so a stalled local Ollama server — which has no built-in request timeout — reports as a failed case instead of hanging the whole run forever. Cases span 8 categories: `output-format`/`tool-calling` (JSON validity, correct tool selection among distractors, typed arguments, not over-calling tools), `reasoning`/`thinking` (multi-step word problems, logic deduction, chain-of-thought), `agentic-looping` (multi-turn ReAct-style tool chains), `error-recovery` (retrying after a scripted tool failure instead of giving up), `escalation` (the real `escalate_task` tool: does the model self-escalate on a genuinely hard task, and does it avoid escalating an easy one), and `execution` (real end-to-end tool calls — actual filesystem reads and ripgrep-backed search against a throwaway workspace, not mocked). Single-turn cases (`src/benchmark/cases.ts`) hit the model once; agentic cases (`src/benchmark/cases-agentic.ts`, `cases-execution.ts`) run a standalone bounded ReAct loop (`runner.ts`) mirroring `Agent.runUserMessage`'s tool-turn loop, independent of the real agent/conversation/routing machinery.
+- **Benchmark harness** — `npm run benchmark` runs built-in cases against every discovered local + cloud model (or one, via `--model <substring>`; a category, via `--category <name>`), reporting pass rate, latency, and tokens/sec per model plus a pass-rate breakdown per category. Prints a running/done progress line per case (`[3/14] local/model — case-id ...`) and enforces a per-case timeout (`--timeout <ms>`, default 2 minutes) so a stalled local server — which has no built-in request timeout — reports as a failed case instead of hanging the whole run forever. Cases span 8 categories: `output-format`/`tool-calling` (JSON validity, correct tool selection among distractors, typed arguments, not over-calling tools), `reasoning`/`thinking` (multi-step word problems, logic deduction, chain-of-thought), `agentic-looping` (multi-turn ReAct-style tool chains), `error-recovery` (retrying after a scripted tool failure instead of giving up), `escalation` (the real `escalate_task` tool: does the model self-escalate on a genuinely hard task, and does it avoid escalating an easy one), and `execution` (real end-to-end tool calls — actual filesystem reads and ripgrep-backed search against a throwaway workspace, not mocked). Single-turn cases (`src/benchmark/cases.ts`) hit the model once; agentic cases (`src/benchmark/cases-agentic.ts`, `cases-execution.ts`) run a standalone bounded ReAct loop (`runner.ts`) mirroring `Agent.runUserMessage`'s tool-turn loop, independent of the real agent/conversation/routing machinery.
 - **Learning + memory** — episode recording, grading, reflection, and skill synthesis (`src/learning/`) backed by a SQLite conversation store (`src/memory/`).
-- **Offline documentation search** — `npm run docs:ingest -- <id...>` fetches [DevDocs](https://github.com/freeCodeCamp/devdocs)'s pre-built per-library JSON bundles (no scraping at runtime) and indexes them into a local SQLite FTS5 store (`.devagent/docs.db`). `search_docs`/`get_doc`/`list_doc_sources` tools expose it to the agent; `search_docs` auto-scopes to doc sources relevant to the current workspace (detected from `package.json`/`tsconfig.json`/`Gemfile`/`go.mod`/etc. — Rails, React, Node, TypeScript, Python, Go, Rust, ...) unless a `source` is given explicitly.
+- **Offline documentation search** — `npm run docs:ingest -- <id...>` fetches [DevDocs](https://github.com/freeCodeCamp/devdocs)'s pre-built per-library JSON bundles (no scraping at runtime) and indexes them into a local SQLite FTS5 store (`.nexum/docs.db`). `search_docs`/`get_doc`/`list_doc_sources` tools expose it to the agent; `search_docs` auto-scopes to doc sources relevant to the current workspace (detected from `package.json`/`tsconfig.json`/`Gemfile`/`go.mod`/etc. — Rails, React, Node, TypeScript, Python, Go, Rust, ...) unless a `source` is given explicitly.
 - **Docker-sandboxed shell** — `--network=none`, `--pids-limit=128`, memory/CPU capped; buffer-overflow SIGKILL, hard timeout with kill escalation.
 - **Path-contained filesystem tools** — every path resolved and checked against workspace root before I/O; atomic writes via temp+rename.
 - **Loop detection** — flags repeated (tool, args, error) signatures to prevent infinite retry cycles.
@@ -57,20 +82,28 @@ Plus anything registered via MCP servers (`agent.registerMcpServer(command, args
 Install globally via npm:
 
 ```bash
-npm install -g @nemesis-oss/devagent-ts
+npm install -g @nemesis-oss/nexum
 
 # Launch the terminal UI
-devagent
-# or
-devagent-ts
+nexum
+
+# Explicitly migrate a legacy DevAgent workspace (also happens automatically)
+nexum migrate
+```
+
+The old command names keep working during the transition:
+
+```bash
+devagent       # alias of nexum (deprecated)
+devagent-ts    # alias of nexum (deprecated)
 ```
 
 ### Programmatic Usage
 
 ```typescript
-import { Provider } from "@nemesis-oss/devagent-ts/provider";
-import { ModelCatalog } from "@nemesis-oss/devagent-ts/catalog";
-import { Router } from "@nemesis-oss/devagent-ts/router";
+import { Provider } from "@nemesis-oss/nexum/provider";
+import { ModelCatalog } from "@nemesis-oss/nexum/catalog";
+import { Router } from "@nemesis-oss/nexum/router";
 
 const local = new Provider({ tier: "local", model: "qwen3.5:4b" });
 const cloud = new Provider({ tier: "cloud", model: "qwen3.5:4b", apiKey: process.env.OLLAMA_API_KEY });
@@ -85,7 +118,7 @@ const response = await router.route("reasoning", [{ role: "user", content: "..."
 Or use the `Agent` class directly — it wires provider/catalog/router, tools, LSP, Rails index, memory, learning, and checkpointing together:
 
 ```typescript
-import { Agent } from "@nemesis-oss/devagent-ts/agent";
+import { Agent } from "@nemesis-oss/nexum/agent";
 
 const agent = new Agent({ config: { workspaceRoot: "/path/to/project" } });
 const reply = await agent.runUserMessage("Add a null check to the parser");
@@ -94,45 +127,49 @@ const reply = await agent.runUserMessage("Add a null check to the parser");
 ## Requirements
 
 - Node.js >= 22
-- Ollama running locally, or `OLLAMA_API_KEY` set for cloud tier
+- An Ollama server running locally, or `OLLAMA_API_KEY` set for cloud tier
 - Docker (for the sandboxed `shell` tool and the `docker` tool)
 - `gh` CLI on PATH (for the `github` tool)
 - Language servers on PATH for any LSP-backed tools you want (`typescript-language-server`, `ruby-lsp`, `pyright`, `gopls`, `rust-analyzer`, etc.) — missing servers degrade gracefully to a text fallback, not a crash
 
 ## Environment Variables
 
+Canonical product variables are `NEXUM_*`. Legacy `DEVAGENT_*` names still work
+(deprecated — they warn on stderr) and lose to the canonical name when both are set.
+
 | Variable | Default | Description |
 | ---------- | --------- | ------------- |
-| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL (local tier) |
+| `OLLAMA_HOST` | `http://localhost:11434` | Ollama server URL (local tier) — provider-convention variable |
 | `OLLAMA_API_KEY` | — | Primary API key for cloud tier — first in the key pool |
-| `OLLAMA_API_KEYS` | — | Comma-separated extra Ollama Cloud keys (e.g. separate accounts). On a 429 `Provider` rotates to the next key and retries before giving up — this is for availability across your own accounts, not multi-vendor routing to other providers |
-| `DEVAGENT_MODEL` | `qwen3.5:4b` | Default model tag |
-| `DEVAGENT_TIER` | `local` | `local` or `cloud` |
-| `DEVAGENT_WORKSPACE` | auto-detected | Workspace root override. Auto-detection walks up from `cwd` to the nearest `.git` (matching how most editor/CLI tooling resolves a project root), then falls back to the nearest existing `.devagent/`, then `cwd` itself. All workspace-scoped state (`.devagent/history.json`, `memory.db`, `checkpoint.json`, workspace `config.json`) lives under whatever this resolves to — set it explicitly if you run devagent from outside the project tree |
-| `DEVAGENT_TIMEOUT_MS` | — | Request timeout in milliseconds (cloud tier only — local never times out mid-generation) |
-| `DEVAGENT_SYSTEM_PROMPT` | *(built-in)* | Custom system prompt |
-| `DEVAGENT_SHELL_IMAGE` | `devagent-sandbox:latest` | Docker image for sandbox |
-| `DEVAGENT_SHELL_TIMEOUT_SEC` | `30` | Shell command timeout in seconds |
-| `DEVAGENT_TOOL_SELECTION_MODE` | `hybrid` | `heuristic` \| `llm` \| `hybrid` — how `DynamicToolSelector` prunes exposed tools |
-| `DEVAGENT_MAX_ACTIVE_TOOLS` | — | Cap on tools exposed per turn |
-| `DEVAGENT_MAX_LOGS` / `DEVAGENT_MAX_CONVERSATION` / `DEVAGENT_MAX_TOOL_CALLS` / `DEVAGENT_MAX_NOTIFICATIONS` | 500/500/200/20 | Bounded buffer sizes (`src/runtime/config.ts`) |
-| `DEVAGENT_AUTO_APPROVE` | `false` | Approve every destructive tool call without prompting — see [Configuration files](#configuration-files) |
+| `OLLAMA_API_KEYS` | — | Comma-separated extra cloud keys (e.g. separate accounts). On a 429 `Provider` rotates to the next key and retries before giving up — this is for availability across your own accounts, not multi-vendor routing to other providers |
+| `NEXUM_MODEL` | `qwen3.5:4b` | Default model tag |
+| `NEXUM_TIER` | `local` | `local` or `cloud` |
+| `NEXUM_WORKSPACE` | auto-detected | Workspace root override. Auto-detection walks up from `cwd` to the nearest `.git` (matching how most editor/CLI tooling resolves a project root), then falls back to the nearest existing `.nexum/` (or legacy `.devagent/`), then `cwd` itself. All workspace-scoped state (`.nexum/history.json`, `memory.db`, `checkpoint.json`, workspace `config.json`) lives under whatever this resolves to — set it explicitly if you run nexum from outside the project tree |
+| `NEXUM_TIMEOUT_MS` | — | Request timeout in milliseconds (cloud tier only — local never times out mid-generation) |
+| `NEXUM_SYSTEM_PROMPT` | *(built-in)* | Custom system prompt |
+| `NEXUM_SHELL_IMAGE` | `nexum-sandbox:latest` | Docker image for sandbox |
+| `NEXUM_SHELL_TIMEOUT_SEC` | `30` | Shell command timeout in seconds |
+| `NEXUM_TOOL_SELECTION_MODE` | `hybrid` | `heuristic` \| `llm` \| `hybrid` — how `DynamicToolSelector` prunes exposed tools |
+| `NEXUM_MAX_ACTIVE_TOOLS` | — | Cap on tools exposed per turn |
+| `NEXUM_MAX_LOGS` / `NEXUM_MAX_CONVERSATION` / `NEXUM_MAX_TOOL_CALLS` / `NEXUM_MAX_NOTIFICATIONS` | 500/500/200/20 | Bounded buffer sizes (`src/runtime/config.ts`) |
+| `NEXUM_AUTO_APPROVE` | `false` | Approve every destructive tool call without prompting — see [Configuration files](#configuration-files) |
+| `NEXUM_NO_DEPRECATION_WARNINGS` | — | Set to `1` to silence `DEVAGENT_*` deprecation warnings (CI) |
 
 ## Configuration files
 
 Settings resolve in this order, each layer overriding the one before:
 
-1. `~/.devagent/config.json` — global defaults
-2. `<workspace>/.devagent/config.json` — per-project overrides
-3. environment variables (also read from `~/.devagent/.env`, `./.env`, `<workspace>/.env`)
+1. `~/.nexum/config.json` — global defaults (legacy `~/.devagent/config.json` still read)
+2. `<workspace>/.nexum/config.json` — per-project overrides (legacy `.devagent/config.json` still read)
+3. environment variables (also read from `~/.nexum/.env`, `./.env`, `<workspace>/.env`)
 
-Every `DEVAGENT_*` variable above has a config-file equivalent using the camelCase
-key name (`DEVAGENT_MODEL` → `model`, `DEVAGENT_AUTO_APPROVE` → `autoApprove`, ...).
+Every `NEXUM_*` variable above has a config-file equivalent using the camelCase
+key name (`NEXUM_MODEL` → `model`, `NEXUM_AUTO_APPROVE` → `autoApprove`, ...).
 Boolean env values accept `true`/`1` and `false`/`0`, and win over the file in both
 directions.
 
 ```jsonc
-// ~/.devagent/config.json
+// ~/.nexum/config.json
 {
   "model": "qwen3.5:4b",
   "tier": "local",
@@ -154,7 +191,7 @@ the TUI. Three ways to answer them:
 | --- | --- |
 | Interactive (default) | The TUI's approval overlay. |
 | Programmatic | Register a handler: `agent.on("onApprovalRequested", (r) => agent.resolveApproval(r.id, true))` |
-| Auto-approve | `"autoApprove": true` in a config file, or `DEVAGENT_AUTO_APPROVE=true` |
+| Auto-approve | `"autoApprove": true` in a config file, or `NEXUM_AUTO_APPROVE=true` |
 
 With no handler registered and `autoApprove` off, destructive calls are **denied**
 rather than left hanging — relevant when embedding `Agent` as a library.
@@ -162,21 +199,39 @@ rather than left hanging — relevant when embedding `Agent` as a library.
 **Auto-approve removes the only confirmation on irreversible actions.** `run_shell`
 still executes inside the Docker sandbox rooted at the workspace, but `delete_file`
 does not — it deletes real files with no prompt and no undo. Use it in CI, benchmark
-runs, and throwaway containers; prefer the workspace-level `.devagent/config.json`
-over `~/.devagent/config.json` so it can't follow you into another project.
+runs, and throwaway containers; prefer the workspace-level `.nexum/config.json`
+over `~/.nexum/config.json` so it can't follow you into another project.
+
+## Migration from DevAgent TS
+
+Nexum 2.0 renames the product; nothing of yours is lost:
+
+- **Workspace state** — `.devagent/` (memory, checkpoints, sessions, docs index,
+  config, skills) is migrated to `.nexum/` automatically on first run. The copy is
+  atomic, idempotent, and never deletes the original. Run `nexum migrate` for an
+  explicit report.
+- **Environment variables** — `DEVAGENT_*` still works and warns; `NEXUM_*` is
+  canonical and wins.
+- **CLI** — `devagent` / `devagent-ts` remain as aliases of `nexum` for one major
+  version.
+- **Package** — `@nemesis-oss/devagent-ts` 1.x is superseded by
+  `@nemesis-oss/nexum` 2.0 (the old package gets a final deprecation release).
+
+Full contract: [docs/REBRANDING.md](docs/REBRANDING.md).
 
 ## Development
 
 ```bash
 npm install
-npm test          # jest — 702 tests across 96 suites
+npm test          # jest — full suite
 npm run build     # TypeScript → dist/
 npm run benchmark # score installed models on JSON validity + tool-calling
+npm run migrate   # explicit DevAgent → Nexum workspace migration
 ```
 
 ## Documentation Index
 
-Ingest one or more [DevDocs](https://devdocs.io) sources (MPL-2.0 — generated docs retain DevDocs attribution) into the local FTS5 index at `.devagent/docs.db`:
+Ingest one or more [DevDocs](https://devdocs.io) sources (MPL-2.0 — generated docs retain DevDocs attribution) into the local FTS5 index at `.nexum/docs.db`:
 
 ```bash
 npm run docs:ingest -- node typescript react rails
@@ -187,5 +242,5 @@ Re-running for the same id atomically replaces its sections (safe to re-run to p
 ## Docker Sandbox
 
 ```bash
-docker build -t devagent-sandbox:latest docker/devagent-sandbox/
+docker build -t nexum-sandbox:latest docker/nexum-sandbox/
 ```

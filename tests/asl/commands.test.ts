@@ -25,11 +25,11 @@ describe("ASL Commands", () => {
     errorSpy.mockRestore();
   });
 
-  it("should return false when .devagent directory does not exist", async () => {
+  it("should return false when no state directory (.nexum or legacy .devagent) exists", async () => {
     const nonExistentPath = path.join(__dirname, "non-existent-folder");
     const ok = await validateAsl(nonExistentPath);
     expect(ok).toBe(false);
-    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("directory does not exist"));
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("no .nexum (or legacy .devagent) directory exists"));
   });
 
   it("should validate a valid ASL setup correctly", async () => {

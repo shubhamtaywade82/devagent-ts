@@ -1,9 +1,11 @@
 import { mkdir, copyFile } from "node:fs/promises";
-import { resolve, join, relative } from "node:path";
+import { join, relative } from "node:path";
 import { Tool } from "./tool.js";
 import { resolveWorkspacePath } from "./path-utils.js";
+import { workspaceStateDir } from "../platform/paths.js";
 
-const BACKUP_DIR = ".devagent/backups";
+// Backups live under the canonical workspace state dir — resolved via the
+// platform layer, never a hardcoded brand path (docs/REBRANDING.md §2).
 
 export class SnapshotBackupTool extends Tool {
   constructor(private readonly root: string) {
@@ -22,7 +24,7 @@ export class SnapshotBackupTool extends Tool {
     const path = args.path as string;
     if (!path) return { error: "ArgumentError", message: "missing path" };
     const target = resolveWorkspacePath(this.root, path);
-    const backupRoot = resolve(this.root, BACKUP_DIR);
+    const backupRoot = join(workspaceStateDir(this.root), "backups");
     await mkdir(backupRoot, { recursive: true });
     const timestamp = Date.now();
     const backupPath = join(backupRoot, `${path.replace(/\//g, "_")}.${timestamp}.bak`);

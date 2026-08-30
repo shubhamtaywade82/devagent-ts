@@ -19,7 +19,7 @@ describe("ErrorBoundary", () => {
     );
 
     const frame = lastFrame() ?? "";
-    expect(frame).toContain("DevAgent TUI crashed");
+    expect(frame).toContain("Nexum TUI crashed");
     expect(frame).toContain("kaboom");
 
     unmount();

@@ -317,7 +317,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                   {speakerVisible ? (
                     <Box height={1}>
                       <Text bold color="cyan">
-                        DevAgent
+                        Nexum
                       </Text>
                       {entry.model ? (
                         <Text color="gray" dimColor>
@@ -615,10 +615,10 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
         <Box flexDirection="column" alignItems="center" width={cardWidth}>
           <Box flexDirection="row" alignItems="center">
             <Text bold color="cyan">
-              ⚡ DevAgent
+              ⚡ Nexum
             </Text>
             <Text color="gray" dimColor>
-              {" · "}Autonomous AI Coding Assistant
+              {" · "}Agent Runtime & Harness
             </Text>
           </Box>
           <Box height={1} />

@@ -1,6 +1,6 @@
-# DevAgent-TS: Feature Verification & Testing Guide
+# Nexum: Feature Verification & Testing Guide
 
-This guide provides step-by-step instructions to test and verify every core subsystem, interactive TUI feature, model routing strategy, safety guardrail, and session replay mechanism in **DevAgent-TS**.
+This guide provides step-by-step instructions to test and verify every core subsystem, interactive TUI feature, model routing strategy, safety guardrail, and session replay mechanism in **Nexum**.
 
 ---
 
@@ -15,7 +15,7 @@ npm run build
 ### 2. Build Docker Execution Sandbox Image
 
 ```bash
-docker build -t devagent-sandbox:latest docker/devagent-sandbox/
+docker build -t nexum-sandbox:latest docker/nexum-sandbox/
 ```
 
 ### 3. Run Environment Doctor Diagnostic
@@ -62,7 +62,7 @@ npm run dev
 
 ## 2. Verifying Interactive Execution DAG (`Ctrl+G` / `/dag`)
 
-1. Inside DevAgent-TS TUI, press **`Ctrl+G`** or type **`/dag`**.
+1. Inside Nexum TUI, press **`Ctrl+G`** or type **`/dag`**.
 2. **Observe the 3-State Node Lifecycle**:
    - **Active (Expanded)**: Currently executing node showing live progress indicator (`████████░░ 72%`).
    - **Completed (Collapsed)**: Finished steps automatically collapse into a single-line summary (`▶ ✓ [ROUTER] Model Router Selection (80ms)`).
@@ -73,10 +73,10 @@ npm run dev
 
 ## 3. Verifying Session Trajectory Recording & Time Machine Replay
 
-1. Execute any multi-step coding task in DevAgent:
+1. Execute any multi-step coding task in Nexum:
 
    ```bash
-   devagent "Refactor provider architecture and run tests"
+   nexum "Refactor provider architecture and run tests"
    ```
 
 2. Note the generated **Session ID** printed in the summary banner (e.g. `sess-172`).
@@ -113,8 +113,8 @@ npm run dev
 
 ## 6. Verifying Sandboxed Tool Execution & Hunk Validation
 
-1. Run shell commands through DevAgent:
-   - Command is executed inside the isolated `devagent-sandbox:latest` Docker container with no network access and bounded memory/CPU limits.
+1. Run shell commands through Nexum:
+   - Command is executed inside the isolated `nexum-sandbox:latest` Docker container with no network access and bounded memory/CPU limits.
 2. Edit code files using search/replace patches:
    - `src/validation/apply-hunks.ts` verifies that `old_str` is unique in the target file and syntax is valid (JS/TS, Python, Ruby, JSON) before applying edits.
 
