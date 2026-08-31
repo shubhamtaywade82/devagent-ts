@@ -3,6 +3,7 @@ import { WorkspaceManager } from "../platform/workspace.js";
 import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
 import { Capability, inferCapabilities, ModelCatalog } from "../provider/catalog.js";
+import { UsageManager } from "../provider/usage-manager.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
 import { SessionStore, SessionMeta } from "../runtime/session.js";
 import { LoopDetector } from "../orchestrator/loop-detector.js";
@@ -129,6 +130,7 @@ export class Agent {
   readonly selfConsistency: SelfConsistency | undefined;
   readonly availabilityChecker: ModelAvailabilityChecker | undefined;
   readonly keyManager: KeyManager | undefined;
+  readonly usageManager: UsageManager;
   readonly workspaceRoot: string;
   private readonly mcpServerConfigs: Array<{ name: string; command: string; args?: string[] }>;
   private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
@@ -172,11 +174,13 @@ export class Agent {
       : undefined;
 
     this.catalog = new ModelCatalog(localProvider, cloudProvider, cfg.quickModel);
+    this.usageManager = new UsageManager();
     this.router = new Router({
       local: localProvider,
       cloud: cloudProvider,
       catalog: this.catalog,
       logger: { warn: (msg: string) => this.emit("onStatus", msg) },
+      usage: this.usageManager,
     });
 
     // ── Hybrid local-cloud architecture: instantiate all components ─────────
