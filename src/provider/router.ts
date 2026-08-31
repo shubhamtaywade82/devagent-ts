@@ -8,12 +8,16 @@ import {
   TimeoutError,
 } from "./provider.js";
 import { Capability, ModelCatalog } from "./catalog.js";
+import { UsageManager } from "./usage-manager.js";
 
 export interface RouterOptions {
   local: Provider;
   cloud?: Provider;
   catalog: ModelCatalog;
   logger?: Pick<Console, "warn">;
+  /** Tracks inferred Ollama Cloud session/weekly quota pressure from observed
+   * rate limits. When omitted, cloud candidates are never skipped for it. */
+  usage?: UsageManager;
 }
 
 export class Router {
@@ -21,12 +25,14 @@ export class Router {
   private readonly cloud?: Provider;
   private readonly catalog: ModelCatalog;
   private readonly logger: Pick<Console, "warn">;
+  private readonly usage?: UsageManager;
 
   constructor(opts: RouterOptions) {
     this.local = opts.local;
     this.cloud = opts.cloud;
     this.catalog = opts.catalog;
     this.logger = opts.logger ?? console;
+    this.usage = opts.usage;
   }
 
   async route(capability: Capability, messages: ChatMessage[], opts?: ChatOptions): Promise<ChatResponse> {
@@ -67,9 +73,22 @@ export class Router {
     }
 
     let lastError: unknown;
-    for (const candidate of candidates) {
+    for (let i = 0; i < candidates.length; i++) {
+      const candidate = candidates[i];
       const provider = candidate.tier === "local" ? this.local : this.cloud;
       if (!provider) continue;
+
+      // Skip a cloud candidate we already expect to 429 (recent rate-limit
+      // hit) rather than spending a doomed round-trip on it — but only when
+      // some other candidate remains to fall back to; if this is the last
+      // shot, the cooldown is an inference and might be stale, so still try.
+      if (candidate.tier === "cloud" && this.usage?.isCloudCoolingDown()) {
+        const hasFallback = candidates.slice(i + 1).some((c) => (c.tier === "local" ? this.local : this.cloud));
+        if (hasFallback) {
+          this.logger.warn(`[Router] skipping ${candidate.tier}/${candidate.name} — cloud cooling down after recent rate limiting`);
+          continue;
+        }
+      }
 
       // Per-request model, not provider.setModel(): mutating shared instance
       // state before an await meant two concurrent routes (e.g. the
@@ -78,11 +97,13 @@ export class Router {
       // routedModel stamped below named a model that never served the request.
       try {
         const response = await provider.chat(messages, { ...opts, model: candidate.name });
+        if (candidate.tier === "cloud") this.usage?.recordCloudSuccess();
         response.routedTier = candidate.tier;
         response.routedModel = candidate.name;
         return response;
       } catch (e) {
         lastError = e;
+        if (candidate.tier === "cloud" && e instanceof RateLimitError) this.usage?.recordCloudRateLimited();
         if (!this.isRecoverable(e)) throw e;
         this.logger.warn(
           `[Router] ${(e as Error).constructor.name} on ${candidate.tier}/${candidate.name} — trying next candidate`,

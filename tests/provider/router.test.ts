@@ -1,6 +1,7 @@
 import { Provider, RateLimitError, ProviderError, ChatResponse } from "../../src/provider/provider.js";
 import { ModelCatalog } from "../../src/provider/catalog.js";
 import { Router } from "../../src/provider/router.js";
+import { UsageManager } from "../../src/provider/usage-manager.js";
 
 const okResponse = (content: string): ChatResponse => ({
   message: { role: "assistant", content },
@@ -230,6 +231,87 @@ describe("Router.route", () => {
     expect(result.message.content).toBe("from local");
     expect(cloudChat).not.toHaveBeenCalled();
     expect(localChat).toHaveBeenCalled();
+  });
+});
+
+describe("Router usage-aware cloud skipping", () => {
+  it("skips a cloud candidate cooling down after a recent rate limit when a local fallback exists", async () => {
+    const local = new Provider({ tier: "local", model: "x" });
+    const cloud = new Provider({ tier: "cloud", model: "x", apiKey: "k" });
+    const catalog = new ModelCatalog(local, cloud);
+
+    jest.spyOn(local, "availableModels").mockResolvedValue({ models: [{ name: "qwen3:8b" }] });
+    jest.spyOn(cloud, "availableModels").mockResolvedValue({ data: [{ id: "qwen3.5:8b" }] });
+    await catalog.refresh();
+
+    const usage = new UsageManager();
+    usage.recordCloudRateLimited();
+
+    const localChat = jest.spyOn(local, "chat").mockResolvedValue(okResponse("from local"));
+    const cloudChat = jest.spyOn(cloud, "chat");
+
+    const router = new Router({ local, cloud, catalog, usage, logger: { warn: jest.fn() } });
+    // "quick" isn't installed locally as "quick", so both tiers are candidates;
+    // local-first ordering means local is tried first anyway here — force the
+    // cloud-cooldown path by requesting a capability only cloud satisfies.
+    jest.spyOn(catalog, "modelsFor").mockReturnValue([
+      { name: "qwen3.5:8b", tier: "cloud", capabilities: ["coding"] },
+      { name: "qwen3:8b", tier: "local", capabilities: ["coding"] },
+    ]);
+
+    const result = await router.route("coding", [{ role: "user", content: "hi" }]);
+
+    expect(result.message.content).toBe("from local");
+    expect(cloudChat).not.toHaveBeenCalled();
+    expect(localChat).toHaveBeenCalled();
+  });
+
+  it("still attempts a cooling-down cloud candidate when it's the only one available", async () => {
+    const cloud = new Provider({ tier: "cloud", model: "x", apiKey: "k" });
+    const catalog = new ModelCatalog(undefined, cloud);
+    jest.spyOn(cloud, "availableModels").mockResolvedValue({ data: [{ id: "qwen3.5:8b" }] });
+    await catalog.refresh();
+
+    const usage = new UsageManager();
+    usage.recordCloudRateLimited();
+
+    const cloudChat = jest.spyOn(cloud, "chat").mockResolvedValue(okResponse("from cloud"));
+    const local = new Provider({ tier: "local", model: "x" });
+    const router = new Router({ local, cloud, catalog, usage, logger: { warn: jest.fn() } });
+
+    const result = await router.route("coding", [{ role: "user", content: "hi" }]);
+
+    expect(result.message.content).toBe("from cloud");
+    expect(cloudChat).toHaveBeenCalled();
+  });
+
+  it("records a cloud rate limit on failure and a cloud success on the next route() call", async () => {
+    const local = new Provider({ tier: "local", model: "x" });
+    const cloud = new Provider({ tier: "cloud", model: "x", apiKey: "k" });
+    const catalog = new ModelCatalog(local, cloud);
+
+    jest.spyOn(local, "availableModels").mockResolvedValue({ models: [] });
+    jest.spyOn(cloud, "availableModels").mockResolvedValue({ data: [{ id: "qwen3.5:8b" }] });
+    await catalog.refresh();
+
+    const usage = new UsageManager();
+    const recordSpy = jest.spyOn(usage, "recordCloudRateLimited");
+    const successSpy = jest.spyOn(usage, "recordCloudSuccess");
+
+    const cloudChat = jest
+      .spyOn(cloud, "chat")
+      .mockRejectedValueOnce(new RateLimitError("all keys exhausted"))
+      .mockResolvedValueOnce(okResponse("from cloud"));
+
+    const router = new Router({ local, cloud, catalog, usage, logger: { warn: jest.fn() } });
+
+    await expect(router.route("coding", [{ role: "user", content: "hi" }])).rejects.toThrow(RateLimitError);
+    expect(recordSpy).toHaveBeenCalledTimes(1);
+
+    const result = await router.route("coding", [{ role: "user", content: "hi" }]);
+    expect(result.message.content).toBe("from cloud");
+    expect(successSpy).toHaveBeenCalledTimes(1);
+    expect(cloudChat).toHaveBeenCalledTimes(2);
   });
 });
 
