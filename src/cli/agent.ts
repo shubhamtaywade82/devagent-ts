@@ -1,6 +1,6 @@
 import { CliConfig, loadConfig, saveWorkspaceConfig } from "./config.js";
 import { WorkspaceManager } from "../platform/workspace.js";
-import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
+import { Provider, ChatMessage, ChatOptions, ChatResponse, Tier } from "../provider/provider.js";
 import { Router } from "../provider/router.js";
 import { Capability, inferCapabilities, ModelCatalog } from "../provider/catalog.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
@@ -30,6 +30,9 @@ import { HeuristicRouter } from "../provider/heuristic-router.js";
 import { LocalWorker } from "../provider/local-worker.js";
 import { Verifier } from "../provider/verifier.js";
 import { SelfConsistency } from "../provider/self-consistency.js";
+import { UsageTracker } from "../provider/usage.js";
+import { CostTracker } from "../provider/cost.js";
+import { BudgetManager } from "../provider/budget.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
 
@@ -129,6 +132,9 @@ export class Agent {
   readonly selfConsistency: SelfConsistency | undefined;
   readonly availabilityChecker: ModelAvailabilityChecker | undefined;
   readonly keyManager: KeyManager | undefined;
+  readonly usageTracker: UsageTracker;
+  readonly costTracker: CostTracker;
+  readonly budgetManager: BudgetManager | undefined;
   readonly workspaceRoot: string;
   private readonly mcpServerConfigs: Array<{ name: string; command: string; args?: string[] }>;
   private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
@@ -178,6 +184,13 @@ export class Agent {
       catalog: this.catalog,
       logger: { warn: (msg: string) => this.emit("onStatus", msg) },
     });
+
+    // Model Gateway accounting: per-model usage → cost (only for models with
+    // configured pricing — Ollama has no published per-token rate) → an
+    // optional session budget. See docs/ROADMAP.md Phase 1.
+    this.usageTracker = new UsageTracker();
+    this.costTracker = new CostTracker(this.usageTracker, cfg.modelPricing, cfg.pricing);
+    this.budgetManager = cfg.budget ? new BudgetManager(cfg.budget) : undefined;
 
     // ── Hybrid local-cloud architecture: instantiate all components ─────────
     // Layer-1 gate: undefined when disabled, mirroring the other optional
@@ -445,6 +458,13 @@ export class Agent {
         this.conversation.pruneContext();
         this.emit("onStatus", `turn ${toolTurn + 1}`);
 
+        // Checked at the same loop boundary as maxToolTurns — usage/cost for
+        // the turn about to start isn't known yet, so this guards against
+        // budget already exhausted by prior turns, not the upcoming call.
+        if (this.budgetManager?.check(this.usageTracker, this.costTracker).exceeded) {
+          return finish("cost_budget", lastAssistantText || "(budget exhausted)");
+        }
+
         const capability: Capability | null = escalated ? escalationHint : "quick";
 
         const activeTools = await this.toolSelector.selectTools(
@@ -553,7 +573,7 @@ export class Agent {
         const routedModel = (chatResponse.routedModel as string | undefined) ?? this.provider.currentModel;
         this.emit("onModelUsed", routedTier, routedModel);
 
-        this.emitUsage(chatResponse, Date.now() - turnStart);
+        this.emitUsage(chatResponse, Date.now() - turnStart, routedTier as Tier, routedModel);
         this.conversation.pushAssistantMessage(assistantMessage.content ?? "", assistantMessage.tool_calls);
 
         const toolCalls = assistantMessage.tool_calls ?? [];
@@ -1006,7 +1026,12 @@ export class Agent {
   // Ollama's /api/chat response carries eval_count/prompt_eval_count/eval_duration
   // (nanoseconds) untyped through ChatResponse's index signature — read them here
   // rather than widening the shared type for fields only this call site needs.
-  private emitUsage(response: { [key: string]: unknown }, latencyMs: number): void {
+  private emitUsage(
+    response: { [key: string]: unknown },
+    latencyMs: number,
+    routedTier: Tier,
+    routedModel: string,
+  ): void {
     const promptTokens = response.prompt_eval_count as number | undefined;
     const completionTokens = response.eval_count as number | undefined;
     const evalDurationNs = response.eval_duration as number | undefined;
@@ -1015,6 +1040,7 @@ export class Agent {
       typeof completionTokens === "number" && typeof evalDurationNs === "number" && evalDurationNs > 0
         ? completionTokens / (evalDurationNs / 1e9)
         : 0;
+    this.usageTracker.record(routedTier, routedModel, promptTokens ?? 0, completionTokens ?? 0, latencyMs);
     this.emit("onUsage", {
       promptTokens: promptTokens ?? 0,
       completionTokens: completionTokens ?? 0,

@@ -26,7 +26,7 @@ export interface Episode {
   /** Skills that were injected for this episode (their ids). */
   activatedSkillIds: string[];
   /** Terminal condition reported by the agent loop. */
-  terminal: "answered" | "loop_abort" | "turn_budget" | "error" | "user_cancel";
+  terminal: "answered" | "loop_abort" | "turn_budget" | "cost_budget" | "error" | "user_cancel";
   finalAssistantText: string;
   /** Populated by the grader, not the recorder. */
   grade?: Grade;

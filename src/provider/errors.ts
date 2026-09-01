@@ -58,7 +58,7 @@ export class ToolFailure extends AgentRuntimeError {
 
 export class BudgetExhaustedError extends AgentRuntimeError {
   constructor(
-    public readonly dimension: "steps" | "wallclock" | "tokens" | "intents",
+    public readonly dimension: "steps" | "wallclock" | "tokens" | "intents" | "cost" | "calls",
     public readonly consumed: number,
     public readonly limit: number,
   ) {
