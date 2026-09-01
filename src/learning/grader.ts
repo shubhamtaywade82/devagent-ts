@@ -42,7 +42,7 @@ export function gradeEpisode(episode: Episode): Grade {
 
   let score = 1.0;
   if (episode.terminal === "loop_abort" || episode.terminal === "error") score -= 0.6;
-  if (episode.terminal === "turn_budget") score -= 0.4;
+  if (episode.terminal === "turn_budget" || episode.terminal === "cost_budget") score -= 0.4;
   score -= Math.min(0.3, signals.toolErrorRate * 0.6);
   score -= Math.min(0.2, pathEscapes * 0.1);
   score -= Math.min(0.2, retriedSameToolMax * 0.05);

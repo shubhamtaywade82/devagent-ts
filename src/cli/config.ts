@@ -70,6 +70,14 @@ export interface CliConfig {
    * billing) — this only computes a cost estimate if you supply your own
    * real rate. Omit to leave cost tracking off (the honest default). */
   pricing?: { inputPerMillion: number; outputPerMillion: number };
+  /** Per-model override of `pricing`, keyed by model name — e.g. distinct
+   * rates for a small local model vs. a large cloud one within the same
+   * session. Falls back to `pricing` for any model without an entry here.
+   * File-only (no env var), like mcpServers below. */
+  modelPricing?: Record<string, { inputPerMillion: number; outputPerMillion: number; cachedInputPerMillion?: number }>;
+  /** Session spend/usage guard (see src/provider/budget.ts). Every field is
+   * optional and unset by default — no limit is enforced unless configured. */
+  budget?: { maxCostUsd?: number; maxTokens?: number; maxCalls?: number };
   /** Approve every destructive tool call (delete_file, `rm -rf`-class shell
    * commands) without prompting. Off by default; only for CI/benchmark runs
    * and throwaway containers. Enable with NEXUM_AUTO_APPROVE=true. */
@@ -106,6 +114,8 @@ interface ConfigFile {
    * billing) — this only computes a cost estimate if you supply your own
    * real rate. Omit to leave cost tracking off (the honest default). */
   pricing?: { inputPerMillion: number; outputPerMillion: number };
+  modelPricing?: Record<string, { inputPerMillion: number; outputPerMillion: number; cachedInputPerMillion?: number }>;
+  budget?: { maxCostUsd?: number; maxTokens?: number; maxCalls?: number };
   mcpServers?: Array<{ name: string; command: string; args?: string[] }>;
 }
 
@@ -295,6 +305,25 @@ export function loadConfig(): CliConfig {
       ? { inputPerMillion, outputPerMillion }
       : undefined;
 
+  // Every field independently optional — a budget with none of the three
+  // configured is equivalent to no budget at all (BudgetManager never trips).
+  const rawMaxCostUsd = readEnv("BUDGET_MAX_COST_USD") || String(file.budget?.maxCostUsd ?? "");
+  const maxCostUsd = Number(rawMaxCostUsd);
+  const rawMaxTokens = readEnv("BUDGET_MAX_TOKENS") || String(file.budget?.maxTokens ?? "");
+  const maxTokens = Number(rawMaxTokens);
+  const rawMaxCalls = readEnv("BUDGET_MAX_CALLS") || String(file.budget?.maxCalls ?? "");
+  const maxCalls = Number(rawMaxCalls);
+  const budget: CliConfig["budget"] =
+    (Number.isFinite(maxCostUsd) && maxCostUsd > 0) ||
+    (Number.isFinite(maxTokens) && maxTokens > 0) ||
+    (Number.isFinite(maxCalls) && maxCalls > 0)
+      ? {
+          ...(Number.isFinite(maxCostUsd) && maxCostUsd > 0 ? { maxCostUsd } : {}),
+          ...(Number.isFinite(maxTokens) && maxTokens > 0 ? { maxTokens } : {}),
+          ...(Number.isFinite(maxCalls) && maxCalls > 0 ? { maxCalls } : {}),
+        }
+      : undefined;
+
   const tier: CliConfig["tier"] = (readEnv("TIER") || file.tier) === "cloud" ? "cloud" : "local";
 
   return {
@@ -332,6 +361,8 @@ export function loadConfig(): CliConfig {
     enableHeuristicGate: readEnvFlag("HEURISTIC_GATE", file.enableHeuristicGate ?? true),
     autoApprove: readEnvFlag("AUTO_APPROVE", file.autoApprove ?? false),
     pricing,
+    modelPricing: file.modelPricing,
+    budget,
     mcpServers: file.mcpServers,
   };
 }

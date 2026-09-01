@@ -181,3 +181,52 @@ describe("loadConfig host/tier interaction", () => {
     expect(loadConfig().host).toBe("https://proxy.example");
   });
 });
+
+describe("budget / modelPricing config", () => {
+  const originalEnv = { ...process.env };
+  const originalCwd = process.cwd();
+  let workspaceRoot: string;
+
+  beforeEach(async () => {
+    workspaceRoot = await realpath(await mkdtemp(join(tmpdir(), "config-test-")));
+    mkdirSync(join(workspaceRoot, ".git"), { recursive: true });
+    process.chdir(workspaceRoot);
+    process.env.NEXUM_TEST_NO_GLOBAL = "true";
+  });
+
+  afterEach(() => {
+    process.env = { ...originalEnv };
+    process.chdir(originalCwd);
+  });
+
+  it("is undefined when nothing is configured", () => {
+    const cfg = loadConfig();
+    expect(cfg.budget).toBeUndefined();
+    expect(cfg.modelPricing).toBeUndefined();
+  });
+
+  it("reads budget limits from env vars", () => {
+    process.env.NEXUM_BUDGET_MAX_COST_USD = "5";
+    process.env.NEXUM_BUDGET_MAX_TOKENS = "100000";
+    process.env.NEXUM_BUDGET_MAX_CALLS = "50";
+    const cfg = loadConfig();
+    expect(cfg.budget).toEqual({ maxCostUsd: 5, maxTokens: 100000, maxCalls: 50 });
+  });
+
+  it("reads a partial budget (only maxCalls) from the config file", () => {
+    mkdirSync(join(workspaceRoot, ".nexum"), { recursive: true });
+    writeFileSync(join(workspaceRoot, ".nexum", "config.json"), JSON.stringify({ budget: { maxCalls: 10 } }));
+    const cfg = loadConfig();
+    expect(cfg.budget).toEqual({ maxCalls: 10 });
+  });
+
+  it("reads per-model pricing from the config file", () => {
+    mkdirSync(join(workspaceRoot, ".nexum"), { recursive: true });
+    writeFileSync(
+      join(workspaceRoot, ".nexum", "config.json"),
+      JSON.stringify({ modelPricing: { "gpt-oss:120b": { inputPerMillion: 2, outputPerMillion: 8 } } }),
+    );
+    const cfg = loadConfig();
+    expect(cfg.modelPricing).toEqual({ "gpt-oss:120b": { inputPerMillion: 2, outputPerMillion: 8 } });
+  });
+});
