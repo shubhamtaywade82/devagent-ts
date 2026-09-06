@@ -38,6 +38,16 @@ import { TrajectoryAnalyzer } from "./experience/trajectory-analyzer.js";
 import { TransferAnalyzer } from "./experience/transfer-analyzer.js";
 import { EvolutionMetricsTracker } from "./metrics.js";
 import { MutationScopePolicy, MutationScope } from "./mutation/mutation-scope.js";
+import {
+  CandidateArtifact,
+  CodeChangePlan,
+  HarnessMutationExecutor,
+  InspectTargetContext,
+  MutationResult,
+  MutationVerification,
+  MutationWorkspace,
+} from "./mutation/mutation-executor.js";
+import { ActivationEnvelope, ActivationHealth, ActivationMonitor } from "./monitoring/activation-monitor.js";
 import { formulateHypothesis } from "./hypothesis.js";
 import { EvolutionPlanner } from "./planner.js";
 import { provenanceYamlCodeBlock } from "./experiments/provenance.js";
@@ -46,6 +56,21 @@ import { ExperimentRecord } from "./experiments/experiment-schema.js";
 import { HarnessRegistry } from "./registry.js";
 import { TargetEngine, ImprovementTarget } from "./targets/target-engine.js";
 import { ComparisonResult, EvaluationMetrics, HarnessDiagnosis, HarnessHypothesis } from "./types.js";
+
+/**
+ * How strictly the fixed-executor generalization gate is enforced before a
+ * candidate can become eligible:
+ *
+ *   optional                 — held-out/transfer evidence recorded when supplied,
+ *                              but its absence never blocks eligibility
+ *                              (development mode; the v2.0 default).
+ *   required                 — a fixed-executor matrix MUST be supplied and the
+ *                              generalization gate MUST pass, otherwise the
+ *                              candidate is rejected (research mode).
+ *   required-for-production  — "required" plus transfer-executor evidence
+ *                              MUST be present (production evolution).
+ */
+export type GeneralizationPolicy = "optional" | "required" | "required-for-production";
 
 export interface ClosedLoopEngineOptions {
   registry?: HarnessRegistry;
@@ -62,6 +87,12 @@ export interface ClosedLoopEngineOptions {
   metricsTracker?: EvolutionMetricsTracker;
   /** Executor models for the fixed-executor protocol (primary first). */
   executorModels?: string[];
+  /** Enforcement level of the generalization gate (default "optional"). */
+  generalizationPolicy?: GeneralizationPolicy;
+  /** Self-development actuator: performs the actual harness mutation. */
+  mutationExecutor?: HarnessMutationExecutor;
+  /** Post-activation telemetry monitor wired to the REGRESSED/ROLLBACK path. */
+  monitor?: ActivationMonitor;
 }
 
 export interface ClosedLoopDiagnosis {
@@ -99,6 +130,9 @@ export class ClosedLoopEngine {
   readonly metrics: EvolutionMetricsTracker;
   readonly registry?: HarnessRegistry;
   readonly experienceStore?: ExperienceStore;
+  readonly mutationExecutor?: HarnessMutationExecutor;
+  readonly monitor?: ActivationMonitor;
+  readonly generalizationPolicy: GeneralizationPolicy;
   private readonly executorModels: string[];
 
   constructor(opts: ClosedLoopEngineOptions = {}) {
@@ -114,6 +148,9 @@ export class ClosedLoopEngine {
     this.metrics = opts.metricsTracker ?? new EvolutionMetricsTracker();
     this.registry = opts.registry;
     this.experienceStore = opts.experienceStore;
+    this.mutationExecutor = opts.mutationExecutor;
+    this.monitor = opts.monitor;
+    this.generalizationPolicy = opts.generalizationPolicy ?? "optional";
     this.executorModels = opts.executorModels ?? ["primary"];
   }
 
@@ -173,10 +210,10 @@ export class ClosedLoopEngine {
 
   /**
    * Runs the full evaluation experiment for a candidate harness:
-   * two-stage gates → fixed-executor generalization → experiment record →
-   * delivery preparation. Promotion is never declared: the returned outcome
-   * is ELIGIBLE at most, and becomes ACTIVE only through the acceptance
-   * pipeline (CI + review + activation).
+   * two-stage gates → fixed-executor generalization (policy-enforced) →
+   * experiment record → delivery preparation. Promotion is never declared:
+   * the returned outcome is ELIGIBLE at most, and becomes ACTIVE only through
+   * the acceptance pipeline (CI + review + activation).
    */
   runExperiment(input: {
     experimentId: string;
@@ -220,9 +257,18 @@ export class ClosedLoopEngine {
       );
     }
 
-    const eligible = twoStage.decision === "eligible" && (generalization === null || generalization.generalized);
+    // 4. Generalization policy enforcement. A candidate without sufficient
+    //    fixed-executor evidence can no longer slide through silently.
+    const policyMissingEvidence =
+      this.generalizationPolicy !== "optional" &&
+      (generalization === null ||
+        (this.generalizationPolicy === "required-for-production" &&
+          Object.keys(generalization.transferDeltas).length === 0));
+    const generalizationFailed = generalization !== null && !generalization.generalized;
+    const policyBlocked = policyMissingEvidence || generalizationFailed;
+    const eligible = twoStage.decision === "eligible" && !policyBlocked;
 
-    // 4. Start the experiment lifecycle and persist the decision.
+    // 5. Start the experiment lifecycle and persist the decision.
     const hypothesis: HarnessHypothesis = formulateHypothesis(input.diagnosis);
     this.experiments.startExperiment({
       id: input.experimentId,
@@ -254,36 +300,62 @@ export class ClosedLoopEngine {
         generalization: twoStage.stageB?.deltas.generalization ?? 0,
       },
     );
+    const decisionRationale = policyMissingEvidence
+      ? `${twoStage.rationale} Generalization policy "${this.generalizationPolicy}" blocked eligibility: no usable fixed-executor evidence was supplied.`
+      : generalizationFailed
+        ? `${twoStage.rationale} Generalization: ${generalization!.rationale}`
+        : generalization
+          ? `${twoStage.rationale} Generalization: ${generalization.rationale}`
+          : twoStage.rationale;
     this.experiments.reportDecision(input.experimentId, {
       result: eligible ? "eligible" : twoStage.decision === "eligible" ? "inconclusive" : twoStage.decision,
       stageA: twoStage.stageA.decision,
       stageB: twoStage.stageB?.decision ?? "not_run",
-      rationale: generalization
-        ? `${twoStage.rationale} Generalization: ${generalization.rationale}`
-        : twoStage.rationale,
+      rationale: decisionRationale,
     });
 
-    // 5. Advance the state machine: EVALUATING → VALIDATED → (GENERALIZED) → ELIGIBLE.
+    // 6. Advance the state machine through the acceptance pipeline.
     this.experiments.advance(input.experimentId, "EVALUATING", "Benchmark suite executed");
-    const acceptance = new AcceptanceController(this.experiments.machine(input.experimentId));
+    const machine = this.experiments.machine(input.experimentId);
+    const acceptance = new AcceptanceController(machine);
     const validated = acceptance.validate({ twoStagePassed: twoStage.decision === "eligible" });
-    if (validated.ok && generalization) {
-      acceptance.generalize({ generalizationPassed: generalization.generalized });
-    } else if (validated.ok) {
-      // No fixed-executor matrix supplied: gate is non-blocking but recorded.
+    if (!validated.ok) {
+      // Stage A/B failure is the documented EVALUATING → REJECTED path.
+      this.experiments.advance(
+        input.experimentId,
+        "REJECTED",
+        `Two-stage comparison rejected the candidate: ${twoStage.rationale}`,
+      );
+    } else if (generalization && generalization.generalized) {
+      acceptance.generalize({ generalizationPassed: true });
+    } else if (policyBlocked) {
+      // Walk VALIDATED → GENERALIZED → REJECTED so the audit trail shows the
+      // generalization gate (or its policy-enforced absence) as the reason.
+      this.experiments.advance(
+        input.experimentId,
+        "GENERALIZED",
+        policyMissingEvidence
+          ? `Generalization policy "${this.generalizationPolicy}" requires fixed-executor evidence; none supplied`
+          : `Generalization gate failed: ${generalization!.rationale}`,
+      );
+      this.experiments.advance(input.experimentId, "REJECTED", "Candidate rejected at the generalization gate");
+    } else {
+      // Policy "optional" with no matrix supplied: gate recorded as non-blocking.
       acceptance.generalize({ generalizationPassed: true });
     }
-    if (acceptance.current() === "eligible") {
+    if (machine.current() === "ELIGIBLE") {
       acceptance.deliver();
+      // DELIVERED → CI_PENDING: delivery awaits an explicit CI verdict.
+      this.experiments.advance(input.experimentId, "CI_PENDING", "Delivery prepared; awaiting CI verdict");
     }
 
-    // 6. Persist the version in the registry with the legacy status mapping.
+    // 7. Persist the version in the registry with the legacy status mapping.
     let comparison: ComparisonResult = {
       candidateId: input.candidateHarnessId,
       baselineId: input.parentHarnessId,
       decision: eligible ? "promote" : twoStage.decision === "rejected" ? "reject" : "inconclusive",
       scoreDeltas: twoStage.stageB?.deltas ?? { capability: 0, reliability: 0, efficiency: 0, generalization: 0 },
-      rationale: twoStage.rationale,
+      rationale: decisionRationale,
     };
 
     if (this.registry) {
@@ -299,7 +371,7 @@ export class ClosedLoopEngine {
       });
     }
 
-    // 7. Delivery (branch + commit + PR with provenance) for eligible candidates.
+    // 8. Delivery (branch + commit + PR with provenance) for eligible candidates.
     let deliveryReport: DeliveryReport | null = null;
     if (eligible) {
       const deliveryOpts: DeliveryPrOptions = {
@@ -322,11 +394,9 @@ export class ClosedLoopEngine {
         ...deliveryReport,
         prBody: [deliveryReport.prBody, provenanceYamlCodeBlock(record)].join("\n\n"),
       };
-      // DELIVERED → REVIEWED: the delivery exists and now awaits CI + review.
-      this.experiments.advance(input.experimentId, "REVIEWED", "Delivery prepared; awaiting CI and review");
     }
 
-    // 8. Record the version switch for promotion-precision accounting.
+    // 9. Record the version switch for promotion-precision accounting.
     this.metrics.record({
       versionId: input.candidateHarnessId,
       parentVersionId: input.parentHarnessId,
@@ -349,20 +419,158 @@ export class ClosedLoopEngine {
     return { experiment, comparison, twoStage, generalization, delivery: deliveryReport };
   }
 
-  /** CI feedback hook (DELIVERED → CI_FAILED or progress to REVIEWED/ACCEPTED). */
+  // ── Self-development actuator ─────────────────────────────────────────
+
+  /**
+   * The FULL self-development cycle — the missing actuator from the v2
+   * review, now first-class:
+   *
+   *   target → mutation workspace → code plan → implementation →
+   *   verification → candidate commit → benchmark → two-stage +
+   *   generalization gates → delivery preparation
+   *
+   * The mutation itself is delegated to the injected HarnessMutationExecutor
+   * (strategy-pluggable, git-worktree isolated). Callers supply the
+   * benchmark callback that evaluates the produced candidate.
+   */
+  async runEvolutionCycle(input: {
+    experimentId: string;
+    parentHarnessId: string;
+    parentCommit: string;
+    candidateHarnessId: string;
+    /** Harness repository to mutate (the candidate workspace base). */
+    repoRoot: string;
+    target: ImprovementTarget;
+    diagnosis: HarnessDiagnosis;
+    scope: MutationScope;
+    baselineResults: TaskExecutionResult[];
+    /** Benchmarks the mutated workspace and returns the candidate's runs. */
+    evaluateCandidate: (artifact: CandidateArtifact) => Promise<TaskExecutionResult[]> | TaskExecutionResult[];
+    matrixCells?: Parameters<GeneralizationGate["evaluate"]>[0];
+    commitMessage?: string;
+  }): Promise<
+    | { ok: true; outcome: ExperimentOutcome; mutation: MutationArtifacts }
+    | {
+        ok: false;
+        stage: "prepare" | "implement" | "verify" | "finalize" | "evaluate";
+        reason: string;
+        mutation: MutationArtifacts;
+      }
+  > {
+    if (!this.mutationExecutor) {
+      throw new Error(
+        "runEvolutionCycle requires a HarnessMutationExecutor (ClosedLoopEngineOptions.mutationExecutor).",
+      );
+    }
+    const executor = this.mutationExecutor;
+    const artifacts: MutationArtifacts = {};
+
+    // 1. Isolated workspace at the parent commit.
+    let workspace: MutationWorkspace;
+    try {
+      workspace = await executor.prepareWorkspace({
+        repoRoot: input.repoRoot,
+        parentCommit: input.parentCommit,
+        candidateHarnessId: input.candidateHarnessId,
+        branchName: `evolution/${input.candidateHarnessId.toLowerCase()}`,
+      });
+    } catch (err) {
+      return { ok: false, stage: "prepare", reason: msg(err), mutation: artifacts };
+    }
+    artifacts.workspace = workspace;
+
+    // 2. Inspect the target → code change plan.
+    const inspectContext: InspectTargetContext = { diagnosis: input.diagnosis, scope: input.scope };
+    let plan: CodeChangePlan;
+    try {
+      plan = await executor.inspectTarget(workspace, input.target, inspectContext);
+    } catch (err) {
+      return { ok: false, stage: "implement", reason: `inspectTarget failed: ${msg(err)}`, mutation: artifacts };
+    }
+    artifacts.plan = plan;
+
+    // 3. Implement the plan.
+    let result: MutationResult;
+    try {
+      result = await executor.implement(workspace, plan);
+    } catch (err) {
+      return { ok: false, stage: "implement", reason: `implement failed: ${msg(err)}`, mutation: artifacts };
+    }
+    artifacts.result = result;
+    if (result.appliedEdits.length === 0) {
+      return {
+        ok: false,
+        stage: "implement",
+        reason: "All planned edits were rejected by the scope guard",
+        mutation: artifacts,
+      };
+    }
+
+    // 4. Verify (scope guard + commands).
+    let verification: MutationVerification;
+    try {
+      verification = await executor.verify(workspace, plan);
+    } catch (err) {
+      return { ok: false, stage: "verify", reason: `verify failed: ${msg(err)}`, mutation: artifacts };
+    }
+    artifacts.verification = verification;
+    if (!verification.ok) {
+      return {
+        ok: false,
+        stage: "verify",
+        reason: `Mutation verification failed: ${[...verification.scopeViolations, ...verification.commands.filter((c) => c.exitCode !== 0).map((c) => c.command)].join("; ")}`,
+        mutation: artifacts,
+      };
+    }
+
+    // 5. Finalize the candidate commit.
+    let artifact: CandidateArtifact;
+    try {
+      artifact = await executor.finalize(workspace, plan, { commitMessage: input.commitMessage });
+    } catch (err) {
+      return { ok: false, stage: "finalize", reason: `finalize failed: ${msg(err)}`, mutation: artifacts };
+    }
+    artifacts.artifact = artifact;
+
+    // 6. Benchmark the candidate and run the full experiment pipeline.
+    let candidateResults: TaskExecutionResult[];
+    try {
+      candidateResults = await input.evaluateCandidate(artifact);
+    } catch (err) {
+      return { ok: false, stage: "evaluate", reason: `benchmark failed: ${msg(err)}`, mutation: artifacts };
+    }
+    const outcome = this.runExperiment({
+      experimentId: input.experimentId,
+      parentHarnessId: input.parentHarnessId,
+      parentCommit: input.parentCommit,
+      candidateHarnessId: input.candidateHarnessId,
+      candidateCommit: artifact.commitSha,
+      target: input.target,
+      diagnosis: input.diagnosis,
+      scope: input.scope,
+      candidateResults,
+      baselineResults: input.baselineResults,
+      matrixCells: input.matrixCells,
+    });
+    return { ok: true, outcome, mutation: artifacts };
+  }
+
+  // ── Post-activation monitoring ────────────────────────────────────────
+
+  /** CI feedback hook (CI_PENDING → CI_FAILED or CI_PASSED → REVIEW_PENDING). */
   reportCi(experimentId: string, passed: boolean, runUrl?: string): void {
     this.experiments.reportCiResult(experimentId, passed ? "passed" : "failed", runUrl);
   }
 
-  /** Review feedback hook (REVIEWED → ACCEPTED or CHANGES_REQUESTED). */
+  /** Review feedback hook (REVIEW_PENDING → APPROVED or CHANGES_REQUESTED). */
   reportReview(experimentId: string, approved: boolean, reviewer?: string): void {
     this.experiments.reportReviewOutcome(experimentId, approved ? "approved" : "changes_requested", reviewer);
   }
 
-  /** Completes acceptance: REVIEWED → ACCEPTED → ACTIVE and updates the registry. */
+  /** Completes acceptance: APPROVED → ACCEPTED → ACTIVE and updates the registry. */
   finalizeAcceptance(experimentId: string): boolean {
     const machine = this.experiments.machine(experimentId);
-    if (machine.current() !== "REVIEWED") return false;
+    if (machine.current() !== "APPROVED") return false;
     const record = this.experiments.record(experimentId);
     machine.transition("ACCEPTED", "Review approved");
     machine.transition("ACTIVE", "Candidate is the active harness");
@@ -372,7 +580,55 @@ export class ClosedLoopEngine {
     }
     const switchRecord = this.metrics.records().find((s) => s.versionId === record.candidate.harness);
     if (switchRecord) switchRecord.accepted = true;
+    // Post-activation monitoring starts the moment the candidate is live.
+    this.registerActivationEnvelope(experimentId);
     return true;
+  }
+
+  /**
+   * Registers the performance envelope for the newly active harness from the
+   * PARENT version's evaluation metrics: the candidate must at least hold
+   * the band it inherited. No-op when the monitor or parent metrics are
+   * unavailable.
+   */
+  registerActivationEnvelope(experimentId: string): ActivationEnvelope | null {
+    if (!this.monitor) return null;
+    const record = this.experiments.record(experimentId);
+    const parentVersion = this.registry?.getVersion(record.parent.harness);
+    if (!parentVersion) return null;
+    const envelope = this.monitor.envelopeFromBaseline({
+      harnessId: record.candidate.harness,
+      experimentId,
+      baseline: {
+        taskSuccessRate: parentVersion.metrics.capability.taskSuccessRate,
+        falseSuccessRate: parentVersion.metrics.reliability.falseSuccessRate,
+        toolErrorRate: parentVersion.metrics.reliability.toolErrorRate,
+        loopAbortRate: parentVersion.metrics.reliability.loopAbortRate,
+        verificationFailureRate: 1 - parentVersion.metrics.capability.verificationPassRate,
+        avgTokens: parentVersion.metrics.efficiency.avgTokens,
+        avgLatencyMs: parentVersion.metrics.efficiency.avgLatencyMs,
+      },
+    });
+    this.monitor.setEnvelope(envelope);
+    return envelope;
+  }
+
+  /**
+   * Evaluates live telemetry for the active harness. A "regressed" verdict
+   * drives the full ACTIVE → REGRESSED → ROLLBACK path automatically.
+   */
+  evaluateActivation(experimentId: string, autoRollback = true): ActivationHealth | null {
+    if (!this.monitor) return null;
+    const record = this.experiments.record(experimentId);
+    const health = this.monitor.evaluate(record.candidate.harness);
+    if (
+      autoRollback &&
+      health.status === "regressed" &&
+      this.experiments.machine(experimentId).current() === "ACTIVE"
+    ) {
+      this.handleRegression(experimentId, health.rationale);
+    }
+    return health;
   }
 
   /** Post-deployment regression hook: ACTIVE → REGRESSED → ROLLBACK (+ registry). */
@@ -389,6 +645,19 @@ export class ClosedLoopEngine {
       switchRecord.retainedBySuccessor = false;
     }
   }
+}
+
+/** Artifacts produced (or partially produced) by a self-development cycle. */
+export interface MutationArtifacts {
+  workspace?: MutationWorkspace;
+  plan?: CodeChangePlan;
+  result?: MutationResult;
+  verification?: MutationVerification;
+  artifact?: CandidateArtifact;
+}
+
+function msg(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /** Derives Stage-A experiment validity facts from raw runs. */

@@ -6,14 +6,20 @@
  * every stage before it becomes the active harness:
  *
  *   OBSERVED → DIAGNOSED → TARGETED → HYPOTHESIS → CANDIDATE → EVALUATING →
- *   VALIDATED → GENERALIZED → ELIGIBLE → DELIVERED → REVIEWED → ACCEPTED → ACTIVE
+ *   VALIDATED → GENERALIZED → ELIGIBLE → DELIVERED → CI_PENDING → CI_PASSED →
+ *   REVIEW_PENDING → APPROVED → ACCEPTED → ACTIVE
+ *
+ * CI and review are FIRST-CLASS lifecycle states, not overloads of DELIVERED
+ * / REVIEWED: a passing CI run has its own explicit transition (CI_PASSED),
+ * and so does an approval (APPROVED). External feedback can no longer be
+ * silently dropped by the lifecycle.
  *
  * Failure paths:
- *   EVALUATING  ──→ REJECTED
- *   GENERALIZED ──→ REJECTED
- *   DELIVERED   ──→ CI_FAILED
- *   REVIEWED    ──→ CHANGES_REQUESTED
- *   ACTIVE      ──→ REGRESSED ──→ ROLLBACK
+ *   EVALUATING     ──→ REJECTED
+ *   GENERALIZED    ──→ REJECTED
+ *   CI_PENDING     ──→ CI_FAILED
+ *   REVIEW_PENDING ──→ CHANGES_REQUESTED
+ *   ACTIVE         ──→ REGRESSED ──→ ROLLBACK
  *
  * The state machine is pure: it validates transitions and records an audit
  * trail; persistence lives in the registry / experiment controller.
@@ -31,9 +37,19 @@ export type EvolutionProgressState =
   | "GENERALIZED"
   | "ELIGIBLE"
   | "DELIVERED"
-  | "REVIEWED"
+  | "CI_PENDING"
+  | "CI_PASSED"
+  | "REVIEW_PENDING"
+  | "APPROVED"
   | "ACCEPTED"
   | "ACTIVE";
+
+/**
+ * Legacy v2.0 state name kept ONLY for deserializing persisted records and
+ * provenance produced before CI/review became explicit states.
+ * `normalizeLegacyState` maps it onto the v2.1 lifecycle.
+ */
+export type EvolutionLegacyState = "REVIEWED";
 
 /** Terminal failure states. A REJECTED/CI_FAILED/CHANGES_REQUESTED candidate is dead. */
 export type EvolutionFailureState = "REJECTED" | "CI_FAILED" | "CHANGES_REQUESTED" | "REGRESSED" | "ROLLBACK";
@@ -51,10 +67,21 @@ export const PROGRESS_STATES: readonly EvolutionProgressState[] = [
   "GENERALIZED",
   "ELIGIBLE",
   "DELIVERED",
-  "REVIEWED",
+  "CI_PENDING",
+  "CI_PASSED",
+  "REVIEW_PENDING",
+  "APPROVED",
   "ACCEPTED",
   "ACTIVE",
 ] as const;
+
+/** Maps pre-v2.1 persisted state names onto the current lifecycle. */
+export function normalizeLegacyState(state: string): EvolutionState | null {
+  if (state === "REVIEWED") return "REVIEW_PENDING";
+  return (PROGRESS_STATES as readonly string[]).includes(state) || (FAILURE_STATES as readonly string[]).includes(state)
+    ? (state as EvolutionState)
+    : null;
+}
 
 export const FAILURE_STATES: readonly EvolutionFailureState[] = [
   "REJECTED",
@@ -92,8 +119,11 @@ const LEGAL_TRANSITIONS: Readonly<Record<EvolutionState, readonly EvolutionState
   VALIDATED: ["GENERALIZED"],
   GENERALIZED: ["ELIGIBLE", "REJECTED"],
   ELIGIBLE: ["DELIVERED"],
-  DELIVERED: ["REVIEWED", "CI_FAILED"],
-  REVIEWED: ["ACCEPTED", "CHANGES_REQUESTED"],
+  DELIVERED: ["CI_PENDING"],
+  CI_PENDING: ["CI_PASSED", "CI_FAILED"],
+  CI_PASSED: ["REVIEW_PENDING"],
+  REVIEW_PENDING: ["APPROVED", "CHANGES_REQUESTED"],
+  APPROVED: ["ACCEPTED"],
   ACCEPTED: ["ACTIVE"],
   ACTIVE: ["REGRESSED"],
   REJECTED: [],
@@ -111,6 +141,22 @@ export function isTerminalFailure(state: EvolutionState): boolean {
 /** True when the candidate has fully landed as the running harness. */
 export function isActive(state: EvolutionState): boolean {
   return state === "ACTIVE";
+}
+
+/** True once the delivered branch has passed CI (explicit CI_PASSED state). */
+export function isCiPassed(state: EvolutionState): boolean {
+  return (
+    state === "CI_PASSED" ||
+    state === "REVIEW_PENDING" ||
+    state === "APPROVED" ||
+    state === "ACCEPTED" ||
+    state === "ACTIVE"
+  );
+}
+
+/** True once a reviewer has approved (explicit APPROVED state). */
+export function isApproved(state: EvolutionState): boolean {
+  return state === "APPROVED" || state === "ACCEPTED" || state === "ACTIVE";
 }
 
 /** True when the state sits on the happy path (not a failure state). */

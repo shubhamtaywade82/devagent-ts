@@ -10,9 +10,15 @@
  *   - reportReviewOutcome() — human review approved / requested changes
  *   - reportRegression()    — post-deployment monitoring detected regression
  *
+ * CI and review are explicit lifecycle stages: CI result always moves the
+ * experiment (DELIVERED → CI_PENDING → CI_FAILED | CI_PASSED → REVIEW_PENDING),
+ * and review outcome always moves it (REVIEW_PENDING → APPROVED |
+ * CHANGES_REQUESTED). No external feedback is silently dropped.
+ *
  * Promotion is never "declared": a candidate becomes ACTIVE only after
- * EVALUATING → VALIDATED → GENERALIZED → ELIGIBLE → DELIVERED → REVIEWED →
- * ACCEPTED → ACTIVE, with each transition persisted.
+ * EVALUATING → VALIDATED → GENERALIZED → ELIGIBLE → DELIVERED → CI_PENDING →
+ * CI_PASSED → REVIEW_PENDING → APPROVED → ACCEPTED → ACTIVE, with each
+ * transition persisted.
  */
 
 import { EvolutionState, EvolutionStateMachine, StateTransitionResult } from "../state-machine.js";
@@ -146,22 +152,46 @@ export class ExperimentController {
     this.persist(record);
   }
 
-  /** CI feedback from the delivered evolution branch. */
+  /**
+   * CI feedback from the delivered evolution branch.
+   *
+   * CI is a first-class lifecycle stage: the result ALWAYS advances the
+   * experiment, in both directions:
+   *   DELIVERED → CI_PENDING → CI_FAILED      (CI red; recovery via rework)
+   *   DELIVERED → CI_PENDING → CI_PASSED → REVIEW_PENDING (awaiting review)
+   */
   reportCiResult(experimentId: string, status: ExperimentCiStatus, runUrl?: string): void {
     const record = this.record(experimentId);
     record.ci = { status, runUrl };
+    const machine = this.machine(experimentId);
+    // Enter the explicit CI stage if the caller reports a verdict while the
+    // experiment is still parked at DELIVERED.
+    if (machine.current() === "DELIVERED") {
+      this.advance(experimentId, "CI_PENDING", "CI run started on the evolution branch");
+    }
     if (status === "failed") {
       this.advance(experimentId, "CI_FAILED", `CI failed: ${runUrl ?? "no run url"}`);
+    } else if (status === "passed") {
+      this.advance(experimentId, "CI_PASSED", `CI passed: ${runUrl ?? "no run url"}`);
+      this.advance(experimentId, "REVIEW_PENDING", "CI green; awaiting review outcome");
     }
     this.persist(record);
   }
 
-  /** Human review feedback on the delivered PR. */
+  /**
+   * Human review feedback on the delivered PR.
+   *
+   * The verdict ALWAYS advances the lifecycle from REVIEW_PENDING:
+   *   approved          → APPROVED (acceptance completes via finalizeAcceptance)
+   *   changes_requested → CHANGES_REQUESTED (rework path back to CANDIDATE)
+   */
   reportReviewOutcome(experimentId: string, state: ExperimentReviewState, reviewer?: string): void {
     const record = this.record(experimentId);
     record.review = { state, reviewer };
     if (state === "changes_requested") {
       this.advance(experimentId, "CHANGES_REQUESTED", `Review by ${reviewer ?? "unknown"} requested changes`);
+    } else if (state === "approved") {
+      this.advance(experimentId, "APPROVED", `Review by ${reviewer ?? "unknown"} approved`);
     }
     this.persist(record);
   }
@@ -188,14 +218,29 @@ export class ExperimentController {
 
   /** Promotion precision inputs: counts of accepted vs eligible experiments. */
   acceptanceCounts(): { eligible: number; accepted: number; rejected: number } {
+    // Every state at or after ELIGIBLE on the delivery pipeline counts as
+    // "entered promotion" for promotion-precision accounting.
+    const ELIGIBLE_STATES: ReadonlySet<string> = new Set([
+      "ELIGIBLE",
+      "DELIVERED",
+      "CI_PENDING",
+      "CI_PASSED",
+      "REVIEW_PENDING",
+      "APPROVED",
+      "ACCEPTED",
+      "ACTIVE",
+      "REGRESSED",
+      "ROLLBACK",
+    ]);
+    const ACCEPTED_STATES: ReadonlySet<string> = new Set(["ACCEPTED", "ACTIVE", "REGRESSED", "ROLLBACK"]);
     let eligible = 0;
     let accepted = 0;
     let rejected = 0;
     const all = this.store ? this.store.listAll() : [...this.records.values()];
     for (const r of all) {
       const s = r.lifecycle.state;
-      if (s === "ELIGIBLE" || s === "DELIVERED" || s === "REVIEWED" || s === "ACCEPTED") eligible++;
-      if (s === "ACCEPTED" || s === "ACTIVE" || s === "REGRESSED" || s === "ROLLBACK") accepted++;
+      if (ELIGIBLE_STATES.has(s)) eligible++;
+      if (ACCEPTED_STATES.has(s)) accepted++;
       if (s === "REJECTED") rejected++;
     }
     return { eligible, accepted, rejected };

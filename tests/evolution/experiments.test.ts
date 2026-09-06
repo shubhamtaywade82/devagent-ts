@@ -67,16 +67,19 @@ describe("ExperimentController lifecycle", () => {
     controller.advance("exp-00142", "GENERALIZED", "held-out verified");
     controller.advance("exp-00142", "ELIGIBLE");
     controller.advance("exp-00142", "DELIVERED", "PR prepared");
-    controller.advance("exp-00142", "REVIEWED", "CI passed");
-    controller.advance("exp-00142", "ACCEPTED", "review approved");
+    controller.advance("exp-00142", "CI_PENDING", "CI started");
+    controller.advance("exp-00142", "CI_PASSED", "CI green");
+    controller.advance("exp-00142", "REVIEW_PENDING", "awaiting review");
+    controller.advance("exp-00142", "APPROVED", "review approved");
+    controller.advance("exp-00142", "ACCEPTED", "acceptance finalized");
     controller.advance("exp-00142", "ACTIVE");
     expect(controller.record("exp-00142").lifecycle.state).toBe("ACTIVE");
     const counts = controller.acceptanceCounts();
     expect(counts.accepted).toBe(1);
-    expect(counts.eligible).toBe(0);
+    expect(counts.eligible).toBe(1);
   });
 
-  it("routes CI failure through DELIVERED → CI_FAILED → CANDIDATE recovery", () => {
+  it("routes CI failure through DELIVERED → CI_PENDING → CI_FAILED → CANDIDATE recovery", () => {
     const controller = new ExperimentController();
     controller.startExperiment(startInput());
     controller.advance("exp-00142", "EVALUATING");
@@ -91,7 +94,7 @@ describe("ExperimentController lifecycle", () => {
     expect(controller.machine("exp-00142").current()).toBe("CANDIDATE");
   });
 
-  it("routes review changes-requested through the failure path", () => {
+  it("a passing CI verdict ALWAYS advances the lifecycle: → CI_PASSED → REVIEW_PENDING", () => {
     const controller = new ExperimentController();
     controller.startExperiment(startInput());
     controller.advance("exp-00142", "EVALUATING");
@@ -99,9 +102,40 @@ describe("ExperimentController lifecycle", () => {
     controller.advance("exp-00142", "GENERALIZED");
     controller.advance("exp-00142", "ELIGIBLE");
     controller.advance("exp-00142", "DELIVERED");
-    controller.advance("exp-00142", "REVIEWED");
+    controller.reportCiResult("exp-00142", "passed", "https://ci/run/2");
+    // The v2.0 bug (CI pass leaving the lifecycle parked at DELIVERED) is fixed.
+    expect(controller.record("exp-00142").lifecycle.state).toBe("REVIEW_PENDING");
+    expect(controller.record("exp-00142").ci.status).toBe("passed");
+  });
+
+  it("routes review changes-requested through the failure path from REVIEW_PENDING", () => {
+    const controller = new ExperimentController();
+    controller.startExperiment(startInput());
+    controller.advance("exp-00142", "EVALUATING");
+    controller.advance("exp-00142", "VALIDATED");
+    controller.advance("exp-00142", "GENERALIZED");
+    controller.advance("exp-00142", "ELIGIBLE");
+    controller.advance("exp-00142", "DELIVERED");
+    controller.advance("exp-00142", "CI_PENDING");
+    controller.advance("exp-00142", "CI_PASSED");
+    controller.advance("exp-00142", "REVIEW_PENDING");
     controller.reportReviewOutcome("exp-00142", "changes_requested", "reviewer-a");
     expect(controller.record("exp-00142").lifecycle.state).toBe("CHANGES_REQUESTED");
+  });
+
+  it("routes review approval to APPROVED, ready for finalizeAcceptance", () => {
+    const controller = new ExperimentController();
+    controller.startExperiment(startInput());
+    controller.advance("exp-00142", "EVALUATING");
+    controller.advance("exp-00142", "VALIDATED");
+    controller.advance("exp-00142", "GENERALIZED");
+    controller.advance("exp-00142", "ELIGIBLE");
+    controller.advance("exp-00142", "DELIVERED");
+    controller.advance("exp-00142", "CI_PENDING");
+    controller.advance("exp-00142", "CI_PASSED");
+    controller.advance("exp-00142", "REVIEW_PENDING");
+    controller.reportReviewOutcome("exp-00142", "approved", "reviewer-b");
+    expect(controller.record("exp-00142").lifecycle.state).toBe("APPROVED");
   });
 
   it("handles the post-deployment regression path ACTIVE → REGRESSED → ROLLBACK", () => {
@@ -114,7 +148,10 @@ describe("ExperimentController lifecycle", () => {
     controller.advance("exp-00142", "GENERALIZED");
     controller.advance("exp-00142", "ELIGIBLE");
     controller.advance("exp-00142", "DELIVERED");
-    controller.advance("exp-00142", "REVIEWED");
+    controller.advance("exp-00142", "CI_PENDING");
+    controller.advance("exp-00142", "CI_PASSED");
+    controller.advance("exp-00142", "REVIEW_PENDING");
+    controller.advance("exp-00142", "APPROVED");
     controller.advance("exp-00142", "ACCEPTED");
     controller.advance("exp-00142", "ACTIVE");
 

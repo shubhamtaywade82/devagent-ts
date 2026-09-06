@@ -1,8 +1,8 @@
 # Nexum Harness Evolution: Self-Developing Agent Runtime
 
-Nexum implements a meta-evolutionary control loop inspired by the **HarnessDev** paradigm ($H = \langle E, T, C, S, L, V \rangle$). 
+Nexum implements a meta-evolutionary control loop inspired by the **HarnessDev** paradigm ($H = \langle E, T, C, S, L, V \rangle$).
 
-While traditional coding agents learn only *task-level* lessons, Nexum can diagnose its own runtime execution failures, identify architectural weaknesses in its execution harness, formulate targeted mutation hypotheses, benchmark candidate changes against multi-objective Pareto dimensions, and autonomously prepare scientific GitHub Pull Requests with empirical evidence matrices.
+While traditional coding agents learn only _task-level_ lessons, Nexum can diagnose its own runtime execution failures, identify architectural weaknesses in its execution harness, formulate targeted mutation hypotheses, benchmark candidate changes against multi-objective Pareto dimensions, and autonomously prepare scientific GitHub Pull Requests with empirical evidence matrices.
 
 ---
 
@@ -20,14 +20,14 @@ H = ⟨ E, T, C, S, L, V ⟩
     └───────────────── Execution Loop, Orchestrator DAG & Loop Detector
 ```
 
-| Component | Subsystem | Purpose in Nexum |
-| :--- | :--- | :--- |
-| **$E$ — Execution** | `src/orchestrator/` | Step decomposition, dependency DAGs, parallel step execution, loop detection. |
-| **$T$ — Tools** | `src/tools/` | 35+ tools, dynamic tool schema pruning per turn, sandbox execution. |
-| **$C$ — Context** | `src/intelligence/`, `src/docs/` | 14-language LSP pool, Rails semantic index, DevDocs FTS5 offline search. |
-| **$S$ — State** | `src/runtime/` | Immutable store, event bus, atomic step checkpoints, session transcripts. |
-| **$L$ — Lifecycle** | `src/provider/`, `src/cli/` | Model routing, self-escalation on failure, session resume, retry policies. |
-| **$V$ — Verification**| `src/validation/`, `src/safety/`| Test runners, lint gates, type diagnostics, path traversal containment. |
+| Component              | Subsystem                        | Purpose in Nexum                                                              |
+| :--------------------- | :------------------------------- | :---------------------------------------------------------------------------- |
+| **$E$ — Execution**    | `src/orchestrator/`              | Step decomposition, dependency DAGs, parallel step execution, loop detection. |
+| **$T$ — Tools**        | `src/tools/`                     | 35+ tools, dynamic tool schema pruning per turn, sandbox execution.           |
+| **$C$ — Context**      | `src/intelligence/`, `src/docs/` | 14-language LSP pool, Rails semantic index, DevDocs FTS5 offline search.      |
+| **$S$ — State**        | `src/runtime/`                   | Immutable store, event bus, atomic step checkpoints, session transcripts.     |
+| **$L$ — Lifecycle**    | `src/provider/`, `src/cli/`      | Model routing, self-escalation on failure, session resume, retry policies.    |
+| **$V$ — Verification** | `src/validation/`, `src/safety/` | Test runners, lint gates, type diagnostics, path traversal containment.       |
 
 ---
 
@@ -51,9 +51,11 @@ Multi-Objective Comparator (Pareto Frontiers & Hard Regression Gates)
 ```
 
 ### The Single-Component Scoping Principle
+
 To prevent regression cascades, every evolution candidate mutation is strictly confined to **one subsystem** at a time ($E$, $T$, $C$, $S$, $L$, or $V$). Multi-component mutations are blocked by the `EvolutionPlanner`.
 
 ### Multi-Objective Pareto Dimensions & Regression Gates
+
 Candidate versions are evaluated across four objective dimensions:
 
 1. **Capability**: Task success rate and verification pass rate.
@@ -112,20 +114,22 @@ When a candidate harness mutation is validated and promoted, the `GitDeliveryEng
 ## Nexum Harness Evolution — Promoted Mutation `H1`
 
 ### 1. Hypothesis & Root Cause
+
 - **Target Component:** `execution`
 - **Parent Version:** `H0`
 - **Hypothesis:** IF loop detection thresholds are tightened THEN loop aborts will decrease.
 
 ### 2. Empirical Evaluation
 
-| Dimension | Delta | Interpretation |
-| :--- | :---: | :--- |
-| **Capability** | `+8.0%` | Task success and verification accuracy |
-| **Reliability** | `+15.0%` | Error reduction, loop aborts, false successes |
-| **Efficiency** | `+3.2%` | Token consumption change |
-| **Generalization** | `+5.0%` | Held-out and cross-model transfer score |
+| Dimension          |  Delta   | Interpretation                                |
+| :----------------- | :------: | :-------------------------------------------- |
+| **Capability**     | `+8.0%`  | Task success and verification accuracy        |
+| **Reliability**    | `+15.0%` | Error reduction, loop aborts, false successes |
+| **Efficiency**     | `+3.2%`  | Token consumption change                      |
+| **Generalization** | `+5.0%`  | Held-out and cross-model transfer score       |
 
 ### 3. Decision & Provenance
+
 - **Decision:** **`PROMOTE`**
 - **Rationale:** Promoted: capability delta +8.0%, reliability delta +15.0%
 - **Candidate Commit:** `HEAD`
@@ -135,7 +139,7 @@ When a candidate harness mutation is validated and promoted, the `GitDeliveryEng
 
 ## 6. Closed-Loop v2: Target Formation, Experience Learning & the Experiment State Machine
 
-The v1 loop answers *"did this candidate score higher?"*. The v2 closed-loop engine (`src/evolution/engine-v2.ts`, `ClosedLoopEngine`) implements the deeper question from the Self-Developing Agents research: *"which changes reliably improve the engineering system?"*. It adds three layers on top of the v1 foundation.
+The v1 loop answers _"did this candidate score higher?"_. The v2 closed-loop engine (`src/evolution/engine-v2.ts`, `ClosedLoopEngine`) implements the deeper question from the Self-Developing Agents research: _"which changes reliably improve the engineering system?"_. It adds three layers on top of the v1 foundation.
 
 ### 6.1 Three Separated Kinds of Learning
 
@@ -161,7 +165,7 @@ The v1 loop answers *"did this candidate score higher?"*. The v2 closed-loop eng
 
 ### 6.2 Target Formation (the Aspire layer)
 
-`src/evolution/targets/target-engine.ts` sits between diagnosis and planning. It refuses to answer *"which file should I change?"* until it has answered *"what capability is actually failing?"* — producing an `ImprovementTarget` with a capability, an operationalized desired outcome, observable symptoms, must-move metrics, affected components (including plausible cross-component causes), a confidence score, and a split-aware evaluation plan. Weak evidence yields no target: the loop gathers more telemetry instead of mutating on a vague goal.
+`src/evolution/targets/target-engine.ts` sits between diagnosis and planning. It refuses to answer _"which file should I change?"_ until it has answered _"what capability is actually failing?"_ — producing an `ImprovementTarget` with a capability, an operationalized desired outcome, observable symptoms, must-move metrics, affected components (including plausible cross-component causes), a confidence score, and a split-aware evaluation plan. Weak evidence yields no target: the loop gathers more telemetry instead of mutating on a vague goal.
 
 ### 6.3 The Evolution State Machine
 
@@ -169,17 +173,21 @@ Promotion is no longer a single function call. A candidate must traverse:
 
 ```text
 OBSERVED → DIAGNOSED → TARGETED → HYPOTHESIS → CANDIDATE → EVALUATING →
-VALIDATED → GENERALIZED → ELIGIBLE → DELIVERED → REVIEWED → ACCEPTED → ACTIVE
+VALIDATED → GENERALIZED → ELIGIBLE → DELIVERED → CI_PENDING → CI_PASSED →
+REVIEW_PENDING → APPROVED → ACCEPTED → ACTIVE
 
 Failure paths:
-  EVALUATING  ──→ REJECTED            (Stage A / Stage B gate failed)
-  GENERALIZED ──→ REJECTED            (held-out / transfer regression)
-  DELIVERED   ──→ CI_FAILED           (GitHub CI red)   ──→ CANDIDATE (rework)
-  REVIEWED    ──→ CHANGES_REQUESTED   (human review)    ──→ CANDIDATE (rework)
-  ACTIVE      ──→ REGRESSED           (post-deploy monitoring) → ROLLBACK → ACTIVE (prior)
+  EVALUATING     ──→ REJECTED            (Stage A / Stage B gate failed)
+  GENERALIZED    ──→ REJECTED            (held-out / transfer regression,
+                                          or generalization policy unmet)
+  CI_PENDING     ──→ CI_FAILED           (GitHub CI red)   ──→ CANDIDATE (rework)
+  REVIEW_PENDING ──→ CHANGES_REQUESTED   (human review)    ──→ CANDIDATE (rework)
+  ACTIVE         ──→ REGRESSED           (post-deploy monitoring) → ROLLBACK → ACTIVE (prior)
 ```
 
 "Declared promotions" are structurally impossible: `EvolutionStateMachine` rejects skipped stages.
+
+CI and review are FIRST-CLASS lifecycle states (v2.1): a passing CI run has its own explicit transition (`CI_PENDING → CI_PASSED → REVIEW_PENDING`), and so does an approval (`REVIEW_PENDING → APPROVED`). External feedback can no longer be silently dropped by the lifecycle — a CI verdict ALWAYS advances the experiment, in both directions. Legacy persisted records using the old `REVIEWED` state name are normalized onto `REVIEW_PENDING` via `normalizeLegacyState()`.
 
 ### 6.4 Two-Stage Candidate Selection
 
@@ -191,6 +199,18 @@ Failure paths:
 ### 6.5 Fixed-Executor Evaluation & the Generalization Gate
 
 `src/evolution/evaluation/fixed-executor.ts` treats evaluator model, harness candidate, and task suite as independent variables and builds the H0..Hn × executor matrix. `src/evolution/generalization/generalization-gate.ts` grants `GENERALIZED` only when the candidate holds or improves held-out success under the primary executor and does not collapse under any transfer executor, and reports **executor sensitivity** (spread of held-out deltas across executors) plus **direction agreement** — the research metrics for separating "the harness improved" from "this model + harness combination got lucky".
+
+#### Generalization policy
+
+The gate's enforcement level is configurable (`ClosedLoopEngineOptions.generalizationPolicy`):
+
+| Policy                    | Behavior                                                                                                                                         |
+| :------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `optional` (default)      | Held-out/transfer evidence is recorded when supplied; its absence never blocks eligibility. Development mode.                                    |
+| `required`                | A fixed-executor matrix MUST be supplied and the gate MUST pass, otherwise the candidate is rejected at `GENERALIZED → REJECTED`. Research mode. |
+| `required-for-production` | `required` plus transfer-executor evidence MUST be present. Production evolution.                                                                |
+
+This closes the "permissive held-out gate" loophole: a candidate can no longer become eligible without the fixed-executor evidence the methodology demands.
 
 ### 6.6 Mutation Scope Escalation
 
@@ -251,9 +271,61 @@ nexum evolve --experiments
 
 # Loop health report: promotion precision, retention, rollback, sensitivity
 nexum evolve --report
+
+# Self-development actuator: target → isolated worktree → planned edits →
+# verification → candidate commit (needs --repo; benchmarks plug in separately)
+nexum evolve --mutate --repo /path/to/harness --parent HEAD
+
+# Post-activation health verdict from operational telemetry (JSONL)
+nexum evolve --monitor --harness H5 --telemetry telemetry.jsonl
 ```
 
-### 6.10 v2 Module Map
+### 6.10 The Self-Development Actuator (HarnessMutationExecutor)
+
+Everything upstream decides WHAT should change; `src/evolution/mutation/mutation-executor.ts` performs the actual self-modification and turns it into a verifiable candidate artifact. This is the component that turns Nexum from self-evaluating into self-developing:
+
+```text
+prepareWorkspace  → isolated git worktree branched at the parent commit
+inspectTarget     → CodeChangePlan (pluggable MutationStrategy)
+implement         → writes the planned edits (scope-guarded)
+verify            → scope guard + verification commands
+finalize          → candidate commit + diff artifact for the experiment
+dispose           → worktree cleanup
+```
+
+Key properties:
+
+- **Strategy-pluggable**: the default `HeuristicMutationStrategy` produces a deterministic self-describing harness policy edit; real self-modification plugs in a strategy backed by the agent runtime or an LLM. The executor only demands that every produced edit stays inside the mutation scope's component paths and survives verification.
+- **Scope-guarded**: edits outside the allowed paths for the target component (or path-escaping edits) are rejected before they touch the worktree — the mutation scope policy is enforced at the filesystem boundary, not just on paper.
+- **Isolated**: each candidate is a git worktree, so parallel experiments never interfere and the resulting diff is exactly the mutation.
+
+`ClosedLoopEngine.runEvolutionCycle()` chains the actuator with the full experiment pipeline: mutation → candidate commit → benchmark callback → two-stage + generalization gates → delivery preparation. Failures are reported per stage (`prepare` / `implement` / `verify` / `finalize` / `evaluate`) with all artifacts preserved for rework.
+
+### 6.11 GitHubDeliveryAdapter — the autonomous delivery loop
+
+`src/evolution/delivery/github-adapter.ts` performs the REAL Git/GitHub operations and feeds external results back into the `ExperimentController`, completing the end-to-end pipeline:
+
+```text
+mutation → git commit → push branch → create PR → CI → review → feedback
+        → rework (CI_FAILED / CHANGES_REQUESTED → CANDIDATE) → accept → merge
+```
+
+- `deliverExperiment()` commits, pushes the evolution branch, and opens the PR carrying the provenance body.
+- `syncCiFeedback()` polls check-runs and reports the verdict through `reportCiResult()` — including the honest case: a polling timeout reports `pending` and leaves the lifecycle at `CI_PENDING` rather than fabricating a verdict.
+- `syncReviewFeedback()` reads the LATEST human review and reports it through `reportReviewOutcome()` (`APPROVED` / `CHANGES_REQUESTED`).
+- Git and HTTP are injectable, so the adapter is fully unit-testable without network access.
+
+### 6.12 ActivationMonitor — post-activation telemetry
+
+The `ACTIVE → REGRESSED` path is driven by live operational telemetry, not benchmark reruns. `src/evolution/monitoring/activation-monitor.ts` holds a per-harness performance **envelope** (derived from the parent harness's acceptance evaluation at activation time) and classifies ingested telemetry:
+
+- Channels: task success rate, false success rate, tool error rate, loop abort rate, verification failure rate, token consumption, latency, and task-class distribution drift.
+- Verdicts: `healthy` → `degrading` (warn band) → `regressed` (hard band; triggers rollback automatically via `ClosedLoopEngine.evaluateActivation()`).
+- Samples are episode-weighted, and a task-class distribution drift beyond tolerance flags that envelope comparisons are no longer like-for-like.
+
+This closes the loop: run → observe → learn → improve → validate → deploy → **monitor** → learn again.
+
+### 6.13 v2 Module Map
 
 ```text
 src/evolution/
@@ -269,6 +341,8 @@ src/evolution/
 ├── comparison/     # two-stage selector (validity + improvement)
 ├── evaluation/     # fixed-executor matrix protocol
 ├── generalization/ # held-out + transfer gate
-├── mutation/       # single → compound scope escalation
+├── mutation/       # single → compound scope escalation + mutation executor
+├── delivery/       # GitHubDeliveryAdapter (real Git/GitHub delivery loop)
+├── monitoring/     # ActivationMonitor (post-deployment telemetry)
 └── acceptance/     # candidate → validated → … → active pipeline
 ```

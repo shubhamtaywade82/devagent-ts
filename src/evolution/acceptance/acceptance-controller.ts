@@ -116,10 +116,48 @@ export class AcceptanceController {
     return this.step("DELIVERED", "Evolution branch + draft PR prepared");
   }
 
-  /** CI passed on the delivered branch → REVIEWED → ACCEPTED. */
+  /**
+   * CI passed on the delivered branch → CI_PENDING → CI_PASSED → REVIEW_PENDING.
+   * Records the CI evidence. Called by the delivery adapter's feedback loop.
+   */
+  recordCi(ciPassed: boolean): AcceptanceStepResult {
+    if (!ciPassed) {
+      return {
+        ok: false,
+        from: this.machine.current(),
+        to: "CI_FAILED",
+        reason: "CI has not passed on the delivered branch",
+      };
+    }
+    if (this.machine.current() === "DELIVERED") {
+      const start = this.step("CI_PENDING", "CI run started on the evolution branch");
+      if (!start.ok) return start;
+    }
+    if (this.machine.current() !== "CI_PENDING") {
+      return {
+        ok: false,
+        from: this.machine.current(),
+        to: "CI_PASSED",
+        reason: `CI already recorded (state ${this.machine.current()})`,
+      };
+    }
+    this.evidence.ciPassed = true;
+    const passed = this.step("CI_PASSED", "CI passed on the evolution branch");
+    if (!passed.ok) return passed;
+    return this.step("REVIEW_PENDING", "CI green; awaiting review outcome");
+  }
+
+  /**
+   * CI + review evidence → APPROVED → ACCEPTED.
+   *
+   * Idempotent-friendly: can be called from DELIVERED (walks CI first) or
+   * from REVIEW_PENDING (CI already recorded). Records evidence at each
+   * stage; refusal at any stage leaves the machine at the reached state so
+   * the pipeline can resume once the missing evidence arrives.
+   */
   accept(ciPassed: boolean, reviewApproved: boolean): AcceptanceStepResult {
     const from = this.machine.current();
-    if (from !== "DELIVERED" && from !== "REVIEWED") {
+    if (from !== "DELIVERED" && from !== "CI_PENDING" && from !== "REVIEW_PENDING") {
       return { ok: false, from, to: "ACCEPTED", reason: `Cannot accept from state ${from}` };
     }
     if (!ciPassed) {
@@ -130,10 +168,9 @@ export class AcceptanceController {
         reason: "CI has not passed on the delivered branch",
       };
     }
-    this.evidence.ciPassed = true;
-    if (this.machine.current() === "DELIVERED") {
-      const reviewStep = this.step("REVIEWED", "CI passed; awaiting review outcome");
-      if (!reviewStep.ok) return reviewStep;
+    const ciStep = this.recordCi(true);
+    if (!ciStep.ok && this.machine.current() !== "REVIEW_PENDING") {
+      return { ok: false, from: this.machine.current(), to: "ACCEPTED", reason: ciStep.reason };
     }
     if (!reviewApproved) {
       return {
@@ -144,6 +181,8 @@ export class AcceptanceController {
       };
     }
     this.evidence.reviewApproved = true;
+    const approved = this.step("APPROVED", "Review approved");
+    if (!approved.ok) return approved;
     return this.step("ACCEPTED", "Review approved");
   }
 

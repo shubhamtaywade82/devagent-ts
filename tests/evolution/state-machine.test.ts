@@ -3,7 +3,10 @@ import {
   InvalidTransitionError,
   PROGRESS_STATES,
   isTerminalFailure,
+  isCiPassed,
+  isApproved,
   isActive,
+  normalizeLegacyState,
   stateFromLegacyStatus,
 } from "../../src/evolution/state-machine.js";
 
@@ -37,8 +40,12 @@ describe("EvolutionStateMachine", () => {
     expect(m.canTransition("ELIGIBLE")).toBe(true);
   });
 
-  it("enforces DELIVERED → CI_FAILED and its recovery path back to CANDIDATE", () => {
+  it("enforces the explicit CI path DELIVERED → CI_PENDING → CI_FAILED → CANDIDATE", () => {
     const m = new EvolutionStateMachine("DELIVERED");
+    // DELIVERED no longer shortcuts to CI_FAILED: the CI stage is explicit.
+    expect(m.canTransition("CI_FAILED")).toBe(false);
+    m.transition("CI_PENDING", "pushed branch; CI started");
+    expect(m.current()).toBe("CI_PENDING");
     m.transition("CI_FAILED", "ci red");
     expect(m.current()).toBe("CI_FAILED");
     // CI_FAILED is not terminal — the loop repairs and re-enters.
@@ -47,12 +54,36 @@ describe("EvolutionStateMachine", () => {
     expect(m.current()).toBe("CANDIDATE");
   });
 
-  it("enforces REVIEWED → CHANGES_REQUESTED with recovery to CANDIDATE", () => {
-    const m = new EvolutionStateMachine("REVIEWED");
-    m.transition("CHANGES_REQUESTED");
-    expect(m.current()).toBe("CHANGES_REQUESTED");
-    m.transition("CANDIDATE");
-    expect(m.current()).toBe("CANDIDATE");
+  it("walks the explicit CI-pass path DELIVERED → CI_PENDING → CI_PASSED → REVIEW_PENDING", () => {
+    const m = new EvolutionStateMachine("DELIVERED");
+    m.transition("CI_PENDING");
+    m.transition("CI_PASSED", "ci green");
+    expect(m.current()).toBe("CI_PASSED");
+    expect(isCiPassed(m.current())).toBe(true);
+    m.transition("REVIEW_PENDING", "awaiting review");
+    expect(m.current()).toBe("REVIEW_PENDING");
+  });
+
+  it("enforces REVIEW_PENDING → APPROVED → ACCEPTED and the CHANGES_REQUESTED rework path", () => {
+    const m = new EvolutionStateMachine("REVIEW_PENDING");
+    expect(m.canTransition("ACCEPTED")).toBe(false);
+    m.transition("APPROVED", "reviewer approved");
+    expect(isApproved(m.current())).toBe(true);
+    m.transition("ACCEPTED");
+    expect(m.current()).toBe("ACCEPTED");
+
+    const r = new EvolutionStateMachine("REVIEW_PENDING");
+    r.transition("CHANGES_REQUESTED");
+    expect(r.current()).toBe("CHANGES_REQUESTED");
+    r.transition("CANDIDATE");
+    expect(r.current()).toBe("CANDIDATE");
+  });
+
+  it("normalizes the legacy REVIEWED state onto REVIEW_PENDING", () => {
+    expect(normalizeLegacyState("REVIEWED")).toBe("REVIEW_PENDING");
+    expect(normalizeLegacyState("ACTIVE")).toBe("ACTIVE");
+    expect(normalizeLegacyState("ROLLBACK")).toBe("ROLLBACK");
+    expect(normalizeLegacyState("NOT_A_STATE")).toBeNull();
   });
 
   it("enforces ACTIVE → REGRESSED → ROLLBACK → ACTIVE (prior)", () => {

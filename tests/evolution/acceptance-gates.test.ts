@@ -67,8 +67,9 @@ describe("AcceptanceController", () => {
     a.deliver();
     expect(a.accept(false, false).ok).toBe(false);
     expect(a.current()).toBe("delivered");
+    // CI pass advances through the explicit CI stages, then stops at review.
     expect(a.accept(true, false).ok).toBe(false);
-    expect(a.current()).toBe("reviewed");
+    expect(a.current()).toBe("review_pending");
     expect(a.accept(true, true).ok).toBe(true);
   });
 

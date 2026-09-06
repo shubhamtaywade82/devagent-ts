@@ -183,8 +183,8 @@ describe("ClosedLoopEngine (v2 integration)", () => {
     // PR body contains machine-readable provenance (persistent experiment log).
     expect(outcome.delivery!.prBody).toContain("### 4. Experiment Provenance (machine-readable)");
     expect(outcome.delivery!.prBody).toContain("id: exp-001");
-    // Lifecycle: candidate advanced to REVIEWED awaiting CI + review.
-    expect(outcome.experiment.lifecycle.state).toBe("REVIEWED");
+    // Lifecycle: candidate is explicitly awaiting its CI verdict.
+    expect(outcome.experiment.lifecycle.state).toBe("CI_PENDING");
   });
 
   it("completes the acceptance loop: CI pass + review approval → ACTIVE in registry", () => {
@@ -218,7 +218,10 @@ describe("ClosedLoopEngine (v2 integration)", () => {
     });
 
     engine.reportCi("exp-002", true, "https://ci/run/9");
+    // CI pass explicitly advanced the lifecycle to review.
+    expect(engine.experiments.record("exp-002").lifecycle.state).toBe("REVIEW_PENDING");
     engine.reportReview("exp-002", true, "maintainer");
+    expect(engine.experiments.record("exp-002").lifecycle.state).toBe("APPROVED");
     expect(engine.finalizeAcceptance("exp-002")).toBe(true);
 
     expect(registry.getActiveVersion()?.id).toBe("H1");
@@ -310,4 +313,201 @@ describe("ClosedLoopEngine (v2 integration)", () => {
     expect(validity.verifierCoverage).toBeGreaterThan(0);
     expect(validity.catastrophicRegression).toBe(false);
   });
+
+  it("two-stage rejection drives EVALUATING → REJECTED (no stuck candidates)", () => {
+    registry.saveVersion({
+      id: "H0",
+      commitSha: "sha-h0",
+      parentId: null,
+      createdAt: Date.now(),
+      targetComponent: "execution",
+      hypothesis: "baseline",
+      metrics: {
+        capability: { taskSuccessRate: 0.8, verificationPassRate: 0.8 },
+        reliability: { toolErrorRate: 0.1, falseSuccessRate: 0.05, loopAbortRate: 0.05 },
+        efficiency: { avgTokens: 1500, avgLatencyMs: 900 },
+        generalization: { heldOutScore: 0.8, transferScore: 0.8 },
+      },
+      status: "promoted",
+    });
+    const observation = engine.observe([failureEpisode("ep-1", "Fix tool selection")]);
+    engine.runExperiment({
+      experimentId: "exp-reject",
+      parentHarnessId: "H0",
+      parentCommit: "sha-h0",
+      candidateHarnessId: "H_bad2",
+      candidateCommit: "sha-bad2",
+      target: observation.target!,
+      diagnosis: observation.diagnoses[0],
+      scope: observation.mutationScope!,
+      candidateResults: [results(0.1, 4000, false)[0]], // 1 run: fails Stage A sample size
+      baselineResults: results(0.8, 1500, true),
+    });
+    expect(engine.experiments.record("exp-reject").lifecycle.state).toBe("REJECTED");
+  });
 });
+
+describe("ClosedLoopEngine generalization policy", () => {
+  let tmpDir: string;
+  let registry: HarnessRegistry;
+  let engine: ClosedLoopEngine;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "genpolicy-test-"));
+    registry = new HarnessRegistry(join(tmpDir, "registry.db"));
+    registry.saveVersion({
+      id: "H0",
+      commitSha: "sha-h0",
+      parentId: null,
+      createdAt: Date.now(),
+      targetComponent: "execution",
+      hypothesis: "baseline",
+      metrics: {
+        capability: { taskSuccessRate: 0.5, verificationPassRate: 0.5 },
+        reliability: { toolErrorRate: 0.3, falseSuccessRate: 0.1, loopAbortRate: 0.1 },
+        efficiency: { avgTokens: 2000, avgLatencyMs: 1200 },
+        generalization: { heldOutScore: 0.33, transferScore: 0.33 },
+      },
+      status: "promoted",
+    });
+  });
+
+  afterEach(async () => {
+    registry.close();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  function run(engine: ClosedLoopEngine, id: string, withMatrix: boolean): ExperimentOutcomeLike {
+    const observation = engine.observe([failureEpisode("ep-1", "Fix tool selection")]);
+    const matrix = [
+      {
+        harnessId: "H0",
+        executorModel: "qwen3-coder",
+        split: "held_out" as const,
+        taskSuccessRate: 0.33,
+        verificationPassRate: 0.33,
+        runs: 5,
+      },
+      {
+        harnessId: "H1",
+        executorModel: "qwen3-coder",
+        split: "held_out" as const,
+        taskSuccessRate: 0.9,
+        verificationPassRate: 0.9,
+        runs: 5,
+      },
+      {
+        harnessId: "H0",
+        executorModel: "gemini-2.5",
+        split: "transfer" as const,
+        taskSuccessRate: 0.33,
+        verificationPassRate: 0.33,
+        runs: 5,
+      },
+      {
+        harnessId: "H1",
+        executorModel: "gemini-2.5",
+        split: "transfer" as const,
+        taskSuccessRate: 0.85,
+        verificationPassRate: 0.85,
+        runs: 5,
+      },
+    ];
+    return engine.runExperiment({
+      experimentId: id,
+      parentHarnessId: "H0",
+      parentCommit: "sha-h0",
+      candidateHarnessId: "H1",
+      candidateCommit: "sha-h1",
+      target: observation.target!,
+      diagnosis: observation.diagnoses[0],
+      scope: observation.mutationScope!,
+      candidateResults: results(0.9, 1600, true),
+      baselineResults: results(0.4, 2000, false),
+      matrixCells: withMatrix ? matrix : undefined,
+    });
+  }
+
+  it("policy 'optional' keeps eligibility without fixed-executor evidence (development mode)", () => {
+    engine = new ClosedLoopEngine({
+      registry,
+      generalizationPolicy: "optional",
+      executorModels: ["qwen3-coder", "gemini-2.5"],
+    });
+    const outcome = run(engine, "exp-optional", false);
+    expect(outcome.twoStage.decision).toBe("eligible");
+    expect(outcome.generalization).toBeNull();
+    expect(outcome.experiment.decision.result).toBe("eligible");
+    expect(outcome.experiment.lifecycle.state).toBe("CI_PENDING");
+  });
+
+  it("policy 'required' blocks candidates without a fixed-executor matrix", () => {
+    engine = new ClosedLoopEngine({
+      registry,
+      generalizationPolicy: "required",
+      executorModels: ["qwen3-coder", "gemini-2.5"],
+    });
+    const outcome = run(engine, "exp-required", false);
+    expect(outcome.twoStage.decision).toBe("eligible"); // benchmark said yes…
+    expect(outcome.experiment.decision.result).toBe("inconclusive"); // …but policy blocked it
+    expect(outcome.delivery).toBeNull();
+    expect(outcome.experiment.lifecycle.state).toBe("REJECTED");
+    expect(outcome.experiment.decision.rationale).toContain("required");
+  });
+
+  it("policy 'required' passes candidates WITH a generalizing matrix", () => {
+    engine = new ClosedLoopEngine({
+      registry,
+      generalizationPolicy: "required",
+      executorModels: ["qwen3-coder", "gemini-2.5"],
+    });
+    const outcome = run(engine, "exp-required-matrix", true);
+    expect(outcome.experiment.decision.result).toBe("eligible");
+    expect(outcome.experiment.lifecycle.state).toBe("CI_PENDING");
+  });
+
+  it("policy 'required-for-production' also demands transfer-executor evidence", () => {
+    engine = new ClosedLoopEngine({
+      registry,
+      generalizationPolicy: "required-for-production",
+      executorModels: ["qwen3-coder", "gemini-2.5"],
+    });
+    // Matrix with held-out cells only — no transfer cells.
+    const observation = engine.observe([failureEpisode("ep-1", "Fix tool selection")]);
+    const outcome = engine.runExperiment({
+      experimentId: "exp-prod-missing-transfer",
+      parentHarnessId: "H0",
+      parentCommit: "sha-h0",
+      candidateHarnessId: "H1",
+      candidateCommit: "sha-h1",
+      target: observation.target!,
+      diagnosis: observation.diagnoses[0],
+      scope: observation.mutationScope!,
+      candidateResults: results(0.9, 1600, true),
+      baselineResults: results(0.4, 2000, false),
+      matrixCells: [
+        {
+          harnessId: "H0",
+          executorModel: "qwen3-coder",
+          split: "held_out",
+          taskSuccessRate: 0.33,
+          verificationPassRate: 0.33,
+          runs: 5,
+        },
+        {
+          harnessId: "H1",
+          executorModel: "qwen3-coder",
+          split: "held_out",
+          taskSuccessRate: 0.9,
+          verificationPassRate: 0.9,
+          runs: 5,
+        },
+      ],
+    });
+    expect(outcome.generalization).not.toBeNull();
+    expect(outcome.experiment.decision.result).toBe("inconclusive");
+    expect(outcome.experiment.lifecycle.state).toBe("REJECTED");
+  });
+});
+
+type ExperimentOutcomeLike = ReturnType<ClosedLoopEngine["runExperiment"]>;
