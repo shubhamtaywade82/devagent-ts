@@ -92,6 +92,11 @@ const cfg = loadConfig();
   } else if (args[0] === "fix") {
     const rest = args.slice(1).join(" ").trim();
     initialTask = rest ? `Fix issue: ${rest}` : "Find and fix failing tests or diagnostics";
+  } else if (args[0] === "issue" || args[0] === "--issue") {
+    const issueNum = args[1]?.replace(/^#/, "");
+    initialTask = issueNum
+      ? `Investigate GitHub issue #${issueNum}, reproduce and fix the failure, run verification, and prepare a PR.`
+      : "Inspect and resolve open GitHub issue";
   } else if (args.length > 0 && !args[0].startsWith("-")) {
     initialTask = args.join(" ").trim();
   }

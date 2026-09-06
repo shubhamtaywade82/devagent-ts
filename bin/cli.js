@@ -21,6 +21,7 @@ Usage:
   nexum                         Launch interactive terminal workspace
   nexum "<task>"                Start a mission for the specified task
   nexum fix "<issue>"           Investigate, plan, implement, and verify fix
+  nexum issue <number>          Resolve GitHub issue end-to-end and prepare PR
   nexum doctor                  Run system, workspace, and model diagnostics
   nexum migrate                 Migrate legacy .devagent state to .nexum
   nexum asl [validate|graph]    Architecture definition commands

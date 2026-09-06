@@ -146,6 +146,9 @@ src/
 - **Benchmark harness** — `npm run benchmark` runs built-in cases against every discovered local + cloud model (or one, via `--model <substring>`; a category, via `--category <name>`), reporting pass rate, latency, and tokens/sec per model plus a pass-rate breakdown per category. Prints a running/done progress line per case (`[3/14] local/model — case-id ...`) and enforces a per-case timeout (`--timeout <ms>`, default 2 minutes) so a stalled local server — which has no built-in request timeout — reports as a failed case instead of hanging the whole run forever. Cases span 8 categories: `output-format`/`tool-calling` (JSON validity, correct tool selection among distractors, typed arguments, not over-calling tools), `reasoning`/`thinking` (multi-step word problems, logic deduction, chain-of-thought), `agentic-looping` (multi-turn ReAct-style tool chains), `error-recovery` (retrying after a scripted tool failure instead of giving up), `escalation` (the real `escalate_task` tool: does the model self-escalate on a genuinely hard task, and does it avoid escalating an easy one), and `execution` (real end-to-end tool calls — actual filesystem reads and ripgrep-backed search against a throwaway workspace, not mocked). Single-turn cases (`src/benchmark/cases.ts`) hit the model once; agentic cases (`src/benchmark/cases-agentic.ts`, `cases-execution.ts`) run a standalone bounded ReAct loop (`runner.ts`) mirroring `Agent.runUserMessage`'s tool-turn loop, independent of the real agent/conversation/routing machinery.
 - **Learning + memory** — episode recording, grading, reflection, and skill synthesis (`src/learning/`) backed by a SQLite conversation store (`src/memory/`).
 - **Offline documentation search** — `npm run docs:ingest -- <id...>` fetches [DevDocs](https://github.com/freeCodeCamp/devdocs)'s pre-built per-library JSON bundles (no scraping at runtime) and indexes them into a local SQLite FTS5 store (`.nexum/docs.db`). `search_docs`/`get_doc`/`list_doc_sources` tools expose it to the agent; `search_docs` auto-scopes to doc sources relevant to the current workspace (detected from `package.json`/`tsconfig.json`/`Gemfile`/`go.mod`/etc. — Rails, React, Node, TypeScript, Python, Go, Rust, ...) unless a `source` is given explicitly.
+- **Harness Evolution & Self-Development** — Meta-evolutionary closed loop ($H = \langle E, T, C, S, L, V \rangle$) inspired by the HarnessDev paradigm. Nexum diagnoses runtime execution failures, formulates single-component mutation hypotheses, evaluates candidates against multi-objective Pareto benchmarks, tracks lineage in SQLite (`.nexum/evolution.db`), and drafts scientific PRs with empirical evidence matrices (`nexum evolve` and `/evolve`, see [docs/HARNESS_EVOLUTION.md](docs/HARNESS_EVOLUTION.md)).
+- **Git Worktree Isolation** — Run parallel missions across independent git worktrees with zero state collisions (`/worktree` command and `git worktree` tool, see [docs/WORKTREES.md](docs/WORKTREES.md)).
+- **Issue-to-PR Automation** — From issue ticket to verified pull request in one command (`nexum issue <id>`, see [docs/ISSUE_AUTOMATION.md](docs/ISSUE_AUTOMATION.md)).
 - **Docker-sandboxed shell** — `--network=none`, `--pids-limit=128`, memory/CPU capped; buffer-overflow SIGKILL, hard timeout with kill escalation.
 - **Path-contained filesystem tools** — every path resolved and checked against workspace root before I/O; atomic writes via temp+rename.
 - **Loop detection** — flags repeated (tool, args, error) signatures to prevent infinite retry cycles.
@@ -177,6 +180,11 @@ nexum
 # Start a mission directly from the CLI
 nexum "Fix the failing authentication tests"
 nexum fix "payment session expiration regression"
+nexum issue 184
+
+# Harness self-development & evolution commands
+nexum evolve --diagnose
+nexum evolve --history
 
 # Run system, workspace, model, Docker, and LSP diagnostics
 nexum doctor
