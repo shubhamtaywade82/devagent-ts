@@ -24,9 +24,29 @@ describe("GitTool", () => {
     const dir = await mkdtemp(join(tmpdir(), "ws-"));
     const tool = new GitTool(dir);
 
+    const result = await tool.call({ args: ["rebase", "main"] });
+
+    expect(result.error).toBe("DisallowedGitCommandError");
+  });
+
+  it("rejects pushing directly to protected branch main", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    const tool = new GitTool(dir);
+
     const result = await tool.call({ args: ["push", "origin", "main"] });
 
     expect(result.error).toBe("DisallowedGitCommandError");
+    expect(result.message).toContain("protected branches");
+  });
+
+  it("rejects push with force flag", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "ws-"));
+    const tool = new GitTool(dir);
+
+    const result = await tool.call({ args: ["push", "--force", "origin", "feature"] });
+
+    expect(result.error).toBe("DisallowedGitCommandError");
+    expect(result.message).toContain("flags in");
   });
 
   it("rejects reset --hard even though reset alone might seem safe", async () => {

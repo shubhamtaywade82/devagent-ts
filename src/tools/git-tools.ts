@@ -15,9 +15,15 @@ const ALLOWED_SUBCOMMANDS = new Set([
   "rev-parse",
   "cherry-pick",
   "pull",
+  "push",
 ]);
 
-const DISALLOWED_FLAG_PATTERNS = [/^--hard$/, /^--force$/, /^-f$/, /^-D$/];
+const DISALLOWED_FLAG_PATTERNS = [/^--hard$/, /^--force$/, /^-f$/, /^-D$/, /^--force-with-lease$/, /^\+.*$/];
+const PROTECTED_BRANCHES = new Set(["main", "master", "develop", "prod", "production"]);
+
+function isProtectedBranchTarget(args: string[]): boolean {
+  return args.some((a) => PROTECTED_BRANCHES.has(a.replace(/^refs\/heads\//, "")) || a.startsWith("release/"));
+}
 
 /** Same ceiling and rationale as ShellTool.MAX_OUTPUT_BYTES: this output goes
  * straight back to the model as a tool message. `git log` or `git diff` on a
@@ -35,7 +41,7 @@ export class GitTool extends Tool {
   }
 
   get description(): string {
-    return "Run a read/local-write git subcommand (status, diff, log, branch, add, commit, checkout, stash, show, blame, rev-parse, cherry-pick, pull). Push, force operations, and hard resets are blocked — ask the user to run those manually.";
+    return "Run a git subcommand (status, diff, log, branch, add, commit, checkout, stash, show, blame, rev-parse, cherry-pick, pull, push). Force operations and pushing to main/master are blocked; push working feature branches and open PRs.";
   }
 
   get parameters(): Record<string, unknown> {
@@ -60,6 +66,12 @@ export class GitTool extends Tool {
       return {
         error: "DisallowedGitCommandError",
         message: `flags in [${gitArgs.join(" ")}] are blocked (force/hard operations)`,
+      };
+    }
+    if (subcommand === "push" && isProtectedBranchTarget(gitArgs)) {
+      return {
+        error: "DisallowedGitCommandError",
+        message: `pushing directly to protected branches (main/master/develop) is blocked; push to a feature branch instead`,
       };
     }
 

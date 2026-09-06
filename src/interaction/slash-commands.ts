@@ -32,6 +32,7 @@ export type CommandEffect =
   | { kind: "learn"; rule: string }
   | { kind: "replay-session"; id?: string }
   | { kind: "doctor" }
+  | { kind: "evolve"; action: "diagnose" | "history" | "rollback" | "benchmark"; target?: string }
   | { kind: "error"; text: string };
 
 export interface SlashCommand {
@@ -146,9 +147,10 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register({
     name: "mission",
     aliases: ["dashboard"],
-    description: "Switch to Mission Control Mode (Multi-Agent Grid layout)",
-    category: "Layout",
-    execute: () => ({ kind: "focus-view", view: "dashboard" }),
+    description: "Run an autonomous mission or view Mission Control: /mission [task]",
+    category: "Agent",
+    execute: (args) =>
+      args.trim() ? { kind: "run-plan", goal: args.trim() } : { kind: "focus-view", view: "dashboard" },
   });
   registry.register({
     name: "history",
@@ -289,6 +291,16 @@ export function builtinCommands(): SlashCommandRegistry {
         : { kind: "message", text: "Stage all changes and create an appropriate commit message" },
   });
   registry.register({
+    name: "pr",
+    aliases: ["pull-request"],
+    description: "Create a pull request for current branch: /pr [title]",
+    category: "Git",
+    execute: (args) =>
+      args.trim()
+        ? { kind: "message", text: `Create a pull request: ${args.trim()}` }
+        : { kind: "message", text: "Create a pull request for the current branch and verified changes" },
+  });
+  registry.register({
     name: "review",
     aliases: [],
     description: "Review the current code changes",
@@ -364,6 +376,26 @@ export function builtinCommands(): SlashCommandRegistry {
     description: "Run system diagnostics (Ollama, models, LSP servers, workspace)",
     category: "General",
     execute: () => ({ kind: "doctor" }),
+  });
+  registry.register({
+    name: "evolve",
+    aliases: ["evolution"],
+    description: "Harness self-development: /evolve [diagnose|history|rollback <id>|benchmark]",
+    category: "Agent",
+    execute: (args) => {
+      const parts = args.trim().split(/\s+/).filter(Boolean);
+      const action = parts[0]?.toLowerCase();
+      if (action === "diagnose" || action === "benchmark" || action === "history") {
+        return { kind: "evolve", action };
+      }
+      if (action === "rollback") {
+        return parts[1]
+          ? { kind: "evolve", action: "rollback", target: parts[1] }
+          : { kind: "error", text: "Usage: /evolve rollback <id>" };
+      }
+      return { kind: "evolve", action: "history" };
+    },
+    argValues: ["diagnose", "history", "rollback", "benchmark"],
   });
   return registry;
 }

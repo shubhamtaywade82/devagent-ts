@@ -1,10 +1,15 @@
 import { useCallback } from "react";
 import { mkdirSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { EventBus } from "../../runtime/events.js";
 import { Store } from "../../runtime/store.js";
 import { CommandEffect } from "../../interaction/slash-commands.js";
 import { runDoctor } from "../../cli/doctor.js";
 import { WorkspaceManager } from "../../platform/workspace.js";
+import { workspaceStateDir } from "../../platform/paths.js";
+import { EvolutionEngine } from "../../evolution/engine.js";
+import { HarnessRegistry } from "../../evolution/registry.js";
+import { formatDiagnosesText, formatHistory, loadRecentEpisodes } from "../../evolution/cli.js";
 import type { AgentMode } from "../../runtime/types.js";
 import type { ShellAgent } from "../App.js";
 
@@ -233,6 +238,9 @@ export function useCommandEffects(
             });
           break;
         }
+        case "evolve":
+          await handleEvolveEffect(bus, workspaceRoot, effect.action, effect.target);
+          break;
         case "error":
           bus.publish({ type: "notification", kind: "error", text: effect.text });
           break;
@@ -240,4 +248,49 @@ export function useCommandEffects(
     },
     [agent, bus, setBusy, store, uiDispatch, workspaceRoot],
   );
+}
+
+async function handleEvolveEffect(
+  bus: EventBus,
+  workspaceRoot: string | undefined,
+  action: "diagnose" | "history" | "rollback" | "benchmark",
+  target?: string,
+): Promise<void> {
+  const root = workspaceRoot ?? process.cwd();
+  const stateDir = workspaceStateDir(root);
+  mkdirSync(stateDir, { recursive: true });
+  const registry = new HarnessRegistry(join(stateDir, "evolution.db"));
+  const engine = new EvolutionEngine({ registry });
+  try {
+    if (action === "history") {
+      const text = formatHistory(engine.listVersions(), engine.getActiveVersion());
+      bus.publish({ type: "conversation.message", role: "assistant", text: "```\n" + text + "\n```" });
+      return;
+    }
+    if (action === "rollback") {
+      if (!target) return;
+      engine.rollback(target);
+      bus.publish({ type: "notification", kind: "success", text: `Active harness rolled back to ${target}` });
+      bus.publish({
+        type: "conversation.message",
+        role: "assistant",
+        text: `Active harness rolled back to **${target}**.`,
+      });
+      return;
+    }
+    const episodes = loadRecentEpisodes(root, 20);
+    const { diagnoses, plan } = engine.diagnoseEpisodes(episodes);
+    if (action === "benchmark") {
+      const suites = plan?.recommendedBenchmarkCategories ?? ["execution", "agentic-looping"];
+      bus.publish({
+        type: "conversation.message",
+        role: "assistant",
+        text: `📊 **Recommended Benchmark Suites:** ${suites.join(", ")}`,
+      });
+      return;
+    }
+    bus.publish({ type: "conversation.message", role: "assistant", text: formatDiagnosesText(diagnoses, plan) });
+  } finally {
+    registry.close();
+  }
 }

@@ -1,41 +1,128 @@
 # Nexum
 
-Open-source agent runtime and harness for autonomous software engineering — capability-routed models (local-first), Docker-sandboxed execution, LSP-backed code intelligence, a checkpoint/resume-able orchestrator, and a tool-first architecture (35+ tools) with a terminal UI.
+### Autonomous software engineering, from task to pull request.
+
+Nexum is an open-source, local-first engineering agent runtime and terminal workspace that turns software tasks into observable, resumable execution.
+
+**Analyze → Plan → Implement → Verify → Review → Ship**
+
+```bash
+npm install -g @nemesis-oss/nexum
+cd my-project
+nexum
+```
+
+```text
+> Fix the failing authentication tests and open a PR.
+
+✓ Repository analyzed
+✓ Failure reproduced
+✓ Fix implemented
+✓ 42 tests passed
+✓ Type diagnostics clean
+✓ Diff reviewed
+✓ Branch created: nexum/fix-auth-tests
+✓ Commit created: "fix(auth): resolve session token expiration regression"
+✓ Pull request opened: #184
+```
 
 > **Renamed from DevAgent TS.** Nexum 2.0 is the successor to `@nemesis-oss/devagent-ts` 1.x.
-> Your `.devagent/` workspace and `DEVAGENT_*` variables keep working — see
-> [Migration](#migration-from-devagent-ts) and [docs/REBRANDING.md](docs/REBRANDING.md).
+> Existing `.devagent/` workspaces and `DEVAGENT_*` variables migrate automatically on first run — see [Migration](#migration-from-devagent-ts) and [docs/REBRANDING.md](docs/REBRANDING.md).
+
+---
+
+## Two Adoption Paths
+
+### 1. Nexum CLI — For Developers
+A terminal-native engineering workspace. Nexum investigates your repository, decomposes goals into topological dependency DAGs with parallel execution, edits files inside Docker sandboxes, verifies changes against your real test suites and language servers, and drives git branches and GitHub pull requests.
+
+```bash
+# Launch the interactive terminal workspace
+nexum
+
+# Execute a mission directly from the command line
+nexum "resolve flaky payment retry specs"
+nexum fix "payment session expiration regression"
+
+# System and workspace health check
+nexum doctor
+```
+
+### 2. Nexum Runtime SDK — For Agent Developers
+Embed Nexum's battle-tested agent runtime into your own tools, CI workflows, or internal engineering platforms:
+
+```typescript
+import { Agent } from "@nemesis-oss/nexum";
+
+const agent = new Agent({
+  config: { workspaceRoot: process.cwd() }
+});
+
+const reply = await agent.runUserMessage(
+  "Investigate failing tests in spec/models/user_spec.rb, fix the root cause, and verify."
+);
+```
+
+---
+
+## The Mission Runtime
+
+Nexum shifts coding agents from conversational chat to an **engineering operator workflow**:
+
+```text
+Mission
+ ├── Goal            User intent, issue ticket, or terminal command
+ ├── Analyze         Repository structure, LSP symbols, Rails semantic index
+ ├── Plan            Topological dependency DAG, parallel-ready step batches
+ ├── Implement       Docker-sandboxed shell execution, path-contained file edits
+ ├── Verify          Automated test runners, linter, type diagnostics
+ ├── Review          Unified diff inspection, human-in-the-loop approval gate
+ └── Ship            Branch creation, commit message, git push, GitHub PR
+```
+
+---
+
+## Technical Differentiation
+
+| Capability | Nexum | Cursor / Copilot | Claude Code |
+| :--- | :---: | :---: | :---: |
+| **Surface** | **Terminal UI + CLI + Reusable Runtime SDK** | Editor-only | Terminal-only |
+| **Model Independence** | **Local-first (Ollama) + Cloud key pool with capability routing** | Vendor locked | Anthropic locked |
+| **Execution Sandbox** | **Docker sandbox (`--network=none`, capped CPU/RAM)** | Host execution | Host execution |
+| **Code Intelligence** | **LSP pool (14 languages) + Rails semantic index (12 scanners)** | Proprietary index | Grep / ctags / search |
+| **Planning & DAG** | **Topological dependencies, concurrent steps, replanning** | Linear / single-turn | Linear / single-turn |
+| **Resumability** | **Atomic step checkpointing + session transcript restore** | Session loss | Session loss |
+| **Verification Loop** | **Automated tests + lint + diagnostics before diff review** | Manual trigger | Manual trigger |
+| **PR Automation** | **First-class branch → commit → push → PR workflow** | Extension-based | Shell command |
+
+---
 
 ## Architecture
 
-Nexum is the product; the agent runtime is the architecture underneath it:
+Nexum separates agent execution from model infrastructure:
 
 ```text
 Nexum
-├── Agent Runtime        plan steps, parallel execution, checkpoint/resume
-├── Model Gateway        provider client, model catalog, capability router
-├── Tool Runtime         35+ tools: filesystem, git, docker, shell, sqlite...
-├── Code Intelligence    LSP pool (14 languages) + Rails semantic index
-├── Context Engine       memory, summarizer, docs index, tool selection
-├── Learning             episodes, grading, reflection, skill synthesis
-├── Skills               Markdown skill packages (workspace + global)
-├── MCP                  external MCP servers as tools
-└── CLI / TUI            Ink terminal UI (see docs/SPEC.md)
+├── Developer CLI        Terminal UI, interactive cockpit, direct task dispatch
+├── Mission Runtime      Plan steps, parallel DAG execution, checkpoint/resume
+├── Model Gateway        Provider client (Ollama local + cloud), catalog, capability router
+├── Tool Runtime         35+ tools: filesystem, git, github, docker, shell, sqlite...
+├── Code Intelligence    LSP pool (14 languages) + Rails semantic index (12 scanners)
+├── Context Engine       Memory, summarizer, docs index, dynamic tool selector
+├── Learning & Memory    Episodes, grading, reflection, skill synthesis, SQLite memory
+└── Extensions & MCP     External MCP servers, Markdown skill packages
 ```
 
-The model gateway is provider-neutral by design: Ollama (local and cloud) is the
-currently shipped provider, not the product's identity.
+The model gateway is provider-neutral: Ollama (local and cloud) is the currently shipped provider, not the product identity.
 
 ```text
 src/
-├── platform/       Brand, environment, paths, workspace — the single source
-│                   of truth for product identity (see docs/REBRANDING.md)
-├── provider/       Model gateway: provider client (local + cloud), model
-│                   catalog, capability router
+├── platform/       Brand, environment, paths, workspace (REBRANDING.md)
+├── provider/       Model gateway: provider client, model catalog, capability router
 ├── benchmark/      Model scoring harness (JSON validity, tool-calling, latency, tok/s)
 ├── orchestrator/   Plan steps, parallel dependency-aware execution, checkpoint/resume
 ├── runtime/        Checkpoint store, config constants, event bus, state store, task machine
-├── tools/          35+ tools: filesystem, git, docker, github, sqlite, shell, rspec, rubocop...
+├── tools/          35+ tools: filesystem, git, github, docker, sqlite, shell, rspec, rubocop...
 ├── lsp/            Language server pool/manager — 14 languages configured
 ├── intelligence/   LSP-backed code intelligence router + Rails semantic index (12 scanners)
 ├── memory/         SQLite-backed conversation memory + summarizer
@@ -84,8 +171,15 @@ Install globally via npm:
 ```bash
 npm install -g @nemesis-oss/nexum
 
-# Launch the terminal UI
+# Launch the interactive terminal workspace
 nexum
+
+# Start a mission directly from the CLI
+nexum "Fix the failing authentication tests"
+nexum fix "payment session expiration regression"
+
+# Run system, workspace, model, Docker, and LSP diagnostics
+nexum doctor
 
 # Explicitly migrate a legacy DevAgent workspace (also happens automatically)
 nexum migrate

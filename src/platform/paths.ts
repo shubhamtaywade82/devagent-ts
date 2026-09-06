@@ -7,7 +7,7 @@
  */
 
 import { existsSync } from "node:fs";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { BRAND } from "./brand.js";
 import { readEnv } from "./environment.js";
@@ -54,10 +54,11 @@ export function findWorkspaceRoot(cwd: string, home: string = homedir()): string
   if (override) return override;
 
   const root = resolve("/");
+  const isTemp = (d: string) => d === resolve(tmpdir()) || d === "/tmp" || d === "/private/tmp";
   const walkUpTo = (marker: string): string | null => {
     let dir = resolve(cwd);
     while (dir !== root) {
-      if (existsSync(join(dir, marker)) && dir !== home) return dir;
+      if (existsSync(join(dir, marker)) && dir !== home && !isTemp(dir)) return dir;
       dir = resolve(dir, "..");
     }
     return null;

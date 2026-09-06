@@ -86,6 +86,7 @@ export interface AppProps {
   rows?: number;
   now?: number;
   workspaceRoot?: string;
+  initialTask?: string;
 }
 
 const VIEWS: Record<ViewId, (props: ViewProps) => React.JSX.Element> = {
@@ -209,7 +210,17 @@ function useRuntimeState(store: Store): RuntimeState {
   return state;
 }
 
-export function App({ bus, store, agent, registry, columns, rows, now, workspaceRoot }: AppProps): React.JSX.Element {
+export function App({
+  bus,
+  store,
+  agent,
+  registry,
+  columns,
+  rows,
+  now,
+  workspaceRoot,
+  initialTask,
+}: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const state = useRuntimeState(store);
   const { width, height, listener: sizeListener } = useTerminalSize(columns, rows);
@@ -522,6 +533,14 @@ export function App({ bus, store, agent, registry, columns, rows, now, workspace
     },
     [agent, applyEffect, bus, commandRegistry, history, ui.activeView, uiDispatch],
   );
+
+  const initialTriggered = useRef(false);
+  useEffect(() => {
+    if (initialTask && !initialTriggered.current && agent) {
+      initialTriggered.current = true;
+      submitPrompt(initialTask);
+    }
+  }, [initialTask, agent, submitPrompt]);
 
   const handleCommand = useCallback(
     (command: UiCommand): void => {

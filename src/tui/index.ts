@@ -75,6 +75,7 @@ const cfg = loadConfig();
 
 (async () => {
   const args = process.argv.slice(2);
+  let initialTask: string | undefined;
   if (args[0] === "asl") {
     const cmd = args[1];
     if (cmd === "validate") {
@@ -88,6 +89,11 @@ const cfg = loadConfig();
       console.error("Usage: nexum asl [validate|graph]");
       process.exit(1);
     }
+  } else if (args[0] === "fix") {
+    const rest = args.slice(1).join(" ").trim();
+    initialTask = rest ? `Fix issue: ${rest}` : "Find and fix failing tests or diagnostics";
+  } else if (args.length > 0 && !args[0].startsWith("-")) {
+    initialTask = args.join(" ").trim();
   }
 
   const bus = new EventBus();
@@ -148,7 +154,7 @@ const cfg = loadConfig();
 
   const disableFeatures = enableTerminalFeatures();
   const { waitUntilExit } = render(
-    React.createElement(App, { bus, store, agent: shellAgent, workspaceRoot: cfg.workspaceRoot }),
+    React.createElement(App, { bus, store, agent: shellAgent, workspaceRoot: cfg.workspaceRoot, initialTask }),
   );
   await waitUntilExit();
   disableFeatures();

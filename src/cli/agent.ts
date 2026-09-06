@@ -58,6 +58,18 @@ function classifyDestructive(name: string, args: Record<string, unknown>): { tit
       return { title: "Run destructive shell command", summary: command };
     }
   }
+  if (name === "git") {
+    const gitArgs = Array.isArray(args.args) ? (args.args as string[]) : [];
+    if (gitArgs[0] === "push") {
+      return { title: "Push git branch", summary: `The agent wants to run "git ${gitArgs.join(" ")}".` };
+    }
+  }
+  if (name === "github") {
+    const ghArgs = Array.isArray(args.args) ? (args.args as string[]) : [];
+    if (ghArgs[0] === "pr" && ghArgs[1] === "create") {
+      return { title: "Create Pull Request", summary: `The agent wants to run "gh ${ghArgs.join(" ")}".` };
+    }
+  }
   return null;
 }
 

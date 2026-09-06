@@ -70,8 +70,50 @@ describe("SlashCommandRegistry", () => {
     expect(registry.find("skills")!.execute("  rails-api  ")).toEqual({ kind: "activate-skill", id: "rails-api" });
   });
 
+  it("/mission with task runs plan, without task focuses dashboard", () => {
+    const registry = builtinCommands();
+    expect(registry.find("mission")!.execute("Fix failing auth specs")).toEqual({
+      kind: "run-plan",
+      goal: "Fix failing auth specs",
+    });
+    expect(registry.find("mission")!.execute("")).toEqual({ kind: "focus-view", view: "dashboard" });
+  });
+
+  it("/pr creates a pull request message", () => {
+    const registry = builtinCommands();
+    expect(registry.find("pr")!.execute("fix: auth token expiration")).toEqual({
+      kind: "message",
+      text: "Create a pull request: fix: auth token expiration",
+    });
+    expect(registry.find("pr")!.execute("")).toEqual({
+      kind: "message",
+      text: "Create a pull request for the current branch and verified changes",
+    });
+  });
+
   it("registry.complete includes skills", () => {
     const registry = builtinCommands();
     expect(registry.complete("sk").map((c) => c.name)).toContain("skills");
+  });
+
+  it("/evolve executes to evolve command effects", () => {
+    const registry = builtinCommands();
+    expect(registry.find("evolve")!.execute("")).toEqual({ kind: "evolve", action: "history" });
+    expect(registry.find("evolve")!.execute("diagnose")).toEqual({ kind: "evolve", action: "diagnose" });
+    expect(registry.find("evolve")!.execute("benchmark")).toEqual({ kind: "evolve", action: "benchmark" });
+    expect(registry.find("evolve")!.execute("rollback H0")).toEqual({
+      kind: "evolve",
+      action: "rollback",
+      target: "H0",
+    });
+    expect(registry.find("evolve")!.execute("rollback")).toEqual({
+      kind: "error",
+      text: "Usage: /evolve rollback <id>",
+    });
+  });
+
+  it("registry.complete includes evolve", () => {
+    const registry = builtinCommands();
+    expect(registry.complete("ev").map((c) => c.name)).toContain("evolve");
   });
 });
