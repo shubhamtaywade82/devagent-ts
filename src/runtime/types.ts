@@ -224,65 +224,65 @@ export type ChatEntry =
   // "local/minicpm5-1b" or "cloud/gemma4:31b") — only set for assistant text.
   | { kind: "text"; role: ChatRole; text: string; at: number; model?: string; crumb?: string }
   | {
-    kind: "plan";
-    role: "assistant";
-    steps: ExecutionStep[];
-    status: "pending" | "running" | "completed" | "failed";
-    at: number;
-  }
+      kind: "plan";
+      role: "assistant";
+      steps: ExecutionStep[];
+      status: "pending" | "running" | "completed" | "failed";
+      at: number;
+    }
   | {
-    kind: "decision";
-    role: "assistant";
-    options: string[];
-    selected: string;
-    reason: string;
-    confidence: number;
-    at: number;
-  }
+      kind: "decision";
+      role: "assistant";
+      options: string[];
+      selected: string;
+      reason: string;
+      confidence: number;
+      at: number;
+    }
   // crumb: "Execute > Generate migration" — the mission phase/step active when
   // this entry was created (see mission-derive.ts's missionCrumb), used by the
   // Dashboard's Activity Feed. Undefined outside an active mission.
   | {
-    kind: "tool_call";
-    role: "assistant";
-    id: string;
-    name: string;
-    args: Record<string, unknown>;
-    status: ToolCallStatus;
-    result?: string;
-    error?: string;
-    at: number;
-    crumb?: string;
-  }
+      kind: "tool_call";
+      role: "assistant";
+      id: string;
+      name: string;
+      args: Record<string, unknown>;
+      status: ToolCallStatus;
+      result?: string;
+      error?: string;
+      at: number;
+      crumb?: string;
+    }
   | {
-    kind: "diff_preview";
-    role: "assistant";
-    filePath: string;
-    diff: string;
-    status: "pending_review" | "approved" | "rejected";
-    at: number;
-    crumb?: string;
-  }
+      kind: "diff_preview";
+      role: "assistant";
+      filePath: string;
+      diff: string;
+      status: "pending_review" | "approved" | "rejected";
+      at: number;
+      crumb?: string;
+    }
   | {
-    kind: "test_result";
-    role: "assistant";
-    command: string;
-    passed: number;
-    failed: number;
-    failures: TestFailure[];
-    durationMs: number;
-    at: number;
-    crumb?: string;
-  }
+      kind: "test_result";
+      role: "assistant";
+      command: string;
+      passed: number;
+      failed: number;
+      failures: TestFailure[];
+      durationMs: number;
+      at: number;
+      crumb?: string;
+    }
   | {
-    kind: "card";
-    role: "assistant";
-    title: string;
-    status: "running" | "completed" | "failed";
-    items: CardItem[];
-    at: number;
-    crumb?: string;
-  };
+      kind: "card";
+      role: "assistant";
+      title: string;
+      status: "running" | "completed" | "failed";
+      items: CardItem[];
+      at: number;
+      crumb?: string;
+    };
 
 export interface ExecutionStep {
   id: string;
