@@ -6,6 +6,8 @@
  */
 
 import { ComparisonResult, HarnessHypothesis, HarnessVersion } from "./types.js";
+import { ExperimentRecord } from "./experiments/experiment-schema.js";
+import { provenanceYamlCodeBlock } from "./experiments/provenance.js";
 
 export interface DeliveryPrOptions {
   version: HarnessVersion;
@@ -90,5 +92,39 @@ export class GitDeliveryEngine {
       prTitle,
       prBody,
     };
+  }
+
+  /**
+   * v2: builds the delivery report for a full experiment record — the PR body
+   * embeds the machine-readable experiment provenance YAML so the PR is a
+   * persistent experiment log, not merely a code review.
+   */
+  prepareExperimentDelivery(
+    record: ExperimentRecord,
+    comparison: ComparisonResult,
+    hypothesis: HarnessHypothesis,
+  ): DeliveryReport {
+    const base = this.prepareDelivery({
+      version: {
+        id: record.candidate.harness,
+        commitSha: record.candidate.commit,
+        parentId: record.parent.harness,
+        createdAt: record.createdAt,
+        targetComponent: (record.scopeComponents?.[0] ?? "execution") as HarnessVersion["targetComponent"],
+        hypothesis: record.hypothesis.statement,
+        metrics: {
+          capability: { taskSuccessRate: record.metrics.capability, verificationPassRate: record.metrics.capability },
+          reliability: { toolErrorRate: 1 - record.metrics.reliability, falseSuccessRate: 0, loopAbortRate: 0 },
+          efficiency: { avgTokens: 0, avgLatencyMs: 0 },
+          generalization: { heldOutScore: record.metrics.generalization, transferScore: record.metrics.generalization },
+        },
+        status: "validated",
+      },
+      hypothesis,
+      comparison,
+    });
+
+    const prBody = [base.prBody, provenanceYamlCodeBlock(record)].join("\n\n");
+    return { ...base, prBody };
   }
 }

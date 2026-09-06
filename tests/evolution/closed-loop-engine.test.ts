@@ -1,0 +1,313 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ClosedLoopEngine, deriveValidity } from "../../src/evolution/engine-v2.js";
+import { ExperienceStore } from "../../src/evolution/experience/experience-store.js";
+import { HarnessRegistry } from "../../src/evolution/registry.js";
+import { TaskExecutionResult } from "../../src/evolution/evaluator.js";
+import { Episode } from "../../src/learning/types.js";
+
+function failureEpisode(id: string, goal: string): Episode {
+  return {
+    id,
+    goal,
+    startedAt: 1000,
+    endedAt: 2000,
+    terminal: "loop_abort",
+    toolEvents: [
+      { name: "read_file", args: {}, ok: true, durationMs: 50, at: 1001 },
+      { name: "run_shell", args: {}, ok: false, durationMs: 100, at: 1002, errorLabel: "Argument validation failed" },
+      { name: "run_shell", args: {}, ok: false, durationMs: 100, at: 1003, errorLabel: "Argument validation failed" },
+    ],
+    activatedSkillIds: [],
+    finalAssistantText: "",
+    grade: {
+      verdict: "failure",
+      score: 0.2,
+      signals: {
+        testsRan: true,
+        testsPassed: false,
+        toolErrorRate: 0.7,
+        pathEscapes: 0,
+        patchFailures: 0,
+        loopAborted: true,
+        turnCount: 5,
+        retriedSameToolMax: 2,
+      },
+    },
+  };
+}
+
+function results(successRate: number, tokens: number, heldOutSuccess = successRate): TaskExecutionResult[] {
+  const specs: Array<[string, boolean, boolean]> = [
+    ["v1", true, false],
+    ["v2", true, false],
+    ["v3", successRate >= 0.34, false],
+    ["v4", successRate >= 0.67, false],
+    ["v5", successRate >= 0.67, false],
+    ["v6", successRate >= 0.34, false],
+    ["h1", heldOutSuccess >= 0.34, true],
+    ["h2", heldOutSuccess >= 0.67, true],
+    ["h3", heldOutSuccess, true],
+  ];
+  return specs.map(([taskId, success, isHeldOut]) => ({
+    taskId,
+    success,
+    verificationPassed: success,
+    toolCalls: 4,
+    toolErrors: success ? 0 : 1,
+    tokens,
+    latencyMs: 900,
+    loopAborted: false,
+    isHeldOut,
+  }));
+}
+
+describe("ClosedLoopEngine (v2 integration)", () => {
+  let tmpDir: string;
+  let registry: HarnessRegistry;
+  let experienceStore: ExperienceStore;
+  let engine: ClosedLoopEngine;
+
+  beforeEach(async () => {
+    tmpDir = await mkdtemp(join(tmpdir(), "closed-loop-test-"));
+    registry = new HarnessRegistry(join(tmpDir, "registry.db"));
+    experienceStore = new ExperienceStore(join(tmpDir, "experience.db"));
+    engine = new ClosedLoopEngine({
+      registry,
+      experienceStore,
+      executorModels: ["qwen3-coder", "gemini-2.5"],
+    });
+  });
+
+  afterEach(async () => {
+    registry.close();
+    experienceStore.close();
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it("observation pipeline: episodes → diagnoses → target → scope", () => {
+    const episodes = [
+      failureEpisode("ep-1", "Fix tool selection"),
+      failureEpisode("ep-2", "Tool argument error again"),
+    ];
+    const observation = engine.observe(episodes);
+    expect(observation.diagnoses.length).toBeGreaterThan(0);
+    expect(observation.target).not.toBeNull();
+    expect(observation.plan).not.toBeNull();
+    expect(observation.mutationScope).not.toBeNull();
+    expect(observation.mutationScope!.kind).toBe("single_component");
+  });
+
+  it("ingests graded episodes into the experience store with evidence", () => {
+    const episodes = [failureEpisode("ep-1", "Fix the login bug"), failureEpisode("ep-2", "Add retry feature")];
+    engine.ingestExperience(episodes, "H0");
+    expect(experienceStore.count()).toBe(2);
+    const digests = engine.digestExperience();
+    expect(digests.length).toBeGreaterThan(0);
+    const analysis = engine.analyzeTransfer();
+    expect(analysis.verdicts.length).toBeGreaterThan(0);
+  });
+
+  it("runs a full experiment: eligible candidate reaches REVIEWED with provenance", () => {
+    // Establish baseline H0 in the registry.
+    registry.saveVersion({
+      id: "H0",
+      commitSha: "sha-h0",
+      parentId: null,
+      createdAt: Date.now(),
+      targetComponent: "execution",
+      hypothesis: "baseline",
+      metrics: {
+        capability: { taskSuccessRate: 0.55, verificationPassRate: 0.55 },
+        reliability: { toolErrorRate: 0.3, falseSuccessRate: 0.1, loopAbortRate: 0.1 },
+        efficiency: { avgTokens: 2000, avgLatencyMs: 1200 },
+        generalization: { heldOutScore: 0.33, transferScore: 0.33 },
+      },
+      status: "promoted",
+    });
+
+    const observation = engine.observe([failureEpisode("ep-1", "Fix tool selection")]);
+    const outcome = engine.runExperiment({
+      experimentId: "exp-001",
+      parentHarnessId: "H0",
+      parentCommit: "sha-h0",
+      candidateHarnessId: "H1",
+      candidateCommit: "sha-h1",
+      target: observation.target!,
+      diagnosis: observation.diagnoses[0],
+      scope: observation.mutationScope!,
+      candidateResults: results(0.9, 1600, true),
+      baselineResults: results(0.4, 2000, false),
+      matrixCells: [
+        {
+          harnessId: "H0",
+          executorModel: "qwen3-coder",
+          split: "held_out",
+          taskSuccessRate: 0.33,
+          verificationPassRate: 0.33,
+          runs: 5,
+        },
+        {
+          harnessId: "H1",
+          executorModel: "qwen3-coder",
+          split: "held_out",
+          taskSuccessRate: 0.9,
+          verificationPassRate: 0.9,
+          runs: 5,
+        },
+        {
+          harnessId: "H0",
+          executorModel: "gemini-2.5",
+          split: "transfer",
+          taskSuccessRate: 0.33,
+          verificationPassRate: 0.33,
+          runs: 5,
+        },
+        {
+          harnessId: "H1",
+          executorModel: "gemini-2.5",
+          split: "transfer",
+          taskSuccessRate: 0.85,
+          verificationPassRate: 0.85,
+          runs: 5,
+        },
+      ],
+    });
+
+    expect(outcome.twoStage.stageA.decision).toBe("valid");
+    expect(outcome.twoStage.decision).toBe("eligible");
+    expect(outcome.generalization?.generalized).toBe(true);
+    expect(outcome.experiment.decision.result).toBe("eligible");
+    expect(outcome.delivery).not.toBeNull();
+    // PR body contains machine-readable provenance (persistent experiment log).
+    expect(outcome.delivery!.prBody).toContain("### 4. Experiment Provenance (machine-readable)");
+    expect(outcome.delivery!.prBody).toContain("id: exp-001");
+    // Lifecycle: candidate advanced to REVIEWED awaiting CI + review.
+    expect(outcome.experiment.lifecycle.state).toBe("REVIEWED");
+  });
+
+  it("completes the acceptance loop: CI pass + review approval → ACTIVE in registry", () => {
+    registry.saveVersion({
+      id: "H0",
+      commitSha: "sha-h0",
+      parentId: null,
+      createdAt: Date.now(),
+      targetComponent: "execution",
+      hypothesis: "baseline",
+      metrics: {
+        capability: { taskSuccessRate: 0.5, verificationPassRate: 0.5 },
+        reliability: { toolErrorRate: 0.3, falseSuccessRate: 0.1, loopAbortRate: 0.1 },
+        efficiency: { avgTokens: 2000, avgLatencyMs: 1200 },
+        generalization: { heldOutScore: 0.33, transferScore: 0.33 },
+      },
+      status: "promoted",
+    });
+    const observation = engine.observe([failureEpisode("ep-1", "Fix tool selection")]);
+    engine.runExperiment({
+      experimentId: "exp-002",
+      parentHarnessId: "H0",
+      parentCommit: "sha-h0",
+      candidateHarnessId: "H1",
+      candidateCommit: "sha-h1",
+      target: observation.target!,
+      diagnosis: observation.diagnoses[0],
+      scope: observation.mutationScope!,
+      candidateResults: results(0.9, 1800, true),
+      baselineResults: results(0.4, 2000, false),
+    });
+
+    engine.reportCi("exp-002", true, "https://ci/run/9");
+    engine.reportReview("exp-002", true, "maintainer");
+    expect(engine.finalizeAcceptance("exp-002")).toBe(true);
+
+    expect(registry.getActiveVersion()?.id).toBe("H1");
+    const switchRecord = engine.metrics.records().find((s) => s.versionId === "H1");
+    expect(switchRecord?.accepted).toBe(true);
+  });
+
+  it("rejects invalid experiments and leaves the baseline active", () => {
+    registry.saveVersion({
+      id: "H0",
+      commitSha: "sha-h0",
+      parentId: null,
+      createdAt: Date.now(),
+      targetComponent: "execution",
+      hypothesis: "baseline",
+      metrics: {
+        capability: { taskSuccessRate: 0.8, verificationPassRate: 0.8 },
+        reliability: { toolErrorRate: 0.1, falseSuccessRate: 0.05, loopAbortRate: 0.05 },
+        efficiency: { avgTokens: 1500, avgLatencyMs: 900 },
+        generalization: { heldOutScore: 0.8, transferScore: 0.8 },
+      },
+      status: "promoted",
+    });
+    const observation = engine.observe([failureEpisode("ep-1", "Fix tool selection")]);
+    const outcome = engine.runExperiment({
+      experimentId: "exp-003",
+      parentHarnessId: "H0",
+      parentCommit: "sha-h0",
+      candidateHarnessId: "H_bad",
+      candidateCommit: "sha-bad",
+      target: observation.target!,
+      diagnosis: observation.diagnoses[0],
+      scope: observation.mutationScope!,
+      candidateResults: [results(0.1, 4000, false)[0]], // 1 run: fails Stage A sample size
+      baselineResults: results(0.8, 1500, true),
+    });
+    expect(outcome.twoStage.decision).toBe("rejected");
+    expect(outcome.delivery).toBeNull();
+    expect(outcome.experiment.decision.result).toBe("rejected");
+    expect(registry.getActiveVersion()?.id).toBe("H0");
+  });
+
+  it("handles post-deployment regression through rollback", () => {
+    registry.saveVersion({
+      id: "H0",
+      commitSha: "sha-h0",
+      parentId: null,
+      createdAt: Date.now(),
+      targetComponent: "execution",
+      hypothesis: "baseline",
+      metrics: {
+        capability: { taskSuccessRate: 0.5, verificationPassRate: 0.5 },
+        reliability: { toolErrorRate: 0.3, falseSuccessRate: 0.1, loopAbortRate: 0.1 },
+        efficiency: { avgTokens: 2000, avgLatencyMs: 1200 },
+        generalization: { heldOutScore: 0.33, transferScore: 0.33 },
+      },
+      status: "promoted",
+    });
+    const observation = engine.observe([failureEpisode("ep-1", "Fix tool selection")]);
+    engine.runExperiment({
+      experimentId: "exp-004",
+      parentHarnessId: "H0",
+      parentCommit: "sha-h0",
+      candidateHarnessId: "H1",
+      candidateCommit: "sha-h1",
+      target: observation.target!,
+      diagnosis: observation.diagnoses[0],
+      scope: observation.mutationScope!,
+      candidateResults: results(0.9, 1800, true),
+      baselineResults: results(0.4, 2000, false),
+    });
+    engine.reportCi("exp-004", true);
+    engine.reportReview("exp-004", true, "maintainer");
+    engine.finalizeAcceptance("exp-004");
+    expect(registry.getActiveVersion()?.id).toBe("H1");
+
+    // Post-deployment monitoring detects a regression → rollback to H0.
+    engine.handleRegression("exp-004", "held-out success regressed 10% in production");
+    expect(registry.getActiveVersion()?.id).toBe("H0");
+    const switchRecord = engine.metrics.records().find((s) => s.versionId === "H1");
+    expect(switchRecord?.rolledBack).toBe(true);
+  });
+
+  it("deriveValidity computes Stage-A facts from raw runs", () => {
+    const candidate = results(0.9, 1500, true);
+    const baseline = results(0.4, 2000, false);
+    const validity = deriveValidity(candidate, baseline);
+    expect(validity.completedRuns).toBe(candidate.length);
+    expect(validity.verifierCoverage).toBeGreaterThan(0);
+    expect(validity.catastrophicRegression).toBe(false);
+  });
+});

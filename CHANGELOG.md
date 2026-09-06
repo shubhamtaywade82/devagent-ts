@@ -1,5 +1,57 @@
 # Changelog
 
+## Unreleased
+
+### Added — Closed-Loop Self-Development v2 (`src/evolution/`)
+
+Implements the deeper closed-loop RSI layers on top of the HarnessDev-style
+v1 foundation, informed by the Self-Developing Agents research (Aspire /
+S³Gym / HarnessDev):
+
+- **Evolution lifecycle state machine** (`state-machine.ts`): 13 progressive
+  states (`OBSERVED → … → ACTIVE`) with explicit failure paths
+  (`REJECTED`, `CI_FAILED`, `CHANGES_REQUESTED`, `REGRESSED`, `ROLLBACK`)
+  and recovery transitions. Declared promotions are structurally impossible.
+- **TargetEngine** (`targets/target-engine.ts`): Aspire-style target
+  formation between diagnosis and planning — answers "what capability is
+  actually failing?" before "which file should I change?"; refuses vague
+  targets with weak evidence.
+- **Experience engine** (`experience/`): `ExperienceStore` (SQLite),
+  `TrajectoryAnalyzer`, `EvidenceAggregator`, `TransferAnalyzer` —
+  evidence-grounded experience records bound to verifier evidence, executor
+  model, and harness version; multi-representation digests (raw trajectory /
+  summary / aggregated statistics) selected per task class per the S³Gym
+  finding that no single representation wins.
+- **Two-stage candidate selection** (`comparison/two-stage-selector.ts`):
+  Stage A statistical/execution validity (sample size, verifier coverage,
+  catastrophic regressions) separated from Stage B improvement validity
+  (capability/reliability gain, held-out, transfer, cost).
+- **Fixed-executor evaluation protocol** (`evaluation/fixed-executor.ts`) and
+  **GeneralizationGate** (`generalization/generalization-gate.ts`): evaluator
+  model, harness candidate, and task suite as independent variables; held-out
+  + transfer gates with executor-sensitivity and direction-agreement metrics.
+- **Mutation scope escalation** (`mutation/mutation-scope.ts`): single
+  component by default; explicit compound hypothesis after repeated
+  single-component failures against the same capability.
+- **Experiment provenance** (`experiments/`): persistent `ExperimentRecord`
+  schema + SQLite store + `ExperimentController`; evolution PRs embed a
+  machine-readable YAML provenance block making the PR a persistent
+  experiment log (CI status and review state included).
+- **AcceptanceController** (`acceptance/acceptance-controller.ts`): explicit
+  evidence-gated pipeline `candidate → validated → eligible → delivered →
+  accepted → active`.
+- **First-class loop health metrics** (`metrics.ts`): promotion precision,
+  false promotion rate, retention/regression/rollback rates, experience→
+  improvement correlation, executor sensitivity, visible/held-out/transfer
+  gains.
+- **`ClosedLoopEngine`** (`engine-v2.ts`): wires the full v2 loop —
+  episodes → diagnosis → target formation → hypothesis → experiment →
+  two-stage gates → generalization gate → delivery → CI/review feedback →
+  active/rollback.
+- **v2 CLI**: `nexum evolve --target | --experience | --experiments | --report`.
+
+The v1 `EvolutionEngine` API remains fully backward compatible.
+
 ## 2.0.0 (2026-08-30)
 
 DevAgent TS is now **Nexum** — same runtime, new name. This is a breaking

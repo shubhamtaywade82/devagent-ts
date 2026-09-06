@@ -130,3 +130,145 @@ When a candidate harness mutation is validated and promoted, the `GitDeliveryEng
 - **Rationale:** Promoted: capability delta +8.0%, reliability delta +15.0%
 - **Candidate Commit:** `HEAD`
 ```
+
+---
+
+## 6. Closed-Loop v2: Target Formation, Experience Learning & the Experiment State Machine
+
+The v1 loop answers *"did this candidate score higher?"*. The v2 closed-loop engine (`src/evolution/engine-v2.ts`, `ClosedLoopEngine`) implements the deeper question from the Self-Developing Agents research: *"which changes reliably improve the engineering system?"*. It adds three layers on top of the v1 foundation.
+
+### 6.1 Three Separated Kinds of Learning
+
+```text
+                      NEXUM
+                        │
+          ┌─────────────┼─────────────┐
+          │             │             │
+       TASK         EXPERIENCE      HARNESS
+       LEARNING     LEARNING        EVOLUTION
+          │             │             │
+       skills        evidence       experiments
+       lessons       digests        state machine
+          │             │             │
+          └─────────────┼─────────────┘
+                        │
+                 VALIDATED CAPABILITY
+```
+
+- **Task learning** (existing, `src/learning/`): `EpisodeRecorder → Grader → Reflector → LessonStore → SkillSynthesizer`.
+- **Experience learning** (new, `src/evolution/experience/`): `TrajectoryAnalyzer → ExperienceStore → EvidenceAggregator → TransferAnalyzer`. Encodes the S³Gym findings: no single memory representation wins (raw trajectory / summary / aggregated statistics trade places per task class), self-judgment is a poor predictor (evidence confidence is down-weighted when no verifier ran), and every record binds the executor model + harness version that produced it.
+- **Harness evolution** (new, `src/evolution/experiments/`, `src/evolution/acceptance/`): `ExperimentController`, the lifecycle state machine, and the `AcceptanceController`.
+
+### 6.2 Target Formation (the Aspire layer)
+
+`src/evolution/targets/target-engine.ts` sits between diagnosis and planning. It refuses to answer *"which file should I change?"* until it has answered *"what capability is actually failing?"* — producing an `ImprovementTarget` with a capability, an operationalized desired outcome, observable symptoms, must-move metrics, affected components (including plausible cross-component causes), a confidence score, and a split-aware evaluation plan. Weak evidence yields no target: the loop gathers more telemetry instead of mutating on a vague goal.
+
+### 6.3 The Evolution State Machine
+
+Promotion is no longer a single function call. A candidate must traverse:
+
+```text
+OBSERVED → DIAGNOSED → TARGETED → HYPOTHESIS → CANDIDATE → EVALUATING →
+VALIDATED → GENERALIZED → ELIGIBLE → DELIVERED → REVIEWED → ACCEPTED → ACTIVE
+
+Failure paths:
+  EVALUATING  ──→ REJECTED            (Stage A / Stage B gate failed)
+  GENERALIZED ──→ REJECTED            (held-out / transfer regression)
+  DELIVERED   ──→ CI_FAILED           (GitHub CI red)   ──→ CANDIDATE (rework)
+  REVIEWED    ──→ CHANGES_REQUESTED   (human review)    ──→ CANDIDATE (rework)
+  ACTIVE      ──→ REGRESSED           (post-deploy monitoring) → ROLLBACK → ACTIVE (prior)
+```
+
+"Declared promotions" are structurally impossible: `EvolutionStateMachine` rejects skipped stages.
+
+### 6.4 Two-Stage Candidate Selection
+
+`src/evolution/comparison/two-stage-selector.ts` separates experiment validity from improvement:
+
+- **Stage A — statistical / execution validity**: runs completed, verifier coverage, verifier evidence validity, no catastrophic regressions, sufficient sample size.
+- **Stage B — improvement validity**: capability or reliability gain, no held-out regression, transfer evidence, acceptable token cost.
+
+### 6.5 Fixed-Executor Evaluation & the Generalization Gate
+
+`src/evolution/evaluation/fixed-executor.ts` treats evaluator model, harness candidate, and task suite as independent variables and builds the H0..Hn × executor matrix. `src/evolution/generalization/generalization-gate.ts` grants `GENERALIZED` only when the candidate holds or improves held-out success under the primary executor and does not collapse under any transfer executor, and reports **executor sensitivity** (spread of held-out deltas across executors) plus **direction agreement** — the research metrics for separating "the harness improved" from "this model + harness combination got lucky".
+
+### 6.6 Mutation Scope Escalation
+
+The single-component scoping principle remains the default, but `src/evolution/mutation/mutation-scope.ts` allows explicit escalation to a compound hypothesis after repeated single-component experiments fail to move the same capability target (bounded component span, full audit rationale).
+
+### 6.7 Persistent Experiment Provenance in PRs
+
+Every experiment is a persistent record (`ExperimentRecord`) with parent/candidate harness + commit, the formed target, the hypothesis, the executor matrix, visible/held-out/transfer evaluation, the two-stage decision, CI status, and review state. Eligible candidates get an evolution branch + draft PR whose body embeds the machine-readable provenance:
+
+```yaml
+experiment:
+  id: exp-00142
+parent:
+  harness: H17
+  commit: abc123
+candidate:
+  harness: H18
+  commit: def456
+target:
+  capability: tool_utilization
+executor:
+  primary: qwen3-coder
+  transfer:
+    - gemini-2.5
+evaluation:
+  visible: {}
+  held_out: {}
+  transfer: {}
+decision:
+  result: eligible
+ci:
+  status: pending
+review:
+  state: pending
+```
+
+### 6.8 First-Class Loop Health Metrics
+
+`src/evolution/metrics.ts` tracks: visible/held-out/transfer gains, retention rate, regression rate, rollback rate, false promotion rate, experience→improvement correlation, executor sensitivity, and — most importantly — **promotion precision**:
+
+```text
+promotion precision = # candidates actually better on held-out evaluation
+                      ------------------------------------------------
+                      # candidates promoted
+```
+
+### 6.9 v2 CLI Reference
+
+```bash
+# Form the capability-level improvement target from recent episodes (Aspire layer)
+nexum evolve --target
+
+# Show the evidence-grounded experience digest per task class (S³Gym layer)
+nexum evolve --experience
+
+# List experiment records with lifecycle states, CI and review status
+nexum evolve --experiments
+
+# Loop health report: promotion precision, retention, rollback, sensitivity
+nexum evolve --report
+```
+
+### 6.10 v2 Module Map
+
+```text
+src/evolution/
+├── types.ts taxonomy.ts diagnoser.ts hypothesis.ts     # v1 diagnosis core
+├── planner.ts comparator.ts evaluator.ts registry.ts   # v1 plan/compare/store
+├── delivery.ts engine.ts benchmarks.ts cli.ts          # v1 delivery + facade
+├── state-machine.ts                                    # v2 lifecycle (13 states)
+├── metrics.ts                                          # v2 loop health metrics
+├── engine-v2.ts                                        # ClosedLoopEngine (v2 loop)
+├── targets/        # Aspire-style target formation
+├── experience/     # S³Gym-style evidence-grounded experience
+├── experiments/    # provenance schema, store, controller, PR YAML
+├── comparison/     # two-stage selector (validity + improvement)
+├── evaluation/     # fixed-executor matrix protocol
+├── generalization/ # held-out + transfer gate
+├── mutation/       # single → compound scope escalation
+└── acceptance/     # candidate → validated → … → active pipeline
+```
