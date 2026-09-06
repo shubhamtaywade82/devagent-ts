@@ -226,7 +226,7 @@ describe("Agent quick-model delegation picks the first catalog candidate", () =>
 describe("AgentConversation.buildSystemPrompt delegation addendum", () => {
   it("includes the local-delegation addendum for cloud-tier sessions with local delegation enabled", () => {
     const convo = new AgentConversation();
-    const prompt = convo.buildSystemPrompt({ model: "gpt-oss:120b", workspaceRoot: ".", tier: "cloud" }, [], []);
+    const prompt = convo.buildSystemPrompt({ model: "gemma4:31b", workspaceRoot: ".", tier: "cloud" }, [], []);
 
     expect(prompt).toContain("delegate_to_local");
   });
@@ -241,7 +241,7 @@ describe("AgentConversation.buildSystemPrompt delegation addendum", () => {
   it("omits the addendum for cloud-tier sessions with local delegation explicitly disabled", () => {
     const convo = new AgentConversation();
     const prompt = convo.buildSystemPrompt(
-      { model: "gpt-oss:120b", workspaceRoot: ".", tier: "cloud", enableLocalWorker: false },
+      { model: "gemma4:31b", workspaceRoot: ".", tier: "cloud", enableLocalWorker: false },
       [],
       [],
     );

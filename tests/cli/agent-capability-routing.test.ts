@@ -539,7 +539,7 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
         workspaceRoot: dir,
         tier: "cloud",
         apiKey: "k",
-        model: "gpt-oss:120b",
+        model: "gemma4:31b",
         enableSelfConsistency: true, // would sample 3x on an ambiguous prompt if this ever reached the quick path
       },
       events: { onModelUsed },
@@ -553,9 +553,9 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     // sampling, no quick-model attempt beforehand. (A second call follows:
     // the always-on post-completion summarization every answered turn
     // triggers — unrelated to routing, same as the other tests in this file.)
-    expect(chatBodies()[0].model).toBe("gpt-oss:120b");
-    expect(chatBodies().every((b) => b.model === "gpt-oss:120b")).toBe(true);
-    expect(onModelUsed).toHaveBeenCalledWith("cloud", "gpt-oss:120b");
+    expect(chatBodies()[0].model).toBe("gemma4:31b");
+    expect(chatBodies().every((b) => b.model === "gemma4:31b")).toBe(true);
+    expect(onModelUsed).toHaveBeenCalledWith("cloud", "gemma4:31b");
 
     // delegate_to_local is still offered to the cloud primary, so it can
     // correctly hand off narrow subtasks to local instead of never having
@@ -593,7 +593,7 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
         workspaceRoot: dir,
         tier: "cloud",
         apiKey: "k",
-        model: "gpt-oss:120b",
+        model: "gemma4:31b",
         toolSelectionMode: "heuristic",
       },
     });
@@ -604,7 +604,7 @@ describe("Agent capability routing — quick-first with self-escalation", () => 
     await new Promise((r) => setTimeout(r, 0));
 
     const bodies = chatBodies();
-    expect(bodies[0].model).toBe("gpt-oss:120b"); // the turn's own answer
+    expect(bodies[0].model).toBe("gemma4:31b"); // the turn's own answer
     expect(bodies[1].model).toBe("minicpm5-1b"); // summarization — a different model/connection entirely
   });
 });

@@ -50,10 +50,10 @@ describe("store reducer", () => {
     // the session's primary/default model.
     let s = fresh();
     s = reduce(s, { type: "conversation.message", role: "user", text: "where is X?" });
-    s = reduce(s, { type: "model.answered", tier: "cloud", model: "gpt-oss:120b" });
+    s = reduce(s, { type: "model.answered", tier: "cloud", model: "gemma4:31b" });
     s = reduce(s, { type: "conversation.chunk", role: "assistant", chunk: "found it" });
-    expect(s.lastTurnModel).toBe("cloud/gpt-oss:120b");
-    expect(s.conversation[1]).toMatchObject({ model: "cloud/gpt-oss:120b" });
+    expect(s.lastTurnModel).toBe("cloud/gemma4:31b");
+    expect(s.conversation[1]).toMatchObject({ model: "cloud/gemma4:31b" });
   });
 
   it("does not leak a prior turn's model into a new turn where model.answered hasn't fired yet", () => {
