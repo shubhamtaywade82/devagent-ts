@@ -147,6 +147,33 @@ paths`.
   non-injected production path could never execute; subcommands are now
   normalized onto `git`.
 
+### Added — v2.3: Production Agent Wiring (`NexumEngineeringAgentRuntime`)
+
+Closes the final question from the v2.2 review — what actually implements
+`EngineeringAgentRuntime` in production:
+
+- **NexumEngineeringAgentRuntime** (`mutation/nexum-agent-runtime.ts`):
+  Nexum's own engineering loop as a bounded, tool-calling chat cycle over
+  the same `Provider` surface the interactive agent uses, pointed at the
+  confined candidate worktree. Tools: `list_files` / `read_file` (read-only
+  inspection), `propose_edit` (queues FULL file content + rationale),
+  `finish`, `decline`. Accepts tool arguments as objects (Ollama) or JSON
+  strings (other providers).
+- **Layered safety**: prompted propose-only contract → queue-time scope
+  rejection with agent-readable tool errors (self-correction) → fail-closed
+  final re-audit → `maxTurns` / `maxProposals` / `maxEditBytes` envelopes →
+  strategy attribution → executor actual-diff audit. The runtime is
+  deliberately read+propose only (no writes, no shell): the executor stays
+  the sole writer, so the verification pipeline cannot be bypassed.
+- **Honest outcomes**: `finish` with zero proposals returns `declined`
+  (no fabricated candidates); `decline` aborts the cycle without one.
+- **Production factories**: `chatClientFromProvider(provider, model?)` and
+  `agentMutationStrategyFromProviderOptions(...)` (inherits the interactive
+  agent's `loadConfig()` defaults). Engine option `agentRuntime` (+ optional
+  `agentVerifyCommands`) auto-builds the agent-backed
+  `GitWorktreeMutationExecutor` when no explicit `mutationExecutor` is set.
+  CLI: `nexum evolve --mutate --agent` (opt-in; default stays heuristic).
+
 ## 2.0.0 (2026-08-30)
 
 DevAgent TS is now **Nexum** — same runtime, new name. This is a breaking

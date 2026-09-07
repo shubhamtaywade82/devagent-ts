@@ -410,3 +410,22 @@ ACTIVE H(n) → monitor regression → freeze H(n)
 - `RuntimeActivationController` (injectable): `activeHarness()` / `switchTo()` / optional `freeze()` and `harnessHealth()`.
 - `RuntimeRollbackOrchestrator.rollback()` drives the full sequence and returns a step-by-step audit report. If the switch fails or the post-switch health verification fails, the runtime is restored to the original harness and the experiment stays honestly at REGRESSED — a rollback is never reported as complete unless the prior harness is actually running again.
 - Engine wiring: `rollbackActive()` / `evaluateActivationLive()` (awaited runtime rollback for production monitor ticks) and `activateOnRuntime()` (switches the live runtime onto an accepted candidate — the runtime half of activation). Without a runtime controller the loop keeps the v2.1 logical rollback (`handleRegression`), parking at ROLLBACK.
+
+### 6.18 NexumEngineeringAgentRuntime — the production agent wiring (v2.3)
+
+v2.2's `EngineeringAgentRuntime` seam shipped with only the deterministic `ScriptedAgentRuntime`, leaving "what actually proposes edits in production" as the open question. `src/evolution/mutation/nexum-agent-runtime.ts` closes it: **Nexum's own engineering loop**, as a bounded tool-calling chat cycle over the same `Provider` surface the interactive agent uses, pointed at the confined candidate worktree.
+
+```text
+ClosedLoopEngine (agentRuntime)
+  ↓  auto-builds GitWorktreeMutationExecutor + AgentMutationStrategy
+NexumEngineeringAgentRuntime
+  ↓  bounded tool loop over EngineeringChatClient (Nexum Provider)
+list_files / read_file / propose_edit / finish / decline
+  ↓  proposals only — executor applies, verifies (actual-diff audit),
+     commits, benchmarks, delivers
+```
+
+- **Tool protocol** (all confined to the `AgentWorkspaceView`): `list_files`, `read_file` (read-only inspection), `propose_edit` (queues FULL file content + rationale), `finish` (ends with queued edits), `decline` (no safe mutation — cycle aborts without a candidate). Tool arguments are accepted as objects (Ollama shape) or JSON strings (other providers).
+- **Safety layers, in order**: (1) the system prompt carries the propose-only contract and the allowed-path list; (2) `propose_edit` rejects out-of-scope paths at queue time with a tool error the agent can read and self-correct; (3) the final response is re-audited fail-closed — any queued violation, budget overrun (`maxProposals`), or oversized file (`maxEditBytes`) aborts; (4) `maxTurns` bounds the whole loop; (5) the strategy attributes edits to scope components and (6) the executor audits the actual git diff. The runtime is deliberately read+propose only — no write, no shell — so the executor remains the sole writer and the verification pipeline cannot be bypassed.
+- **Honest outcomes**: `finish` with zero proposals returns `declined` ("investigation finished without any proposed edit") — no candidate is fabricated; `decline` propagates as `AgentDeclinedError`.
+- **Production wiring**: `chatClientFromProvider(provider, model?)` adapts `Provider.chat`; `agentMutationStrategyFromProviderOptions({ tier, model, host, apiKey, ... })` builds the whole strategy from the interactive agent's `loadConfig()` defaults. The engine accepts `agentRuntime` (+ optional `agentVerifyCommands`) and auto-builds the agent-backed executor when no explicit `mutationExecutor` is given. The CLI exposes `--mutate --agent` (opt-in; the default stays heuristic).

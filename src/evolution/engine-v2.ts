@@ -41,12 +41,14 @@ import { MutationScopePolicy, MutationScope } from "./mutation/mutation-scope.js
 import {
   CandidateArtifact,
   CodeChangePlan,
+  GitWorktreeMutationExecutor,
   HarnessMutationExecutor,
   InspectTargetContext,
   MutationResult,
   MutationVerification,
   MutationWorkspace,
 } from "./mutation/mutation-executor.js";
+import { AgentMutationStrategy, EngineeringAgentRuntime } from "./mutation/agent-mutation.js";
 import { ActivationEnvelope, ActivationHealth, ActivationMonitor } from "./monitoring/activation-monitor.js";
 import {
   RuntimeActivationController,
@@ -97,6 +99,16 @@ export interface ClosedLoopEngineOptions {
   generalizationPolicy?: GeneralizationPolicy;
   /** Self-development actuator: performs the actual harness mutation. */
   mutationExecutor?: HarnessMutationExecutor;
+  /**
+   * PRODUCTION AGENT WIRING: an EngineeringAgentRuntime (e.g.
+   * NexumEngineeringAgentRuntime). When set and no explicit mutationExecutor
+   * is provided, the engine builds a GitWorktreeMutationExecutor backed by
+   * AgentMutationStrategy over this runtime — the full self-development
+   * loop with one option. Explicit mutationExecutor always wins.
+   */
+  agentRuntime?: EngineeringAgentRuntime;
+  /** Verify commands for the agentRuntime-built executor (default: node --version). */
+  agentVerifyCommands?: string[][];
   /** Post-activation telemetry monitor wired to the REGRESSED/ROLLBACK path. */
   monitor?: ActivationMonitor;
   /**
@@ -152,6 +164,8 @@ export class ClosedLoopEngine {
   readonly registry?: HarnessRegistry;
   readonly experienceStore?: ExperienceStore;
   readonly mutationExecutor?: HarnessMutationExecutor;
+  readonly agentRuntime?: EngineeringAgentRuntime;
+  readonly agentVerifyCommands: string[][];
   readonly monitor?: ActivationMonitor;
   readonly githubDelivery?: GitHubDeliveryAdapter;
   readonly runtimeActivation?: RuntimeActivationController;
@@ -172,11 +186,28 @@ export class ClosedLoopEngine {
     this.registry = opts.registry;
     this.experienceStore = opts.experienceStore;
     this.mutationExecutor = opts.mutationExecutor;
+    this.agentRuntime = opts.agentRuntime;
+    this.agentVerifyCommands = opts.agentVerifyCommands ?? [["node", "--version"]];
     this.monitor = opts.monitor;
     this.githubDelivery = opts.githubDelivery;
     this.runtimeActivation = opts.runtimeActivation;
     this.generalizationPolicy = opts.generalizationPolicy ?? "optional";
     this.executorModels = opts.executorModels ?? ["primary"];
+  }
+
+  /**
+   * Builds the canonical production actuator from the agent runtime seam:
+   * GitWorktreeMutationExecutor + AgentMutationStrategy(runtime). Used when
+   * callers pass agentRuntime without an explicit mutationExecutor.
+   */
+  private buildAgentExecutor(): HarnessMutationExecutor {
+    if (!this.agentRuntime) {
+      throw new Error("buildAgentExecutor requires ClosedLoopEngineOptions.agentRuntime.");
+    }
+    return new GitWorktreeMutationExecutor({
+      verifyCommands: this.agentVerifyCommands,
+      strategy: new AgentMutationStrategy({ runtime: this.agentRuntime }),
+    });
   }
 
   // ── Experience layer ────────────────────────────────────────────────────
@@ -505,12 +536,12 @@ export class ClosedLoopEngine {
         mutation: MutationArtifacts;
       }
   > {
-    if (!this.mutationExecutor) {
+    if (!this.mutationExecutor && !this.agentRuntime) {
       throw new Error(
-        "runEvolutionCycle requires a HarnessMutationExecutor (ClosedLoopEngineOptions.mutationExecutor).",
+        "runEvolutionCycle requires a HarnessMutationExecutor (ClosedLoopEngineOptions.mutationExecutor) or an agentRuntime (ClosedLoopEngineOptions.agentRuntime).",
       );
     }
-    const executor = this.mutationExecutor;
+    const executor = this.mutationExecutor ?? this.buildAgentExecutor();
     const artifacts: MutationArtifacts = {};
     let workspace: MutationWorkspace | undefined;
 

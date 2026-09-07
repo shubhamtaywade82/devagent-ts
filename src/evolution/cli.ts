@@ -20,6 +20,7 @@ import { ExperienceStore } from "./experience/experience-store.js";
 import { ExperimentStore } from "./experiments/experiment-store.js";
 import { EvolutionMetricsTracker } from "./metrics.js";
 import { GitWorktreeMutationExecutor } from "./mutation/mutation-executor.js";
+import { NexumEngineeringAgentRuntime, chatClientFromProvider } from "./mutation/nexum-agent-runtime.js";
 import { ActivationMonitor, OperationalTelemetry } from "./monitoring/activation-monitor.js";
 import { EvolutionPlan } from "./planner.js";
 import { HarnessRegistry } from "./registry.js";
@@ -40,6 +41,9 @@ Options:
       --history          Show evolutionary lineage (H0 -> Hn) and active version
       --mutate           Run the self-development actuator: target → isolated
                          worktree → planned edits → verification → candidate commit
+      --agent            Wire the PRODUCTION engineering agent as the mutation
+                         strategy (NexumEngineeringAgentRuntime over the
+                         configured provider). Default: heuristic planner.
       --repo <path>      Harness repository to mutate (required with --mutate)
       --parent <sha>     Parent commit to mutate from (default: HEAD)
   -c, --candidate <id>   Evaluate candidate harness and check promotion criteria
@@ -63,6 +67,7 @@ const CLI_OPTIONS = {
   experiments: { type: "boolean" as const },
   report: { type: "boolean" as const },
   mutate: { type: "boolean" as const },
+  agent: { type: "boolean" as const },
   repo: { type: "string" as const },
   parent: { type: "string" as const },
   monitor: { type: "boolean" as const },
@@ -422,9 +427,25 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
   const stateDir = workspaceStateDir(root);
   const experienceStore = new ExperienceStore(join(stateDir, "experience.db"));
   const limit = values.limit ? parseInt(values.limit as string, 10) : 20;
+  // --agent: PRODUCTION self-development wiring — the mutation plan comes from
+  // Nexum's own engineering agent (bounded tool loop over the configured
+  // provider) inspecting the candidate worktree, not from the heuristic planner.
+  // Default stays heuristic: autonomous source mutation is explicitly opt-in.
+  const agentRuntime = values.agent
+    ? (() => {
+        const cfg = loadConfig();
+        return new NexumEngineeringAgentRuntime({
+          chat: chatClientFromProvider(new Provider({ tier: cfg.tier, model: cfg.model })),
+        });
+      })()
+    : undefined;
   const engine = new ClosedLoopEngine({
     experienceStore,
-    mutationExecutor: new GitWorktreeMutationExecutor({ verifyCommands: [["node", "--version"]] }),
+    ...(agentRuntime
+      ? { agentRuntime }
+      : {
+          mutationExecutor: new GitWorktreeMutationExecutor({ verifyCommands: [["node", "--version"]] }),
+        }),
   });
   try {
     const episodes = loadRecentEpisodes(root, limit);
