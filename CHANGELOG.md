@@ -174,6 +174,41 @@ Closes the final question from the v2.2 review — what actually implements
   `GitWorktreeMutationExecutor` when no explicit `mutationExecutor` is set.
   CLI: `nexum evolve --mutate --agent` (opt-in; default stays heuristic).
 
+### Added — v2.3.2: Experiment Persistence & Immutable Artifacts
+
+Before this change the `--mutate` path ran the ENTIRE experiment lifecycle
+in-memory (`ExperimentController` defaults to no store), so every record was
+lost at process exit while `--experiments` and the health report read an
+empty `experiments.db`. v2.3.2 makes every autonomous mutation a persistent,
+scientifically inspectable record:
+
+- **Persisted experiment provenance**: `nexum evolve --mutate` now wires a
+  store-backed `ExperimentController` (`<workspace>/state/experiments.db`),
+  so target, hypothesis, executor, evaluation, two-stage decision, lifecycle
+  transitions, CI, and review state survive the run and feed `--experiments`
+  and the promotion-precision report.
+- **Immutable experiment artifacts** (`experiments/experiment-artifact.ts`):
+  one frozen JSON file per cycle (default
+  `<workspace>/state/experiments/<experimentId>.json`, override with
+  `--experiment-dir`) carrying the full scientific tree — target, diagnosis,
+  hypothesis, model/executor identity, mutation proposals (with rejected
+  edits), changed files, per-gate verification results, baseline B(H0) and
+  candidate B(H1) aggregates WITH raw per-run rows, held-out/transfer
+  results, delivery/CI/review outcome, and the two-stage decision. The
+  envelope is written exclusively (`wx` — never overwritten) and carries a
+  sha256 integrity hash over the payload.
+- **Stage failures are first-class results**: declined mutations and
+  prepare/implement/verify/finalize/evaluate failures produce artifacts too
+  (`decision.verdict: "failed"` with the stage and reason) — a mutation that
+  never became a candidate is still evidence.
+- **Bug fix — silent empty `changedFiles`/`diffStat`**: `prepareWorkspace`
+  stored the LITERAL parent ref (default `HEAD`), so `finalize`'s
+  `git diff --name-only HEAD` executed AFTER the candidate commit diffed the
+  commit against itself: candidate artifacts reported no changed files for
+  every default `--parent HEAD` run since v2.2. The parent is now resolved
+  to its SHA once at workspace creation; the verify-time actual-diff audit
+  (pre-commit) was unaffected.
+
 ### Added — v2.3.1: CLI Production Wiring (evaluation, verification, delivery)
 
 Closes the three integration seams that still blocked the first genuine

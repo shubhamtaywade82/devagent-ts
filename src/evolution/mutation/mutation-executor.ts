@@ -246,9 +246,15 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
     const branchName = input.branchName ?? `evolution/${input.candidateHarnessId.toLowerCase()}`;
     const workspaceId = `ws-${input.candidateHarnessId}-${Date.now()}-${this.counter++}`;
     const worktreePath = await this.makeWorktreePath(workspaceId);
-    await this.git(input.repoRoot, ["rev-parse", "--verify", `${input.parentCommit}^{commit}`]);
+    // v2.3.2: resolve the parent to its SHA ONCE, here. Symbolic refs like
+    // "HEAD" are only valid until the candidate commit exists — finalize's
+    // diff-vs-parent (and diffStat) would otherwise silently diff the
+    // candidate against ITSELF and report empty changedFiles.
+    const resolvedParentCommit = (
+      await this.git(input.repoRoot, ["rev-parse", "--verify", `${input.parentCommit}^{commit}`])
+    ).trim();
     await this.git(input.repoRoot, ["worktree", "prune"]);
-    await this.git(input.repoRoot, ["worktree", "add", "-b", branchName, worktreePath, input.parentCommit]);
+    await this.git(input.repoRoot, ["worktree", "add", "-b", branchName, worktreePath, resolvedParentCommit]);
     // v2.3.1: link the host toolchain into the worktree so real verification
     // profiles (tsc/eslint/jest) can execute. Skipped when the host has no
     // node_modules or the worktree somehow already has one.
@@ -268,7 +274,7 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
       repoRoot: input.repoRoot,
       worktreePath,
       branchName,
-      parentCommit: input.parentCommit,
+      parentCommit: resolvedParentCommit,
       candidateHarnessId: input.candidateHarnessId,
       createdAt: Date.now(),
     };

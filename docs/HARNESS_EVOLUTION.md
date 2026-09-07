@@ -455,3 +455,18 @@ nexum evolve --mutate --repo . --strategy agent --benchmark --github
 - **Strategy unification**: `--strategy agent|heuristic` (loud failures on typos) with `--agent` as an alias; the CLI builds one explicit executor carrying strategy + profile + linking, while the engine's `agentRuntime` auto-wiring stays available to API users.
 - **Segment-aware scope containment** (`mutation/path-scope.ts`): every scope predicate (runtime proposal checks, strategy attribution, executor planned/actual audits) now uses `pathWithinAllowedPrefix` — allowed prefix `src/evolution` no longer admits the sibling `src/evolution2/...`. The executor's actual-diff audit remains the backstop; the invariant is now explicit at every layer.
 - **Bounded worktree view**: `list_files` excludes dependency/build directories and caps at `maxListEntries` (400); `read_file` truncates at `maxReadBytes` (64 KiB) — the agent's context budget is a function of the configured envelope, not of the worktree size.
+
+### 6.20 Experiment persistence & immutable artifacts (v2.3.2)
+
+Every autonomous mutation is now a persistent, scientifically inspectable record. Previously the `--mutate` path ran the whole experiment lifecycle in-memory — records died at process exit and `--experiments` read an empty database.
+
+- **Persisted provenance**: the mutate path wires a store-backed `ExperimentController` (`<workspace>/state/experiments.db`), so target, hypothesis, executor, evaluation, two-stage decision, lifecycle transitions, CI, and review state survive the run and feed `--experiments` and the promotion-precision report.
+- **Immutable artifacts** (`experiments/experiment-artifact.ts`): one frozen JSON file per cycle — default `<workspace>/state/experiments/<experimentId>.json`, override with `--experiment-dir` — carrying the full scientific tree:
+  `target → diagnosis → hypothesis → model → executor → mutation proposals → changed files → verification → baseline metrics (B(H0)) → candidate metrics (B(H1)) → held-out → transfer → delivery → CI → review → decision`, including raw per-run benchmark rows. Written exclusively (`wx`: an existing artifact is never overwritten) with a sha256 integrity hash over the payload.
+- **Failures are evidence**: declined mutations and prepare/implement/verify/finalize/evaluate stage failures produce artifacts too (`decision.verdict: "failed"`, with the failed stage and reason).
+- **Fixed: silent empty `changedFiles`/`diffStat`** — `prepareWorkspace` stored the literal parent ref (default `HEAD`); `finalize`'s post-commit `git diff --name-only HEAD` therefore diffed the candidate against itself, and every default `--parent HEAD` run since v2.2 produced artifacts claiming no changed files. The parent is now resolved to its SHA once at workspace creation. (The verify-time actual-diff scope audit ran pre-commit and was unaffected.)
+
+```bash
+nexum evolve --mutate --repo . --strategy agent --verify-profile full --benchmark
+# → <workspace>/state/experiments/exp-<ts>.json  (immutable record of the cycle)
+```

@@ -20,6 +20,8 @@ import { runHarnessBenchmark, toTaskExecutionResult } from "./benchmarks.js";
 import { CandidateEvaluationOutcome, EvolutionEngine } from "./engine.js";
 import { ClosedLoopEngine } from "./engine-v2.js";
 import { ExperienceStore } from "./experience/experience-store.js";
+import { buildExperimentArtifact, writeExperimentArtifact } from "./experiments/experiment-artifact.js";
+import { ExperimentController } from "./experiments/experiment-controller.js";
 import { ExperimentStore } from "./experiments/experiment-store.js";
 import { TaskExecutionResult } from "./evaluator.js";
 import { EvolutionMetricsTracker } from "./metrics.js";
@@ -74,6 +76,8 @@ Options:
                          PR, poll CI and review, auto-accept on approval, merge.
                          Requires NEXUM_GITHUB_OWNER + NEXUM_GITHUB_REPO (env);
                          optional NEXUM_GITHUB_TOKEN, NEXUM_GITHUB_BASE_BRANCH.
+      --experiment-dir <path>  Directory for the immutable per-cycle experiment
+                         artifact JSON (default: <workspace>/state/experiments).
   -a, --autonomous       Run an autonomous diagnosis and mutation planning cycle
       --limit <n>        Limit number of episodes analyzed (default: 20)
       --component <name> Target subsystem for candidate evaluation (default: execution)
@@ -97,6 +101,7 @@ const CLI_OPTIONS = {
   "verify-profile": { type: "string" as const },
   "skip-baseline": { type: "boolean" as const },
   github: { type: "boolean" as const },
+  "experiment-dir": { type: "string" as const },
   repo: { type: "string" as const },
   parent: { type: "string" as const },
   monitor: { type: "boolean" as const },
@@ -582,6 +587,11 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
   }
   const stateDir = workspaceStateDir(root);
   const experienceStore = new ExperienceStore(join(stateDir, "experience.db"));
+  // v2.3.2: the mutate path PERSISTS experiment provenance. Without a
+  // store-backed controller the full lifecycle ran in-memory and was lost at
+  // process exit, while --experiments read an empty database.
+  const experimentStore = new ExperimentStore(join(stateDir, "experiments.db"));
+  const experimentDir = (values["experiment-dir"] as string | undefined) ?? join(stateDir, "experiments");
   const limit = values.limit ? parseInt(values.limit as string, 10) : 20;
   // Production actuator wiring: the strategy decides WHO proposes the mutation
   // (heuristic planner vs the engineering agent); the verification profile
@@ -591,6 +601,7 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
   const strategy = buildMutationStrategy(strategyName, cfg);
   const engine = new ClosedLoopEngine({
     experienceStore,
+    experimentController: new ExperimentController({ store: experimentStore }),
     mutationExecutor: new GitWorktreeMutationExecutor({
       verifyCommands: profile.commands,
       linkNodeModulesFrom: repoRoot,
@@ -617,6 +628,7 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
       console.error("No operationalizable target from recent episodes; refusing to mutate blind.");
       return;
     }
+    const diagnosis = observation.diagnoses[0];
     const categories = observation.plan?.recommendedBenchmarkCategories ?? [];
 
     // Baseline: the parent repository benchmarked in a subprocess BEFORE the
@@ -628,15 +640,18 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
       console.log(`[Evolution] Benchmarking parent (baseline) across [${categories.join(", ") || "all"}]...`);
       baselineResults = await runBenchmarkInDir(repoRoot, repoRoot, categories);
     }
+    // Captured so the experiment artifact can carry the raw candidate runs.
+    let candidateResults: TaskExecutionResult[] = [];
 
+    const experimentId = `exp-${Date.now()}`;
     const outcome = await engine.runEvolutionCycle({
-      experimentId: `exp-${Date.now()}`,
+      experimentId,
       parentHarnessId: "HEAD",
       parentCommit: (values.parent as string) || "HEAD",
       candidateHarnessId: `H${Date.now().toString(36)}`,
       repoRoot,
       target: observation.target,
-      diagnosis: observation.diagnoses[0],
+      diagnosis,
       scope: observation.mutationScope,
       baselineResults,
       evaluateCandidate: async (artifact) => {
@@ -646,13 +661,95 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
           );
         }
         console.log(`[Evolution] Benchmarking candidate worktree across [${categories.join(", ") || "all"}]...`);
-        return runBenchmarkInDir(repoRoot, artifact.workspace.worktreePath, categories);
+        candidateResults = await runBenchmarkInDir(repoRoot, artifact.workspace.worktreePath, categories);
+        return candidateResults;
       },
       ...(values.github && githubCfg ? { github: {} } : {}),
     });
     console.log(formatMutationResult(outcome));
+    writeCycleArtifact(outcome, {
+      experimentId,
+      strategyName: strategyName ?? "heuristic",
+      model: cfg.model,
+      tier: cfg.tier,
+      verifyProfileName: profile.name,
+      benchmarkCategories: categories,
+      baselineAbsent: !values.benchmark || !!values["skip-baseline"],
+      target: observation.target,
+      diagnosis,
+      scope: observation.mutationScope,
+      baselineResults,
+      candidateResults,
+      experimentDir,
+    });
   } finally {
     experienceStore.close();
+    experimentStore.close();
+  }
+}
+
+/**
+ * Composes and writes the immutable experiment artifact for one completed
+ * cycle (success OR stage failure). A filesystem failure here must not mask
+ * the cycle result: the SQLite record already persists the provenance.
+ */
+function writeCycleArtifact(
+  outcome: Awaited<ReturnType<ClosedLoopEngine["runEvolutionCycle"]>>,
+  ctx: {
+    experimentId: string;
+    strategyName: string;
+    model: string;
+    tier: string;
+    verifyProfileName: string;
+    benchmarkCategories: string[];
+    baselineAbsent: boolean;
+    target: ReturnType<ClosedLoopEngine["observe"]>["target"];
+    diagnosis: ReturnType<ClosedLoopEngine["observe"]>["diagnoses"][number];
+    scope: ReturnType<ClosedLoopEngine["observe"]>["mutationScope"];
+    baselineResults: TaskExecutionResult[];
+    candidateResults: TaskExecutionResult[];
+    experimentDir: string;
+  },
+): void {
+  try {
+    const envelope = buildExperimentArtifact({
+      experimentId: ctx.experimentId,
+      strategyName: ctx.strategyName,
+      model: ctx.model,
+      tier: ctx.tier,
+      verifyProfileName: ctx.verifyProfileName,
+      benchmarkCategories: ctx.benchmarkCategories,
+      baselineAbsent: ctx.baselineAbsent,
+      target: ctx.target,
+      diagnosis: ctx.diagnosis,
+      scope: ctx.scope,
+      record: outcome.ok ? outcome.outcome.experiment : null,
+      mutation: outcome.mutation,
+      baselineResults: ctx.baselineResults,
+      candidateResults: ctx.candidateResults,
+      github:
+        outcome.ok && outcome.github
+          ? {
+              branch: outcome.github.handle.branch,
+              prNumber: outcome.github.handle.prNumber,
+              prUrl: outcome.github.handle.prUrl,
+              ciPassed: outcome.github.ci.passed,
+              accepted: outcome.github.accepted,
+              merged: outcome.github.merged,
+            }
+          : null,
+      localDelivery:
+        outcome.ok && !outcome.github && outcome.outcome.delivery
+          ? { branchName: outcome.outcome.delivery.branchName, prTitle: outcome.outcome.delivery.prTitle }
+          : null,
+      failure: outcome.ok ? null : { stage: outcome.stage, reason: outcome.reason },
+    });
+    const path = writeExperimentArtifact(ctx.experimentDir, envelope);
+    console.log(`[Evolution] Experiment artifact (immutable): ${path}`);
+  } catch (err) {
+    console.error(
+      `[Evolution] WARNING: could not write experiment artifact: ${err instanceof Error ? err.message : String(err)}`,
+    );
   }
 }
 

@@ -52,6 +52,7 @@ export * from "./monitoring/runtime-activation.js";
 export * from "./experiments/experiment-schema.js";
 export * from "./experiments/experiment-store.js";
 export * from "./experiments/experiment-controller.js";
+export * from "./experiments/experiment-artifact.js";
 export * from "./experiments/provenance.js";
 
 export * from "./acceptance/acceptance-controller.js";
