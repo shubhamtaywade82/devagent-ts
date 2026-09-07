@@ -20,11 +20,13 @@
  */
 
 import { execFile } from "node:child_process";
+import { existsSync, symlinkSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, normalize, sep } from "node:path";
 import { promisify } from "node:util";
 import { HarnessComponent, HarnessDiagnosis } from "../types.js";
 import { ImprovementTarget } from "../targets/target-engine.js";
+import { pathWithinAllowedPrefix } from "./path-scope.js";
 import { MutationScope } from "./mutation-scope.js";
 
 const execFileAsync = promisify(execFile);
@@ -156,6 +158,16 @@ export interface MutationExecutorOptions {
   componentPaths?: Partial<Record<HarnessComponent, string[]>>;
   /** Additional path prefixes always allowed (e.g. ["nexum.harness.json"]). */
   extraAllowedPaths?: string[];
+  /**
+   * Repository node_modules to link into fresh worktrees (v2.3.1). Real
+   * verification profiles (tsc/eslint/jest) cannot run in a bare worktree —
+   * `git worktree add` brings history, not dependencies. When set and the
+   * worktree lacks node_modules, the host's is symlinked in after creation
+   * so the configured verifyCommands execute against the real toolchain.
+   * Dependency dirs are gitignored, so the linked tree never pollutes the
+   * actual-diff scope audit.
+   */
+  linkNodeModulesFrom?: string;
   /** Mutation strategy producing the CodeChangePlan (default: heuristic). */
   strategy?: MutationStrategy;
   /** Root directory under which worktrees are created (default: os tmpdir). */
@@ -210,6 +222,7 @@ export class HeuristicMutationStrategy implements MutationStrategy {
 export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
   private readonly run: (args: string[], cwd: string) => Promise<{ stdout: string; exitCode: number }>;
   private readonly verifyCommands: string[][];
+  private readonly linkNodeModulesFrom?: string;
   private readonly componentPaths: Partial<Record<HarnessComponent, string[]>>;
   private readonly extraAllowedPaths: string[];
   private readonly strategy: MutationStrategy;
@@ -219,6 +232,7 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
   constructor(opts: MutationExecutorOptions = {}) {
     this.run = opts.run ?? defaultRun;
     this.verifyCommands = opts.verifyCommands ?? [["node", "--version"]];
+    this.linkNodeModulesFrom = opts.linkNodeModulesFrom;
     this.componentPaths = opts.componentPaths ?? {};
     // The harness policy manifest is a root-level harness file that every
     // component mutation may legitimately encode its target into.
@@ -232,15 +246,35 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
     const branchName = input.branchName ?? `evolution/${input.candidateHarnessId.toLowerCase()}`;
     const workspaceId = `ws-${input.candidateHarnessId}-${Date.now()}-${this.counter++}`;
     const worktreePath = await this.makeWorktreePath(workspaceId);
-    await this.git(input.repoRoot, ["rev-parse", "--verify", `${input.parentCommit}^{commit}`]);
+    // v2.3.2: resolve the parent to its SHA ONCE, here. Symbolic refs like
+    // "HEAD" are only valid until the candidate commit exists — finalize's
+    // diff-vs-parent (and diffStat) would otherwise silently diff the
+    // candidate against ITSELF and report empty changedFiles.
+    const resolvedParentCommit = (
+      await this.git(input.repoRoot, ["rev-parse", "--verify", `${input.parentCommit}^{commit}`])
+    ).trim();
     await this.git(input.repoRoot, ["worktree", "prune"]);
-    await this.git(input.repoRoot, ["worktree", "add", "-b", branchName, worktreePath, input.parentCommit]);
+    await this.git(input.repoRoot, ["worktree", "add", "-b", branchName, worktreePath, resolvedParentCommit]);
+    // v2.3.1: link the host toolchain into the worktree so real verification
+    // profiles (tsc/eslint/jest) can execute. Skipped when the host has no
+    // node_modules or the worktree somehow already has one.
+    if (this.linkNodeModulesFrom) {
+      const hostModules = join(this.linkNodeModulesFrom, "node_modules");
+      const worktreeModules = join(worktreePath, "node_modules");
+      if (existsSync(hostModules) && !existsSync(worktreeModules)) {
+        try {
+          symlinkSync(hostModules, worktreeModules, "junction");
+        } catch {
+          // Non-fatal: verification will report the missing toolchain honestly.
+        }
+      }
+    }
     return {
       workspaceId,
       repoRoot: input.repoRoot,
       worktreePath,
       branchName,
-      parentCommit: input.parentCommit,
+      parentCommit: resolvedParentCommit,
       candidateHarnessId: input.candidateHarnessId,
       createdAt: Date.now(),
     };
@@ -307,7 +341,7 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
     const actualDiffViolations: string[] = [];
     for (const path of actualChangedFiles) {
       if (declaredPaths.has(path)) continue;
-      if (this.extraAllowedPaths.some((extra) => path === extra || path.startsWith(extra))) continue;
+      if (this.extraAllowedPaths.some((extra) => pathWithinAllowedPrefix(path, extra))) continue;
       actualDiffViolations.push(path);
     }
     const commands: Array<{ command: string; exitCode: number; output: string }> = [];
@@ -400,10 +434,10 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
     }
     const normalized = this.normalizePath(path);
     for (const extra of this.extraAllowedPaths) {
-      if (normalized === extra || normalized.startsWith(extra)) return null;
+      if (pathWithinAllowedPrefix(normalized, extra)) return null;
     }
     const allowed = this.componentPaths[component] ?? DEFAULT_COMPONENT_PATHS[component] ?? ["src/"];
-    if (allowed.some((prefix) => normalized.startsWith(prefix))) return null;
+    if (allowed.some((prefix) => pathWithinAllowedPrefix(normalized, prefix))) return null;
     return `path "${normalized}" is outside the allowed paths for component "${component}" [${allowed.join(", ")}]`;
   }
 

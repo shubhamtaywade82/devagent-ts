@@ -82,6 +82,15 @@ nexum evolve --diagnose
 # Run benchmark suites matching current weaknesses
 nexum evolve --benchmark
 
+# Autonomous self-development actuator (heuristic planner by default):
+# target → isolated worktree → edits → verification profile → candidate
+nexum evolve --mutate --repo .
+
+# Full production run: engineering agent + subprocess benchmark (parent
+# baseline first) + canonical GitHub delivery (PR → CI → review → merge)
+NEXUM_GITHUB_OWNER=<owner> NEXUM_GITHUB_REPO=<repo> nexum evolve \
+  --mutate --repo . --strategy agent --benchmark --github
+
 # Evaluate and benchmark a candidate harness mutation live
 nexum evolve --candidate H1 --component execution --hypothesis "Tighten loop detector threshold"
 
@@ -429,3 +438,77 @@ list_files / read_file / propose_edit / finish / decline
 - **Safety layers, in order**: (1) the system prompt carries the propose-only contract and the allowed-path list; (2) `propose_edit` rejects out-of-scope paths at queue time with a tool error the agent can read and self-correct; (3) the final response is re-audited fail-closed — any queued violation, budget overrun (`maxProposals`), or oversized file (`maxEditBytes`) aborts; (4) `maxTurns` bounds the whole loop; (5) the strategy attributes edits to scope components and (6) the executor audits the actual git diff. The runtime is deliberately read+propose only — no write, no shell — so the executor remains the sole writer and the verification pipeline cannot be bypassed.
 - **Honest outcomes**: `finish` with zero proposals returns `declined` ("investigation finished without any proposed edit") — no candidate is fabricated; `decline` propagates as `AgentDeclinedError`.
 - **Production wiring**: `chatClientFromProvider(provider, model?)` adapts `Provider.chat`; `agentMutationStrategyFromProviderOptions({ tier, model, host, apiKey, ... })` builds the whole strategy from the interactive agent's `loadConfig()` defaults. The engine accepts `agentRuntime` (+ optional `agentVerifyCommands`) and auto-builds the agent-backed executor when no explicit `mutationExecutor` is given. The CLI exposes `--mutate --agent` (opt-in; the default stays heuristic).
+
+### 6.19 CLI production wiring — evaluation, verification profiles, delivery (v2.3.1)
+
+v2.3 shipped a real actuator behind a CLI that still could not complete a cycle: `evaluateCandidate` was a throwing stub, the only verification gate was `node --version`, and `GitHubDeliveryAdapter` had zero `src/` construction sites. v2.3.1 closes those three seams:
+
+```bash
+export NEXUM_GITHUB_OWNER=<owner> NEXUM_GITHUB_REPO=<repo> NEXUM_GITHUB_TOKEN=<pat>
+nexum evolve --mutate --repo . --strategy agent --benchmark --github
+```
+
+- **Real evaluation with a real baseline** (`--benchmark`): the candidate worktree is benchmarked in a SUBPROCESS (`src/benchmark/cli.ts --json`, `cwd` = worktree) — in-process evaluation would benchmark the host module graph, not the mutated code. The parent repository is benchmarked first (`--skip-baseline` to opt out), so the two-stage comparison measures real deltas B(H0) vs B(H1) instead of evaluating H1 against a synthetic baseline.
+- **EvolutionVerificationProfile** (`--verify-profile smoke|fast|full`): repository-defined gates run sequentially inside the worktree — `smoke` (node liveness, the historical default), `fast` (prettier --check, eslint, tsc --noEmit; the new default), `full` (fast + `npm test`; automatic for `--github` delivery runs, so a PR is only opened for a CI-equivalent candidate). Unknown names fail loudly instead of silently weakening the gate.
+- **Worktree toolchain linking**: the executor's `linkNodeModulesFrom` symlinks the host `node_modules` into fresh worktrees (git worktrees carry history, not dependencies), making real gates executable. Dependency directories are gitignored, so the actual-diff scope audit is unaffected.
+- **Canonical delivery** (`--github`): the adapter is constructed from `NEXUM_GITHUB_*` environment variables, enabling push mutation branch → PR → CI poll → review poll → auto-accept → merge, with rework re-entry via `beginRework()`.
+- **Strategy unification**: `--strategy agent|heuristic` (loud failures on typos) with `--agent` as an alias; the CLI builds one explicit executor carrying strategy + profile + linking, while the engine's `agentRuntime` auto-wiring stays available to API users.
+- **Segment-aware scope containment** (`mutation/path-scope.ts`): every scope predicate (runtime proposal checks, strategy attribution, executor planned/actual audits) now uses `pathWithinAllowedPrefix` — allowed prefix `src/evolution` no longer admits the sibling `src/evolution2/...`. The executor's actual-diff audit remains the backstop; the invariant is now explicit at every layer.
+- **Bounded worktree view**: `list_files` excludes dependency/build directories and caps at `maxListEntries` (400); `read_file` truncates at `maxReadBytes` (64 KiB) — the agent's context budget is a function of the configured envelope, not of the worktree size.
+
+### 6.20 Experiment persistence & immutable artifacts (v2.3.2)
+
+Every autonomous mutation is now a persistent, scientifically inspectable record. Previously the `--mutate` path ran the whole experiment lifecycle in-memory — records died at process exit and `--experiments` read an empty database.
+
+- **Persisted provenance**: the mutate path wires a store-backed `ExperimentController` (`<workspace>/state/experiments.db`), so target, hypothesis, executor, evaluation, two-stage decision, lifecycle transitions, CI, and review state survive the run and feed `--experiments` and the promotion-precision report.
+- **Immutable artifacts** (`experiments/experiment-artifact.ts`): one frozen JSON file per cycle — default `<workspace>/state/experiments/<experimentId>.json`, override with `--experiment-dir` — carrying the full scientific tree:
+  `target → diagnosis → hypothesis → model → executor → mutation proposals → changed files → verification → baseline metrics (B(H0)) → candidate metrics (B(H1)) → held-out → transfer → delivery → CI → review → decision`, including raw per-run benchmark rows. Written exclusively (`wx`: an existing artifact is never overwritten) with a sha256 integrity hash over the payload.
+- **Failures are evidence**: declined mutations and prepare/implement/verify/finalize/evaluate stage failures produce artifacts too (`decision.verdict: "failed"`, with the failed stage and reason).
+- **Fixed: silent empty `changedFiles`/`diffStat`** — `prepareWorkspace` stored the literal parent ref (default `HEAD`); `finalize`'s post-commit `git diff --name-only HEAD` therefore diffed the candidate against itself, and every default `--parent HEAD` run since v2.2 produced artifacts claiming no changed files. The parent is now resolved to its SHA once at workspace creation. (The verify-time actual-diff scope audit ran pre-commit and was unaffected.)
+
+```bash
+nexum evolve --mutate --repo . --strategy agent --verify-profile full --benchmark
+# → <workspace>/state/experiments/exp-<ts>.json  (immutable record of the cycle)
+```
+
+### 6.21 Experience feed & runtime activation (v2.3.3)
+
+The two remaining deferred seams: the S³Gym experience feed now has a
+production call site, and the `RuntimeActivationController` seam has a
+production implementation.
+
+- **Experience feed** (`cli.ts` `ingestParentExperience`): the mutate path
+  converts the graded parent-harness episodes it loads for diagnosis into
+  experience records, keyed by the resolved parent commit SHA — so
+  `--experience` digests and transfer analysis operate on measured evidence
+  instead of an empty store. Idempotent (episode id is the store's primary
+  key) and best-effort: accumulation never breaks a mutation cycle.
+- **ManifestRuntimeActivationController**
+  (`monitoring/manifest-runtime-activation.ts`): the production
+  `RuntimeActivationController`. The harness manifest
+  (`nexum.harness.json` — the file strategies legitimately write policy
+  into) becomes the activation contract: `switchTo(H(n))` resolves the
+  harness to a commit (registry lineage first, then any git-resolvable ref),
+  verifies the commit exists in the repository, atomically writes the
+  `activeHarness` pointer (tmp + rename), and re-reads it to verify.
+  Fail-closed on unknown harnesses; corrupt manifests are never clobbered;
+  `harnessHealth()` is real external reality (git cat-file), so the runtime
+  rollback orchestrator's post-switch verification checks the repository,
+  not self-report. A successful switch clears the freeze marker.
+- **CLI**: `--activate-runtime` (explicit opt-in, default OFF) wires the
+  controller plus the harness registry into the mutate path. After a cycle
+  whose candidate was ACCEPTED (GitHub delivery, CI passed, review approved),
+  the live runtime is switched onto the candidate via
+  `ClosedLoopEngine.activateOnRuntime()`; skips and failures are honest and
+  recorded. The experiment artifact gains an `activation` section carrying
+  the controller, harness id, commit, and outcome.
+- The activation gate is deliberately conservative: without `--github`
+  delivery reaching ACTIVE, activation is skipped with the reason in the
+  artifact — the runtime half of acceptance cannot run ahead of the
+  registry/state half.
+
+```bash
+nexum evolve --mutate --repo . --strategy agent --verify-profile full \
+  --benchmark --github --activate-runtime
+# → accepted candidate becomes the manifest pointer (nexum.harness.json)
+```

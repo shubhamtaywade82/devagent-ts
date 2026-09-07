@@ -18,6 +18,7 @@ async function main() {
       category: { type: "string", short: "c" },
       timeout: { type: "string", short: "t" },
       verbose: { type: "boolean", short: "v" },
+      json: { type: "boolean" },
     },
   });
   const timeoutMs = values.timeout ? Number(values.timeout) : undefined;
@@ -78,27 +79,37 @@ async function main() {
     return;
   }
 
-  console.log(`Benchmarking ${models.length} model(s) across ${caseCount} case(s)...\n`);
+  if (!values.json) console.log(`Benchmarking ${models.length} model(s) across ${caseCount} case(s)...\n`);
 
   const results = await runBenchmark(targets, buildCases, {
     timeoutMs,
-    onProgress: (e) => {
-      if (e.status === "running") {
-        console.log(`  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} ...`);
-      } else {
-        const outcome = e.error ? `ERROR: ${e.error}` : e.pass ? "pass" : "fail";
-        const reasonSuffix = verbose && e.reason ? ` — ${e.reason}` : "";
-        console.log(
-          `  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} -> ${outcome} (${e.latencyMs}ms)${reasonSuffix}`,
-        );
-      }
-    },
+    onProgress: values.json
+      ? undefined
+      : (e) => {
+          if (e.status === "running") {
+            console.log(`  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} ...`);
+          } else {
+            const outcome = e.error ? `ERROR: ${e.error}` : e.pass ? "pass" : "fail";
+            const reasonSuffix = verbose && e.reason ? ` — ${e.reason}` : "";
+            console.log(
+              `  [${e.index + 1}/${e.total}] ${e.tier}/${e.model} — ${e.caseId} -> ${outcome} (${e.latencyMs}ms)${reasonSuffix}`,
+            );
+          }
+        },
     onToolCall: verbose
       ? (e) => {
           console.log(`      turn ${e.turn + 1}: ${e.name}(${JSON.stringify(e.args)}) -> ${JSON.stringify(e.result)}`);
         }
       : undefined,
   });
+  // Machine-readable mode: the evolution CLI's subprocess evaluator consumes
+  // exactly this array (see evolution/cli.ts parseBenchmarkJson). One JSON
+  // array on stdout, nothing else printed.
+  if (values.json) {
+    console.log(JSON.stringify(results));
+    return;
+  }
+
   console.log();
   const failures = results.filter((r) => !r.pass);
 

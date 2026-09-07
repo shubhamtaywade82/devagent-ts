@@ -174,6 +174,127 @@ Closes the final question from the v2.2 review — what actually implements
   `GitWorktreeMutationExecutor` when no explicit `mutationExecutor` is set.
   CLI: `nexum evolve --mutate --agent` (opt-in; default stays heuristic).
 
+### Added — v2.3.3: Experience Feed & Runtime Activation
+
+Closes the last two deferred seams from the v2.3.1/v2.3.2 reviews: the
+S³Gym experience engine had no production call site (`ingestExperience` was
+dead code — every `--mutate` run built an `ExperienceStore` that nothing
+wrote to), and the `RuntimeActivationController` seam had no production
+implementation (rollback fell back to a registry pointer move; accepted
+candidates were never switched onto the live runtime).
+
+- **Experience feed** (`cli.ts` `ingestParentExperience`): the mutate path
+  converts the graded parent-harness episodes it loads for diagnosis into
+  experience records keyed by the resolved parent commit SHA, before the
+  cycle runs. Idempotent (episode id is the store's primary key) and
+  best-effort — evidence accumulation must never break a mutation cycle.
+  `--experience`, `--report` (experience→improvement correlation), and
+  transfer analysis now operate on measured evidence.
+- **`ManifestRuntimeActivationController`**
+  (`monitoring/manifest-runtime-activation.ts`): the production runtime
+  half of activation. The harness manifest (`nexum.harness.json`) becomes
+  the activation contract: `switchTo(H(n))` resolves the harness id to a
+  commit (registry lineage first, then any git-resolvable ref), verifies
+  the commit exists (`git cat-file`), atomically writes the
+  `activeHarness` pointer (tmp + rename, strategy-written policy fields
+  preserved), and re-reads it to verify the switch landed. Fail-closed on
+  unknown harnesses; corrupt manifests are never clobbered; `harnessHealth`
+  probes the repository, not self-report, so the runtime rollback
+  orchestrator's post-switch verification is external reality. A successful
+  switch clears the freeze marker.
+- **CLI `--activate-runtime`** (explicit opt-in, default OFF): wires the
+  controller plus the harness registry into the mutate path. After a cycle
+  whose candidate was ACCEPTED (GitHub delivery, CI passed, review
+  approved), the live runtime is switched onto the candidate via
+  `ClosedLoopEngine.activateOnRuntime()`; honest skips (experiment not
+  ACTIVE) and failures are logged and recorded. The experiment artifact
+  gains an `activation` section (controller, harness id, commit, outcome).
+- Without `--activate-runtime` the mutate path is byte-identical to v2.3.2.
+
+### Added — v2.3.2: Experiment Persistence & Immutable Artifacts
+
+Before this change the `--mutate` path ran the ENTIRE experiment lifecycle
+in-memory (`ExperimentController` defaults to no store), so every record was
+lost at process exit while `--experiments` and the health report read an
+empty `experiments.db`. v2.3.2 makes every autonomous mutation a persistent,
+scientifically inspectable record:
+
+- **Persisted experiment provenance**: `nexum evolve --mutate` now wires a
+  store-backed `ExperimentController` (`<workspace>/state/experiments.db`),
+  so target, hypothesis, executor, evaluation, two-stage decision, lifecycle
+  transitions, CI, and review state survive the run and feed `--experiments`
+  and the promotion-precision report.
+- **Immutable experiment artifacts** (`experiments/experiment-artifact.ts`):
+  one frozen JSON file per cycle (default
+  `<workspace>/state/experiments/<experimentId>.json`, override with
+  `--experiment-dir`) carrying the full scientific tree — target, diagnosis,
+  hypothesis, model/executor identity, mutation proposals (with rejected
+  edits), changed files, per-gate verification results, baseline B(H0) and
+  candidate B(H1) aggregates WITH raw per-run rows, held-out/transfer
+  results, delivery/CI/review outcome, and the two-stage decision. The
+  envelope is written exclusively (`wx` — never overwritten) and carries a
+  sha256 integrity hash over the payload.
+- **Stage failures are first-class results**: declined mutations and
+  prepare/implement/verify/finalize/evaluate failures produce artifacts too
+  (`decision.verdict: "failed"` with the stage and reason) — a mutation that
+  never became a candidate is still evidence.
+- **Bug fix — silent empty `changedFiles`/`diffStat`**: `prepareWorkspace`
+  stored the LITERAL parent ref (default `HEAD`), so `finalize`'s
+  `git diff --name-only HEAD` executed AFTER the candidate commit diffed the
+  commit against itself: candidate artifacts reported no changed files for
+  every default `--parent HEAD` run since v2.2. The parent is now resolved
+  to its SHA once at workspace creation; the verify-time actual-diff audit
+  (pre-commit) was unaffected.
+
+### Added — v2.3.1: CLI Production Wiring (evaluation, verification, delivery)
+
+Closes the three integration seams that still blocked the first genuine
+end-to-end autonomous cycle after v2.3 (the throwing `evaluateCandidate`
+stub, the `node --version`-only verification gate, and the delivery adapter
+that no production path constructed):
+
+- **Real candidate evaluation** (`--benchmark`): the mutation cycle now
+  benchmarks the candidate worktree through a SUBPROCESS
+  (`src/benchmark/cli.ts --json`, `cwd` = worktree) instead of failing at the
+  evaluate stage — in-process evaluation would benchmark the host module
+  graph, not the mutated code. The parent repository is benchmarked FIRST
+  for a real baseline delta B(H0) vs B(H1) (`--skip-baseline` opts out);
+  `parseBenchmarkJson` maps held-out splits and loop-abort detection.
+- **EvolutionVerificationProfile** (`mutation/verification-profile.ts`):
+  repository-defined verification gates replacing the smoke default —
+  `smoke` (node liveness, historical default), `fast` (format + lint +
+  typecheck; the new CLI default), `full` (fast + `npm test`, CI-equivalent;
+  automatic when `--github` is set). `nexum evolve --mutate
+--verify-profile <name>`; unknown names fail loudly.
+- **Worktree toolchain linking**: `GitWorktreeMutationExecutor`
+  `linkNodeModulesFrom` symlinks the host `node_modules` into fresh
+  worktrees so real gates (tsc/eslint/jest) can execute — `git worktree add`
+  brings history, not dependencies. Dependency dirs are gitignored, so the
+  actual-diff scope audit is unaffected.
+- **Canonical GitHub delivery** (`--github`): builds `GitHubDeliveryAdapter`
+  from the environment (`NEXUM_GITHUB_OWNER` + `NEXUM_GITHUB_REPO` required;
+  `NEXUM_GITHUB_TOKEN`, `NEXUM_GITHUB_BASE_BRANCH` optional) and enables the
+  full path: push mutation branch → PR → CI poll → review poll → auto-accept
+  → merge, with rework re-entry.
+- **CLI strategy unification**: `--strategy agent|heuristic` (unknown names
+  throw) with `--agent` kept as an alias; the CLI always passes an explicit
+  executor (strategy + profile + linking in one place), while the engine's
+  `agentRuntime` auto-wiring remains available to API users.
+- **Segment-aware scope containment** (`mutation/path-scope.ts`):
+  `pathWithinAllowedPrefix` replaces bare `startsWith` at every scope layer
+  (runtime proposal checks, strategy attribution, executor planned/actual
+  audits) so allowed prefix `src/evolution` no longer admits the sibling
+  `src/evolution2/...`.
+- **Bounded worktree view**: `AgentWorkspaceView.listFiles` excludes
+  dependency/build directories (`node_modules`, `dist`, `coverage`, …) and
+  caps at `maxListEntries` (default 400); `readFile` truncates at
+  `maxReadBytes` (default 64 KiB). The agent's context budget is now a
+  function of the configured envelope, not of the worktree size.
+- **Benchmark CLI `--json`**: machine-readable mode (single JSON array on
+  stdout, progress suppressed) for the subprocess evaluator.
+- **Tests**: +18 (`evolution-cli-wiring`); full suite 1311 passed /
+  14 network-skipped; lint/format/build/docs green.
+
 ## 2.0.0 (2026-08-30)
 
 DevAgent TS is now **Nexum** — same runtime, new name. This is a breaking
