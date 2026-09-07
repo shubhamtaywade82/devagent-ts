@@ -399,4 +399,64 @@ describe("experiment artifacts (v2.3.2)", () => {
       }
     });
   });
+
+  describe("activation record (v2.3.3)", () => {
+    const baseInput = (): ExperimentArtifactInput => ({
+      experimentId: "exp-act",
+      strategyName: "agent",
+      model: "test-model",
+      tier: "local",
+      verifyProfileName: "fast",
+      benchmarkCategories: ["execution"],
+      baselineAbsent: true,
+      target: null,
+      diagnosis: null,
+      scope: null,
+      record: null,
+      mutation: {},
+      baselineResults: [],
+      candidateResults: [],
+    });
+
+    it("carries the runtime activation outcome when provided", () => {
+      const envelope = buildExperimentArtifact({
+        ...baseInput(),
+        failure: { stage: "implement", reason: "declined" },
+        activation: {
+          controller: "manifest-file-runtime",
+          harnessId: "H1",
+          commitSha: "a".repeat(40),
+          activatedAt: 1234,
+          ok: true,
+        },
+      });
+      expect(envelope.payload.activation).toEqual({
+        controller: "manifest-file-runtime",
+        harnessId: "H1",
+        commitSha: "a".repeat(40),
+        activatedAt: 1234,
+        ok: true,
+      });
+    });
+
+    it("records honest activation skips and stays null without the flag", () => {
+      const skipped = buildExperimentArtifact({
+        ...baseInput(),
+        failure: { stage: "evaluate", reason: "no benchmark" },
+        activation: {
+          controller: "manifest-file-runtime",
+          harnessId: "H1",
+          commitSha: "",
+          activatedAt: 5,
+          ok: false,
+          error: "experiment not ACTIVE (activation requires --github delivery with CI passed + review approved)",
+        },
+      });
+      expect(skipped.payload.activation!.ok).toBe(false);
+      expect(skipped.payload.activation!.error).toContain("not ACTIVE");
+
+      const absent = buildExperimentArtifact(baseInput());
+      expect(absent.payload.activation).toBeNull();
+    });
+  });
 });

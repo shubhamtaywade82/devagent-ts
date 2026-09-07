@@ -174,6 +174,43 @@ Closes the final question from the v2.2 review — what actually implements
   `GitWorktreeMutationExecutor` when no explicit `mutationExecutor` is set.
   CLI: `nexum evolve --mutate --agent` (opt-in; default stays heuristic).
 
+### Added — v2.3.3: Experience Feed & Runtime Activation
+
+Closes the last two deferred seams from the v2.3.1/v2.3.2 reviews: the
+S³Gym experience engine had no production call site (`ingestExperience` was
+dead code — every `--mutate` run built an `ExperienceStore` that nothing
+wrote to), and the `RuntimeActivationController` seam had no production
+implementation (rollback fell back to a registry pointer move; accepted
+candidates were never switched onto the live runtime).
+
+- **Experience feed** (`cli.ts` `ingestParentExperience`): the mutate path
+  converts the graded parent-harness episodes it loads for diagnosis into
+  experience records keyed by the resolved parent commit SHA, before the
+  cycle runs. Idempotent (episode id is the store's primary key) and
+  best-effort — evidence accumulation must never break a mutation cycle.
+  `--experience`, `--report` (experience→improvement correlation), and
+  transfer analysis now operate on measured evidence.
+- **`ManifestRuntimeActivationController`**
+  (`monitoring/manifest-runtime-activation.ts`): the production runtime
+  half of activation. The harness manifest (`nexum.harness.json`) becomes
+  the activation contract: `switchTo(H(n))` resolves the harness id to a
+  commit (registry lineage first, then any git-resolvable ref), verifies
+  the commit exists (`git cat-file`), atomically writes the
+  `activeHarness` pointer (tmp + rename, strategy-written policy fields
+  preserved), and re-reads it to verify the switch landed. Fail-closed on
+  unknown harnesses; corrupt manifests are never clobbered; `harnessHealth`
+  probes the repository, not self-report, so the runtime rollback
+  orchestrator's post-switch verification is external reality. A successful
+  switch clears the freeze marker.
+- **CLI `--activate-runtime`** (explicit opt-in, default OFF): wires the
+  controller plus the harness registry into the mutate path. After a cycle
+  whose candidate was ACCEPTED (GitHub delivery, CI passed, review
+  approved), the live runtime is switched onto the candidate via
+  `ClosedLoopEngine.activateOnRuntime()`; honest skips (experiment not
+  ACTIVE) and failures are logged and recorded. The experiment artifact
+  gains an `activation` section (controller, harness id, commit, outcome).
+- Without `--activate-runtime` the mutate path is byte-identical to v2.3.2.
+
 ### Added — v2.3.2: Experiment Persistence & Immutable Artifacts
 
 Before this change the `--mutate` path ran the ENTIRE experiment lifecycle

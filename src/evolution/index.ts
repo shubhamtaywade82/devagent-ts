@@ -48,6 +48,7 @@ export * from "./mutation/verification-profile.js";
 export * from "./delivery/github-adapter.js";
 export * from "./monitoring/activation-monitor.js";
 export * from "./monitoring/runtime-activation.js";
+export * from "./monitoring/manifest-runtime-activation.js";
 
 export * from "./experiments/experiment-schema.js";
 export * from "./experiments/experiment-store.js";

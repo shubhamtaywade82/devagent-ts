@@ -20,7 +20,11 @@ import { runHarnessBenchmark, toTaskExecutionResult } from "./benchmarks.js";
 import { CandidateEvaluationOutcome, EvolutionEngine } from "./engine.js";
 import { ClosedLoopEngine } from "./engine-v2.js";
 import { ExperienceStore } from "./experience/experience-store.js";
-import { buildExperimentArtifact, writeExperimentArtifact } from "./experiments/experiment-artifact.js";
+import {
+  buildExperimentArtifact,
+  writeExperimentArtifact,
+  ExperimentArtifactInput,
+} from "./experiments/experiment-artifact.js";
 import { ExperimentController } from "./experiments/experiment-controller.js";
 import { ExperimentStore } from "./experiments/experiment-store.js";
 import { TaskExecutionResult } from "./evaluator.js";
@@ -31,6 +35,7 @@ import { NexumEngineeringAgentRuntime, chatClientFromProvider } from "./mutation
 import { EvolutionVerificationProfile, verificationProfileByName } from "./mutation/verification-profile.js";
 import { GitHubDeliveryAdapter } from "./delivery/github-adapter.js";
 import { ActivationMonitor, OperationalTelemetry } from "./monitoring/activation-monitor.js";
+import { ManifestRuntimeActivationController } from "./monitoring/manifest-runtime-activation.js";
 import { EvolutionPlan } from "./planner.js";
 import { HarnessRegistry } from "./registry.js";
 import { HarnessComponent, HarnessDiagnosis, HarnessVersion } from "./types.js";
@@ -78,6 +83,11 @@ Options:
                          optional NEXUM_GITHUB_TOKEN, NEXUM_GITHUB_BASE_BRANCH.
       --experiment-dir <path>  Directory for the immutable per-cycle experiment
                          artifact JSON (default: <workspace>/state/experiments).
+      --activate-runtime With --mutate: wire the manifest-file runtime
+                         activation controller. After an ACCEPTED candidate
+                         (GitHub delivery + CI passed + review approved), the
+                         live runtime is switched onto it by atomically
+                         updating nexum.harness.json's activeHarness pointer.
   -a, --autonomous       Run an autonomous diagnosis and mutation planning cycle
       --limit <n>        Limit number of episodes analyzed (default: 20)
       --component <name> Target subsystem for candidate evaluation (default: execution)
@@ -102,6 +112,7 @@ const CLI_OPTIONS = {
   "skip-baseline": { type: "boolean" as const },
   github: { type: "boolean" as const },
   "experiment-dir": { type: "string" as const },
+  "activate-runtime": { type: "boolean" as const },
   repo: { type: "string" as const },
   parent: { type: "string" as const },
   monitor: { type: "boolean" as const },
@@ -548,6 +559,93 @@ export async function runBenchmarkInDir(
   return parseBenchmarkJson(stdout);
 }
 
+/** Resolves a git ref to its full commit SHA, or null when unresolvable. */
+export async function resolveRepoCommit(repoRoot: string, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync("git", ["rev-parse", "--verify", `${ref}^{commit}`], { cwd: repoRoot });
+    const sha = stdout.trim();
+    return sha.length >= 40 ? sha : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * v2.3.3: the S³Gym PRODUCTION FEED. The graded episodes the mutate path
+ * loads are observations of the PARENT harness; converting them into
+ * experience records (keyed by the resolved parent commit) is what makes
+ * --experience digests and transfer analysis operate on measured evidence
+ * instead of an empty store. Idempotent (episode_id is the store's primary
+ * key) and best-effort: evidence accumulation must never break a mutation
+ * cycle. Returns the number of records written (0 when nothing was stored).
+ */
+export async function ingestParentExperience(
+  engine: ClosedLoopEngine,
+  episodes: Episode[],
+  repoRoot: string,
+  parentRef: string,
+): Promise<number> {
+  if (episodes.length === 0) return 0;
+  const harnessVersion = (await resolveRepoCommit(repoRoot, parentRef)) ?? parentRef;
+  try {
+    const records = engine.ingestExperience(episodes, harnessVersion);
+    console.log(
+      `[Evolution] Ingested ${records.length} experience record(s) (harness ${harnessVersion.slice(0, 12)}).`,
+    );
+    return records.length;
+  } catch (err) {
+    console.error(
+      `[Evolution] WARNING: experience ingestion failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return 0;
+  }
+}
+
+/**
+ * v2.3.3: the RUNTIME half of acceptance. Only an ACTIVE experiment (GitHub
+ * delivery with CI passed + review approved + auto-accept) can be switched
+ * onto the live runtime. The outcome — including honest skips and failures —
+ * is returned so the experiment artifact carries the complete chain.
+ */
+async function activateRuntimeIfNeeded(
+  engine: ClosedLoopEngine,
+  controller: ManifestRuntimeActivationController,
+  experimentId: string,
+  outcome: Awaited<ReturnType<ClosedLoopEngine["runEvolutionCycle"]>>,
+): Promise<NonNullable<ExperimentArtifactInput["activation"]>> {
+  const harnessId = outcome.ok ? outcome.outcome.experiment.candidate.harness : "";
+  const base = { controller: controller.name, harnessId };
+  if (!outcome.ok) {
+    return { ...base, commitSha: "", activatedAt: Date.now(), ok: false, error: "cycle did not produce a candidate" };
+  }
+  if (outcome.github?.accepted !== true) {
+    const error = "experiment not ACTIVE (activation requires --github delivery with CI passed + review approved)";
+    console.log(`[Evolution] Runtime activation skipped: ${error}.`);
+    return { ...base, commitSha: "", activatedAt: Date.now(), ok: false, error };
+  }
+  try {
+    await engine.activateOnRuntime(experimentId);
+    const active = controller.activeHarness();
+    if (active !== harnessId) {
+      throw new Error(`manifest pointer reports "${active}" after activation`);
+    }
+    const pointer = controller.readPointer();
+    console.log(
+      `[Evolution] Runtime activated: harness ${harnessId} @ ${(pointer?.commitSha ?? "").slice(0, 12)} (manifest pointer: nexum.harness.json).`,
+    );
+    return {
+      ...base,
+      commitSha: pointer?.commitSha ?? "",
+      activatedAt: pointer?.activatedAt ?? Date.now(),
+      ok: true,
+    };
+  } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
+    console.error(`[Evolution] Runtime activation FAILED: ${error}`);
+    return { ...base, commitSha: "", activatedAt: Date.now(), ok: false, error };
+  }
+}
+
 async function executeMutationCommand(root: string, values: Record<string, unknown>): Promise<void> {
   const repoRoot = values.repo as string | undefined;
   if (!repoRoot) {
@@ -599,9 +697,20 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
   // gates executable inside the worktree. Explicit executor always wins over
   // the engine's agentRuntime auto-wiring, keeping gate control in one place.
   const strategy = buildMutationStrategy(strategyName, cfg);
+  // v2.3.3: runtime activation (--activate-runtime) wires the manifest-file
+  // RuntimeActivationController plus the harness registry so the engine's
+  // acceptance path records real H0→Hn lineage. Default OFF keeps the
+  // pre-activation mutate path byte-identical.
+  const activationRequested = values["activate-runtime"] === true;
+  const registry = activationRequested ? new HarnessRegistry(join(stateDir, "evolution.db")) : undefined;
+  const activationController = activationRequested
+    ? new ManifestRuntimeActivationController({ repoRoot, registry })
+    : undefined;
   const engine = new ClosedLoopEngine({
     experienceStore,
     experimentController: new ExperimentController({ store: experimentStore }),
+    ...(registry ? { registry } : {}),
+    ...(activationController ? { runtimeActivation: activationController } : {}),
     mutationExecutor: new GitWorktreeMutationExecutor({
       verifyCommands: profile.commands,
       linkNodeModulesFrom: repoRoot,
@@ -623,6 +732,10 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
   });
   try {
     const episodes = loadRecentEpisodes(root, limit);
+    // v2.3.3: feed the graded parent-harness episodes into the experience
+    // store BEFORE the cycle runs — accumulation is independent of whether
+    // this particular mutation succeeds.
+    await ingestParentExperience(engine, episodes, repoRoot, (values.parent as string) || "HEAD");
     const observation = engine.observe(episodes);
     if (!observation.target || !observation.mutationScope || observation.diagnoses.length === 0) {
       console.error("No operationalizable target from recent episodes; refusing to mutate blind.");
@@ -667,6 +780,10 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
       ...(values.github && githubCfg ? { github: {} } : {}),
     });
     console.log(formatMutationResult(outcome));
+    // v2.3.3: the runtime half of acceptance — explicit opt-in only.
+    const activation = activationController
+      ? await activateRuntimeIfNeeded(engine, activationController, experimentId, outcome)
+      : null;
     writeCycleArtifact(outcome, {
       experimentId,
       strategyName: strategyName ?? "heuristic",
@@ -681,10 +798,12 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
       baselineResults,
       candidateResults,
       experimentDir,
+      activation,
     });
   } finally {
     experienceStore.close();
     experimentStore.close();
+    registry?.close();
   }
 }
 
@@ -709,6 +828,7 @@ function writeCycleArtifact(
     baselineResults: TaskExecutionResult[];
     candidateResults: TaskExecutionResult[];
     experimentDir: string;
+    activation: ExperimentArtifactInput["activation"];
   },
 ): void {
   try {
@@ -743,6 +863,7 @@ function writeCycleArtifact(
           ? { branchName: outcome.outcome.delivery.branchName, prTitle: outcome.outcome.delivery.prTitle }
           : null,
       failure: outcome.ok ? null : { stage: outcome.stage, reason: outcome.reason },
+      activation: ctx.activation,
     });
     const path = writeExperimentArtifact(ctx.experimentDir, envelope);
     console.log(`[Evolution] Experiment artifact (immutable): ${path}`);

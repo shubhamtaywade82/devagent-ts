@@ -470,3 +470,45 @@ Every autonomous mutation is now a persistent, scientifically inspectable record
 nexum evolve --mutate --repo . --strategy agent --verify-profile full --benchmark
 # → <workspace>/state/experiments/exp-<ts>.json  (immutable record of the cycle)
 ```
+
+### 6.21 Experience feed & runtime activation (v2.3.3)
+
+The two remaining deferred seams: the S³Gym experience feed now has a
+production call site, and the `RuntimeActivationController` seam has a
+production implementation.
+
+- **Experience feed** (`cli.ts` `ingestParentExperience`): the mutate path
+  converts the graded parent-harness episodes it loads for diagnosis into
+  experience records, keyed by the resolved parent commit SHA — so
+  `--experience` digests and transfer analysis operate on measured evidence
+  instead of an empty store. Idempotent (episode id is the store's primary
+  key) and best-effort: accumulation never breaks a mutation cycle.
+- **ManifestRuntimeActivationController**
+  (`monitoring/manifest-runtime-activation.ts`): the production
+  `RuntimeActivationController`. The harness manifest
+  (`nexum.harness.json` — the file strategies legitimately write policy
+  into) becomes the activation contract: `switchTo(H(n))` resolves the
+  harness to a commit (registry lineage first, then any git-resolvable ref),
+  verifies the commit exists in the repository, atomically writes the
+  `activeHarness` pointer (tmp + rename), and re-reads it to verify.
+  Fail-closed on unknown harnesses; corrupt manifests are never clobbered;
+  `harnessHealth()` is real external reality (git cat-file), so the runtime
+  rollback orchestrator's post-switch verification checks the repository,
+  not self-report. A successful switch clears the freeze marker.
+- **CLI**: `--activate-runtime` (explicit opt-in, default OFF) wires the
+  controller plus the harness registry into the mutate path. After a cycle
+  whose candidate was ACCEPTED (GitHub delivery, CI passed, review approved),
+  the live runtime is switched onto the candidate via
+  `ClosedLoopEngine.activateOnRuntime()`; skips and failures are honest and
+  recorded. The experiment artifact gains an `activation` section carrying
+  the controller, harness id, commit, and outcome.
+- The activation gate is deliberately conservative: without `--github`
+  delivery reaching ACTIVE, activation is skipped with the reason in the
+  artifact — the runtime half of acceptance cannot run ahead of the
+  registry/state half.
+
+```bash
+nexum evolve --mutate --repo . --strategy agent --verify-profile full \
+  --benchmark --github --activate-runtime
+# → accepted candidate becomes the manifest pointer (nexum.harness.json)
+```

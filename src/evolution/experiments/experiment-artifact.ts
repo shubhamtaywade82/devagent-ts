@@ -24,6 +24,7 @@
  *   ├── delivery           local prep and/or GitHub PR/CI/review/merge outcome
  *   ├── CI                 the experiment record's CI status
  *   ├── review             the experiment record's review state
+ *   ├── activation         runtime activation outcome (manifest pointer)
  *   └── decision           two-stage verdict + rationale (or stage failure)
  *
  * Immutability contract:
@@ -154,6 +155,20 @@ export interface ExperimentArtifactPayload {
   ci: { status: string; runUrl?: string } | null;
   review: { state: string; reviewer?: string } | null;
   lifecycle: { state: string; enteredAt: number } | null;
+  /**
+   * Runtime activation outcome (v2.3.3): the manifest-file controller's
+   * switch onto the accepted candidate. ok=false covers honest skips
+   * (experiment not ACTIVE) and real failures; null when --activate-runtime
+   * was not requested.
+   */
+  activation: {
+    controller: string;
+    harnessId: string;
+    commitSha: string;
+    activatedAt: number;
+    ok: boolean;
+    error?: string;
+  } | null;
   decision: {
     verdict: "eligible" | "rejected" | "inconclusive" | "failed";
     stageA?: string;
@@ -217,6 +232,15 @@ export interface ExperimentArtifactInput {
   localDelivery?: { branchName: string; prTitle: string } | null;
   /** Stage failure (the cycle returned ok:false). */
   failure?: { stage: string; reason: string } | null;
+  /** Runtime activation outcome (v2.3.3, --activate-runtime); null otherwise. */
+  activation?: {
+    controller: string;
+    harnessId: string;
+    commitSha: string;
+    activatedAt: number;
+    ok: boolean;
+    error?: string;
+  } | null;
 }
 
 const OUTPUT_TAIL_BYTES = 2000;
@@ -383,6 +407,7 @@ export function buildExperimentArtifact(input: ExperimentArtifactInput): Experim
       ? { state: record.review.state, ...(record.review.reviewer ? { reviewer: record.review.reviewer } : {}) }
       : null,
     lifecycle: record ? { state: record.lifecycle.state, enteredAt: record.lifecycle.enteredAt } : null,
+    activation: input.activation ?? null,
     decision,
     benchmark: {
       categories: [...input.benchmarkCategories],

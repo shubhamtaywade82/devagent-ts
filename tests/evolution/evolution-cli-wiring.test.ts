@@ -18,10 +18,15 @@ import {
 } from "../../src/evolution/mutation/verification-profile.js";
 import {
   buildMutationStrategy,
+  ingestParentExperience,
   parseBenchmarkJson,
   resolveGithubDeliveryConfig,
+  resolveRepoCommit,
   runBenchmarkInDir,
 } from "../../src/evolution/cli.js";
+import { ClosedLoopEngine } from "../../src/evolution/engine-v2.js";
+import { ExperienceStore } from "../../src/evolution/experience/experience-store.js";
+import { Episode } from "../../src/learning/types.js";
 import { CliConfig } from "../../src/cli/config.js";
 import { ImprovementTarget } from "../../src/evolution/targets/target-engine.js";
 import { MutationScope } from "../../src/evolution/mutation/mutation-scope.js";
@@ -326,6 +331,98 @@ describe("evolution CLI production wiring (v2.3.1)", () => {
           },
         }),
       ).rejects.toThrow(AgentDeclinedError);
+    });
+  });
+
+  describe("v2.3.3 production feed + activation helpers", () => {
+    async function makeGitRepo(): Promise<{ root: string; head: string }> {
+      const root = mkdtempSync(join(tmpdir(), "nexumfeed-"));
+      await execFileAsync("git", ["init", "-q"], { cwd: root });
+      await execFileAsync("git", ["config", "user.email", "t@t"], { cwd: root });
+      await execFileAsync("git", ["config", "user.name", "t"], { cwd: root });
+      writeFileSync(join(root, "README.md"), "repo\n");
+      await execFileAsync("git", ["add", "-A"], { cwd: root });
+      await execFileAsync("git", ["commit", "-q", "-m", "init"], { cwd: root });
+      const head = (await execFileAsync("git", ["rev-parse", "HEAD"], { cwd: root })).stdout.trim();
+      return { root, head };
+    }
+
+    function mkEpisode(id: string, goal: string, verdict: "success" | "failure"): Episode {
+      return {
+        id,
+        goal,
+        startedAt: 1,
+        endedAt: 2,
+        toolEvents: [],
+        activatedSkillIds: [],
+        terminal: verdict === "success" ? "answered" : "error",
+        finalAssistantText: "done",
+        grade: {
+          score: verdict === "success" ? 0.9 : 0.2,
+          signals: {
+            testsRan: true,
+            testsPassed: verdict === "success",
+            toolErrorRate: verdict === "success" ? 0 : 0.5,
+            pathEscapes: 0,
+            patchFailures: 0,
+            loopAborted: false,
+            turnCount: 3,
+            retriedSameToolMax: 0,
+          },
+          verdict,
+        },
+      };
+    }
+
+    it("resolveRepoCommit resolves HEAD to the full SHA and null for bogus refs", async () => {
+      const { root, head } = await makeGitRepo();
+      try {
+        await expect(resolveRepoCommit(root, "HEAD")).resolves.toBe(head);
+        await expect(resolveRepoCommit(root, "does-not-exist")).resolves.toBeNull();
+      } finally {
+        rmSync(root, { recursive: true, force: true });
+      }
+    });
+
+    it("ingestParentExperience writes records keyed by the resolved parent commit, idempotently", async () => {
+      const { root, head } = await makeGitRepo();
+      const stateDir = mkdtempSync(join(tmpdir(), "nexumexp-"));
+      const store = new ExperienceStore(join(stateDir, "experience.db"));
+      try {
+        const engine = new ClosedLoopEngine({ experienceStore: store });
+        const episodes = [
+          mkEpisode("ep-1", "fix the broken tool argument validation", "success"),
+          mkEpisode("ep-2", "add feature support for streaming output", "failure"),
+        ];
+        await expect(ingestParentExperience(engine, episodes, root, "HEAD")).resolves.toBe(2);
+        expect(store.count()).toBe(2);
+        const record = store.getByEpisode("ep-1");
+        expect(record).not.toBeNull();
+        expect(record!.harnessVersion).toBe(head);
+        expect(record!.executorModel).toBe("primary");
+        // Idempotent: re-ingesting the same episodes must not duplicate rows.
+        await expect(ingestParentExperience(engine, episodes, root, "HEAD")).resolves.toBe(2);
+        expect(store.count()).toBe(2);
+      } finally {
+        store.close();
+        rmSync(root, { recursive: true, force: true });
+        rmSync(stateDir, { recursive: true, force: true });
+      }
+    });
+
+    it("ingestParentExperience is a no-op for empty episode lists", async () => {
+      const { root } = await makeGitRepo();
+      const stateDir = mkdtempSync(join(tmpdir(), "nexumexp2-"));
+      const store = new ExperienceStore(join(stateDir, "experience.db"));
+      try {
+        const engine = new ClosedLoopEngine({ experienceStore: store });
+        await expect(ingestParentExperience(engine, [], root, "HEAD")).resolves.toBe(0);
+        expect(store.count()).toBe(0);
+      } finally {
+        store.close();
+        rmSync(root, { recursive: true, force: true });
+        rmSync(stateDir, { recursive: true, force: true });
+      }
     });
   });
 });
