@@ -12,7 +12,16 @@ import { PlanStep, Planner } from "../orchestrator/types.js";
 import { generatePlan, replanSteps } from "../tui/plan-generator.js";
 import { SkillMeta } from "../skills/types.js";
 import { LspServerState } from "../lsp/protocol.js";
-import { ApprovalRequest, McpServerState, MissionPhase, MissionPhaseId } from "../runtime/types.js";
+import {
+  ApprovalRequest,
+  ClarificationRequest,
+  ClarificationResponse,
+  McpServerState,
+  MissionPhase,
+  MissionPhaseId,
+  ProjectInfo,
+} from "../runtime/types.js";
+import { IntentResolver } from "../intent/intent-resolver.js";
 import { MemoryStore } from "../memory/store.js";
 import { DocsStore } from "../docs/store.js";
 import { generateSummary } from "../memory/summarizer.js";
@@ -92,6 +101,7 @@ export interface AgentEvents {
   }) => void;
   onPlanUpdate?: (goal: string, steps: PlanStep[], status: "running" | "completed" | "failed") => void;
   onApprovalRequested?: (request: ApprovalRequest) => void;
+  onClarificationRequested?: (request: ClarificationRequest) => void;
   onModelUsed?: (tier: string, model: string) => void;
   /** Whole-mission phase system (see runtime/mission-derive.ts): a new mission
    * begins, a phase's status changes, or a live plan step transitions. */
@@ -145,6 +155,9 @@ export class Agent {
   private readonly mcpServerConfigs: Array<{ name: string; command: string; args?: string[] }>;
   private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
   private readonly autoApprove: boolean;
+  readonly intentResolver = new IntentResolver();
+  private readonly pendingClarifications = new Map<string, (resp: ClarificationResponse) => void>();
+  projectInfo?: ProjectInfo;
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
@@ -244,6 +257,7 @@ export class Agent {
     this.tools = new AgentToolManager();
     this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) => this.emit("onShellOutput", stream, chunk));
     this.tools.registerHybridTools(this.localWorker);
+    this.tools.registerClarificationTool(this);
 
     this.intelligence = new AgentIntelligence({
       workspaceRoot: cfg.workspaceRoot,
@@ -338,6 +352,16 @@ export class Agent {
   }
 
   async runUserMessage(userMessage: string, _priority?: PlanStep["priority"]): Promise<string> {
+    const clarificationReq = this.intentResolver.checkAmbiguity(userMessage, this.projectInfo);
+    if (
+      clarificationReq &&
+      (this.events.onClarificationRequested || this.listeners.get("onClarificationRequested")?.size)
+    ) {
+      const resp = await this.requestClarification(clarificationReq);
+      userMessage = this.intentResolver.refinePrompt(userMessage, resp, clarificationReq.options);
+      this.emit("onStatus", `refined intent: "${userMessage}"`);
+    }
+
     const learnings = this.learning.getLearnings();
     const activatedSkills = this.learning.resolveForPrompt(userMessage);
 
@@ -771,6 +795,29 @@ export class Agent {
   /** Called by the TUI when the user presses approve/reject on a pending request. */
   resolveApproval(id: string, approved: boolean): void {
     this.pendingApprovals.get(id)?.(approved);
+  }
+
+  setProjectInfo(info: ProjectInfo): void {
+    this.projectInfo = info;
+  }
+
+  async requestClarification(request: ClarificationRequest): Promise<ClarificationResponse> {
+    // Avoid deadlocks when running headless or without interactive UI listener.
+    if (!this.events.onClarificationRequested && !this.listeners.get("onClarificationRequested")?.size) {
+      return { id: request.id, selectedId: request.options[0]?.id ?? "default" };
+    }
+    return new Promise<ClarificationResponse>((resolve) => {
+      this.pendingClarifications.set(request.id, resolve);
+      this.emit("onClarificationRequested", request);
+    });
+  }
+
+  resolveClarification(response: ClarificationResponse): void {
+    const handler = this.pendingClarifications.get(response.id);
+    if (handler) {
+      this.pendingClarifications.delete(response.id);
+      handler(response);
+    }
   }
 
   /** Entry point for /plan: decomposes `goal` into steps via the model, then

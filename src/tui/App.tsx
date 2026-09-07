@@ -40,6 +40,8 @@ import { CommandPalette } from "./overlays/CommandPalette.js";
 import { HelpOverlay } from "./overlays/HelpOverlay.js";
 import { ActorsOverlay } from "./overlays/ActorsOverlay.js";
 import { ApprovalOverlay } from "./overlays/ApprovalOverlay.js";
+import { ClarificationOverlay } from "./overlays/ClarificationOverlay.js";
+import { ClarificationResponse } from "../runtime/types.js";
 import { ModelSwitcher } from "./overlays/ModelSwitcher.js";
 import { ModeSwitcher } from "./overlays/ModeSwitcher.js";
 import { SearchEverywhere } from "./overlays/SearchEverywhere.js";
@@ -64,6 +66,7 @@ export interface ShellAgent {
   runPlan?(goal: string): Promise<unknown>;
   hasResumablePlan?(): boolean;
   resolveApproval?(id: string, approved: boolean): void;
+  resolveClarification?(response: ClarificationResponse): void;
   listModels?(): Promise<string[]>;
   /** Cache-only: which of the given models are known to require a Cloud subscription. */
   modelAvailability?(models: string[]): Record<string, boolean>;
@@ -633,7 +636,7 @@ export function App({
       handleCommand(command);
       return;
     }
-    if (ui.overlay) return; // remaining keys belong to the overlay's own handler
+    if (ui.overlay || state.clarification != null) return; // remaining keys belong to the overlay's own handler
 
     // Prompt editing.
     if (key.return && key.shift) {
@@ -720,6 +723,8 @@ export function App({
   const ActiveView = VIEWS[ui.activeView];
   const approval = state.approval;
   const showApproval = approval != null && (ui.overlay === null || ui.overlay === "diff");
+  const clarification = state.clarification;
+  const showClarification = clarification != null && !showApproval;
   const viewIndex = VIEW_ORDER.indexOf(ui.activeView) + 1;
   const title = ` ${viewIndex} ${VIEW_LABELS[ui.activeView]} `;
   const rule = "─".repeat(Math.max(0, width - title.length - 2));
@@ -733,6 +738,7 @@ export function App({
   const showSidebar =
     ui.sidebarVisible &&
     !showApproval &&
+    !showClarification &&
     ui.overlay === null &&
     width >= MIN_WIDTH_FOR_SIDEBAR &&
     ui.activeView !== "dashboard";
@@ -778,6 +784,24 @@ export function App({
           )}
           {showApproval ? (
             <ApprovalOverlay request={approval} width={width} rows={contentRows} showDiff={ui.overlay === "diff"} />
+          ) : showClarification ? (
+            <ClarificationOverlay
+              request={clarification}
+              width={width}
+              rows={contentRows}
+              onSubmit={(response) => {
+                agent?.resolveClarification?.(response);
+                bus.publish({ type: "clarification.resolved", response });
+              }}
+              onCancel={() => {
+                const fallbackId = clarification.options[0]?.id ?? "cancel";
+                agent?.resolveClarification?.({ id: clarification.id, selectedId: fallbackId });
+                bus.publish({
+                  type: "clarification.resolved",
+                  response: { id: clarification.id, selectedId: fallbackId },
+                });
+              }}
+            />
           ) : ui.overlay === "diff" ? (
             <Box flexDirection="row" width={width} height={contentRows}>
               <Box width={Math.floor((width - 1) / 2)} height={contentRows}>

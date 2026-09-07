@@ -104,6 +104,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
     skills: [],
     diagnosticsByPath: {},
     approval: null,
+    clarification: null,
     notifications: [],
     lastError: null,
     theme: "default",
@@ -510,6 +511,15 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
     case "approval.resolved": {
       if (!state.approval || state.approval.id !== event.id) return state;
       return { ...state, approval: null, mode: "idle" };
+    }
+    case "clarification.requested":
+      return withActor({ ...state, clarification: event.request, mode: "clarification" }, "conversation", {
+        health: "waiting",
+        detail: "?",
+      });
+    case "clarification.resolved": {
+      if (!state.clarification || state.clarification.id !== event.response.id) return state;
+      return { ...state, clarification: null, mode: "idle" };
     }
     case "execution.goal":
       return withActor(

@@ -281,6 +281,36 @@ describe("App shell", () => {
     unmount();
   });
 
+  it("clarification flow: overlay appears and number key selects option", async () => {
+    let resolvedResponse: any = null;
+    const { stdin, lastFrame, unmount, store } = renderApp(100, 30, ({ bus, agent }) => {
+      agent.resolveClarification = (resp) => {
+        resolvedResponse = resp;
+      };
+      bus.publish({
+        type: "clarification.requested",
+        request: {
+          id: "clar-42",
+          prompt: "explain oops",
+          question: "Which aspect of OOP?",
+          options: [
+            { id: "opt-1", label: "General OOP" },
+            { id: "opt-2", label: "TypeScript OOP" },
+          ],
+        },
+      });
+    });
+    await tick();
+    const frame = stripAnsi(lastFrame() ?? "");
+    expect(frame).toContain("Intent Clarification");
+    expect(frame).toContain("Which aspect of OOP?");
+    stdin.write("2");
+    await tick();
+    expect(resolvedResponse).toEqual({ id: "clar-42", selectedId: "opt-2" });
+    expect(store.getState().clarification).toBeNull();
+    unmount();
+  });
+
   // ModelSwitcher overlay renders differently at ink-testing-library's hardcoded
   // 100-col stdout — the model list isn't visible in the frame.
   it.skip("/model with no args opens the switcher; selecting sets the model", async () => {

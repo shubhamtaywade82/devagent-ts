@@ -78,6 +78,7 @@ import { SearchDocsTool, GetDocTool, ListDocSourcesTool } from "../tools/docs-to
 import { DocsStore } from "../docs/store.js";
 import { DelegateToLocalTool } from "../tools/delegate-tool.js";
 import type { LocalWorker } from "../provider/local-worker.js";
+import { AskUserTool, ClarificationRequester } from "../tools/ask-user-tool.js";
 
 export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
 
@@ -188,6 +189,10 @@ export class AgentToolManager {
       .register(new SearchDocsTool(store, workspaceRoot), "Docs")
       .register(new GetDocTool(store), "Docs")
       .register(new ListDocSourcesTool(store, workspaceRoot), "Docs");
+  }
+
+  registerClarificationTool(requester: ClarificationRequester): void {
+    this.registry.register(new AskUserTool(requester), "Agent");
   }
 
   registerTool(tool: Tool, category = "General"): void {

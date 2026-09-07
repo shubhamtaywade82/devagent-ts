@@ -164,6 +164,7 @@ const MODE_LABELS: Record<RuntimeState["mode"], string> = {
   editing: "EDITING",
   testing: "TESTING",
   approval: "APPROVAL",
+  clarification: "CLARIFY",
   streaming: "STREAMING",
 };
 

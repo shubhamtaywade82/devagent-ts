@@ -281,6 +281,33 @@ export async function startTui(opts?: { config?: Partial<CliConfig> }): Promise<
     completer,
   });
 
+  agent.on("onClarificationRequested", (request) => {
+    if (spinner.isSpinning) spinner.stop();
+    console.log(chalk.cyan.bold(`\n? ${request.question}`));
+    request.options.forEach((opt, idx) => {
+      const detail = opt.detail ? chalk.gray(` - ${opt.detail}`) : "";
+      console.log(`  ${chalk.yellow(`[${idx + 1}]`)} ${chalk.bold(opt.label)}${detail}`);
+    });
+    rl.question(chalk.green(`Select [1-${request.options.length}] or type custom instructions: `), (ans) => {
+      const trimmed = ans.trim();
+      const num = parseInt(trimmed, 10);
+      if (!isNaN(num) && num >= 1 && num <= request.options.length) {
+        const chosen = request.options[num - 1];
+        if (chosen.isCustom) {
+          rl.question(chalk.green("Custom instructions: "), (custom) => {
+            agent.resolveClarification({ id: request.id, selectedId: "custom", customText: custom.trim() });
+          });
+        } else {
+          agent.resolveClarification({ id: request.id, selectedId: chosen.id });
+        }
+      } else if (trimmed) {
+        agent.resolveClarification({ id: request.id, selectedId: "custom", customText: trimmed });
+      } else {
+        agent.resolveClarification({ id: request.id, selectedId: request.options[0]?.id ?? "default" });
+      }
+    });
+  });
+
   // Assign history and ensure uniqueness
   const seenHistory = new Set<string>();
   (rl as ReadlineInterfaceWithHistory).history = initialHistory.filter((item) => {

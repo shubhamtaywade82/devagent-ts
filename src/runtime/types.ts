@@ -86,7 +86,7 @@ export const PRIMARY_VIEW_LABELS: Record<(typeof PRIMARY_VIEWS)[number], string>
 };
 
 /** Runtime mode drives the Context Strip contents. */
-export type RuntimeMode = "idle" | "planning" | "editing" | "testing" | "approval" | "streaming";
+export type RuntimeMode = "idle" | "planning" | "editing" | "testing" | "approval" | "clarification" | "streaming";
 
 /** Agent operational modes — controls what the agent is allowed to do. */
 export type AgentMode = "ask" | "code" | "architect" | "review" | "debug" | "autonomous";
@@ -203,6 +203,27 @@ export interface ApprovalRequest {
   additions: number;
   deletions: number;
   diff?: string;
+}
+
+export interface ClarificationOption {
+  id: string;
+  label: string;
+  detail?: string;
+  isCustom?: boolean;
+}
+
+export interface ClarificationRequest {
+  id: string;
+  prompt: string;
+  question: string;
+  options: ClarificationOption[];
+  allowCustom?: boolean;
+}
+
+export interface ClarificationResponse {
+  id: string;
+  selectedId: string;
+  customText?: string;
 }
 
 export type ChatRole = "user" | "assistant" | "thinking" | "tool" | "system";
@@ -431,6 +452,7 @@ export interface RuntimeState {
   /** Per-file LSP diagnostic counts; errors aggregate = sum of values. */
   diagnosticsByPath: Record<string, number>;
   approval: ApprovalRequest | null;
+  clarification: ClarificationRequest | null;
   notifications: Notification[];
   lastError: string | null;
   theme: ThemeName;

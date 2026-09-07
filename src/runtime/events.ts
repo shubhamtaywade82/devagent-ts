@@ -9,6 +9,8 @@ import {
   ApprovalRequest,
   CardItem,
   ChatRole,
+  ClarificationRequest,
+  ClarificationResponse,
   ExecutionStep,
   GitState,
   LogLevel,
@@ -89,6 +91,8 @@ export type RuntimeEvent =
   | { type: "skills.changed"; skills: SkillState[] }
   | { type: "approval.requested"; request: ApprovalRequest }
   | { type: "approval.resolved"; id: string; approved: boolean }
+  | { type: "clarification.requested"; request: ClarificationRequest }
+  | { type: "clarification.resolved"; response: ClarificationResponse }
   | { type: "execution.goal"; goal: string; steps: ExecutionStep[] }
   | { type: "execution.step"; step: ExecutionStep }
   | { type: "execution.queue"; queue: string[]; etaSeconds?: number }

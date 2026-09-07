@@ -8,7 +8,13 @@ import { EventBus } from "../runtime/events.js";
 import { LspServerState } from "../lsp/protocol.js";
 import { SkillMeta } from "../skills/types.js";
 import { PlanStep, StepStatus } from "../orchestrator/types.js";
-import { ApprovalRequest, ExecutionStep, MissionPhase, MissionPhaseId } from "../runtime/types.js";
+import {
+  ApprovalRequest,
+  ClarificationRequest,
+  ExecutionStep,
+  MissionPhase,
+  MissionPhaseId,
+} from "../runtime/types.js";
 
 // PlanStep tracks a fine-grained ASL (analyzing/planning/implementing/
 // testing/reviewing/...); the TUI only renders the coarse 5-state model.
@@ -117,6 +123,9 @@ export function wireAgentBridge(agent: BridgeableAgent, bus: EventBus): void {
   });
   agent.on("onApprovalRequested", (request: ApprovalRequest) => {
     bus.publish({ type: "approval.requested", request });
+  });
+  agent.on("onClarificationRequested", (request: ClarificationRequest) => {
+    bus.publish({ type: "clarification.requested", request });
   });
   agent.on("onModelUsed", (tier: string, model: string) => {
     bus.publish({ type: "model.answered", tier, model });

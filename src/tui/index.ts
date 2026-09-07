@@ -9,6 +9,7 @@ import { loadConfig } from "../cli/config.js";
 import { EventBus } from "../runtime/events.js";
 import { initialRuntimeState, Store } from "../runtime/store.js";
 import { detectProjectInfo } from "../runtime/project-info.js";
+import { ClarificationResponse } from "../runtime/types.js";
 import { wireAgentBridge, BridgeableAgent } from "./agent-bridge.js";
 import { App } from "./App.js";
 import { validateAsl, generateAslGraph } from "../asl/commands.js";
@@ -112,10 +113,12 @@ const cfg = loadConfig();
     }),
   );
   store.attach(bus);
-  bus.publish({ type: "project.detected", info: detectProjectInfo(cfg.workspaceRoot) });
+  const detectedProject = detectProjectInfo(cfg.workspaceRoot);
+  bus.publish({ type: "project.detected", info: detectedProject });
   checkDockerAvailable().then((available) => bus.publish({ type: "sandbox.detected", available }));
 
   const agent = new Agent({ config: cfg });
+  agent.setProjectInfo(detectedProject);
 
   // Agent.on<E extends AgentEventName> is structurally compatible with
   // BridgeableAgent.on<E extends string> at runtime (the bridge only uses
@@ -152,6 +155,7 @@ const cfg = loadConfig();
     runPlan: (goal: string) => agent.runPlan(goal),
     hasResumablePlan: () => agent.hasResumablePlan(),
     resolveApproval: (id: string, approved: boolean) => agent.resolveApproval(id, approved),
+    resolveClarification: (resp: ClarificationResponse) => agent.resolveClarification(resp),
     validateModel: () => agent.validateModel(),
     getSkillsRegistry: () => agent.getSkillsRegistry(),
     pinSkill: (id: string | null) => agent.pinSkill(id),
