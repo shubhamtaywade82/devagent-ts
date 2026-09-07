@@ -100,6 +100,53 @@ finalize` turns a formed target into a verifiable candidate commit inside
   (self-development actuator) and `nexum evolve --monitor --harness <id>
 --telemetry <file.jsonl>` (post-activation health).
 
+### Added — v2.2: Real Autonomous Mutation, Canonical Delivery Path & Runtime Rollback
+
+Closes the remaining gaps from the v2.1 review — Nexum moves from
+self-modifying to genuinely self-developing:
+
+- **AgentMutationStrategy** (`mutation/agent-mutation.ts`): real autonomous
+  code mutation. An injectable `EngineeringAgentRuntime` (Nexum's own
+  engineering runtime, an LLM, or a sandboxed coding agent) inspects the
+  candidate worktree (`AgentWorkspaceView`), consults experience/telemetry
+  digests, and proposes concrete edits to the ACTUAL implementation — the
+  benchmark suite then evaluates mutated runtime behavior, not a policy
+  manifest. Agents only propose; the executor applies, verifies, and
+  commits. `ScriptedAgentRuntime` provides a deterministic handler-based
+  runtime for tests and dry runs; `AgentDeclinedError` aborts cleanly and
+  a `maxEdits` envelope stops runaway responses.
+- **Scope guard v2 — actual-diff verification**: `verify()` now audits what
+  ACTUALLY changed on disk (`git diff` vs the parent commit + untracked
+  files, snapshotted before verification commands run) and fails when a
+  changed path was never declared in the plan — closing the side-effect
+  hole where a strategy could smuggle undeclared files while presenting a
+  clean plan. Enforced invariant: `actual changed files ⊆ allowed mutation
+paths`.
+- **Canonical production path (engine-integrated delivery)**:
+  `runEvolutionCycle({ github })` continues past eligibility through real
+  delivery inside the workspace lifetime — push the actual mutation branch
+  (the DeliveryReport branch is overridden with the real one), open the PR,
+  poll CI, poll review, auto-accept on approval, merge. CI/review verdicts
+  feed the lifecycle in-cycle; `beginRework()` re-enters the loop from
+  `CI_FAILED` / `CHANGES_REQUESTED` to `CANDIDATE`.
+- **Workspace lifecycle ownership**: the evolution cycle disposes the
+  worktree via `try/finally` on every exit path (success, stage failure,
+  benchmark failure) while the candidate branch/commit survive in the
+  repository; `retainWorkspace` + `disposeWorkspace()` support manual
+  delivery flows. Autonomous operation no longer leaks `/tmp` worktrees.
+- **Runtime activation rollback** (`monitoring/runtime-activation.ts`):
+  registry rollback now has a runtime counterpart.
+  `RuntimeRollbackOrchestrator` performs freeze → switch → health-verify →
+  persist (`REGRESSED → ROLLBACK → ACTIVE` + registry rollback). A failed
+  switch or failed post-switch health probe restores the original harness
+  and leaves the experiment honestly at REGRESSED. Engine wiring:
+  `rollbackActive()`, `evaluateActivationLive()` (production monitor tick),
+  and `activateOnRuntime()` (runtime half of acceptance).
+- **Fix: `GitHubDeliveryAdapter` default git runner** spawned bare
+  subcommands (`rev-parse`, `push`) without the `git` prefix, so the
+  non-injected production path could never execute; subcommands are now
+  normalized onto `git`.
+
 ## 2.0.0 (2026-08-30)
 
 DevAgent TS is now **Nexum** — same runtime, new name. This is a breaking

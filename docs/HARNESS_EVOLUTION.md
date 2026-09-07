@@ -341,8 +341,72 @@ src/evolution/
 ├── comparison/     # two-stage selector (validity + improvement)
 ├── evaluation/     # fixed-executor matrix protocol
 ├── generalization/ # held-out + transfer gate
-├── mutation/       # single → compound scope escalation + mutation executor
+├── mutation/       # scope escalation + mutation executor + agent strategy
 ├── delivery/       # GitHubDeliveryAdapter (real Git/GitHub delivery loop)
-├── monitoring/     # ActivationMonitor (post-deployment telemetry)
+├── monitoring/     # ActivationMonitor + runtime activation/rollback
 └── acceptance/     # candidate → validated → … → active pipeline
 ```
+
+### 6.14 AgentMutationStrategy — real autonomous code mutation (v2.2)
+
+The default `HeuristicMutationStrategy` modifies the repository but not the harness runtime's behavior: it writes a self-describing `nexum.harness.json` policy file. `src/evolution/mutation/agent-mutation.ts` closes that gap with the first-class agent boundary:
+
+```text
+target → EngineeringAgentRuntime.proposeMutation()
+           ├─ inspects the worktree  (AgentWorkspaceView: readFile / listFiles)
+           ├─ consults evidence      (experienceDigest / telemetryDigest)
+           └─ proposes concrete file edits
+       → AgentMutationStrategy maps proposals → scope-attributed CodeChangePlan
+       → executor implement / verify / finalize (unchanged safety pipeline)
+       → actual runtime behavior changes → benchmarks → matrix → PR
+```
+
+- `EngineeringAgentRuntime` is the pluggable seam for Nexum's own engineering runtime, an LLM API, or a sandboxed coding agent. Implementations only PROPOSE — the executor applies, verifies, and commits.
+- The agent receives the allowed-path list (`allowedPathsFor(scope)`) and is asked to respect it, but nothing is trusted: enforcement stays with the executor (defense in depth).
+- Safety envelope: a declined agent aborts the cycle without a candidate (`AgentDeclinedError`); a runaway response exceeding `maxEdits` aborts with `AgentMutationError`.
+- `ScriptedAgentRuntime` wraps a plain handler for deterministic tests and dry runs.
+
+This is the transition from "self-modifying repository" to **self-developing harness**: the mutation touches the implementation the benchmark suite actually exercises.
+
+### 6.15 Scope guard v2 — actual-diff verification
+
+The v2.1 guard checked only the PLANNED edits (`planned ⊆ allowed`). A strategy with disk access could smuggle undeclared files into the worktree and pass. The v2.2 `verify()` adds a second, independent guard:
+
+```text
+1. PLANNED ⊆ ALLOWED            (unchanged: per-edit component-path check)
+2. ACTUAL ⊆ DECLARED ∪ EXTRAS   (new: git diff vs parent commit + untracked files)
+```
+
+Every path that actually changed on disk — snapshotted BEFORE verification commands run so tool artifacts cannot pollute the audit — must have been declared in the plan (or be covered by the configured `extraAllowedPaths` carve-out). Undeclared changes fail verification with `actualDiffViolations`, whatever component directory they landed in. The invariant the executor enforces is exactly:
+
+> actual changed files ⊆ allowed mutation paths
+
+### 6.16 The canonical production cycle (engine-integrated delivery)
+
+As of v2.2 the canonical production path is engine-internal: when a `GitHubDeliveryAdapter` is wired and the cycle input supplies `github`, `runEvolutionCycle()` continues past eligibility through real delivery, with every external verdict fed back into the lifecycle inside the workspace lifetime:
+
+```text
+target → mutation → evaluation → eligibility
+       → push mutation branch → open PR (branch overridden to the REAL mutation branch)
+       → poll CI  (CI_PENDING → CI_PASSED | CI_FAILED, timeout stays honest pending)
+       → poll review (REVIEW_PENDING → APPROVED | CHANGES_REQUESTED)
+       → accept on approval (APPROVED → ACCEPTED → ACTIVE) → merge
+       → CI_FAILED / CHANGES_REQUESTED → beginRework() re-enters the loop at CANDIDATE
+```
+
+The workspace lifecycle is owned by the cycle itself: the worktree is disposed via `try/finally` on every exit path — success, stage failure, benchmark failure — while the candidate branch and commit survive in the repository for review, rework, and provenance. `retainWorkspace: true` plus `disposeWorkspace()` supports manual delivery flows.
+
+### 6.17 Runtime activation rollback
+
+`HarnessRegistry.rollbackTo()` moves the version-lineage pointer; whether the LIVE process stops executing the regressed harness is a different question. `src/evolution/monitoring/runtime-activation.ts` makes runtime rollback explicit and verifiable:
+
+```text
+ACTIVE H(n) → monitor regression → freeze H(n)
+  → switch runtime → H(n-1)
+  → verify H(n-1) healthy in the runtime
+  → persist: REGRESSED → ROLLBACK → ACTIVE + registry.rollbackTo
+```
+
+- `RuntimeActivationController` (injectable): `activeHarness()` / `switchTo()` / optional `freeze()` and `harnessHealth()`.
+- `RuntimeRollbackOrchestrator.rollback()` drives the full sequence and returns a step-by-step audit report. If the switch fails or the post-switch health verification fails, the runtime is restored to the original harness and the experiment stays honestly at REGRESSED — a rollback is never reported as complete unless the prior harness is actually running again.
+- Engine wiring: `rollbackActive()` / `evaluateActivationLive()` (awaited runtime rollback for production monitor ticks) and `activateOnRuntime()` (switches the live runtime onto an accepted candidate — the runtime half of activation). Without a runtime controller the loop keeps the v2.1 logical rollback (`handleRegression`), parking at ROLLBACK.

@@ -313,8 +313,11 @@ function pick<T, K extends keyof T>(t: T, ...keys: K[]): Partial<Pick<T, K>> {
 }
 
 function defaultGitRunner(args: string[], cwd: string): Promise<GitRunResult> {
+  // Callers may pass either ["git", "-C", dir, ...] or bare subcommands
+  // (["rev-parse", "HEAD"]); normalize so the production path actually works.
+  const argv = args[0] === "git" ? args : ["git", ...args];
   return new Promise((resolve, reject) => {
-    execFile(args[0], args.slice(1), { cwd, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
+    execFile(argv[0], argv.slice(1), { cwd, maxBuffer: 16 * 1024 * 1024 }, (err, stdout, stderr) => {
       if (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (typeof code !== "number") {

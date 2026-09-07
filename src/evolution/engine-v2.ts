@@ -48,6 +48,12 @@ import {
   MutationWorkspace,
 } from "./mutation/mutation-executor.js";
 import { ActivationEnvelope, ActivationHealth, ActivationMonitor } from "./monitoring/activation-monitor.js";
+import {
+  RuntimeActivationController,
+  RuntimeRollbackOrchestrator,
+  RuntimeRollbackReport,
+} from "./monitoring/runtime-activation.js";
+import { ChecksVerdict, DeliveryHandle, GitHubDeliveryAdapter, ReviewVerdict } from "./delivery/github-adapter.js";
 import { formulateHypothesis } from "./hypothesis.js";
 import { EvolutionPlanner } from "./planner.js";
 import { provenanceYamlCodeBlock } from "./experiments/provenance.js";
@@ -93,6 +99,21 @@ export interface ClosedLoopEngineOptions {
   mutationExecutor?: HarnessMutationExecutor;
   /** Post-activation telemetry monitor wired to the REGRESSED/ROLLBACK path. */
   monitor?: ActivationMonitor;
+  /**
+   * Real Git/GitHub delivery. When set (together with the per-cycle `github`
+   * input), runEvolutionCycle follows the CANONICAL production path:
+   * mutation → evaluation → eligibility → push + PR → CI → review →
+   * acceptance → merge, with every external verdict fed back into the
+   * experiment lifecycle.
+   */
+  githubDelivery?: GitHubDeliveryAdapter;
+  /**
+   * Runtime activation control. When set, rollback becomes a RUNTIME
+   * operation (freeze → switch → verify → persist) instead of a registry
+   * pointer move, and accepted candidates can be switched onto the live
+   * runtime via activateOnRuntime().
+   */
+  runtimeActivation?: RuntimeActivationController;
 }
 
 export interface ClosedLoopDiagnosis {
@@ -132,6 +153,8 @@ export class ClosedLoopEngine {
   readonly experienceStore?: ExperienceStore;
   readonly mutationExecutor?: HarnessMutationExecutor;
   readonly monitor?: ActivationMonitor;
+  readonly githubDelivery?: GitHubDeliveryAdapter;
+  readonly runtimeActivation?: RuntimeActivationController;
   readonly generalizationPolicy: GeneralizationPolicy;
   private readonly executorModels: string[];
 
@@ -150,6 +173,8 @@ export class ClosedLoopEngine {
     this.experienceStore = opts.experienceStore;
     this.mutationExecutor = opts.mutationExecutor;
     this.monitor = opts.monitor;
+    this.githubDelivery = opts.githubDelivery;
+    this.runtimeActivation = opts.runtimeActivation;
     this.generalizationPolicy = opts.generalizationPolicy ?? "optional";
     this.executorModels = opts.executorModels ?? ["primary"];
   }
@@ -425,13 +450,18 @@ export class ClosedLoopEngine {
    * The FULL self-development cycle — the missing actuator from the v2
    * review, now first-class:
    *
-   *   target → mutation workspace → code plan → implementation →
+   *   target → mutation workspace → agent code plan → implementation →
    *   verification → candidate commit → benchmark → two-stage +
-   *   generalization gates → delivery preparation
+   *   generalization gates → delivery → [GitHub PR → CI → review →
+   *   acceptance → merge] (canonical path when a GitHubDeliveryAdapter and
+   *   the `github` input are configured)
    *
-   * The mutation itself is delegated to the injected HarnessMutationExecutor
-   * (strategy-pluggable, git-worktree isolated). Callers supply the
-   * benchmark callback that evaluates the produced candidate.
+   * Workspace lifecycle is owned HERE: the worktree is disposed on every
+   * exit path (success, stage failure, benchmark failure) via try/finally —
+   * the candidate branch and commit survive in the repository, so artifacts
+   * remain available for review/rework while /tmp worktrees never leak.
+   * Pass `retainWorkspace: true` to keep the worktree for a manual delivery
+   * flow, then call disposeWorkspace() yourself.
    */
   async runEvolutionCycle(input: {
     experimentId: string;
@@ -448,8 +478,26 @@ export class ClosedLoopEngine {
     evaluateCandidate: (artifact: CandidateArtifact) => Promise<TaskExecutionResult[]> | TaskExecutionResult[];
     matrixCells?: Parameters<GeneralizationGate["evaluate"]>[0];
     commitMessage?: string;
+    /** Evidence-grounded experience digest handed to the mutation agent. */
+    experienceDigest?: string;
+    /** Operational telemetry digest handed to the mutation agent. */
+    telemetryDigest?: string;
+    /** Keep the worktree alive after the cycle (manual delivery flows). */
+    retainWorkspace?: boolean;
+    /**
+     * Run the CANONICAL production path after eligibility: push the mutation
+     * branch, open the PR, poll CI and review, auto-accept on approval, and
+     * merge. Requires ClosedLoopEngineOptions.githubDelivery.
+     */
+    github?: {
+      checksTimeoutMs?: number;
+      /** Accept (APPROVED → ACCEPTED → ACTIVE) when review approves (default true). */
+      autoAccept?: boolean;
+      /** Merge the PR once the candidate is ACTIVE (default true). */
+      mergeOnAccept?: boolean;
+    };
   }): Promise<
-    | { ok: true; outcome: ExperimentOutcome; mutation: MutationArtifacts }
+    | { ok: true; outcome: ExperimentOutcome; mutation: MutationArtifacts; github?: EvolutionCycleGithubResult }
     | {
         ok: false;
         stage: "prepare" | "implement" | "verify" | "finalize" | "evaluate";
@@ -464,95 +512,176 @@ export class ClosedLoopEngine {
     }
     const executor = this.mutationExecutor;
     const artifacts: MutationArtifacts = {};
+    let workspace: MutationWorkspace | undefined;
 
-    // 1. Isolated workspace at the parent commit.
-    let workspace: MutationWorkspace;
     try {
-      workspace = await executor.prepareWorkspace({
+      // 1. Isolated workspace at the parent commit.
+      try {
+        workspace = await executor.prepareWorkspace({
+          repoRoot: input.repoRoot,
+          parentCommit: input.parentCommit,
+          candidateHarnessId: input.candidateHarnessId,
+          branchName: `evolution/${input.candidateHarnessId.toLowerCase()}`,
+        });
+      } catch (err) {
+        return { ok: false, stage: "prepare", reason: msg(err), mutation: artifacts };
+      }
+      artifacts.workspace = workspace;
+
+      // 2. Inspect the target → code change plan (strategy-pluggable; the
+      //    agent-backed strategy receives the repo view + evidence digests).
+      const inspectContext: InspectTargetContext = {
+        diagnosis: input.diagnosis,
+        scope: input.scope,
+        experienceDigest: input.experienceDigest,
+        telemetryDigest: input.telemetryDigest,
         repoRoot: input.repoRoot,
         parentCommit: input.parentCommit,
+      };
+      let plan: CodeChangePlan;
+      try {
+        plan = await executor.inspectTarget(workspace, input.target, inspectContext);
+      } catch (err) {
+        return { ok: false, stage: "implement", reason: `inspectTarget failed: ${msg(err)}`, mutation: artifacts };
+      }
+      artifacts.plan = plan;
+
+      // 3. Implement the plan.
+      let result: MutationResult;
+      try {
+        result = await executor.implement(workspace, plan);
+      } catch (err) {
+        return { ok: false, stage: "implement", reason: `implement failed: ${msg(err)}`, mutation: artifacts };
+      }
+      artifacts.result = result;
+      if (result.appliedEdits.length === 0) {
+        return {
+          ok: false,
+          stage: "implement",
+          reason: "All planned edits were rejected by the scope guard",
+          mutation: artifacts,
+        };
+      }
+
+      // 4. Verify (planned ⊆ allowed AND actual-diff ⊆ declared ∪ extras).
+      let verification: MutationVerification;
+      try {
+        verification = await executor.verify(workspace, plan);
+      } catch (err) {
+        return { ok: false, stage: "verify", reason: `verify failed: ${msg(err)}`, mutation: artifacts };
+      }
+      artifacts.verification = verification;
+      if (!verification.ok) {
+        const reasons = [
+          ...verification.scopeViolations,
+          ...verification.actualDiffViolations.map(
+            (p) => `${p}: changed on disk but never declared in the plan (strategy side effect)`,
+          ),
+          ...verification.commands.filter((c) => c.exitCode !== 0).map((c) => `${c.command} (exit ${c.exitCode})`),
+        ];
+        return {
+          ok: false,
+          stage: "verify",
+          reason: `Mutation verification failed: ${reasons.join("; ")}`,
+          mutation: artifacts,
+        };
+      }
+
+      // 5. Finalize the candidate commit.
+      let artifact: CandidateArtifact;
+      try {
+        artifact = await executor.finalize(workspace, plan, { commitMessage: input.commitMessage });
+      } catch (err) {
+        return { ok: false, stage: "finalize", reason: `finalize failed: ${msg(err)}`, mutation: artifacts };
+      }
+      artifacts.artifact = artifact;
+
+      // 6. Benchmark the candidate and run the full experiment pipeline.
+      let candidateResults: TaskExecutionResult[];
+      try {
+        candidateResults = await input.evaluateCandidate(artifact);
+      } catch (err) {
+        return { ok: false, stage: "evaluate", reason: `benchmark failed: ${msg(err)}`, mutation: artifacts };
+      }
+      const outcome = this.runExperiment({
+        experimentId: input.experimentId,
+        parentHarnessId: input.parentHarnessId,
+        parentCommit: input.parentCommit,
         candidateHarnessId: input.candidateHarnessId,
-        branchName: `evolution/${input.candidateHarnessId.toLowerCase()}`,
+        candidateCommit: artifact.commitSha,
+        target: input.target,
+        diagnosis: input.diagnosis,
+        scope: input.scope,
+        candidateResults,
+        baselineResults: input.baselineResults,
+        matrixCells: input.matrixCells,
       });
-    } catch (err) {
-      return { ok: false, stage: "prepare", reason: msg(err), mutation: artifacts };
-    }
-    artifacts.workspace = workspace;
 
-    // 2. Inspect the target → code change plan.
-    const inspectContext: InspectTargetContext = { diagnosis: input.diagnosis, scope: input.scope };
-    let plan: CodeChangePlan;
-    try {
-      plan = await executor.inspectTarget(workspace, input.target, inspectContext);
-    } catch (err) {
-      return { ok: false, stage: "implement", reason: `inspectTarget failed: ${msg(err)}`, mutation: artifacts };
-    }
-    artifacts.plan = plan;
+      // 7. Canonical production path: real GitHub delivery + CI/review/
+      //    acceptance feedback, all inside the workspace lifetime.
+      let github: EvolutionCycleGithubResult | undefined;
+      if (input.github && this.githubDelivery && outcome.delivery) {
+        github = await this.deliverAndFollowUp(input.experimentId, artifact, outcome, input.github);
+      }
 
-    // 3. Implement the plan.
-    let result: MutationResult;
-    try {
-      result = await executor.implement(workspace, plan);
-    } catch (err) {
-      return { ok: false, stage: "implement", reason: `implement failed: ${msg(err)}`, mutation: artifacts };
+      return { ok: true, outcome, mutation: artifacts, ...(github ? { github } : {}) };
+    } finally {
+      // The experiment controller owns cleanup semantics: whatever happened,
+      // the worktree dies here. The candidate branch/commit live on in the
+      // repository for review, rework, and provenance.
+      if (workspace && !input.retainWorkspace) {
+        try {
+          await executor.dispose(workspace);
+        } catch {
+          // Disposal failure must never mask the cycle result; the next
+          // prepareWorkspace() prunes orphaned worktrees.
+        }
+      }
     }
-    artifacts.result = result;
-    if (result.appliedEdits.length === 0) {
-      return {
-        ok: false,
-        stage: "implement",
-        reason: "All planned edits were rejected by the scope guard",
-        mutation: artifacts,
-      };
-    }
+  }
 
-    // 4. Verify (scope guard + commands).
-    let verification: MutationVerification;
-    try {
-      verification = await executor.verify(workspace, plan);
-    } catch (err) {
-      return { ok: false, stage: "verify", reason: `verify failed: ${msg(err)}`, mutation: artifacts };
+  /** Disposes a retained workspace (manual delivery flows). */
+  async disposeWorkspace(workspace: MutationWorkspace): Promise<void> {
+    if (!this.mutationExecutor) {
+      throw new Error("disposeWorkspace requires a HarnessMutationExecutor.");
     }
-    artifacts.verification = verification;
-    if (!verification.ok) {
-      return {
-        ok: false,
-        stage: "verify",
-        reason: `Mutation verification failed: ${[...verification.scopeViolations, ...verification.commands.filter((c) => c.exitCode !== 0).map((c) => c.command)].join("; ")}`,
-        mutation: artifacts,
-      };
-    }
+    await this.mutationExecutor.dispose(workspace);
+  }
 
-    // 5. Finalize the candidate commit.
-    let artifact: CandidateArtifact;
-    try {
-      artifact = await executor.finalize(workspace, plan, { commitMessage: input.commitMessage });
-    } catch (err) {
-      return { ok: false, stage: "finalize", reason: `finalize failed: ${msg(err)}`, mutation: artifacts };
-    }
-    artifacts.artifact = artifact;
-
-    // 6. Benchmark the candidate and run the full experiment pipeline.
-    let candidateResults: TaskExecutionResult[];
-    try {
-      candidateResults = await input.evaluateCandidate(artifact);
-    } catch (err) {
-      return { ok: false, stage: "evaluate", reason: `benchmark failed: ${msg(err)}`, mutation: artifacts };
-    }
-    const outcome = this.runExperiment({
-      experimentId: input.experimentId,
-      parentHarnessId: input.parentHarnessId,
-      parentCommit: input.parentCommit,
-      candidateHarnessId: input.candidateHarnessId,
-      candidateCommit: artifact.commitSha,
-      target: input.target,
-      diagnosis: input.diagnosis,
-      scope: input.scope,
-      candidateResults,
-      baselineResults: input.baselineResults,
-      matrixCells: input.matrixCells,
+  /**
+   * Canonical production delivery for one eligible candidate: push the
+   * mutation branch → open the PR → poll CI → report → poll review →
+   * report → accept on approval → merge. The DeliveryReport's generated
+   * branch name is overridden with the ACTUAL mutation branch so the PR
+   * contains the real candidate commit.
+   */
+  private async deliverAndFollowUp(
+    experimentId: string,
+    artifact: CandidateArtifact,
+    outcome: ExperimentOutcome,
+    opts: { checksTimeoutMs?: number; autoAccept?: boolean; mergeOnAccept?: boolean },
+  ): Promise<EvolutionCycleGithubResult> {
+    const adapter = this.githubDelivery!;
+    const report = { ...outcome.delivery!, branchName: artifact.branchName };
+    const handle = await adapter.deliverExperiment({
+      worktreePath: artifact.workspace.worktreePath,
+      report,
+      alreadyCommitted: true,
     });
-    return { ok: true, outcome, mutation: artifacts };
+    const ci = await adapter.syncCiFeedback(this.experiments, experimentId, handle.headSha, opts.checksTimeoutMs);
+    let review: ReviewVerdict | null = null;
+    let accepted = false;
+    let merged = false;
+    if (ci.passed) {
+      review = await adapter.syncReviewFeedback(this.experiments, experimentId, handle.prNumber);
+      if (review.state === "approved" && (opts.autoAccept ?? true)) {
+        accepted = this.finalizeAcceptance(experimentId);
+        if (accepted && (opts.mergeOnAccept ?? true)) {
+          merged = await adapter.mergePullRequest(handle.prNumber);
+        }
+      }
+    }
+    return { handle, ci, review, accepted, merged };
   }
 
   // ── Post-activation monitoring ────────────────────────────────────────
@@ -631,7 +760,25 @@ export class ClosedLoopEngine {
     return health;
   }
 
-  /** Post-deployment regression hook: ACTIVE → REGRESSED → ROLLBACK (+ registry). */
+  /**
+   * Re-enters the evolution loop after external rework: CI_FAILED or
+   * CHANGES_REQUESTED → CANDIDATE. The reworked mutation itself runs as a
+   * fresh runEvolutionCycle (new experiment) branching from the same parent,
+   * while the audit trail shows this experiment's loop re-entry.
+   */
+  beginRework(experimentId: string, note?: string): boolean {
+    const machine = this.experiments.machine(experimentId);
+    const current = machine.current();
+    if (current !== "CI_FAILED" && current !== "CHANGES_REQUESTED") return false;
+    this.experiments.advance(experimentId, "CANDIDATE", note ?? `Rework loop re-entry from ${current}`);
+    return true;
+  }
+
+  /**
+   * LOGICAL rollback (registry pointer only): ACTIVE → REGRESSED → ROLLBACK
+   * plus registry rollbackTo. Used when no RuntimeActivationController is
+   * wired. Runtime-verified rollback lives in rollbackActive().
+   */
   handleRegression(experimentId: string, detail: string): void {
     this.experiments.reportRegression(experimentId, detail);
     this.experiments.completeRollback(experimentId, this.experiments.record(experimentId).parent.harness);
@@ -645,6 +792,66 @@ export class ClosedLoopEngine {
       switchRecord.retainedBySuccessor = false;
     }
   }
+
+  /**
+   * RUNTIME rollback: freeze the regressed harness → switch the live runtime
+   * to the parent → VERIFY the parent is actually healthy in the runtime →
+   * persist (REGRESSED → ROLLBACK → ACTIVE + registry rollbackTo). Requires
+   * ClosedLoopEngineOptions.runtimeActivation. Throws RuntimeRollbackError
+   * when the runtime cannot be restored; the experiment stays at REGRESSED.
+   */
+  async rollbackActive(experimentId: string, detail?: string): Promise<RuntimeRollbackReport | null> {
+    if (!this.runtimeActivation) return null;
+    const orchestrator = new RuntimeRollbackOrchestrator({
+      runtime: this.runtimeActivation,
+      registry: this.registry,
+      experiments: this.experiments,
+    });
+    const report = await orchestrator.rollback(experimentId, { detail });
+    const record = this.experiments.record(experimentId);
+    const switchRecord = this.metrics.records().find((s) => s.versionId === record.candidate.harness);
+    if (switchRecord) {
+      switchRecord.rolledBack = true;
+      switchRecord.retainedBySuccessor = false;
+    }
+    return report;
+  }
+
+  /**
+   * Live evaluation loop tick: evaluates telemetry AND, on regression,
+   * performs the RUNTIME rollback (awaited). Use this in production
+   * monitors; the synchronous evaluateActivation() remains for the legacy
+   * registry-only path.
+   */
+  async evaluateActivationLive(experimentId: string): Promise<ActivationHealth | null> {
+    if (!this.monitor) return null;
+    const record = this.experiments.record(experimentId);
+    const health = this.monitor.evaluate(record.candidate.harness);
+    if (health.status === "regressed" && this.experiments.machine(experimentId).current() === "ACTIVE") {
+      if (this.runtimeActivation) {
+        await this.rollbackActive(experimentId, health.rationale);
+      } else {
+        this.handleRegression(experimentId, health.rationale);
+      }
+    }
+    return health;
+  }
+
+  /**
+   * Runtime-side ACTIVATION: switches the live runtime onto an accepted
+   * (ACTIVE) candidate and verifies it loaded healthily. Complements
+   * finalizeAcceptance() — the registry/state half — with the runtime half.
+   * Returns null when no runtime controller is wired; returns false when the
+   * experiment is not ACTIVE; throws when the runtime refuses the switch
+   * (callers should then roll back).
+   */
+  async activateOnRuntime(experimentId: string): Promise<boolean | null> {
+    if (!this.runtimeActivation) return null;
+    const record = this.experiments.record(experimentId);
+    if (this.experiments.machine(experimentId).current() !== "ACTIVE") return false;
+    await this.runtimeActivation.switchTo(record.candidate.harness);
+    return true;
+  }
 }
 
 /** Artifacts produced (or partially produced) by a self-development cycle. */
@@ -654,6 +861,19 @@ export interface MutationArtifacts {
   result?: MutationResult;
   verification?: MutationVerification;
   artifact?: CandidateArtifact;
+}
+
+/** External-reality results of the canonical GitHub delivery path (v2.2). */
+export interface EvolutionCycleGithubResult {
+  handle: DeliveryHandle;
+  /** CI verdict; `passed: null` means the poll timed out (still CI_PENDING). */
+  ci: ChecksVerdict;
+  /** Review verdict; null when CI did not pass (review never started). */
+  review: ReviewVerdict | null;
+  /** True when the candidate walked APPROVED → ACCEPTED → ACTIVE. */
+  accepted: boolean;
+  /** True when the PR was merged after activation. */
+  merged: boolean;
 }
 
 function msg(err: unknown): string {

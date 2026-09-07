@@ -75,6 +75,14 @@ export interface CodeChangePlan {
 export interface InspectTargetContext {
   diagnosis?: HarnessDiagnosis;
   scope: MutationScope;
+  /** Evidence-grounded experience digest the mutation agent may consult (v2.2). */
+  experienceDigest?: string;
+  /** Operational telemetry digest the mutation agent may consult (v2.2). */
+  telemetryDigest?: string;
+  /** Host repository root, when it differs from the worktree path (v2.2). */
+  repoRoot?: string;
+  /** Commit the candidate branches from (v2.2). */
+  parentCommit?: string;
 }
 
 // ── Mutation result types ──────────────────────────────────────────────────
@@ -90,7 +98,16 @@ export interface MutationVerification {
   ok: boolean;
   /** True when every applied edit respects the mutation-scope paths. */
   scopeRespected: boolean;
+  /** Planned edits rejected by the scope guard (path + reason). */
   scopeViolations: string[];
+  /**
+   * Paths that ACTUALLY changed on disk (git diff vs the parent commit plus
+   * untracked files) but were never declared in the plan and are not covered
+   * by extraAllowedPaths — the signature of a strategy/agent side effect.
+   */
+  actualDiffViolations: string[];
+  /** Full audit list of what actually changed on disk at verification time. */
+  actualChangedFiles: string[];
   commands: Array<{ command: string; exitCode: number; output: string }>;
 }
 
@@ -258,14 +275,40 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
   }
 
   /**
-   * Verifies the mutation: scope guard over what actually landed on disk
-   * (including strategy side effects) + configured verification commands.
+   * Verifies the mutation. Two independent guards must pass:
+   *
+   *   1. PLANNED ⊆ ALLOWED  — every edit declared in the plan respects the
+   *      mutation-scope component paths (plan-level intent check).
+   *   2. ACTUAL ⊆ DECLARED ∪ EXTRAS — the paths that actually changed on
+   *      disk (git diff vs the parent commit + untracked files, snapshotted
+   *      BEFORE verification commands run so tool artifacts cannot pollute
+   *      the audit) must all have been declared in the plan. A mutation
+   *      strategy that secretly writes files outside its declared plan —
+   *      the side-effect attack — fails here even when its plan looks clean.
+   *
+   * The invariant is: actual changed files ⊆ allowed mutation paths, with
+   * "allowed" meaning declared-in-plan (and per-edit scope-checked) or
+   * covered by the configured extraAllowedPaths carve-out.
    */
   async verify(workspace: MutationWorkspace, plan: CodeChangePlan): Promise<MutationVerification> {
     const scopeViolations: string[] = [];
+    const declaredPaths = new Set<string>();
     for (const edit of plan.edits) {
       const violation = this.scopeViolation(edit.path, edit.component);
-      if (violation) scopeViolations.push(`${edit.path}: ${violation}`);
+      if (violation) {
+        scopeViolations.push(`${edit.path}: ${violation}`);
+      } else {
+        declaredPaths.add(this.normalizePath(edit.path));
+      }
+    }
+    // Snapshot what actually landed on disk BEFORE verify commands execute:
+    // strategy/agent side effects are already present, tool artifacts are not.
+    const actualChangedFiles = await this.actualChangedPaths(workspace);
+    const actualDiffViolations: string[] = [];
+    for (const path of actualChangedFiles) {
+      if (declaredPaths.has(path)) continue;
+      if (this.extraAllowedPaths.some((extra) => path === extra || path.startsWith(extra))) continue;
+      actualDiffViolations.push(path);
     }
     const commands: Array<{ command: string; exitCode: number; output: string }> = [];
     let commandsOk = true;
@@ -275,11 +318,13 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
       commands.push({ command: argv.join(" "), exitCode: res.exitCode, output });
       if (res.exitCode !== 0) commandsOk = false;
     }
-    const scopeRespected = scopeViolations.length === 0;
+    const scopeRespected = scopeViolations.length === 0 && actualDiffViolations.length === 0;
     return {
       ok: scopeRespected && commandsOk,
       scopeRespected,
       scopeViolations,
+      actualDiffViolations,
+      actualChangedFiles,
       commands,
     };
   }
@@ -353,13 +398,55 @@ export class GitWorktreeMutationExecutor implements HarnessMutationExecutor {
     if (isAbsolute(path) || path.includes("..")) {
       return "edit path must be repo-relative and must not escape the repository";
     }
-    const normalized = normalize(path).split(sep).join("/");
+    const normalized = this.normalizePath(path);
     for (const extra of this.extraAllowedPaths) {
       if (normalized === extra || normalized.startsWith(extra)) return null;
     }
     const allowed = this.componentPaths[component] ?? DEFAULT_COMPONENT_PATHS[component] ?? ["src/"];
     if (allowed.some((prefix) => normalized.startsWith(prefix))) return null;
     return `path "${normalized}" is outside the allowed paths for component "${component}" [${allowed.join(", ")}]`;
+  }
+
+  private normalizePath(path: string): string {
+    return normalize(path).split(sep).join("/");
+  }
+
+  /**
+   * Every path that actually differs from the parent commit right now:
+   * tracked modifications (staged + unstaged) via git diff, plus untracked
+   * files via git status. Renames contribute both endpoints.
+   */
+  private async actualChangedPaths(workspace: MutationWorkspace): Promise<string[]> {
+    const paths = new Set<string>();
+    try {
+      const diff = await this.git(workspace.worktreePath, ["diff", "--name-only", workspace.parentCommit]);
+      for (const line of diff.split("\n")) {
+        const t = line.trim();
+        if (t) paths.add(t);
+      }
+    } catch {
+      // Diff unavailable (e.g. fake runners); status still catches untracked files.
+    }
+    try {
+      const status = await this.git(workspace.worktreePath, ["status", "--porcelain", "-uall"]);
+      for (const line of status.split("\n")) {
+        if (line.trim() === "") continue;
+        let entry = line.slice(3).trim();
+        if (entry.startsWith('"') && entry.endsWith('"')) {
+          entry = entry.slice(1, -1);
+        }
+        if (entry.includes(" -> ")) {
+          const [from, to] = entry.split(" -> ");
+          if (from.trim()) paths.add(from.trim());
+          if (to.trim()) paths.add(to.trim());
+        } else if (entry) {
+          paths.add(entry);
+        }
+      }
+    } catch {
+      // Status unavailable — the diff above is the best-effort audit.
+    }
+    return [...paths].sort();
   }
 
   private async diffStat(workspace: MutationWorkspace): Promise<string> {
