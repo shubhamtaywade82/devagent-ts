@@ -3,9 +3,17 @@
  *
  * Enforces the Single-Component Scoping Principle: mutations are strictly confined
  * to one subsystem at a time to prevent multi-subsystem regression ripples.
+ *
+ * v2 (closed-loop): the planner ALSO accepts a formed ImprovementTarget from the
+ * TargetEngine. When a target is present, the hypothesis is derived from the
+ * capability-level target ("what capability is actually failing?") instead of
+ * directly from the loudest diagnosis — the Aspire lesson that vague targets
+ * waste the improvement budget on operationalizing the goal itself.
  */
 
-import { formulateHypothesis } from "./hypothesis.js";
+import { formulateHypothesis, formulateHypothesisFromTarget } from "./hypothesis.js";
+import { ImprovementTarget } from "./targets/target-engine.js";
+import { MutationScope } from "./mutation/mutation-scope.js";
 import { HarnessComponent, HarnessDiagnosis, HarnessHypothesis } from "./types.js";
 
 export interface EvolutionPlan {
@@ -15,6 +23,10 @@ export interface EvolutionPlan {
   diagnosesCount: number;
   recommendedBenchmarkCategories: string[];
   createdAt: number;
+  /** v2: the formed improvement target backing this plan (Aspire layer). */
+  target?: ImprovementTarget;
+  /** v2: decided mutation scope (single by default; compound on escalation). */
+  mutationScope?: MutationScope;
 }
 
 /** Maps a harness component to relevant benchmark categories in src/benchmark. */
@@ -74,6 +86,31 @@ export class EvolutionPlanner {
       diagnosesCount: componentDiagnoses.length,
       recommendedBenchmarkCategories: benchmarkCategoriesFor(bestComponent),
       createdAt: Date.now(),
+    };
+  }
+
+  /**
+   * v2: creates a plan anchored on a formed ImprovementTarget instead of the
+   * raw diagnoses. The primary component is the first affected component of
+   * the scope decision (or the target's first affected component); benchmark
+   * categories come from the target's evaluation plan steps.
+   */
+  createPlanFromTarget(
+    target: ImprovementTarget,
+    primaryComponent: HarnessComponent,
+    scope?: MutationScope,
+  ): EvolutionPlan {
+    const hypothesis = formulateHypothesisFromTarget(target);
+    const suites = [...new Set(target.evaluationPlan.steps.map((s) => s.suite))];
+    return {
+      id: `plan-${target.capability}-${Date.now()}`,
+      targetComponent: primaryComponent,
+      hypothesis,
+      diagnosesCount: target.sourceFailureClasses.length,
+      recommendedBenchmarkCategories: suites,
+      createdAt: Date.now(),
+      target,
+      mutationScope: scope,
     };
   }
 }

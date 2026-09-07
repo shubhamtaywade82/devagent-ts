@@ -1,5 +1,179 @@
 # Changelog
 
+## Unreleased
+
+### Added — Closed-Loop Self-Development v2 (`src/evolution/`)
+
+Implements the deeper closed-loop RSI layers on top of the HarnessDev-style
+v1 foundation, informed by the Self-Developing Agents research (Aspire /
+S³Gym / HarnessDev):
+
+- **Evolution lifecycle state machine** (`state-machine.ts`): 13 progressive
+  states (`OBSERVED → … → ACTIVE`) with explicit failure paths
+  (`REJECTED`, `CI_FAILED`, `CHANGES_REQUESTED`, `REGRESSED`, `ROLLBACK`)
+  and recovery transitions. Declared promotions are structurally impossible.
+- **TargetEngine** (`targets/target-engine.ts`): Aspire-style target
+  formation between diagnosis and planning — answers "what capability is
+  actually failing?" before "which file should I change?"; refuses vague
+  targets with weak evidence.
+- **Experience engine** (`experience/`): `ExperienceStore` (SQLite),
+  `TrajectoryAnalyzer`, `EvidenceAggregator`, `TransferAnalyzer` —
+  evidence-grounded experience records bound to verifier evidence, executor
+  model, and harness version; multi-representation digests (raw trajectory /
+  summary / aggregated statistics) selected per task class per the S³Gym
+  finding that no single representation wins.
+- **Two-stage candidate selection** (`comparison/two-stage-selector.ts`):
+  Stage A statistical/execution validity (sample size, verifier coverage,
+  catastrophic regressions) separated from Stage B improvement validity
+  (capability/reliability gain, held-out, transfer, cost).
+- **Fixed-executor evaluation protocol** (`evaluation/fixed-executor.ts`) and
+  **GeneralizationGate** (`generalization/generalization-gate.ts`): evaluator
+  model, harness candidate, and task suite as independent variables; held-out
+  - transfer gates with executor-sensitivity and direction-agreement metrics.
+- **Mutation scope escalation** (`mutation/mutation-scope.ts`): single
+  component by default; explicit compound hypothesis after repeated
+  single-component failures against the same capability.
+- **Experiment provenance** (`experiments/`): persistent `ExperimentRecord`
+  schema + SQLite store + `ExperimentController`; evolution PRs embed a
+  machine-readable YAML provenance block making the PR a persistent
+  experiment log (CI status and review state included).
+- **AcceptanceController** (`acceptance/acceptance-controller.ts`): explicit
+  evidence-gated pipeline `candidate → validated → eligible → delivered →
+accepted → active`.
+- **First-class loop health metrics** (`metrics.ts`): promotion precision,
+  false promotion rate, retention/regression/rollback rates, experience→
+  improvement correlation, executor sensitivity, visible/held-out/transfer
+  gains.
+- **`ClosedLoopEngine`** (`engine-v2.ts`): wires the full v2 loop —
+  episodes → diagnosis → target formation → hypothesis → experiment →
+  two-stage gates → generalization gate → delivery → CI/review feedback →
+  active/rollback.
+- **v2 CLI**: `nexum evolve --target | --experience | --experiments | --report`.
+
+The v1 `EvolutionEngine` API remains fully backward compatible.
+
+### Added — v2.1: The Self-Development Actuator, Real Delivery & Post-Activation Monitoring
+
+Closes the gaps identified in the v2 architecture review — Nexum moves from
+self-evaluating to self-developing:
+
+- **HarnessMutationExecutor** (`mutation/mutation-executor.ts`): the missing
+  actuator. `prepareWorkspace → inspectTarget → implement → verify →
+finalize` turns a formed target into a verifiable candidate commit inside
+  an isolated git worktree. `MutationStrategy` is pluggable (default:
+  deterministic heuristic; real self-modification plugs in the agent
+  runtime/LLM). Every edit is scope-guarded at the filesystem boundary and
+  must survive the configured verification commands.
+- **`ClosedLoopEngine.runEvolutionCycle()`**: the full self-development cycle
+  — mutation → candidate commit → benchmark callback → two-stage +
+  generalization gates → delivery — with per-stage failure reporting
+  (`prepare` / `implement` / `verify` / `finalize` / `evaluate`) and
+  artifacts preserved for rework.
+- **GitHubDeliveryAdapter** (`delivery/github-adapter.ts`): performs the
+  real Git/GitHub delivery loop (commit → push → PR) and feeds external
+  results back into the `ExperimentController`: CI check-run polling
+  (`syncCiFeedback`), latest-review polling (`syncReviewFeedback`), and
+  merge support. Git and HTTP are injectable; a polling timeout reports
+  `pending` honestly instead of fabricating a verdict.
+- **Explicit CI/review lifecycle states** (v2.1 state machine): `CI_PENDING`,
+  `CI_PASSED`, `REVIEW_PENDING`, `APPROVED` — a CI verdict ALWAYS advances
+  the experiment (DELIVERED → CI_PENDING → CI_FAILED | CI_PASSED →
+  REVIEW_PENDING), and a review verdict always advances it (REVIEW_PENDING →
+  APPROVED | CHANGES_REQUESTED). Fixes the v2.0 bug where a passing CI run
+  left the lifecycle parked at DELIVERED. `normalizeLegacyState()` maps old
+  persisted `REVIEWED` records onto `REVIEW_PENDING`.
+- **Generalization policy** (`ClosedLoopEngineOptions.generalizationPolicy`):
+  `optional` (development, the v2.0 behavior) | `required` (research: the
+  fixed-executor matrix MUST be supplied and pass) | `required-for-production`
+  (research + transfer-executor evidence). Policy-blocked candidates walk
+  VALIDATED → GENERALIZED → REJECTED with the reason in the audit trail.
+- **ActivationMonitor** (`monitoring/activation-monitor.ts`): post-activation
+  regression detection from operational telemetry (success rate, false
+  success rate, tool error rate, loop aborts, verification failures, token
+  consumption, latency, task-class distribution drift) against a
+  performance envelope derived from the parent harness at activation time.
+  `healthy → degrading → regressed`, with `regressed` auto-driving
+  ACTIVE → REGRESSED → ROLLBACK.
+- **Two-stage rejection path**: candidates rejected by Stage A/B now walk
+  EVALUATING → REJECTED explicitly instead of being left stuck in EVALUATING.
+- **v2.1 CLI**: `nexum evolve --mutate --repo <path> [--parent <sha>]`
+  (self-development actuator) and `nexum evolve --monitor --harness <id>
+--telemetry <file.jsonl>` (post-activation health).
+
+### Added — v2.2: Real Autonomous Mutation, Canonical Delivery Path & Runtime Rollback
+
+Closes the remaining gaps from the v2.1 review — Nexum moves from
+self-modifying to genuinely self-developing:
+
+- **AgentMutationStrategy** (`mutation/agent-mutation.ts`): real autonomous
+  code mutation. An injectable `EngineeringAgentRuntime` (Nexum's own
+  engineering runtime, an LLM, or a sandboxed coding agent) inspects the
+  candidate worktree (`AgentWorkspaceView`), consults experience/telemetry
+  digests, and proposes concrete edits to the ACTUAL implementation — the
+  benchmark suite then evaluates mutated runtime behavior, not a policy
+  manifest. Agents only propose; the executor applies, verifies, and
+  commits. `ScriptedAgentRuntime` provides a deterministic handler-based
+  runtime for tests and dry runs; `AgentDeclinedError` aborts cleanly and
+  a `maxEdits` envelope stops runaway responses.
+- **Scope guard v2 — actual-diff verification**: `verify()` now audits what
+  ACTUALLY changed on disk (`git diff` vs the parent commit + untracked
+  files, snapshotted before verification commands run) and fails when a
+  changed path was never declared in the plan — closing the side-effect
+  hole where a strategy could smuggle undeclared files while presenting a
+  clean plan. Enforced invariant: `actual changed files ⊆ allowed mutation
+paths`.
+- **Canonical production path (engine-integrated delivery)**:
+  `runEvolutionCycle({ github })` continues past eligibility through real
+  delivery inside the workspace lifetime — push the actual mutation branch
+  (the DeliveryReport branch is overridden with the real one), open the PR,
+  poll CI, poll review, auto-accept on approval, merge. CI/review verdicts
+  feed the lifecycle in-cycle; `beginRework()` re-enters the loop from
+  `CI_FAILED` / `CHANGES_REQUESTED` to `CANDIDATE`.
+- **Workspace lifecycle ownership**: the evolution cycle disposes the
+  worktree via `try/finally` on every exit path (success, stage failure,
+  benchmark failure) while the candidate branch/commit survive in the
+  repository; `retainWorkspace` + `disposeWorkspace()` support manual
+  delivery flows. Autonomous operation no longer leaks `/tmp` worktrees.
+- **Runtime activation rollback** (`monitoring/runtime-activation.ts`):
+  registry rollback now has a runtime counterpart.
+  `RuntimeRollbackOrchestrator` performs freeze → switch → health-verify →
+  persist (`REGRESSED → ROLLBACK → ACTIVE` + registry rollback). A failed
+  switch or failed post-switch health probe restores the original harness
+  and leaves the experiment honestly at REGRESSED. Engine wiring:
+  `rollbackActive()`, `evaluateActivationLive()` (production monitor tick),
+  and `activateOnRuntime()` (runtime half of acceptance).
+- **Fix: `GitHubDeliveryAdapter` default git runner** spawned bare
+  subcommands (`rev-parse`, `push`) without the `git` prefix, so the
+  non-injected production path could never execute; subcommands are now
+  normalized onto `git`.
+
+### Added — v2.3: Production Agent Wiring (`NexumEngineeringAgentRuntime`)
+
+Closes the final question from the v2.2 review — what actually implements
+`EngineeringAgentRuntime` in production:
+
+- **NexumEngineeringAgentRuntime** (`mutation/nexum-agent-runtime.ts`):
+  Nexum's own engineering loop as a bounded, tool-calling chat cycle over
+  the same `Provider` surface the interactive agent uses, pointed at the
+  confined candidate worktree. Tools: `list_files` / `read_file` (read-only
+  inspection), `propose_edit` (queues FULL file content + rationale),
+  `finish`, `decline`. Accepts tool arguments as objects (Ollama) or JSON
+  strings (other providers).
+- **Layered safety**: prompted propose-only contract → queue-time scope
+  rejection with agent-readable tool errors (self-correction) → fail-closed
+  final re-audit → `maxTurns` / `maxProposals` / `maxEditBytes` envelopes →
+  strategy attribution → executor actual-diff audit. The runtime is
+  deliberately read+propose only (no writes, no shell): the executor stays
+  the sole writer, so the verification pipeline cannot be bypassed.
+- **Honest outcomes**: `finish` with zero proposals returns `declined`
+  (no fabricated candidates); `decline` aborts the cycle without one.
+- **Production factories**: `chatClientFromProvider(provider, model?)` and
+  `agentMutationStrategyFromProviderOptions(...)` (inherits the interactive
+  agent's `loadConfig()` defaults). Engine option `agentRuntime` (+ optional
+  `agentVerifyCommands`) auto-builds the agent-backed
+  `GitWorktreeMutationExecutor` when no explicit `mutationExecutor` is set.
+  CLI: `nexum evolve --mutate --agent` (opt-in; default stays heuristic).
+
 ## 2.0.0 (2026-08-30)
 
 DevAgent TS is now **Nexum** — same runtime, new name. This is a breaking
@@ -8,18 +182,20 @@ directory all change, with one-major-version compatibility aliases so nothing
 of yours is lost. Full contract: [docs/REBRANDING.md](docs/REBRANDING.md).
 
 ### Breaking
+
 - Package renamed: `@nemesis-oss/devagent-ts` → `@nemesis-oss/nexum`
 - CLI renamed: `nexum` (bin aliases `devagent` and `devagent-ts` retained for
   one major version)
 - Workspace state moved: `.devagent/` → `.nexum/` — migrated automatically on
   first run (atomic copy, idempotent, never deletes the original); `nexum
-  migrate` prints an explicit migration report
+migrate` prints an explicit migration report
 - Global state moved: `~/.devagent/` → `~/.nexum/` (legacy read as fallback)
 - Environment variables renamed: `DEVAGENT_*` → `NEXUM_*` (legacy names still
   honored as deprecated aliases — they warn on stderr and lose to the
   canonical name; suppress with `NEXUM_NO_DEPRECATION_WARNINGS=1`)
 
 ### Added
+
 - `src/platform/` layer — `brand.ts` (single source of truth for product
   identity), `environment.ts` (canonical-then-legacy env resolution with
   deprecation warnings), `paths.ts` (state-dir resolution, workspace-root
@@ -34,10 +210,11 @@ of yours is lost. Full contract: [docs/REBRANDING.md](docs/REBRANDING.md).
   legacy `devagent-sandbox:latest` still honored when configured explicitly)
 
 ### Fixed
+
 - CI push trigger now also covers `rename/**` branches (PRs against `main`
   were already covered)
 - Node.js version documented consistently as >= 22 everywhere (AGENTS.md said
-  >= 20; sandbox image was node:20-slim)
+  > = 20; sandbox image was node:20-slim)
 
 ## 1.0.0 (2026-08-29)
 
@@ -46,6 +223,7 @@ Final DevAgent TS baseline (tagged `v1.0.0`). See git history.
 ## 0.1.0 (2026-08-28)
 
 ### Added
+
 - Public API surface with typed exports (`Agent`, `Provider`, `ModelCatalog`, `Router`)
 - Conditional exports map for ESM consumers
 - `prepare` npm script to build before publish
@@ -55,6 +233,7 @@ Final DevAgent TS baseline (tagged `v1.0.0`). See git history.
 - `testTimeout` and `forceExit` in Jest config for reliable CI runs
 
 ### Fixed
+
 - Removed unused imports that caused lint errors (`Capability`, `ChatMessage`, `ChatResponse`, `CommandEffect`, `existsSync`)
 - CI workflow Node version aligned to `>=22` (was 20)
 - App.test.tsx no longer hangs indefinitely — extracted `useStdout()` into a lazily-rendered `TerminalSizeListener` component so tests that provide explicit dimensions never attach Ink's stdout listener
@@ -62,6 +241,7 @@ Final DevAgent TS baseline (tagged `v1.0.0`). See git history.
 - Eliminated all 23 `as any` type casts — replaced with proper interfaces and type guards
 
 ### Changed
+
 - `package.json` no longer marked `private` — package is publishable to npm
 - `useTerminalSize` hook in App.tsx avoids calling `useStdout()` when both dimensions are provided
 - `ChatResponse.message` now includes optional `thinking` field for extended Ollama streaming responses
