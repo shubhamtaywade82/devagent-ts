@@ -6,25 +6,34 @@
  */
 
 import Database from "better-sqlite3";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { execFile } from "node:child_process";
+import { existsSync, mkdirSync, readFileSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { loadConfig } from "../cli/config.js";
+import { promisify } from "node:util";
+import { BenchmarkResult } from "../benchmark/types.js";
+import { loadConfig, CliConfig } from "../cli/config.js";
 import { Episode } from "../learning/types.js";
 import { findWorkspaceRoot, workspaceStateDir } from "../platform/paths.js";
 import { Provider } from "../provider/provider.js";
-import { runHarnessBenchmark } from "./benchmarks.js";
+import { runHarnessBenchmark, toTaskExecutionResult } from "./benchmarks.js";
 import { CandidateEvaluationOutcome, EvolutionEngine } from "./engine.js";
 import { ClosedLoopEngine } from "./engine-v2.js";
 import { ExperienceStore } from "./experience/experience-store.js";
 import { ExperimentStore } from "./experiments/experiment-store.js";
+import { TaskExecutionResult } from "./evaluator.js";
 import { EvolutionMetricsTracker } from "./metrics.js";
-import { GitWorktreeMutationExecutor } from "./mutation/mutation-executor.js";
+import { AgentMutationStrategy } from "./mutation/agent-mutation.js";
+import { GitWorktreeMutationExecutor, MutationStrategy } from "./mutation/mutation-executor.js";
 import { NexumEngineeringAgentRuntime, chatClientFromProvider } from "./mutation/nexum-agent-runtime.js";
+import { EvolutionVerificationProfile, verificationProfileByName } from "./mutation/verification-profile.js";
+import { GitHubDeliveryAdapter } from "./delivery/github-adapter.js";
 import { ActivationMonitor, OperationalTelemetry } from "./monitoring/activation-monitor.js";
 import { EvolutionPlan } from "./planner.js";
 import { HarnessRegistry } from "./registry.js";
 import { HarnessComponent, HarnessDiagnosis, HarnessVersion } from "./types.js";
+
+const execFileAsync = promisify(execFile);
 
 const HELP_TEXT = `
 Nexum Evolution — Self-Developing Harness System (closed-loop v2)
@@ -41,14 +50,30 @@ Options:
       --history          Show evolutionary lineage (H0 -> Hn) and active version
       --mutate           Run the self-development actuator: target → isolated
                          worktree → planned edits → verification → candidate commit
-      --agent            Wire the PRODUCTION engineering agent as the mutation
-                         strategy (NexumEngineeringAgentRuntime over the
-                         configured provider). Default: heuristic planner.
+      --agent            Alias for --strategy agent.
+      --strategy <name>  Mutation strategy for --mutate: "heuristic" (default,
+                         policy-manifest edit) or "agent" (the PRODUCTION
+                         engineering agent, NexumEngineeringAgentRuntime over
+                         the configured provider, proposing edits to the
+                         actual implementation).
+      --verify-profile <name>  Verification gates for the mutation worktree:
+                         "smoke" (node liveness), "fast" (format + lint +
+                         typecheck; default), "full" (fast + npm test,
+                         CI-equivalent). Defaults to "full" with --github.
       --repo <path>      Harness repository to mutate (required with --mutate)
       --parent <sha>     Parent commit to mutate from (default: HEAD)
   -c, --candidate <id>   Evaluate candidate harness and check promotion criteria
   -r, --rollback <id>    Roll back active harness to a prior version
-  -b, --benchmark        Run benchmark categories relevant to candidate
+  -b, --benchmark        Run benchmark categories relevant to candidate; with
+                         --mutate, benchmark the candidate worktree in a
+                         SUBPROCESS (and the parent repository first for a
+                         real baseline delta)
+      --skip-baseline    With --mutate --benchmark: skip benchmarking the
+                         parent repository for baseline deltas
+      --github           Canonical delivery: push the mutation branch, open the
+                         PR, poll CI and review, auto-accept on approval, merge.
+                         Requires NEXUM_GITHUB_OWNER + NEXUM_GITHUB_REPO (env);
+                         optional NEXUM_GITHUB_TOKEN, NEXUM_GITHUB_BASE_BRANCH.
   -a, --autonomous       Run an autonomous diagnosis and mutation planning cycle
       --limit <n>        Limit number of episodes analyzed (default: 20)
       --component <name> Target subsystem for candidate evaluation (default: execution)
@@ -68,6 +93,10 @@ const CLI_OPTIONS = {
   report: { type: "boolean" as const },
   mutate: { type: "boolean" as const },
   agent: { type: "boolean" as const },
+  strategy: { type: "string" as const },
+  "verify-profile": { type: "string" as const },
+  "skip-baseline": { type: "boolean" as const },
+  github: { type: "boolean" as const },
   repo: { type: "string" as const },
   parent: { type: "string" as const },
   monitor: { type: "boolean" as const },
@@ -418,34 +447,168 @@ export function formatActivationHealth(health: ReturnType<ActivationMonitor["eva
   return lines.join("\n");
 }
 
+// ── Production wiring helpers (v2.3.1) ──────────────────────────────────────
+
+/** Builds the standard benchmark/eval Provider from CLI config. */
+export function providerFromConfig(cfg: CliConfig): Provider {
+  return new Provider({
+    tier: cfg.tier,
+    model: cfg.model,
+    ...(cfg.apiKey ? { apiKey: cfg.apiKey } : {}),
+    ...(cfg.tier === "local" && cfg.host ? { host: cfg.host } : {}),
+  });
+}
+
+/**
+ * Resolves the mutation strategy for `nexum evolve --mutate`:
+ *   absent/"heuristic" → null (executor's built-in HeuristicMutationStrategy);
+ *   "agent"            → AgentMutationStrategy backed by NexumEngineeringAgentRuntime
+ *                        (the production engineering agent on the configured Provider).
+ * Throws for unknown names so typos fail loudly instead of silently
+ * downgrading to the heuristic planner.
+ */
+export function buildMutationStrategy(name: string | undefined, cfg: CliConfig): MutationStrategy | null {
+  if (!name || name === "heuristic") return null;
+  if (name !== "agent") {
+    throw new Error(`Unknown mutation strategy "${name}" (expected "heuristic" or "agent").`);
+  }
+  return new AgentMutationStrategy({
+    runtime: new NexumEngineeringAgentRuntime({ chat: chatClientFromProvider(providerFromConfig(cfg)) }),
+  });
+}
+
+export interface GithubDeliveryEnvConfig {
+  owner: string;
+  repo: string;
+  token?: string;
+  baseBranch: string;
+}
+
+/**
+ * Resolves the GitHub delivery adapter configuration from the environment:
+ * NEXUM_GITHUB_OWNER + NEXUM_GITHUB_REPO are required; NEXUM_GITHUB_TOKEN and
+ * NEXUM_GITHUB_BASE_BRANCH (default "main") are optional. Returns null when
+ * the required pair is absent so `--github` can report a precise error.
+ */
+export function resolveGithubDeliveryConfig(env: NodeJS.ProcessEnv = process.env): GithubDeliveryEnvConfig | null {
+  const owner = env.NEXUM_GITHUB_OWNER?.trim();
+  const repo = env.NEXUM_GITHUB_REPO?.trim();
+  if (!owner || !repo) return null;
+  return {
+    owner,
+    repo,
+    ...(env.NEXUM_GITHUB_TOKEN?.trim() ? { token: env.NEXUM_GITHUB_TOKEN.trim() } : {}),
+    baseBranch: env.NEXUM_GITHUB_BASE_BRANCH?.trim() || "main",
+  };
+}
+
+/** Parses the benchmark CLI's `--json` output into TaskExecutionResults. */
+export function parseBenchmarkJson(stdout: string): TaskExecutionResult[] {
+  const start = stdout.indexOf("[");
+  const end = stdout.lastIndexOf("]");
+  if (start === -1 || end === -1 || end <= start) {
+    throw new Error(`benchmark --json produced no results array: ${stdout.slice(0, 400)}`);
+  }
+  const results = JSON.parse(stdout.slice(start, end + 1)) as BenchmarkResult[];
+  return results.map(toTaskExecutionResult);
+}
+
+/**
+ * Benchmarks a directory (the candidate worktree, or the parent repository
+ * for the baseline) in a SUBPROCESS. Nexum's benchmark cases run in-process,
+ * so evaluating "the candidate" inside the CLI process would benchmark the
+ * HOST module graph, not the mutated code. The subprocess runs
+ * `src/benchmark/cli.ts --json` with cwd = dir, so the mutated
+ * implementation is what actually executes.
+ */
+export async function runBenchmarkInDir(
+  repoRoot: string,
+  dir: string,
+  categories: string[],
+): Promise<TaskExecutionResult[]> {
+  const tsxEntry = join(repoRoot, "node_modules", "tsx", "dist", "cli.mjs");
+  if (!existsSync(tsxEntry)) {
+    throw new Error(`tsx entry not found at ${tsxEntry} — install dependencies in the harness repository first.`);
+  }
+  if (dir !== repoRoot && !existsSync(join(dir, "node_modules"))) {
+    // Worktrees share the repo's history but not its node_modules; link the
+    // host's so the subprocess resolves the same toolchain. (The mutation
+    // executor links it too when linkNodeModulesFrom is set — this is the
+    // fallback for workspaces prepared without it.)
+    symlinkSync(join(repoRoot, "node_modules"), join(dir, "node_modules"), "junction");
+  }
+  const args = [tsxEntry, "src/benchmark/cli.ts", "--json"];
+  for (const category of categories) args.push("--category", category);
+  const { stdout } = await execFileAsync("node", args, { cwd: dir, maxBuffer: 32 * 1024 * 1024 });
+  return parseBenchmarkJson(stdout);
+}
+
 async function executeMutationCommand(root: string, values: Record<string, unknown>): Promise<void> {
   const repoRoot = values.repo as string | undefined;
   if (!repoRoot) {
     console.error("--mutate requires --repo <path> (the harness repository to mutate).");
     return;
   }
+  const cfg = loadConfig();
+  // --agent is an alias for --strategy agent; an explicit --strategy wins.
+  const strategyName = (values.strategy as string | undefined) ?? (values.agent ? "agent" : undefined);
+  if (values.agent && values.strategy && values.strategy !== "agent") {
+    console.error(`--agent and --strategy ${values.strategy} conflict; pass only one.`);
+    return;
+  }
+  if (strategyName && strategyName !== "heuristic" && strategyName !== "agent") {
+    console.error(`Unknown mutation strategy "${strategyName}" (expected "heuristic" or "agent").`);
+    return;
+  }
+  // Verification profile: the gates the candidate must survive INSIDE the
+  // worktree before it becomes a candidate commit. Default "fast" (format +
+  // lint + typecheck); delivery runs (--github) default to "full" so a PR is
+  // only opened for a candidate that passes the CI-equivalent gate.
+  let profile: EvolutionVerificationProfile;
+  try {
+    profile = verificationProfileByName(
+      (values["verify-profile"] as string | undefined) ?? (values.github ? "full" : undefined),
+    );
+  } catch (err) {
+    console.error((err as Error).message);
+    return;
+  }
+  const githubCfg = resolveGithubDeliveryConfig();
+  if (values.github && !githubCfg) {
+    console.error(
+      "--github requires NEXUM_GITHUB_OWNER and NEXUM_GITHUB_REPO (optionally NEXUM_GITHUB_TOKEN, NEXUM_GITHUB_BASE_BRANCH).",
+    );
+    return;
+  }
   const stateDir = workspaceStateDir(root);
   const experienceStore = new ExperienceStore(join(stateDir, "experience.db"));
   const limit = values.limit ? parseInt(values.limit as string, 10) : 20;
-  // --agent: PRODUCTION self-development wiring — the mutation plan comes from
-  // Nexum's own engineering agent (bounded tool loop over the configured
-  // provider) inspecting the candidate worktree, not from the heuristic planner.
-  // Default stays heuristic: autonomous source mutation is explicitly opt-in.
-  const agentRuntime = values.agent
-    ? (() => {
-        const cfg = loadConfig();
-        return new NexumEngineeringAgentRuntime({
-          chat: chatClientFromProvider(new Provider({ tier: cfg.tier, model: cfg.model })),
-        });
-      })()
-    : undefined;
+  // Production actuator wiring: the strategy decides WHO proposes the mutation
+  // (heuristic planner vs the engineering agent); the verification profile
+  // decides WHAT the candidate must survive; linkNodeModulesFrom makes real
+  // gates executable inside the worktree. Explicit executor always wins over
+  // the engine's agentRuntime auto-wiring, keeping gate control in one place.
+  const strategy = buildMutationStrategy(strategyName, cfg);
   const engine = new ClosedLoopEngine({
     experienceStore,
-    ...(agentRuntime
-      ? { agentRuntime }
-      : {
-          mutationExecutor: new GitWorktreeMutationExecutor({ verifyCommands: [["node", "--version"]] }),
-        }),
+    mutationExecutor: new GitWorktreeMutationExecutor({
+      verifyCommands: profile.commands,
+      linkNodeModulesFrom: repoRoot,
+      ...(strategy ? { strategy } : {}),
+    }),
+    ...(githubCfg
+      ? {
+          githubDelivery: new GitHubDeliveryAdapter(
+            {
+              owner: githubCfg.owner,
+              repo: githubCfg.repo,
+              baseBranch: githubCfg.baseBranch,
+              ...(githubCfg.token ? { token: githubCfg.token } : {}),
+            },
+            {},
+          ),
+        }
+      : {}),
   });
   try {
     const episodes = loadRecentEpisodes(root, limit);
@@ -454,6 +617,18 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
       console.error("No operationalizable target from recent episodes; refusing to mutate blind.");
       return;
     }
+    const categories = observation.plan?.recommendedBenchmarkCategories ?? [];
+
+    // Baseline: the parent repository benchmarked in a subprocess BEFORE the
+    // mutation, so the two-stage comparison measures real deltas B(H0) vs
+    // B(H1). Requires the checkout to sit at the parent commit (the default
+    // --parent HEAD); --skip-baseline opts out explicitly.
+    let baselineResults: TaskExecutionResult[] = [];
+    if (values.benchmark && !values["skip-baseline"]) {
+      console.log(`[Evolution] Benchmarking parent (baseline) across [${categories.join(", ") || "all"}]...`);
+      baselineResults = await runBenchmarkInDir(repoRoot, repoRoot, categories);
+    }
+
     const outcome = await engine.runEvolutionCycle({
       experimentId: `exp-${Date.now()}`,
       parentHarnessId: "HEAD",
@@ -463,10 +638,17 @@ async function executeMutationCommand(root: string, values: Record<string, unkno
       target: observation.target,
       diagnosis: observation.diagnoses[0],
       scope: observation.mutationScope,
-      baselineResults: [],
-      evaluateCandidate: () => {
-        throw new Error("CLI actuator does not run benchmarks; wire evaluateCandidate to runHarnessBenchmark.");
+      baselineResults,
+      evaluateCandidate: async (artifact) => {
+        if (!values.benchmark) {
+          throw new Error(
+            "Candidate evaluation requires --benchmark (subprocess benchmark of the mutated worktree); pass a custom evaluateCandidate for other suites.",
+          );
+        }
+        console.log(`[Evolution] Benchmarking candidate worktree across [${categories.join(", ") || "all"}]...`);
+        return runBenchmarkInDir(repoRoot, artifact.workspace.worktreePath, categories);
       },
+      ...(values.github && githubCfg ? { github: {} } : {}),
     });
     console.log(formatMutationResult(outcome));
   } finally {

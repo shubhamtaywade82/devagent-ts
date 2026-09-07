@@ -40,6 +40,7 @@ import {
   AgentMutationStrategy,
   EngineeringAgentRuntime,
 } from "./agent-mutation.js";
+import { pathWithinAllowedPrefix } from "./path-scope.js";
 
 // Re-export the provider class so callers can build clients without reaching
 // into the provider module themselves.
@@ -384,7 +385,9 @@ export class NexumEngineeringAgentRuntime implements EngineeringAgentRuntime {
       return "path must be a relative repo path without traversal";
     }
     const allowed = request.allowedPaths;
-    if (!allowed.some((prefix) => normalized === prefix || normalized.startsWith(prefix))) {
+    // Segment-aware containment (v2.3.1): `src/evolution` must not admit the
+    // sibling `src/evolution2/...`.
+    if (!allowed.some((prefix) => pathWithinAllowedPrefix(normalized, prefix))) {
       return `not under any allowed prefix (${allowed.join(", ")})`;
     }
     return null;

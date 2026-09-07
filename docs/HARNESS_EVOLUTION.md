@@ -82,6 +82,15 @@ nexum evolve --diagnose
 # Run benchmark suites matching current weaknesses
 nexum evolve --benchmark
 
+# Autonomous self-development actuator (heuristic planner by default):
+# target → isolated worktree → edits → verification profile → candidate
+nexum evolve --mutate --repo .
+
+# Full production run: engineering agent + subprocess benchmark (parent
+# baseline first) + canonical GitHub delivery (PR → CI → review → merge)
+NEXUM_GITHUB_OWNER=<owner> NEXUM_GITHUB_REPO=<repo> nexum evolve \
+  --mutate --repo . --strategy agent --benchmark --github
+
 # Evaluate and benchmark a candidate harness mutation live
 nexum evolve --candidate H1 --component execution --hypothesis "Tighten loop detector threshold"
 
@@ -429,3 +438,20 @@ list_files / read_file / propose_edit / finish / decline
 - **Safety layers, in order**: (1) the system prompt carries the propose-only contract and the allowed-path list; (2) `propose_edit` rejects out-of-scope paths at queue time with a tool error the agent can read and self-correct; (3) the final response is re-audited fail-closed — any queued violation, budget overrun (`maxProposals`), or oversized file (`maxEditBytes`) aborts; (4) `maxTurns` bounds the whole loop; (5) the strategy attributes edits to scope components and (6) the executor audits the actual git diff. The runtime is deliberately read+propose only — no write, no shell — so the executor remains the sole writer and the verification pipeline cannot be bypassed.
 - **Honest outcomes**: `finish` with zero proposals returns `declined` ("investigation finished without any proposed edit") — no candidate is fabricated; `decline` propagates as `AgentDeclinedError`.
 - **Production wiring**: `chatClientFromProvider(provider, model?)` adapts `Provider.chat`; `agentMutationStrategyFromProviderOptions({ tier, model, host, apiKey, ... })` builds the whole strategy from the interactive agent's `loadConfig()` defaults. The engine accepts `agentRuntime` (+ optional `agentVerifyCommands`) and auto-builds the agent-backed executor when no explicit `mutationExecutor` is given. The CLI exposes `--mutate --agent` (opt-in; the default stays heuristic).
+
+### 6.19 CLI production wiring — evaluation, verification profiles, delivery (v2.3.1)
+
+v2.3 shipped a real actuator behind a CLI that still could not complete a cycle: `evaluateCandidate` was a throwing stub, the only verification gate was `node --version`, and `GitHubDeliveryAdapter` had zero `src/` construction sites. v2.3.1 closes those three seams:
+
+```bash
+export NEXUM_GITHUB_OWNER=<owner> NEXUM_GITHUB_REPO=<repo> NEXUM_GITHUB_TOKEN=<pat>
+nexum evolve --mutate --repo . --strategy agent --benchmark --github
+```
+
+- **Real evaluation with a real baseline** (`--benchmark`): the candidate worktree is benchmarked in a SUBPROCESS (`src/benchmark/cli.ts --json`, `cwd` = worktree) — in-process evaluation would benchmark the host module graph, not the mutated code. The parent repository is benchmarked first (`--skip-baseline` to opt out), so the two-stage comparison measures real deltas B(H0) vs B(H1) instead of evaluating H1 against a synthetic baseline.
+- **EvolutionVerificationProfile** (`--verify-profile smoke|fast|full`): repository-defined gates run sequentially inside the worktree — `smoke` (node liveness, the historical default), `fast` (prettier --check, eslint, tsc --noEmit; the new default), `full` (fast + `npm test`; automatic for `--github` delivery runs, so a PR is only opened for a CI-equivalent candidate). Unknown names fail loudly instead of silently weakening the gate.
+- **Worktree toolchain linking**: the executor's `linkNodeModulesFrom` symlinks the host `node_modules` into fresh worktrees (git worktrees carry history, not dependencies), making real gates executable. Dependency directories are gitignored, so the actual-diff scope audit is unaffected.
+- **Canonical delivery** (`--github`): the adapter is constructed from `NEXUM_GITHUB_*` environment variables, enabling push mutation branch → PR → CI poll → review poll → auto-accept → merge, with rework re-entry via `beginRework()`.
+- **Strategy unification**: `--strategy agent|heuristic` (loud failures on typos) with `--agent` as an alias; the CLI builds one explicit executor carrying strategy + profile + linking, while the engine's `agentRuntime` auto-wiring stays available to API users.
+- **Segment-aware scope containment** (`mutation/path-scope.ts`): every scope predicate (runtime proposal checks, strategy attribution, executor planned/actual audits) now uses `pathWithinAllowedPrefix` — allowed prefix `src/evolution` no longer admits the sibling `src/evolution2/...`. The executor's actual-diff audit remains the backstop; the invariant is now explicit at every layer.
+- **Bounded worktree view**: `list_files` excludes dependency/build directories and caps at `maxListEntries` (400); `read_file` truncates at `maxReadBytes` (64 KiB) — the agent's context budget is a function of the configured envelope, not of the worktree size.

@@ -174,6 +174,55 @@ Closes the final question from the v2.2 review — what actually implements
   `GitWorktreeMutationExecutor` when no explicit `mutationExecutor` is set.
   CLI: `nexum evolve --mutate --agent` (opt-in; default stays heuristic).
 
+### Added — v2.3.1: CLI Production Wiring (evaluation, verification, delivery)
+
+Closes the three integration seams that still blocked the first genuine
+end-to-end autonomous cycle after v2.3 (the throwing `evaluateCandidate`
+stub, the `node --version`-only verification gate, and the delivery adapter
+that no production path constructed):
+
+- **Real candidate evaluation** (`--benchmark`): the mutation cycle now
+  benchmarks the candidate worktree through a SUBPROCESS
+  (`src/benchmark/cli.ts --json`, `cwd` = worktree) instead of failing at the
+  evaluate stage — in-process evaluation would benchmark the host module
+  graph, not the mutated code. The parent repository is benchmarked FIRST
+  for a real baseline delta B(H0) vs B(H1) (`--skip-baseline` opts out);
+  `parseBenchmarkJson` maps held-out splits and loop-abort detection.
+- **EvolutionVerificationProfile** (`mutation/verification-profile.ts`):
+  repository-defined verification gates replacing the smoke default —
+  `smoke` (node liveness, historical default), `fast` (format + lint +
+  typecheck; the new CLI default), `full` (fast + `npm test`, CI-equivalent;
+  automatic when `--github` is set). `nexum evolve --mutate
+--verify-profile <name>`; unknown names fail loudly.
+- **Worktree toolchain linking**: `GitWorktreeMutationExecutor`
+  `linkNodeModulesFrom` symlinks the host `node_modules` into fresh
+  worktrees so real gates (tsc/eslint/jest) can execute — `git worktree add`
+  brings history, not dependencies. Dependency dirs are gitignored, so the
+  actual-diff scope audit is unaffected.
+- **Canonical GitHub delivery** (`--github`): builds `GitHubDeliveryAdapter`
+  from the environment (`NEXUM_GITHUB_OWNER` + `NEXUM_GITHUB_REPO` required;
+  `NEXUM_GITHUB_TOKEN`, `NEXUM_GITHUB_BASE_BRANCH` optional) and enables the
+  full path: push mutation branch → PR → CI poll → review poll → auto-accept
+  → merge, with rework re-entry.
+- **CLI strategy unification**: `--strategy agent|heuristic` (unknown names
+  throw) with `--agent` kept as an alias; the CLI always passes an explicit
+  executor (strategy + profile + linking in one place), while the engine's
+  `agentRuntime` auto-wiring remains available to API users.
+- **Segment-aware scope containment** (`mutation/path-scope.ts`):
+  `pathWithinAllowedPrefix` replaces bare `startsWith` at every scope layer
+  (runtime proposal checks, strategy attribution, executor planned/actual
+  audits) so allowed prefix `src/evolution` no longer admits the sibling
+  `src/evolution2/...`.
+- **Bounded worktree view**: `AgentWorkspaceView.listFiles` excludes
+  dependency/build directories (`node_modules`, `dist`, `coverage`, …) and
+  caps at `maxListEntries` (default 400); `readFile` truncates at
+  `maxReadBytes` (default 64 KiB). The agent's context budget is now a
+  function of the configured envelope, not of the worktree size.
+- **Benchmark CLI `--json`**: machine-readable mode (single JSON array on
+  stdout, progress suppressed) for the subprocess evaluator.
+- **Tests**: +18 (`evolution-cli-wiring`); full suite 1311 passed /
+  14 network-skipped; lint/format/build/docs green.
+
 ## 2.0.0 (2026-08-30)
 
 DevAgent TS is now **Nexum** — same runtime, new name. This is a breaking

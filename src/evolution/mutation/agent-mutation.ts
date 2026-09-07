@@ -27,6 +27,7 @@
 
 import { readFile, readdir } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
+import { pathWithinAllowedPrefix } from "./path-scope.js";
 import { HarnessComponent, HarnessDiagnosis } from "../types.js";
 import { ImprovementTarget } from "../targets/target-engine.js";
 import { MutationScope } from "./mutation-scope.js";
@@ -49,9 +50,17 @@ export interface AgentWorkspaceView {
   repoRoot: string;
   /** Commit the candidate branches from. */
   parentCommit: string;
-  /** Reads a repo-relative file from the worktree (null when missing). */
+  /**
+   * Reads a repo-relative file from the worktree (null when missing).
+   * Truncated at the view's maxReadBytes bound (v2.3.1) so one huge file
+   * cannot consume the agent's entire context budget.
+   */
   readFile(path: string): Promise<string | null>;
-  /** Lists repo-relative files under a prefix (recursive, .git excluded). */
+  /**
+   * Lists repo-relative files under a prefix (recursive; .git, dependency,
+   * and build-artifact directories excluded; capped at maxListEntries —
+   * v2.3.1). Results are sorted.
+   */
   listFiles(prefix?: string): Promise<string[]>;
 }
 
@@ -126,7 +135,33 @@ export interface AgentMutationStrategyOptions {
   extraAllowedPaths?: string[];
   /** Upper bound on proposed edits; a larger response aborts the cycle. */
   maxEdits?: number;
+  /**
+   * Semantic inspection budget for the agent's worktree view (v2.3.1):
+   * bounds file discovery and per-file reads so context consumption is
+   * measurable instead of proportional to the worktree size.
+   */
+  worktreeViewBounds?: { maxListEntries?: number; maxReadBytes?: number };
 }
+
+/** Directories never useful for source mutation; excluded from discovery. */
+const EXCLUDED_LIST_DIRS = new Set([
+  ".git",
+  "node_modules",
+  "dist",
+  "build",
+  "out",
+  "coverage",
+  ".next",
+  ".turbo",
+  ".cache",
+  ".vitepress",
+  "dist-esm",
+  "dist-cjs",
+]);
+
+/** Default semantic inspection budget (v2.3.1). */
+const DEFAULT_MAX_LIST_ENTRIES = 400;
+const DEFAULT_MAX_READ_BYTES = 64 * 1024;
 
 export class AgentMutationStrategy implements MutationStrategy {
   readonly name: string;
@@ -134,6 +169,8 @@ export class AgentMutationStrategy implements MutationStrategy {
   private readonly componentPaths: Partial<Record<HarnessComponent, string[]>>;
   private readonly extraAllowedPaths: string[];
   private readonly maxEdits: number;
+  private readonly maxListEntries: number;
+  private readonly maxReadBytes: number;
 
   constructor(opts: AgentMutationStrategyOptions) {
     this.runtime = opts.runtime;
@@ -141,6 +178,8 @@ export class AgentMutationStrategy implements MutationStrategy {
     this.componentPaths = opts.componentPaths ?? {};
     this.extraAllowedPaths = opts.extraAllowedPaths ?? ["nexum.harness.json"];
     this.maxEdits = opts.maxEdits ?? 25;
+    this.maxListEntries = opts.worktreeViewBounds?.maxListEntries ?? DEFAULT_MAX_LIST_ENTRIES;
+    this.maxReadBytes = opts.worktreeViewBounds?.maxReadBytes ?? DEFAULT_MAX_READ_BYTES;
   }
 
   /**
@@ -213,19 +252,28 @@ export class AgentMutationStrategy implements MutationStrategy {
     const normalized = path.split(sep).join("/");
     for (const component of scope.components) {
       const prefixes = this.componentPaths[component] ?? DEFAULT_COMPONENT_PATHS[component] ?? ["src/"];
-      if (prefixes.some((prefix) => normalized === prefix || normalized.startsWith(prefix))) {
+      if (prefixes.some((prefix) => pathWithinAllowedPrefix(normalized, prefix))) {
         return component;
       }
     }
     return scope.components[0];
   }
 
-  /** Builds the confined, fs-backed worktree view for the agent. */
+  /**
+   * Builds the confined, fs-backed worktree view for the agent. v2.3.1: the
+   * view is BOUNDED — dependency/build directories are excluded from
+   * discovery, listing is capped at maxListEntries, and reads are truncated
+   * at maxReadBytes — so the agent's context budget is a function of the
+   * configured envelope, not of the worktree size (node_modules previously
+   * made list_files unusable on real repositories).
+   */
   private workspaceView(
     worktreePath: string,
     context: InspectTargetContext & { repoRoot?: string },
   ): AgentWorkspaceView {
     const root = worktreePath;
+    const maxListEntries = this.maxListEntries;
+    const maxReadBytes = this.maxReadBytes;
     const safe = (p: string): string | null => {
       if (!p || p.includes("..") || p.startsWith("/") || p.includes("\\")) return null;
       return join(root, ...p.split("/"));
@@ -238,7 +286,11 @@ export class AgentMutationStrategy implements MutationStrategy {
         const abs = safe(p);
         if (!abs) return null;
         try {
-          return await readFile(abs, "utf8");
+          const buf = await readFile(abs);
+          if (buf.byteLength <= maxReadBytes) return buf.toString("utf8");
+          // Byte-bound truncation; a split multi-byte sequence at the edge
+          // degrades to U+FFFD, which is acceptable for inspection.
+          return `${buf.subarray(0, maxReadBytes).toString("utf8")}\n...[truncated at ${maxReadBytes} bytes]`;
         } catch {
           return null;
         }
@@ -246,6 +298,7 @@ export class AgentMutationStrategy implements MutationStrategy {
       listFiles: async (prefix) => {
         const out: string[] = [];
         const walk = async (dir: string): Promise<void> => {
+          if (out.length >= maxListEntries) return;
           let entries;
           try {
             entries = await readdir(dir, { withFileTypes: true });
@@ -253,13 +306,14 @@ export class AgentMutationStrategy implements MutationStrategy {
             return;
           }
           for (const entry of entries) {
-            if (entry.name === ".git") continue;
+            if (out.length >= maxListEntries) return;
+            if (EXCLUDED_LIST_DIRS.has(entry.name)) continue;
             const abs = join(dir, entry.name);
             const rel = relative(root, abs).split(sep).join("/");
             if (entry.isDirectory()) {
               await walk(abs);
             } else if (entry.isFile()) {
-              if (!prefix || rel.startsWith(prefix)) out.push(rel);
+              if (!prefix || pathWithinAllowedPrefix(rel, prefix)) out.push(rel);
             }
           }
         };
