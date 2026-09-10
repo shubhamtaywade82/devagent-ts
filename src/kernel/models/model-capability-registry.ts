@@ -10,8 +10,6 @@
 import { Capability } from "../../provider/catalog.js";
 import {
   ModelProfile,
-  ModelCapabilities,
-  ModelConstraints,
   ModelCost,
   UNKNOWN_SCORE,
   profileFromLegacy,

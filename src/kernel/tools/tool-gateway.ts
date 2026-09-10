@@ -324,7 +324,7 @@ export class DefaultToolGateway implements ToolGateway {
     // 7. Execute under timeout + abort.
     try {
       const data = await gate.run(
-        () => this.withTimeout(entry, args, ctx),
+        () => this.withTimeout(entry, args),
         "normal",
         ctx.signal,
       );
@@ -364,7 +364,7 @@ export class DefaultToolGateway implements ToolGateway {
     return gate;
   }
 
-  private withTimeout(entry: ToolCatalogEntry, args: Record<string, unknown>, ctx: InvokeContext): Promise<Record<string, unknown>> {
+  private withTimeout(entry: ToolCatalogEntry, args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const timeoutMs = entry.definition.execution.timeoutMs;
     const task = entry.handler(args);
 
