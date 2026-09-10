@@ -1,0 +1,168 @@
+/**
+ * Kernel-level identity, execution, and budget contracts.
+ *
+ * This module is the heart of the Nexum agent execution kernel: the boundary
+ * between "the runtime that executes agents" and "the agents themselves".
+ * Everything in src/kernel depends only on other kernel modules, the
+ * provider layer (model transport), and src/runtime primitives — never on
+ * domains (exchange/, intelligence/rails, tools/*), the CLI, or the TUI.
+ *
+ * Layering (target architecture, docs/guide/kernel.md):
+ *
+ *   Applications (CLI / TUI / DevAgent / CryptoAgent)
+ *        ↓
+ *   Control Plane (orchestrator, planner, delegator)
+ *        ↓
+ *   NEXUM KERNEL (this package)
+ *     AgentRuntime · ExecutionStrategy · Context · Budgets · Events
+ *        ↓                     ↓
+ *   ModelGateway          ToolGateway (+ PolicyEngine)
+ *        ↓                     ↓
+ *   Provider (local/cloud)   Tool packs (filesystem, git, crypto, ...)
+ */
+
+import type { ChatMessage } from "../provider/provider.js";
+import type { RuntimeEvent } from "../runtime/events.js";
+import type { BudgetTracker } from "./budget.js";
+import type { ToolGateway } from "./tools/tool-gateway.js";
+import type { PolicyEngine } from "./policy/policy-engine.js";
+import type { ModelGateway } from "./models/model-gateway.js";
+
+// ── Identity ────────────────────────────────────────────────────────────────
+
+/** A single agent execution (one run of one task). */
+export type RunId = string;
+/** A persisted conversation/session that can span many runs. */
+export type SessionId = string;
+/** A registered agent product (e.g. "devagent", "crypto-agent"). */
+export type AgentId = string;
+
+// ── Task & request ──────────────────────────────────────────────────────────
+
+/** The unit of work an agent is asked to perform. */
+export interface TaskSpec {
+  goal: string;
+  /** Optional free-form input (the user message, a ticket, a patch request). */
+  input?: string;
+  /** Hard constraints the agent must respect (paths, budgets, style). */
+  constraints?: string[];
+  metadata?: Record<string, unknown>;
+}
+
+/** Which execution strategy drives the think→act→observe loop. */
+export type StrategyName = "react" | "plan_execute" | "graph" | "workflow" | "custom";
+
+export interface ExecutionRequest {
+  agentId: AgentId;
+  task: TaskSpec;
+  strategy?: StrategyName;
+  /** Capability tags used for tool discovery filtering (e.g. ["coding"]). */
+  capabilities?: string[];
+  budgets?: ExecutionBudget;
+}
+
+// ── Budgets ─────────────────────────────────────────────────────────────────
+
+/** Resource ceilings for one execution. Any dimension may be omitted. */
+export interface ExecutionBudget {
+  maxToolCalls?: number;
+  maxModelCalls?: number;
+  maxTotalTokens?: number;
+  /** Approximate spend ceiling in USD (requires profiled model costs). */
+  maxCostUsd?: number;
+  /** Wall-clock deadline for the whole run. */
+  deadlineMs?: number;
+}
+
+export interface BudgetUsage {
+  toolCalls: number;
+  modelCalls: number;
+  totalTokens: number;
+  costUsd: number;
+  elapsedMs: number;
+}
+
+export type BudgetDimension = keyof BudgetUsage;
+
+// ── Result ──────────────────────────────────────────────────────────────────
+
+export type ExecutionStatus =
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "budget_exhausted"
+  | "timeout";
+
+export interface ExecutionResult {
+  status: ExecutionStatus;
+  runId: RunId;
+  agentId: AgentId;
+  strategy: StrategyName;
+  output: string;
+  usage: BudgetUsage;
+  error?: string;
+}
+
+// ── Ports the kernel depends on (implemented outside the kernel) ────────────
+
+/** Sink for runtime events. The existing EventBus satisfies this structurally. */
+export interface EventSink {
+  publish(event: RuntimeEvent): void;
+}
+
+/**
+ * Conversation/context port over the agent transcript. Strategies read and
+ * append messages through this port instead of touching a concrete store, so
+ * the same strategy works for CLI, TUI, and headless runs.
+ */
+export interface ContextManager {
+  messages(): readonly ChatMessage[];
+  push(message: ChatMessage): void;
+  pushSystem(text: string): void;
+  pushToolResult(content: string): void;
+  /** Latest assistant text, if any (used for final-answer extraction). */
+  lastAssistantText(): string | undefined;
+}
+
+/** Minimal state-projection port (implemented by runtime/store.ts consumers). */
+export interface StateStore {
+  snapshot(): Record<string, unknown>;
+}
+
+// ── Execution context ───────────────────────────────────────────────────────
+
+/**
+ * Everything a strategy needs to execute one run. The runtime creates this
+ * per execute() call — never share it across runs.
+ */
+export interface ExecutionContext {
+  readonly runId: RunId;
+  readonly sessionId: SessionId;
+  readonly agentId: AgentId;
+  readonly task: TaskSpec;
+  readonly signal: AbortSignal;
+
+  readonly modelGateway: ModelGateway;
+  readonly toolGateway: ToolGateway;
+  readonly policyEngine: PolicyEngine;
+  readonly context: ContextManager;
+  readonly events: EventSink;
+  readonly budget: BudgetTracker;
+}
+
+// ── AgentRuntime (the kernel facade) ────────────────────────────────────────
+
+/**
+ * The single entry point of the kernel. Applications request executions;
+ * the runtime resolves the agent, picks the strategy, and drives one run.
+ */
+export interface AgentRuntime {
+  execute(request: ExecutionRequest, context: ExecutionContext): Promise<ExecutionResult>;
+}
+
+// Ergonomic re-exports so kernel-internal modules can import peer contracts
+// from one place without introducing cycles.
+export type { ToolGateway } from "./tools/tool-gateway.js";
+export type { ToolDefinition, ToolInvocation, ToolResult } from "./tools/tool-definition.js";
+export type { PolicyEngine, PolicyRequest, PolicyDecision } from "./policy/policy-engine.js";
+export type { ModelGateway } from "./models/model-gateway.js";
