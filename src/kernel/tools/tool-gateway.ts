@@ -191,6 +191,13 @@ export interface ToolGatewayOptions {
   policyEngine?: PolicyEngine;
   /** Namespace used in concurrency gate labels. */
   label?: string;
+  /**
+   * "strict" (default) enforces required-args + top-level types from the
+   * tool's JSON-Schema; "off" restores exact legacy Registry behavior
+   * (normalization only). Transitional: the CLI Agent's loop keeps "off"
+   * until every tool schema is audited; kernel-native runs use strict.
+   */
+  validation?: "strict" | "off";
 }
 
 export interface InvokeContext {
@@ -213,12 +220,14 @@ export class DefaultToolGateway implements ToolGateway {
   private readonly catalog: ToolCatalog;
   private readonly policyEngine?: PolicyEngine;
   private readonly label: string;
+  private readonly validation: "strict" | "off";
   private readonly gates = new Map<string, ConcurrencyGate>();
 
   constructor(opts: ToolGatewayOptions) {
     this.catalog = opts.catalog;
     this.policyEngine = opts.policyEngine;
     this.label = opts.label ?? "tool-gateway";
+    this.validation = opts.validation ?? "strict";
   }
 
   /** Tools visible for a capability filter (empty filter = all). */
@@ -276,10 +285,12 @@ export class DefaultToolGateway implements ToolGateway {
       args = normalizeToolArgs(entry.definition, raw);
     }
 
-    // 4. Validate against the declared schema.
-    const problems = validateAgainstSchema(args, entry.definition.inputSchema);
-    if (problems.length > 0) {
-      return failure("ValidationError", problems.join("; "));
+    // 4. Validate against the declared schema ("off" = legacy parity mode).
+    if (this.validation === "strict") {
+      const problems = validateAgainstSchema(args, entry.definition.inputSchema);
+      if (problems.length > 0) {
+        return failure("ValidationError", problems.join("; "));
+      }
     }
 
     // 5. Policy.

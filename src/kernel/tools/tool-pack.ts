@@ -44,23 +44,25 @@ export function defineToolPack(
 
 /**
  * Convenience builder: `packOf("fs", "Filesystem tools", "filesystem", [ReadFileTool, ...])`
- * where tools may be bare instances (metadata inferred) or `[tool, metadata]`
- * tuples (metadata explicit).
+ * where tools may be bare instances (metadata inferred), `[tool, metadata]`
+ * tuples (metadata explicit), or full `{ tool, category, metadata }` entries.
  */
 export function packOf(
   id: string,
   description: string,
   capability: string,
-  tools: Array<Tool | [Tool, LegacyToolMetadata]>,
+  tools: Array<Tool | [Tool, LegacyToolMetadata] | ToolPackEntry>,
   category = "General",
 ): ToolPack {
   return defineToolPack(
     id,
     description,
     capability,
-    tools.map((t) =>
-      Array.isArray(t) ? { tool: t[0], category, metadata: t[1] } : { tool: t, category },
-    ),
+    tools.map((t) => {
+      if (t instanceof Tool) return { tool: t, category };
+      if (Array.isArray(t)) return { tool: t[0], category, metadata: t[1] };
+      return t;
+    }),
   );
 }
 

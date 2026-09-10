@@ -58,10 +58,10 @@ export class ModelCapabilityRegistry {
     return this.profiles.size;
   }
 
-  /** Replace the whole set from a legacy catalog refresh. */
-  syncFromLegacy(infos: ModelInfo[], provider = "ollama"): ModelProfile[] {
+  /** Replace the whole set from a legacy catalog refresh. Returns the registry for chaining. */
+  syncFromLegacy(infos: ModelInfo[], provider = "ollama"): this {
     for (const info of infos) this.upsert(profileFromLegacy(info, provider));
-    return this.all();
+    return this;
   }
 
   query(query: ProfileQuery = {}): ModelProfile[] {

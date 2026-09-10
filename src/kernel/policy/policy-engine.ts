@@ -71,7 +71,7 @@ export class DenyToolsRule implements PolicyRule {
 
 export class DenyRiskAboveRule implements PolicyRule {
   readonly id = "deny-risk-above";
-  readonly description = "Denies tools whose risk exceeds a ceiling.";
+  readonly description = "Denies tools whose risk meets or exceeds a ceiling.";
 
   constructor(private readonly ceiling: ToolRisk) {}
 
@@ -120,8 +120,9 @@ export class ConfirmationRule implements PolicyRule {
   evaluate(request: PolicyRequest): PolicyDecision | null {
     const { tool } = request;
 
-    if (tool.policy.confirmation === "never") return null;
-
+    // Financial side effects are checked BEFORE the tool-declared opt-out:
+    // a tool that moves money can never silently bypass confirmation, no
+    // matter what its own policy spec claims.
     if (this.financialAlwaysRequiresConfirmation && tool.sideEffects.financial) {
       return {
         allowed: true,
@@ -130,6 +131,8 @@ export class ConfirmationRule implements PolicyRule {
         rule: this.id,
       };
     }
+
+    if (tool.policy.confirmation === "never") return null;
 
     if (toolRiskAtLeast(tool.risk, this.requireConfirmationFor)) {
       return {

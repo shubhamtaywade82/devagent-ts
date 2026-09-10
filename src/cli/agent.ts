@@ -41,46 +41,18 @@ import { Verifier } from "../provider/verifier.js";
 import { SelfConsistency } from "../provider/self-consistency.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
+// ── Kernel (agent execution kernel) ───────────────────────────────────
+import { ApprovalBroker, classifyApprovalNeeded } from "../kernel/policy/approval-broker.js";
+import { DefaultModelGateway } from "../kernel/models/model-gateway.js";
+import { ModelCapabilityRegistry } from "../kernel/models/model-capability-registry.js";
+import { DefaultAgentRuntime, devAgentDescriptor } from "../kernel/strategies/agent-runtime.js";
+import type { ToolResult } from "../kernel/tools/tool-definition.js";
 
-// Confirmation gate for irreversible actions — a UX safety net, not a
-// security boundary (Docker sandboxing already bounds worst-case blast
-// radius for run_shell). Deliberately targets the common, obvious cases
-// rather than trying to be an exhaustive destructive-command detector.
-const DESTRUCTIVE_SHELL_PATTERNS: RegExp[] = [
-  /\brm\s+(-[a-z]*\s+)*-[a-z]*[rf][a-z]*[rf]?[a-z]*(\s|$)/i, // rm -rf / -fr / -r -f, any flag order
-  /\bgit\s+push\b.*(--force\b|-f\b)/i,
-  /\bdrop\s+(table|database|schema)\b/i,
-  /\btruncate\s+table\b/i,
-  /\bmkfs\./i,
-  />\s*\/dev\/sd[a-z]/i,
-  /:\(\)\s*\{\s*:\|:&\s*\}\s*;\s*:/, // fork bomb
-];
-
-function classifyDestructive(name: string, args: Record<string, unknown>): { title: string; summary: string } | null {
-  if (name === "delete_file") {
-    const path = typeof args.path === "string" ? args.path : "(unknown path)";
-    return { title: `Delete ${path}`, summary: `The agent wants to delete "${path}". This cannot be undone.` };
-  }
-  if (name === "run_shell") {
-    const command = typeof args.command === "string" ? args.command : "";
-    if (DESTRUCTIVE_SHELL_PATTERNS.some((p) => p.test(command))) {
-      return { title: "Run destructive shell command", summary: command };
-    }
-  }
-  if (name === "git") {
-    const gitArgs = Array.isArray(args.args) ? (args.args as string[]) : [];
-    if (gitArgs[0] === "push") {
-      return { title: "Push git branch", summary: `The agent wants to run "git ${gitArgs.join(" ")}".` };
-    }
-  }
-  if (name === "github") {
-    const ghArgs = Array.isArray(args.args) ? (args.args as string[]) : [];
-    if (ghArgs[0] === "pr" && ghArgs[1] === "create") {
-      return { title: "Create Pull Request", summary: `The agent wants to run "gh ${ghArgs.join(" ")}".` };
-    }
-  }
-  return null;
-}
+// Confirmation gate for irreversible actions lives in the kernel now
+// (src/kernel/policy/approval-broker.ts): the classification table and the
+// ApprovalBroker are shared across CLI, TUI, API, and future agent products.
+// (UX safety net, not a security boundary — Docker sandboxing already
+// bounds worst-case blast radius for run_shell.)
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -158,6 +130,18 @@ export class Agent {
   readonly intentResolver = new IntentResolver();
   private readonly pendingClarifications = new Map<string, (resp: ClarificationResponse) => void>();
   projectInfo?: ProjectInfo;
+
+  // ── Kernel (agent execution kernel) ─────────────────────────────────
+  /** Human-in-the-loop resolver — classification table moved to the kernel. */
+  readonly approvalBroker: ApprovalBroker;
+  /** Model gateway over the existing Router/Catalog (kernel port). */
+  readonly modelGateway: DefaultModelGateway;
+  /** Kernel runtime: agent registry + strategy registry + agent gate. */
+  readonly runtime: DefaultAgentRuntime;
+  /** Capability profiles synced from every catalog refresh. */
+  readonly modelProfiles = new ModelCapabilityRegistry();
+  /** Abort signal for the in-flight run (wired to runtime cancellation). */
+  private executionSignal: AbortSignal | null = null;
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
@@ -329,6 +313,21 @@ export class Agent {
         return this.routeWithFallback("quick", messages, { stream: false });
       },
     });
+
+    // ── Kernel wiring: gateways, broker, runtime ────────────────────────
+    this.approvalBroker = new ApprovalBroker(false);
+    // Route broker requests through the existing emit-based approval flow
+    // (deny-by-default when no UI is listening — see requestApproval).
+    this.approvalBroker.setResponder(async (spec) => this.requestApproval(spec.title, spec.summary));
+
+    this.modelGateway = new DefaultModelGateway({
+      router: this.router,
+      catalog: this.catalog,
+      registry: this.modelProfiles,
+    });
+
+    this.runtime = new DefaultAgentRuntime();
+    this.runtime.agents.register(devAgentDescriptor());
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
@@ -636,7 +635,7 @@ export class Agent {
 
           this.emit("onToolCall", name, args);
 
-          const destructive = classifyDestructive(name, args);
+          const destructive = classifyApprovalNeeded(name, args);
           if (destructive && !(await this.requestApproval(destructive.title, destructive.summary))) {
             const rejected = { error: "ApprovalRejected", message: "The user rejected this action." };
             this.conversation.pushToolResult(JSON.stringify(rejected, null, 2));
@@ -646,7 +645,15 @@ export class Agent {
           }
 
           try {
-            const result = await this.tools.registry.invoke(name, args);
+            // Kernel gateway path: normalization, per-tool concurrency lease,
+            // timeout supervision, and a structured ToolResult. result.data
+            // preserves the exact record shape Registry.invoke returned.
+            const gatewayResult: ToolResult = await this.tools.invokeTool(name, args, {
+              agentId: "devagent",
+              runId: this.currentSessionId,
+              signal: this.executionSignal ?? undefined,
+            });
+            const result = gatewayResult.data;
 
             if (result.error === "PathEscapeError") {
               this.conversation.pushToolResult(
@@ -922,6 +929,10 @@ export class Agent {
       .refresh()
       .then(() => {
         this.catalogRefreshedAt = Date.now();
+        // Keep the kernel's capability registry in lockstep with the legacy
+        // catalog: profiles gain numeric scores/constraints/cost dimensions
+        // the Router can route from as the kernel-native path matures.
+        this.modelProfiles.syncFromLegacy(this.catalog.all());
       })
       .finally(() => {
         this.catalogRefreshed = null;
@@ -1106,6 +1117,48 @@ export class Agent {
   getRegistry() {
     return this.tools.registry;
   }
+
+  /**
+   * Kernel view of this agent: the runtime (agent + strategy registries),
+   * the model gateway, the tool gateway, and the approval broker. Products
+   * embedding the Agent programmatically should prefer this over reaching
+   * into the individual subsystems.
+   */
+  getKernel() {
+    return {
+      runtime: this.runtime,
+      modelGateway: this.modelGateway,
+      toolGateway: this.tools.gateway,
+      toolCatalog: this.tools.kernelCatalog,
+      approvalBroker: this.approvalBroker,
+      mountedPacks: [...this.tools.mountedPacks.keys()],
+    };
+  }
+
+  /** Opens a run scope: a run id + an abort signal wired into every
+   * gateway-supervised tool call issued during this scope. */
+  startExecutionRun(): string {
+    this.endExecutionRun();
+    const controller = new AbortController();
+    this.currentRunController = controller;
+    this.executionSignal = controller.signal;
+    return `run_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /** Cancels the in-flight run scope: supervised tool calls observe the
+   * abort and unwinds as cancelled (never a hard kill). */
+  cancelExecutionRun(): boolean {
+    if (!this.currentRunController) return false;
+    this.currentRunController.abort();
+    return true;
+  }
+
+  endExecutionRun(): void {
+    this.currentRunController = null;
+    this.executionSignal = null;
+  }
+
+  private currentRunController: AbortController | null = null;
 
   async registerMcpServer(command: string, args: string[] = []): Promise<void> {
     await this.tools.registerMcpServer(command, args);

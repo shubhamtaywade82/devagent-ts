@@ -1,207 +1,145 @@
 import { Registry } from "../tools/registry.js";
-import { ReadFileTool, WriteFileTool } from "../tools/filesystem.js";
-import { ShellTool } from "../tools/shell.js";
-import {
-  ListDirectoryTool,
-  DeleteFileTool,
-  MakeDirectoryTool,
-  CopyFileTool,
-  MoveFileTool,
-} from "../tools/directory-tools.js";
-import { PatchTool, AppendTool } from "../tools/edit-tools.js";
-import { SnapshotBackupTool } from "../tools/backup-tools.js";
-import { WatchTool } from "../tools/watch-tool.js";
-import { SearchCodeTool } from "../tools/search-tools.js";
-import { GitTool } from "../tools/git-tools.js";
-import { EscalateTaskTool } from "../tools/escalate-tool.js";
-import { DockerTool } from "../tools/docker-tools.js";
-import { GitHubTool } from "../tools/github-tools.js";
-import { SqliteQueryTool } from "../tools/database-tools.js";
-import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../tools/project-tools.js";
-import { RunRubocopTool } from "../tools/rubocop-tool.js";
-import { RunRSpecTool } from "../tools/rspec-tool.js";
-import {
-  GetDefinitionTool,
-  FindReferencesTool,
-  RenameSymbolTool,
-  WorkspaceSymbolsTool,
-  DocumentSymbolsTool,
-  HoverTool,
-  DiagnosticsTool,
-  CodeActionsTool,
-  FormatDocumentTool,
-  SignatureHelpTool,
-  CompletionTool,
-  SemanticTokensTool,
-} from "../tools/lsp-tools.js";
-import { LspManager } from "../lsp/manager.js";
-import {
-  BrowserNavigateTool,
-  BrowserClickTool,
-  BrowserFillTool,
-  BrowserGetTextTool,
-  BrowserScreenshotTool,
-  BrowserEvaluateTool,
-  BrowserCloseTool,
-} from "../tools/browser-tools.js";
-import { BrowserManager } from "../browser/manager.js";
-import {
-  BinancePublicApiTool,
-  BinanceTechnicalIndicatorsTool,
-  BinanceOrderBookTool,
-  BinanceFuturesStatsTool,
-  BinanceScreenerTool,
-  BinanceWatchPriceTool,
-  BinanceUnwatchPriceTool,
-  BinancePriceAlertTool,
-  BinanceLiquidationsTool,
-  BinanceOhlcvTool,
-  BinanceMultiTimeframeTool,
-  BinanceVolumeTool,
-  BinanceFundingHistoryTool,
-  BinanceOpenInterestHistoryTool,
-  BinanceFuturesBasisTool,
-} from "../tools/binance-tools.js";
-import { BinanceStreamManager } from "../exchange/binance-stream.js";
-import {
-  BinanceBacktestTool,
-  BinanceWalkForwardTool,
-  BinanceMonteCarloTool,
-  BinanceParamSweepTool,
-} from "../tools/backtest-tools.js";
-import { BinancePaperTradeTool } from "../tools/paper-trading-tools.js";
-import { PaperTradingManager } from "../exchange/paper-trading.js";
-import { SemanticIndex, createRailsTools } from "../intelligence/rails/index.js";
-import { connectMcpServer } from "../mcp/client.js";
 import { Tool } from "../tools/tool.js";
-import { SearchDocsTool, GetDocTool, ListDocSourcesTool } from "../tools/docs-tools.js";
-import { DocsStore } from "../docs/store.js";
-import { DelegateToLocalTool } from "../tools/delegate-tool.js";
+import { connectMcpServer } from "../mcp/client.js";
 import type { LocalWorker } from "../provider/local-worker.js";
-import { AskUserTool, ClarificationRequester } from "../tools/ask-user-tool.js";
+import type { ClarificationRequester } from "../tools/ask-user-tool.js";
+import type { LspManager } from "../lsp/manager.js";
+import type { BrowserManager } from "../browser/manager.js";
+import type { BinanceStreamManager } from "../exchange/binance-stream.js";
+import type { SemanticIndex } from "../intelligence/rails/index.js";
+import type { DocsStore } from "../docs/store.js";
+import type { ToolResult } from "../kernel/tools/tool-definition.js";
+import { DefaultToolGateway } from "../kernel/tools/tool-gateway.js";
+import { ToolCatalog } from "../kernel/tools/tool-catalog.js";
+import { mountToolPack, ToolPack } from "../kernel/tools/tool-pack.js";
+import { AllowAllPolicyEngine } from "../kernel/policy/policy-engine.js";
+import {
+  agentCorePack,
+  browserPack,
+  cryptoPack,
+  databasePack,
+  dockerPack,
+  docsPack,
+  filesystemPack,
+  gitPack,
+  lspPack,
+  projectPack,
+  railsPack,
+  rubyPack,
+  searchPack,
+  shellPack,
+} from "../packs/index.js";
 
 export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
 
+/**
+ * Tool ownership and registration.
+ *
+ * Refactored around kernel ToolPacks: every register* method now builds a
+ * pack and mounts it into BOTH the legacy Registry (the CLI Agent's
+ * execution path during migration) and the kernel ToolCatalog (metadata +
+ * ToolGateway enforcement for kernel-native runs). Tool definitions and
+ * their risk/side-effect metadata live with the domain packs
+ * (src/packs/index.ts); this class is becoming a thin composition root.
+ */
 export class AgentToolManager {
   readonly registry = new Registry();
+  /** Kernel-side catalog mirroring the legacy registry (ToolDefinitions). */
+  readonly kernelCatalog = new ToolCatalog();
+  /**
+   * Gateway for kernel-native tool invocation. The policy engine is
+   * AllowAll during migration — the Agent loop keeps its own explicit
+   * destructive-action approval flow (classifyApprovalNeeded +
+   * ApprovalBroker) so today's UX is byte-for-byte preserved; stricter
+   * RulePolicyEngine postures are configured per-product at mount time.
+   */
+  readonly gateway: DefaultToolGateway;
+  /** Packs mounted this session, by id (observability / capability scoping). */
+  readonly mountedPacks = new Map<string, ToolPack>();
 
-  constructor() {}
-
-  registerBaseTools(root: string, onOutput?: ToolOnOutput): void {
-    const shellOpts: ConstructorParameters<typeof ShellTool>[0] = {
-      workspaceRoot: root,
-    };
-    if (onOutput) shellOpts.onOutput = onOutput;
-
-    this.registry
-      .register(new ReadFileTool(root), "Filesystem")
-      .register(new WriteFileTool(root), "Filesystem")
-      .register(new ShellTool(shellOpts), "Shell")
-      .register(new ListDirectoryTool(root), "Filesystem")
-      .register(new DeleteFileTool(root), "Filesystem")
-      .register(new MakeDirectoryTool(root), "Filesystem")
-      .register(new CopyFileTool(root), "Filesystem")
-      .register(new MoveFileTool(root), "Filesystem")
-      .register(new PatchTool(root), "Filesystem")
-      .register(new AppendTool(root), "Filesystem")
-      .register(new SnapshotBackupTool(root), "Filesystem")
-      .register(new WatchTool(root), "Filesystem")
-      .register(new SearchCodeTool(root), "Search")
-      .register(new GitTool(root), "Git")
-      .register(new EscalateTaskTool(), "Agent")
-      .register(new DockerTool(root), "Docker")
-      .register(new GitHubTool(root), "Git")
-      .register(new SqliteQueryTool(root), "Database")
-      .register(new RunTestsTool(root), "Project")
-      .register(new RunLintTool(root), "Project")
-      .register(new RunFormatTool(root), "Project")
-      .register(new RunBuildTool(root), "Project")
-      .register(new RunRubocopTool(root), "Ruby")
-      .register(new RunRSpecTool(root), "Ruby")
-      .register(new BinancePublicApiTool(), "Market")
-      .register(new BinanceTechnicalIndicatorsTool(), "Market")
-      .register(new BinanceOrderBookTool(), "Market")
-      .register(new BinanceFuturesStatsTool(), "Market")
-      .register(new BinanceScreenerTool(), "Market")
-      .register(new BinanceOhlcvTool(), "Market")
-      .register(new BinanceMultiTimeframeTool(), "Market")
-      .register(new BinanceVolumeTool(), "Market")
-      .register(new BinanceFundingHistoryTool(), "Market")
-      .register(new BinanceOpenInterestHistoryTool(), "Market")
-      .register(new BinanceFuturesBasisTool(), "Market")
-      .register(new BinanceBacktestTool(), "Market")
-      .register(new BinanceWalkForwardTool(), "Market")
-      .register(new BinanceMonteCarloTool(), "Market")
-      .register(new BinanceParamSweepTool(), "Market");
+  constructor() {
+    this.gateway = new DefaultToolGateway({
+      catalog: this.kernelCatalog,
+      policyEngine: new AllowAllPolicyEngine(),
+      validation: "off",
+      label: "tool-gateway",
+    });
   }
 
-  registerHybridTools(localWorker: LocalWorker | undefined): void {
-    if (!localWorker) return;
-    this.registry.register(new DelegateToLocalTool(localWorker), "Agent");
-  }
-
-  registerBinanceStreamTools(stream: BinanceStreamManager): void {
-    this.registry
-      .register(new BinanceWatchPriceTool(stream), "Market")
-      .register(new BinanceUnwatchPriceTool(stream), "Market")
-      .register(new BinancePriceAlertTool(stream), "Market")
-      .register(new BinanceLiquidationsTool(stream), "Market");
-
-    const paper = new PaperTradingManager(stream);
-    this.registry.register(new BinancePaperTradeTool(paper), "Market");
-  }
-
-  registerLspTools(lsp: LspManager): void {
-    this.registry
-      .register(new GetDefinitionTool(lsp), "Code Intelligence")
-      .register(new FindReferencesTool(lsp), "Code Intelligence")
-      .register(new RenameSymbolTool(lsp), "Code Intelligence")
-      .register(new WorkspaceSymbolsTool(lsp), "Code Intelligence")
-      .register(new DocumentSymbolsTool(lsp), "Code Intelligence")
-      .register(new HoverTool(lsp), "Code Intelligence")
-      .register(new DiagnosticsTool(lsp), "Code Intelligence")
-      .register(new CodeActionsTool(lsp), "Code Intelligence")
-      .register(new FormatDocumentTool(lsp), "Code Intelligence")
-      .register(new SignatureHelpTool(lsp), "Code Intelligence")
-      .register(new CompletionTool(lsp), "Code Intelligence")
-      .register(new SemanticTokensTool(lsp), "Code Intelligence");
-  }
-
-  registerBrowserTools(browser: BrowserManager): void {
-    this.registry
-      .register(new BrowserNavigateTool(browser), "Browser")
-      .register(new BrowserClickTool(browser), "Browser")
-      .register(new BrowserFillTool(browser), "Browser")
-      .register(new BrowserGetTextTool(browser), "Browser")
-      .register(new BrowserScreenshotTool(browser), "Browser")
-      .register(new BrowserEvaluateTool(browser), "Browser")
-      .register(new BrowserCloseTool(browser), "Browser");
-  }
-
-  registerRailsTools(rails: SemanticIndex): void {
-    for (const tool of createRailsTools(rails)) {
-      this.registry.register(tool, "Rails");
+  /**
+   * Mount a pack: kernel catalog (definitions + handlers) and legacy
+   * registry (execution parity). Later packs win on name collisions, both
+   * sides — matching the legacy register() overwrite semantics.
+   */
+  registerToolPack(pack: ToolPack): void {
+    this.mountedPacks.set(pack.id, pack);
+    mountToolPack(pack, this.kernelCatalog);
+    for (const entry of pack.entries) {
+      this.registry.register(entry.tool, entry.category ?? "General");
     }
   }
 
-  registerDocsTools(store: DocsStore, workspaceRoot: string): void {
-    this.registry
-      .register(new SearchDocsTool(store, workspaceRoot), "Docs")
-      .register(new GetDocTool(store), "Docs")
-      .register(new ListDocSourcesTool(store, workspaceRoot), "Docs");
+  registerBaseTools(root: string, onOutput?: ToolOnOutput): void {
+    this.registerToolPack(filesystemPack(root));
+    this.registerToolPack(shellPack(root, onOutput));
+    this.registerToolPack(searchPack(root));
+    this.registerToolPack(gitPack(root));
+    this.registerToolPack(projectPack(root));
+    this.registerToolPack(rubyPack(root));
+    this.registerToolPack(dockerPack(root));
+    this.registerToolPack(databasePack(root));
+  }
+
+  registerHybridTools(localWorker: LocalWorker | undefined): void {
+    this.registerToolPack(agentCorePack({ localWorker }));
   }
 
   registerClarificationTool(requester: ClarificationRequester): void {
-    this.registry.register(new AskUserTool(requester), "Agent");
+    this.registerToolPack(agentCorePack({ requester }));
+  }
+
+  registerBinanceStreamTools(stream: BinanceStreamManager): void {
+    this.registerToolPack(cryptoPack(stream));
+  }
+
+  registerLspTools(lsp: LspManager): void {
+    this.registerToolPack(lspPack(lsp));
+  }
+
+  registerBrowserTools(browser: BrowserManager): void {
+    this.registerToolPack(browserPack(browser));
+  }
+
+  registerRailsTools(rails: SemanticIndex): void {
+    this.registerToolPack(railsPack(rails));
+  }
+
+  registerDocsTools(store: DocsStore, workspaceRoot: string): void {
+    this.registerToolPack(docsPack(store, workspaceRoot));
   }
 
   registerTool(tool: Tool, category = "General"): void {
     this.registry.register(tool, category);
+    this.kernelCatalog.registerLegacy(tool, category);
   }
 
   async registerMcpServer(command: string, args: string[] = []): Promise<Tool[]> {
     const tools = await connectMcpServer(command, args);
-    for (const tool of tools) this.registry.register(tool, "MCP");
+    for (const tool of tools) this.registerTool(tool, "MCP");
     return tools;
+  }
+
+  /**
+   * Kernel gateway invocation: normalize → validate(policy per engine) →
+   * per-tool concurrency → timeout → structured ToolResult. `result.data`
+   * keeps the exact record shape the legacy Registry.invoke returned, so
+   * callers migrate by swapping the call, not the handling code.
+   */
+  invokeTool(
+    name: string,
+    args: Record<string, unknown>,
+    ctx?: { agentId?: string; runId?: string; signal?: AbortSignal },
+  ): Promise<ToolResult> {
+    return this.gateway.invoke(name, args, ctx);
   }
 }
