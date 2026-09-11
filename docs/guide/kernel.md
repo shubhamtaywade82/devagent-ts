@@ -14,7 +14,7 @@ streams, LSP, docs, learning, and UI plumbing. That god-object worked, but
 it made the runtime inseparable from the coding-agent product, and every
 new capability (or new agent product) grew the same class.
 
-The kernel extracts the *reusable execution machinery* behind explicit
+The kernel extracts the _reusable execution machinery_ behind explicit
 contracts. The runtime now knows nothing about Git, Rails, or Binance;
 products teach it those domains by mounting packs.
 
@@ -55,25 +55,25 @@ products teach it those domains by mounting packs.
 
 Dependency rule: **the kernel never imports domains** (`exchange/`,
 `intelligence/rails`, `tools/*` implementations, `cli/`, `tui/`). Domains
-adapt *into* the kernel through `ToolPack`s; applications adapt the kernel
-*out* through the ports (`ContextManager`, `EventSink`).
+adapt _into_ the kernel through `ToolPack`s; applications adapt the kernel
+_out_ through the ports (`ContextManager`, `EventSink`).
 
 ## Core contracts
 
-| Contract | Purpose |
-| --- | --- |
-| `AgentRuntime.execute(request, ctx)` | The single entry point: resolve agent → pick strategy → drive one run |
-| `ExecutionRequest` | agentId, TaskSpec, optional strategy / capability filter / budgets |
-| `ExecutionContext` | Per-run wiring: runId, signal, gateways, context port, event sink, budget |
-| `ExecutionResult` | status (`completed`/`failed`/`cancelled`/`budget_exhausted`/`timeout`), output, usage |
-| `ExecutionBudget` | maxToolCalls, maxModelCalls, maxTotalTokens, maxCostUsd, deadlineMs |
-| `ToolGateway` | `discover()` + `invoke()` behind the policy/validation pipeline |
-| `ToolDefinition` | risk, sideEffects, execution spec (timeout/concurrency/idempotence), confirmation policy |
-| `PolicyEngine` | "May this agent run this tool now?" — pure decisions, gateway enforces |
-| `ModelGateway` | The one port to inference: capability → Router → per-tier gates + budget accounting |
-| `ModelCapabilityRegistry` | Rich model profiles: numeric capability scores, constraints, cost |
-| `GateRegistry` | Layered concurrency: global / model / provider / agent / tool / workspace / domain |
-| `EventSink` + families | Events classified as execution / domain / presentation for targeted projections |
+| Contract                             | Purpose                                                                                  |
+| ------------------------------------ | ---------------------------------------------------------------------------------------- |
+| `AgentRuntime.execute(request, ctx)` | The single entry point: resolve agent → pick strategy → drive one run                    |
+| `ExecutionRequest`                   | agentId, TaskSpec, optional strategy / capability filter / budgets                       |
+| `ExecutionContext`                   | Per-run wiring: runId, signal, gateways, context port, event sink, budget                |
+| `ExecutionResult`                    | status (`completed`/`failed`/`cancelled`/`budget_exhausted`/`timeout`), output, usage    |
+| `ExecutionBudget`                    | maxToolCalls, maxModelCalls, maxTotalTokens, maxCostUsd, deadlineMs                      |
+| `ToolGateway`                        | `discover()` + `invoke()` behind the policy/validation pipeline                          |
+| `ToolDefinition`                     | risk, sideEffects, execution spec (timeout/concurrency/idempotence), confirmation policy |
+| `PolicyEngine`                       | "May this agent run this tool now?" — pure decisions, gateway enforces                   |
+| `ModelGateway`                       | The one port to inference: capability → Router → per-tier gates + budget accounting      |
+| `ModelCapabilityRegistry`            | Rich model profiles: numeric capability scores, constraints, cost                        |
+| `GateRegistry`                       | Layered concurrency: global / model / provider / agent / tool / workspace / domain       |
+| `EventSink` + families               | Events classified as execution / domain / presentation for targeted projections          |
 
 ## The tool pipeline
 
@@ -86,7 +86,7 @@ resolve (aliases) → decode → normalize → validate
 
 Argument repair (positional arrays, numeric-key objects, alias mapping —
 the weak-model affordances the legacy `Registry` shipped) now happens
-*before* validation, and mutating tools can be excluded from repair via
+_before_ validation, and mutating tools can be excluded from repair via
 their definition. Policy denials, schema failures, timeouts, saturation,
 and handler exceptions all surface as structured `ToolResult`s, so the
 model loop stays resilient without try/catch scaffolding at call sites.
@@ -100,7 +100,7 @@ The catalog and the gateway are deliberately separate:
 ## Tool packs
 
 Packs are the unit of product composition. Each pack is a named bundle of
-tools with its security metadata declared *with the domain*:
+tools with its security metadata declared _with the domain_:
 
 ```ts
 const packs = [filesystemPack(root), shellPack(root), gitPack(root), lspPack(lsp)];
@@ -114,7 +114,7 @@ The crypto pack demonstrates the boundary: the runtime never imports
 Binance. Market-data tools declare `risk: "read"`, while paper-trading
 execution declares `risk: "critical"`, `financial: true`, `concurrency: 1`,
 and mandatory confirmation — the `RulePolicyEngine` demands confirmation
-for any financial side effect *even if the tool opts out*, so trading can
+for any financial side effect _even if the tool opts out_, so trading can
 never silently bypass human review.
 
 During the migration window the `AgentToolManager` keeps the legacy
@@ -132,14 +132,14 @@ approval), while kernel-native runs get the full strict pipeline.
   of `cli/agent.ts`, so CLI, TUI, API servers, and background workers share
   one implementation. UIs plug in via `setResponder`.
 - Unattended runs bypass confirmation by explicit contract (`unattended:
-  true`), never by silence.
+true`), never by silence.
 
 ## Strategies
 
 The ReAct loop is no longer baked into the runtime. `ExecutionStrategy` is
 a kernel contract; the runtime ships `react` and `plan_execute`, and
 `graph`/`workflow` strategies can be added without touching the kernel.
-Strategies own *the loop*; the kernel owns *the limits* — budgets,
+Strategies own _the loop_; the kernel owns _the limits_ — budgets,
 timeouts, events, cancellation, concurrency, state. `runGuarded` maps
 abort and budget errors onto the right `ExecutionResult` statuses.
 
@@ -179,16 +179,17 @@ const kernel = agent.getKernel();
 // kernel.toolCatalog    — what tools exist (with risk metadata)
 // kernel.approvalBroker — human-in-the-loop resolver
 
-const runId = agent.startExecutionRun();       // run scope + abort signal
+const runId = agent.startExecutionRun(); // run scope + abort signal
 // …agent.runUserMessage("…") as usual…
-agent.cancelExecutionRun();                    // cooperative cancellation
+agent.cancelExecutionRun(); // cooperative cancellation
 ```
 
 Headless, kernel-native execution (no Agent) works too:
 
 ```ts
 const ctx = createExecutionContext(request, {
-  modelGateway, toolGateway,
+  modelGateway,
+  toolGateway,
   events: myEventSink,
   budget: { maxToolCalls: 50, deadlineMs: 120_000 },
 });
@@ -219,12 +220,45 @@ and never runs its own loop detector — the product owns both.
 
 Next steps (in order of leverage):
 
-1. Promote the `ControlPlane` (orchestrator + planner + delegator) onto the
-   kernel ports.
-2. Move `evolution/` behind the kernel as a separate plane that spawns runs
+1. Move `evolution/` behind the kernel as a separate plane that spawns runs
    through `AgentRuntime.execute`.
-3. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
+2. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
    `-models`, `-tools`, `-mcp`, `-devagent`).
+
+### Control Plane promotion (done)
+
+The Orchestrator (`src/orchestrator/`) now consumes kernel ports instead of
+private primitives, so plan execution participates in the same runtime model
+as every other work item:
+
+- **Kernel gate registry** — the plan's concurrency gate is derived from the
+  `GateRegistry` as `global:control-plane` (`concurrencyLimit` as its
+  ceiling), so plan-level parallelism is visible in gate snapshots and obeys
+  the layered concurrency model. An explicit `gate` option still wins for
+  embedders that bring their own.
+- **Kernel event stream** — every ASL step transition is published to an
+  optional `EventSink` as a `mission.step` RuntimeEvent (execution family),
+  snapshotted at publish time, alongside the legacy `onStepChange` product
+  callback.
+- **Cooperative cancellation** — `OrchestratorOptions.signal` aborts the
+  plan: no new steps are scheduled, queued steps never start, in-flight
+  steps unwind through their own signals, and non-terminal steps are marked
+  `cancelled` (not `failed` — no cascade, no replan trigger). A step that
+  genuinely completed before the abort landed stays `completed`. Rollback is
+  skipped on abort and the checkpoint is deliberately kept, so
+  `Agent.resumePlannedTask` picks the plan back up. The Agent wires its run
+  scope signal into both plan entry points, so run-level cancellation now
+  covers the plan loop.
+- **Kernel-native delegator** — `RuntimeStepRunner`
+  (`src/orchestrator/runtime-step-runner.ts`) implements `StepRunner` by
+  projecting a `PlanStep` onto the kernel's `ExecutionRequest` port
+  (`task.goal`, orchestration bookkeeping in `task.metadata`) and spawning
+  the run through `AgentRuntime.execute`, mapping `ExecutionResult.status`
+  onto `StepOutcome`: `completed` → success, `failed`/`timeout` → retryable,
+  `cancelled`/`budget_exhausted` → blocking. The CLI keeps `AgentStepRunner`
+  (product turns with the full preamble/hooks); kernel-embedded products —
+  headless runners, `devagent-ts` library consumers, future agents — get
+  plan execution without importing the CLI product layer.
 
 ### Gateway enforcement flip (step 2, done)
 

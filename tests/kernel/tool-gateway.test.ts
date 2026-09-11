@@ -6,7 +6,7 @@ import {
   normalizeToolArgs,
   validateAgainstSchema,
 } from "../../src/kernel/tools/tool-gateway.js";
-import { ToolDefinition, ToolResult } from "../../src/kernel/tools/tool-definition.js";
+import { ToolDefinition } from "../../src/kernel/tools/tool-definition.js";
 import { RulePolicyEngine } from "../../src/kernel/policy/policy-engine.js";
 import { Tool } from "../../src/tools/tool.js";
 

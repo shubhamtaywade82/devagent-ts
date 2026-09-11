@@ -767,10 +767,17 @@ export class Agent {
   }
 
   async runPlannedTask(steps: PlanStep[], planner: Planner): Promise<PlanStep[]> {
+    // Control plane promoted onto the kernel ports: the plan's concurrency
+    // gate is acquired from the runtime's GateRegistry (observable via gate
+    // snapshots), and the run-scope abort signal cancels the plan loop
+    // cooperatively — no new steps start, in-flight steps unwind, and the
+    // checkpoint is kept so the plan can be resumed.
     const orchestrator = new Orchestrator({
       steps,
       runner: new AgentStepRunner(this),
       planner,
+      gates: this.runtime.gates,
+      signal: this.executionSignal ?? undefined,
       runRollback: async (command: string) => {
         await this.runUserMessage(`Roll back by running exactly this: ${command}`);
       },
@@ -793,6 +800,8 @@ export class Agent {
       steps: sanitizeResumedSteps(saved.steps),
       runner: new AgentStepRunner(this),
       planner,
+      gates: this.runtime.gates,
+      signal: this.executionSignal ?? undefined,
       runRollback: async (command: string) => {
         await this.runUserMessage(`Roll back by running exactly this: ${command}`);
       },
