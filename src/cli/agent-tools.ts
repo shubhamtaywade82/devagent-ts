@@ -12,7 +12,7 @@ import type { ToolResult } from "../kernel/tools/tool-definition.js";
 import { DefaultToolGateway } from "../kernel/tools/tool-gateway.js";
 import { ToolCatalog } from "../kernel/tools/tool-catalog.js";
 import { mountToolPack, ToolPack } from "../kernel/tools/tool-pack.js";
-import { AllowAllPolicyEngine } from "../kernel/policy/policy-engine.js";
+import { parityPosture } from "../kernel/policy/postures.js";
 import {
   agentCorePack,
   browserPack,
@@ -47,11 +47,14 @@ export class AgentToolManager {
   /** Kernel-side catalog mirroring the legacy registry (ToolDefinitions). */
   readonly kernelCatalog = new ToolCatalog();
   /**
-   * Gateway for kernel-native tool invocation. The policy engine is
-   * AllowAll during migration — the Agent loop keeps its own explicit
-   * destructive-action approval flow (classifyApprovalNeeded +
-   * ApprovalBroker) so today's UX is byte-for-byte preserved; stricter
-   * RulePolicyEngine postures are configured per-product at mount time.
+   * Gateway for kernel-native tool invocation. Since the enforcement flip
+   * this runs the parity posture (RulePolicyEngine): destructive shell,
+   * git push / PR creation, file deletion, and financial tools require a
+   * resolved confirmation — surfaced as a structured ConfirmationRequired
+   * outcome that the strategy's resolveConfirmation hook resolves through
+   * the ApprovalBroker. Schema validation is strict: malformed tool
+   * arguments fail as structured ValidationError observations (after the
+   * weak-model repair pass) instead of reaching tool code.
    */
   readonly gateway: DefaultToolGateway;
   /** Packs mounted this session, by id (observability / capability scoping). */
@@ -60,8 +63,8 @@ export class AgentToolManager {
   constructor() {
     this.gateway = new DefaultToolGateway({
       catalog: this.kernelCatalog,
-      policyEngine: new AllowAllPolicyEngine(),
-      validation: "off",
+      policyEngine: parityPosture(),
+      validation: "strict",
       label: "tool-gateway",
     });
   }

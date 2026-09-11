@@ -6,9 +6,19 @@
  * here so CLI, TUI, API, background workers, and the crypto agent share one
  * implementation.
  *
+ * Since the gateway enforcement flip, confirmation decisions ORIGINATE in
+ * the PolicyEngine (src/kernel/policy/rules.ts) and reach products as
+ * structured ConfirmationRequired outcomes; `describeConfirmation` renders
+ * those into the same pretty request the legacy classification produced.
+ * `classifyApprovalNeeded` is retained for products that veto before the
+ * gateway (and for tests); the shared shell-pattern table now lives in
+ * rules.ts so policy and UX can never drift apart.
+ *
  * The broker does not render anything — it classifies, asks the registered
  * responder, and resolves. UIs plug in via `setResponder`.
  */
+
+import { DESTRUCTIVE_SHELL_PATTERNS } from "./rules.js";
 
 export interface ApprovalRequestSpec {
   title: string;
@@ -19,17 +29,7 @@ export interface ApprovalRequestSpec {
 
 export type ApprovalResponder = (request: ApprovalRequestSpec) => Promise<boolean>;
 
-// ── Destructive classification (moved verbatim in spirit from cli/agent.ts) ──
-
-const DESTRUCTIVE_SHELL_PATTERNS: RegExp[] = [
-  /\brm\s+(-[a-z]*\s+)*-[a-z]*[rf][a-z]*[rf]?[a-z]*(\s|$)/i, // rm -rf / -fr / -r -f, any flag order
-  /\bgit\s+push\b.*(--force\b|-f\b)/i,
-  /\bdrop\s+(table|database|schema)\b/i,
-  /\btruncate\s+table\b/i,
-  /\bmkfs\./i,
-  />\s*\/dev\/sd[a-z]/i,
-  /:\(\)\s*\{\s*:\|:&\s*\}\s*;/, // fork bomb
-];
+// ── Destructive classification (shared table lives in policy/rules.ts) ──────
 
 /** Classify whether a legacy tool call needs human approval, and why. */
 export function classifyApprovalNeeded(
@@ -59,6 +59,22 @@ export function classifyApprovalNeeded(
     }
   }
   return null;
+}
+
+/**
+ * Render a gateway ConfirmationRequired outcome into an approval request.
+ * The legacy classification covers the historical cases (delete_file,
+ * destructive shell, git push, gh pr create) with their established titles;
+ * anything else falls back to a generic title plus the policy reason.
+ */
+export function describeConfirmation(
+  name: string,
+  args: Record<string, unknown>,
+  policyReason: string,
+): { title: string; summary: string } {
+  const legacy = classifyApprovalNeeded(name, args);
+  if (legacy) return legacy;
+  return { title: `Confirm ${name}`, summary: policyReason };
 }
 
 // ── Broker ──────────────────────────────────────────────────────────────────

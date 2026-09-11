@@ -208,6 +208,13 @@ export interface InvokeContext {
   signal?: AbortSignal;
   /** Skip policy (kernel-internal calls, e.g. strategies re-reading files). */
   skipPolicy?: boolean;
+  /**
+   * Confirmation already granted for THIS call (the embedding app resolved a
+   * prior ConfirmationRequired outcome). Confirmation rules are skipped, but
+   * deny rules and mode restrictions still apply — an approval can never
+   * unlock something policy forbids outright.
+   */
+  confirmed?: boolean;
 }
 
 const failure = (code: string, message: string): ToolResult => ({
@@ -306,7 +313,7 @@ export class DefaultToolGateway implements ToolGateway {
       if (!decision.allowed) {
         return failure("PolicyDenied", decision.reason);
       }
-      if (decision.requireConfirmation && !ctx.unattended) {
+      if (decision.requireConfirmation && !ctx.unattended && !ctx.confirmed) {
         // The gateway has no UX of its own: confirmation is surfaced as a
         // structured outcome so the embedding application (CLI/TUI approval
         // broker) can resolve it. Unattended runs bypass by contract.

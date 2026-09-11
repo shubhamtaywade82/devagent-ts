@@ -221,9 +221,38 @@ Next steps (in order of leverage):
 
 1. Promote the `ControlPlane` (orchestrator + planner + delegator) onto the
    kernel ports.
-2. Audit tool JSON-Schemas, then flip the agent-loop gateway from
-   `validation: "off"` to strict.
-3. Move `evolution/` behind the kernel as a separate plane that spawns runs
+2. Move `evolution/` behind the kernel as a separate plane that spawns runs
    through `AgentRuntime.execute`.
-4. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
+3. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
    `-models`, `-tools`, `-mcp`, `-devagent`).
+
+### Gateway enforcement flip (step 2, done)
+
+The Agent's tool gateway no longer runs in migration mode — it now enforces
+the full pipeline with `validation: "strict"` and a `RulePolicyEngine`
+posture. Products choose a posture instead of hand-rolling rule chains
+(`src/kernel/policy/postures.ts`):
+
+- **parity** (the CLI DevAgent) — arg-aware rules keep the historical UX:
+  only destructive shell commands, `git push` / `gh pr create`, and
+  `delete_file` ask for confirmation. Financial side effects always ask
+  (a tool that moves money can never bypass confirmation) — the paper-trade
+  confirmation is the one deliberate UX delta.
+- **standard** — every tool at risk ≥ `high` asks first (shell, git,
+  github, docker-class surfaces).
+- **restricted** — risk ≥ `medium` asks, plus optional deny lists and risk
+  ceilings for unattended runners and the crypto agent.
+
+Mechanics: the gateway never blocks on UX. When policy demands
+confirmation it returns a structured `ConfirmationRequired` outcome; the
+`ReActStrategy` hands it to the `resolveConfirmation` hook — approved calls
+re-execute under `confirmed: true`, rejections become `ApprovalRejected`
+observations, and headless runs (no hook) feed the structured denial back
+to the model as the observation. `ExecutionRequest.mode` /
+`ExecutionRequest.unattended` flow through `ExecutionContext` into every
+policy decision: read-only modes deny mutating tools via
+`ModeRestrictionRule`, and unattended runs bypass confirmations by contract
+(deny rules still apply). Approval UX is unchanged — `describeConfirmation`
+renders policy outcomes into the same approval requests the pre-kernel
+classification produced, and the shared shell-pattern table now lives in
+`src/kernel/policy/rules.ts` so policy and UX cannot drift.

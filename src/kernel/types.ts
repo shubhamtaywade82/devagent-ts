@@ -60,6 +60,17 @@ export interface ExecutionRequest {
   /** Capability tags used for tool discovery filtering (e.g. ["coding"]). */
   capabilities?: string[];
   budgets?: ExecutionBudget;
+  /**
+   * Agent mode for this run (e.g. "ask" | "review" deny mutating tools via
+   * ModeRestrictionRule). Products that don't track modes omit it.
+   */
+  mode?: string;
+  /**
+   * True when the operator asked for fully unattended execution: the
+   * gateway's confirmation gate is bypassed by contract (deny rules still
+   * apply). Headless runners and AUTO_APPROVE-style flags set this.
+   */
+  unattended?: boolean;
 }
 
 // ── Budgets ─────────────────────────────────────────────────────────────────
@@ -144,6 +155,10 @@ export interface ExecutionContext {
   readonly agentId: AgentId;
   readonly task: TaskSpec;
   readonly signal: AbortSignal;
+  /** Agent mode for this run (policy mode restrictions). */
+  readonly mode?: string;
+  /** Unattended run — gateway confirmation gate bypassed by contract. */
+  readonly unattended?: boolean;
 
   readonly modelGateway: ModelGateway;
   readonly toolGateway: ToolGateway;

@@ -62,6 +62,19 @@ export interface ToolFailureInfo {
   turn: number;
 }
 
+/**
+ * Raised when the gateway's policy engine demands human confirmation for a
+ * tool call (risk floor, financial side effects, arg-aware rules). The
+ * strategy has NOT executed the call yet.
+ */
+export interface ConfirmationRequest {
+  name: string;
+  args: Record<string, unknown>;
+  /** Human-readable reason from the policy decision (shown to the user). */
+  reason: string;
+  turn: number;
+}
+
 /** What a hook sees after a tool call completed (success or error record). */
 export interface ToolObservation {
   name: string;
@@ -135,6 +148,30 @@ export interface StrategyHooks {
     args: Record<string, unknown>;
     turn: number;
   }): Promise<boolean | undefined> | boolean | undefined;
+
+  /**
+   * Human-confirmation seam for gateway policy outcomes. When the policy
+   * engine demands confirmation (risk floor, financial side effects,
+   * arg-aware rules) the gateway returns a structured ConfirmationRequired
+   * outcome instead of blocking. With this hook installed, the strategy asks
+   * it: true → the call re-executes under `confirmed: true`; false → the
+   * call becomes an "ApprovalRejected" observation and the run continues.
+   * Without this hook (headless) the ConfirmationRequired outcome itself
+   * becomes the observation — the model sees the denial and adapts.
+   */
+  resolveConfirmation?(request: ConfirmationRequest): Promise<boolean> | boolean;
+
+  /**
+   * Human-confirmation seam for gateway policy outcomes. When the policy
+   * engine demands confirmation (risk floor, financial side effects,
+   * arg-aware rules) the gateway returns a structured ConfirmationRequired
+   * outcome instead of blocking. With this hook installed, the strategy asks
+   * it: true → the call re-executes under `confirmed: true`; false → the
+   * call becomes an "ApprovalRejected" observation and the run continues.
+   * Without this hook (headless) the ConfirmationRequired outcome itself
+   * becomes the observation — the model sees the denial and adapts.
+   */
+  resolveConfirmation?(request: ConfirmationRequest): Promise<boolean> | boolean;
 
   /**
    * Observation seam after a tool call completed. With this hook present

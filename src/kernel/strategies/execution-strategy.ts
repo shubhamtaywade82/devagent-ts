@@ -232,8 +232,39 @@ export class ReActStrategy implements ExecutionStrategy {
             result = await ctx.toolGateway.invoke(call.name, args, {
               agentId: ctx.agentId,
               runId: ctx.runId,
+              mode: ctx.mode,
+              unattended: ctx.unattended,
               signal: ctx.signal,
             });
+
+            // Policy confirmation seam: the gateway never blocks on UX — it
+            // returns a structured ConfirmationRequired outcome. With a
+            // resolver hook installed, the product asks the human and either
+            // re-executes (confirmed) or owns the rejection; without one
+            // (headless) the structured outcome itself becomes the
+            // observation and the model adapts.
+            if (!result.ok && result.error?.code === "ConfirmationRequired" && hooks?.resolveConfirmation) {
+              const approved = await hooks.resolveConfirmation({
+                name: call.name,
+                args,
+                reason: result.error.message ?? "tool requires confirmation",
+                turn,
+              });
+              result = approved
+                ? await ctx.toolGateway.invoke(call.name, args, {
+                    agentId: ctx.agentId,
+                    runId: ctx.runId,
+                    mode: ctx.mode,
+                    unattended: ctx.unattended,
+                    signal: ctx.signal,
+                    confirmed: true,
+                  })
+                : {
+                    ok: false,
+                    data: { error: "ApprovalRejected", message: "The user rejected this action." },
+                    error: { code: "ApprovalRejected", message: "The user rejected this action." },
+                  };
+            }
           } catch (e) {
             // Thrown tool failures become an observation, never a run crash:
             // the model gets the error and a retry-guidance nudge (matching

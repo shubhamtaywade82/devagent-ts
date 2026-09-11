@@ -42,7 +42,7 @@ import { SelfConsistency } from "../provider/self-consistency.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
 // ── Kernel (agent execution kernel) ───────────────────────────────────
-import { ApprovalBroker, classifyApprovalNeeded } from "../kernel/policy/approval-broker.js";
+import { ApprovalBroker, describeConfirmation } from "../kernel/policy/approval-broker.js";
 import { DefaultModelGateway } from "../kernel/models/model-gateway.js";
 import { ModelCapabilityRegistry } from "../kernel/models/model-capability-registry.js";
 import { DefaultAgentRuntime, devAgentDescriptor } from "../kernel/strategies/agent-runtime.js";
@@ -633,16 +633,17 @@ export class Agent {
 
       beforeToolCall: async (call) => {
         this.emit("onToolCall", call.name, call.args);
-
-        const destructive = classifyApprovalNeeded(call.name, call.args);
-        if (destructive && !(await this.requestApproval(destructive.title, destructive.summary))) {
-          const rejected = { error: "ApprovalRejected", message: "The user rejected this action." };
-          this.conversation.pushToolResult(JSON.stringify(rejected, null, 2));
-          this.emit("onToolResult", call.name, rejected);
-          previousTurnHadToolError = true;
-          return false;
-        }
         return true;
+      },
+
+      // Confirmation decisions originate in the gateway's policy engine
+      // (parity posture: destructive shell, git push / PR creation, file
+      // deletion, financial tools). This hook resolves them through the
+      // existing emit-based approval UX — same titles, same deny-on-no-
+      // listener default, same AUTO_APPROVE bypass — via describeConfirmation.
+      resolveConfirmation: async ({ name, args, reason }) => {
+        const spec = describeConfirmation(name, args, reason);
+        return this.requestApproval(spec.title, spec.summary);
       },
 
       onToolObserved: (obs) => {
@@ -713,6 +714,7 @@ export class Agent {
       agentId: "devagent",
       task: { goal: userMessage },
       strategy: "react",
+      unattended: this.autoApprove,
     };
     const context = createExecutionContext(request, {
       runId: this.currentSessionId,

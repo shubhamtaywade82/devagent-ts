@@ -86,8 +86,23 @@ export {
   type RulePolicyEngineOptions,
 } from "./policy/policy-engine.js";
 export {
+  DestructiveShellRule,
+  GitPublishRule,
+  DeleteFileRule,
+  DESTRUCTIVE_SHELL_PATTERNS,
+} from "./policy/rules.js";
+export {
+  parityPosture,
+  standardPosture,
+  restrictedPosture,
+  postureByName,
+  type PolicyPostureName,
+  type RestrictedPostureOptions,
+} from "./policy/postures.js";
+export {
   ApprovalBroker,
   classifyApprovalNeeded,
+  describeConfirmation,
   type ApprovalRequestSpec,
   type ApprovalResponder,
 } from "./policy/approval-broker.js";
@@ -144,6 +159,7 @@ export type {
   ToolObservation,
   ToolObservationAction,
   ToolFailureInfo,
+  ConfirmationRequest,
 } from "./strategies/strategy-hooks.js";
 export { PlanExecuteStrategy } from "./strategies/plan-execute-strategy.js";
 export {

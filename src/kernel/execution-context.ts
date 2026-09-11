@@ -90,6 +90,8 @@ export function createExecutionContext(
     agentId: request.agentId,
     task: request.task,
     signal: controller.signal,
+    mode: request.mode,
+    unattended: request.unattended,
     modelGateway: opts.modelGateway,
     toolGateway: opts.toolGateway,
     policyEngine: opts.policyEngine ?? defaultPolicyEngineRef,
