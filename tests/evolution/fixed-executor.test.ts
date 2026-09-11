@@ -1,5 +1,9 @@
-import { TaskExecutionResult } from "../../src/evolution/evaluator.js";
-import { FixedExecutorMatrix, ExecutorArm, ratesFor } from "../../src/evolution/evaluation/fixed-executor.js";
+import { TaskExecutionResult } from "@nemesis-oss/nexum-devagent/evolution/evaluator";
+import {
+  FixedExecutorMatrix,
+  ExecutorArm,
+  ratesFor,
+} from "@nemesis-oss/nexum-devagent/evolution/evaluation/fixed-executor";
 
 function result(taskId: string, success: boolean, isHeldOut = false): TaskExecutionResult {
   return {

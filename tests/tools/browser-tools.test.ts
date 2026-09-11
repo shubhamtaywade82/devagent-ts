@@ -6,8 +6,8 @@ import {
   BrowserScreenshotTool,
   BrowserEvaluateTool,
   BrowserCloseTool,
-} from "../../src/tools/browser-tools.js";
-import { BrowserManager } from "../../src/browser/manager.js";
+} from "@nemesis-oss/nexum-tools/tools/browser-tools";
+import { BrowserManager } from "@nemesis-oss/nexum-tools/browser/manager";
 
 function fakeManager(overrides: Partial<BrowserManager> = {}): BrowserManager {
   return {

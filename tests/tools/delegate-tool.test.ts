@@ -1,5 +1,5 @@
-import { DelegateToLocalTool } from "../../src/tools/delegate-tool.js";
-import type { LocalWorker, LocalResult } from "../../src/provider/local-worker.js";
+import { DelegateToLocalTool } from "@nemesis-oss/nexum-tools/tools/delegate-tool";
+import type { LocalWorker, LocalResult } from "@nemesis-oss/nexum-models/provider/local-worker";
 
 function makeWorker(result: LocalResult): LocalWorker {
   return { execute: jest.fn(async () => result) } as unknown as LocalWorker;

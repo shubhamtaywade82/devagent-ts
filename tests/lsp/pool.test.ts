@@ -1,6 +1,6 @@
-import { LspPool } from "../../src/lsp/pool.js";
-import { LspServerSession } from "../../src/lsp/session.js";
-import { LanguageProviderConfig } from "../../src/lsp/registry.js";
+import { LspPool } from "@nemesis-oss/nexum-tools/lsp/pool";
+import { LspServerSession } from "@nemesis-oss/nexum-tools/lsp/session";
+import { LanguageProviderConfig } from "@nemesis-oss/nexum-tools/lsp/registry";
 
 const CONFIG = { idleTimeoutMs: 60_000, maxServers: 2, prewarm: [] as string[] };
 

@@ -1,4 +1,4 @@
-import { evaluateEscalation, shouldEscalateAfterLocalFailure } from "../../src/policy/escalation.js";
+import { evaluateEscalation, shouldEscalateAfterLocalFailure } from "@nemesis-oss/nexum-core/policy/escalation";
 
 describe("Policy - Escalation", () => {
   it("escalates when multiFile or schemaChange flags are set", () => {

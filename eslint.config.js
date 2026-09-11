@@ -5,10 +5,16 @@ import globals from "globals";
 
 export default [
   {
-    ignores: ["dist/**"],
+    ignores: ["dist/**", "packages/**/dist/**"],
   },
   {
-    files: ["src/**/*.ts", "src/**/*.tsx", "tests/**/*.ts", "tests/**/*.tsx"],
+    files: [
+      "packages/*/src/**/*.ts",
+      "packages/*/src/**/*.tsx",
+      "src/**/*.ts",
+      "tests/**/*.ts",
+      "tests/**/*.tsx",
+    ],
     languageOptions: {
       parser: tsParser,
       parserOptions: {

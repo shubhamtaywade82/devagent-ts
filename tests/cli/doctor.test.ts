@@ -1,4 +1,4 @@
-import { runDoctor } from "../../src/cli/doctor.js";
+import { runDoctor } from "@nemesis-oss/nexum-devagent/cli/doctor";
 
 describe("CLI - Doctor", () => {
   it("runs doctor diagnostic check successfully", async () => {

@@ -1,5 +1,5 @@
-import { resolveSkills, tokenize } from "../../src/skills/resolver.js";
-import { SkillMeta } from "../../src/skills/types.js";
+import { resolveSkills, tokenize } from "@nemesis-oss/nexum-devagent/skills/resolver";
+import { SkillMeta } from "@nemesis-oss/nexum-devagent/skills/types";
 
 function meta(id: string, tags: string[], description = "", name = id): SkillMeta {
   return { id, name, description, tags, version: "0.0.0", scope: "workspace", dir: "", path: "" };

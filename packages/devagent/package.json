@@ -1,0 +1,121 @@
+{
+  "name": "@nemesis-oss/nexum-devagent",
+  "version": "2.0.0",
+  "description": "Nexum product plane \u2014 CLI agent, terminal UI, orchestrator (control plane), evolution engine, learning/memory/skills and product domains.",
+  "license": "MIT",
+  "author": "Shubham Taywade <shubhamtaywade82@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemesis-oss/nexum.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./cli/*": {
+      "types": "./dist/cli/*.d.ts",
+      "import": "./dist/cli/*.js"
+    },
+    "./tui/*": {
+      "types": "./dist/tui/*.d.ts",
+      "import": "./dist/tui/*.js"
+    },
+    "./orchestrator/*": {
+      "types": "./dist/orchestrator/*.d.ts",
+      "import": "./dist/orchestrator/*.js"
+    },
+    "./runtime/*": {
+      "types": "./dist/runtime/*.d.ts",
+      "import": "./dist/runtime/*.js"
+    },
+    "./evolution/*": {
+      "types": "./dist/evolution/*.d.ts",
+      "import": "./dist/evolution/*.js"
+    },
+    "./learning/*": {
+      "types": "./dist/learning/*.d.ts",
+      "import": "./dist/learning/*.js"
+    },
+    "./memory/*": {
+      "types": "./dist/memory/*.d.ts",
+      "import": "./dist/memory/*.js"
+    },
+    "./skills/*": {
+      "types": "./dist/skills/*.d.ts",
+      "import": "./dist/skills/*.js"
+    },
+    "./context/*": {
+      "types": "./dist/context/*.d.ts",
+      "import": "./dist/context/*.js"
+    },
+    "./intent/*": {
+      "types": "./dist/intent/*.d.ts",
+      "import": "./dist/intent/*.js"
+    },
+    "./interaction/*": {
+      "types": "./dist/interaction/*.d.ts",
+      "import": "./dist/interaction/*.js"
+    },
+    "./layout/*": {
+      "types": "./dist/layout/*.d.ts",
+      "import": "./dist/layout/*.js"
+    },
+    "./hooks/*": {
+      "types": "./dist/hooks/*.d.ts",
+      "import": "./dist/hooks/*.js"
+    },
+    "./observability/*": {
+      "types": "./dist/observability/*.d.ts",
+      "import": "./dist/observability/*.js"
+    },
+    "./validation/*": {
+      "types": "./dist/validation/*.d.ts",
+      "import": "./dist/validation/*.js"
+    },
+    "./benchmark/*": {
+      "types": "./dist/benchmark/*.d.ts",
+      "import": "./dist/benchmark/*.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@nemesis-oss/nexum-core": "^2.0.0",
+    "@nemesis-oss/nexum-models": "^2.0.0",
+    "@nemesis-oss/nexum-tools": "^2.0.0",
+    "@nemesis-oss/nexum-mcp": "^2.0.0",
+    "better-sqlite3": "^12.11.1",
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "cli-highlight": "^2.1.11",
+    "diff": "^9.0.0",
+    "dotenv": "^17.4.2",
+    "gray-matter": "^4.0.3",
+    "ink": "^7.1.1",
+    "marked": "^15.0.12",
+    "marked-terminal": "^7.3.0",
+    "ora": "^9.4.1",
+    "react": "^19.2.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/react": "^19.2.17",
+    "typescript": "^6.0.3"
+  }
+}

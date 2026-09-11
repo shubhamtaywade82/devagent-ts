@@ -1,4 +1,4 @@
-import { LspServerSession } from "../../src/lsp/session.js";
+import { LspServerSession } from "@nemesis-oss/nexum-tools/lsp/session";
 
 function makeSession(): LspServerSession {
   return new LspServerSession("/workspace", {

@@ -1,6 +1,6 @@
-import { activityStripTokens, contextStripTokens, headerTokens } from "../../src/layout/strips.js";
-import { initialRuntimeState, reduce } from "../../src/runtime/store.js";
-import { RuntimeState } from "../../src/runtime/types.js";
+import { activityStripTokens, contextStripTokens, headerTokens } from "@nemesis-oss/nexum-devagent/layout/strips";
+import { initialRuntimeState, reduce } from "@nemesis-oss/nexum-devagent/runtime/store";
+import { RuntimeState } from "@nemesis-oss/nexum-core/runtime/types";
 
 function fresh(): RuntimeState {
   return initialRuntimeState({ workspace: "ollama-agent", branch: "main", model: "qwen3:30b" });

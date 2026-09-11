@@ -3,12 +3,12 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSy
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { HarnessRegistry } from "../../src/evolution/registry.js";
-import { EvaluationMetrics } from "../../src/evolution/types.js";
+import { HarnessRegistry } from "@nemesis-oss/nexum-devagent/evolution/registry";
+import { EvaluationMetrics } from "@nemesis-oss/nexum-devagent/evolution/types";
 import {
   ManifestRuntimeActivationController,
   NEXUM_HARNESS_MANIFEST_PATH,
-} from "../../src/evolution/monitoring/manifest-runtime-activation.js";
+} from "@nemesis-oss/nexum-devagent/evolution/monitoring/manifest-runtime-activation";
 
 const execFileAsync = promisify(execFile);
 

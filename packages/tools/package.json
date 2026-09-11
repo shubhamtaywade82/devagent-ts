@@ -1,0 +1,86 @@
+{
+  "name": "@nemesis-oss/nexum-tools",
+  "version": "2.0.0",
+  "description": "Nexum tool plane \u2014 tool implementations, filesystem/shell/git/browser/LSP/docs/trading tools, and the mountable domain packs.",
+  "license": "MIT",
+  "author": "Shubham Taywade <shubhamtaywade82@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemesis-oss/nexum.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./tools/*": {
+      "types": "./dist/tools/*.d.ts",
+      "import": "./dist/tools/*.js"
+    },
+    "./packs/*": {
+      "types": "./dist/packs/*.d.ts",
+      "import": "./dist/packs/*.js"
+    },
+    "./backtest/*": {
+      "types": "./dist/backtest/*.d.ts",
+      "import": "./dist/backtest/*.js"
+    },
+    "./exchange/*": {
+      "types": "./dist/exchange/*.d.ts",
+      "import": "./dist/exchange/*.js"
+    },
+    "./browser/*": {
+      "types": "./dist/browser/*.d.ts",
+      "import": "./dist/browser/*.js"
+    },
+    "./lsp/*": {
+      "types": "./dist/lsp/*.d.ts",
+      "import": "./dist/lsp/*.js"
+    },
+    "./docs/*": {
+      "types": "./dist/docs/*.d.ts",
+      "import": "./dist/docs/*.js"
+    },
+    "./intelligence/*": {
+      "types": "./dist/intelligence/*.d.ts",
+      "import": "./dist/intelligence/*.js"
+    },
+    "./asl/*": {
+      "types": "./dist/asl/*.d.ts",
+      "import": "./dist/asl/*.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@nemesis-oss/nexum-core": "^2.0.0",
+    "@nemesis-oss/nexum-models": "^2.0.0",
+    "better-sqlite3": "^12.11.1",
+    "cheerio": "^1.2.0",
+    "gray-matter": "^4.0.3",
+    "playwright": "^1.61.1",
+    "vscode-languageserver-protocol": "^3.18.2",
+    "vscode-uri": "^3.1.0",
+    "ws": "^8.21.1"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/ws": "^8.18.1",
+    "typescript": "^6.0.3"
+  }
+}

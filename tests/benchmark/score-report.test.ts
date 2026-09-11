@@ -1,6 +1,6 @@
-import { scoreByModel, scoreByCategory } from "../../src/benchmark/score.js";
-import { formatReport, formatCategoryReport } from "../../src/benchmark/report.js";
-import { BenchmarkResult } from "../../src/benchmark/types.js";
+import { scoreByModel, scoreByCategory } from "@nemesis-oss/nexum-devagent/benchmark/score";
+import { formatReport, formatCategoryReport } from "@nemesis-oss/nexum-devagent/benchmark/report";
+import { BenchmarkResult } from "@nemesis-oss/nexum-devagent/benchmark/types";
 
 function result(overrides: Partial<BenchmarkResult>): BenchmarkResult {
   return {

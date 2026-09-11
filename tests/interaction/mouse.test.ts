@@ -1,4 +1,4 @@
-import { parseSgrMouseEvent, MOUSE_SGR_PATTERN } from "../../src/interaction/mouse.js";
+import { parseSgrMouseEvent, MOUSE_SGR_PATTERN } from "@nemesis-oss/nexum-devagent/interaction/mouse";
 
 describe("Mouse SGR Event Parser", () => {
   it("detects SGR mouse pattern", () => {

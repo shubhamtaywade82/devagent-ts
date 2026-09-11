@@ -1,5 +1,5 @@
-import { SchemaScanner } from "../../../../src/intelligence/rails/scanners/schema-scanner.js";
-import { TableEntity } from "../../../../src/intelligence/rails/types.js";
+import { SchemaScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/schema-scanner";
+import { TableEntity } from "@nemesis-oss/nexum-tools/intelligence/rails/types";
 
 const SCHEMA = [
   "ActiveRecord::Schema[7.1].define(version: 2024_01_02_000000) do",

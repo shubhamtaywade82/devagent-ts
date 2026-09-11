@@ -5,9 +5,9 @@ import {
   DenyToolsRule,
   ModeRestrictionRule,
   RulePolicyEngine,
-} from "../../src/kernel/policy/policy-engine.js";
-import { ToolDefinition } from "../../src/kernel/tools/tool-definition.js";
-import { classifyApprovalNeeded, ApprovalBroker } from "../../src/kernel/policy/approval-broker.js";
+} from "@nemesis-oss/nexum-core/kernel/policy/policy-engine";
+import { ToolDefinition } from "@nemesis-oss/nexum-core/kernel/tools/tool-definition";
+import { classifyApprovalNeeded, ApprovalBroker } from "@nemesis-oss/nexum-core/kernel/policy/approval-broker";
 
 function def(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
   return {

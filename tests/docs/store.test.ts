@@ -1,7 +1,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DocsStore } from "../../src/docs/store.js";
+import { DocsStore } from "@nemesis-oss/nexum-tools/docs/store";
 
 describe("DocsStore", () => {
   let store: DocsStore;

@@ -1,10 +1,10 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { EvolutionEngine } from "../../src/evolution/engine.js";
-import { TaskExecutionResult } from "../../src/evolution/evaluator.js";
-import { HarnessRegistry } from "../../src/evolution/registry.js";
-import { Episode } from "../../src/learning/types.js";
+import { EvolutionEngine } from "@nemesis-oss/nexum-devagent/evolution/engine";
+import { TaskExecutionResult } from "@nemesis-oss/nexum-devagent/evolution/evaluator";
+import { HarnessRegistry } from "@nemesis-oss/nexum-devagent/evolution/registry";
+import { Episode } from "@nemesis-oss/nexum-devagent/learning/types";
 
 function makeFailureEpisode(): Episode {
   return {

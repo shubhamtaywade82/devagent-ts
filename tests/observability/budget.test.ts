@@ -1,4 +1,9 @@
-import { createTokenBudget, recordUsage, totalUsed, isBudgetExceeded } from "../../src/observability/budget.js";
+import {
+  createTokenBudget,
+  recordUsage,
+  totalUsed,
+  isBudgetExceeded,
+} from "@nemesis-oss/nexum-devagent/observability/budget";
 
 describe("Observability - Token Budget", () => {
   it("tracks token input and output usage correctly", () => {

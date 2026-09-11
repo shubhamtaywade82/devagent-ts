@@ -1,5 +1,5 @@
-import { buildExecutionCases } from "../../src/benchmark/cases-execution.js";
-import { AgenticTrajectory } from "../../src/benchmark/types.js";
+import { buildExecutionCases } from "@nemesis-oss/nexum-devagent/benchmark/cases-execution";
+import { AgenticTrajectory } from "@nemesis-oss/nexum-devagent/benchmark/types";
 
 function trajectory(overrides: Partial<AgenticTrajectory> = {}): AgenticTrajectory {
   return { finalContent: "", toolCallsMade: [], turns: 1, hitMaxTurns: false, ...overrides };

@@ -1,4 +1,4 @@
-import { HookEngine } from "../../src/hooks/engine.js";
+import { HookEngine } from "@nemesis-oss/nexum-devagent/hooks/engine";
 
 describe("Hooks - Engine", () => {
   it("allows tool calls when no pre-hooks block execution", async () => {

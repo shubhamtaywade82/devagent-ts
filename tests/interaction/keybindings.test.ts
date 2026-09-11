@@ -1,4 +1,4 @@
-import { KeyContext, resolveKey } from "../../src/interaction/keybindings.js";
+import { KeyContext, resolveKey } from "@nemesis-oss/nexum-devagent/interaction/keybindings";
 
 const base: KeyContext = { overlay: null, promptHasText: false, mode: "idle" };
 

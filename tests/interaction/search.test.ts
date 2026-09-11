@@ -1,6 +1,6 @@
-import { searchItems } from "../../src/interaction/search.js";
-import { builtinCommands } from "../../src/interaction/slash-commands.js";
-import { initialRuntimeState, reduce } from "../../src/runtime/store.js";
+import { searchItems } from "@nemesis-oss/nexum-devagent/interaction/search";
+import { builtinCommands } from "@nemesis-oss/nexum-devagent/interaction/slash-commands";
+import { initialRuntimeState, reduce } from "@nemesis-oss/nexum-devagent/runtime/store";
 
 describe("searchItems", () => {
   it("indexes every source and routes to the owning view", () => {

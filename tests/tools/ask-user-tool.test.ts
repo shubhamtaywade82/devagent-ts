@@ -1,5 +1,5 @@
-import { AskUserTool, ClarificationRequester } from "../../src/tools/ask-user-tool.js";
-import { ClarificationRequest, ClarificationResponse } from "../../src/runtime/types.js";
+import { AskUserTool, ClarificationRequester } from "@nemesis-oss/nexum-tools/tools/ask-user-tool";
+import { ClarificationRequest, ClarificationResponse } from "@nemesis-oss/nexum-core/runtime/types";
 
 describe("AskUserTool", () => {
   it("validates input and returns error if question is empty", async () => {

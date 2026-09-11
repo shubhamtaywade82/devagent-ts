@@ -7,15 +7,15 @@ import {
   AgentDeclinedError,
   AgentMutationStrategy,
   ScriptedAgentRuntime,
-} from "../../src/evolution/mutation/agent-mutation.js";
-import { pathWithinAllowedPrefix } from "../../src/evolution/mutation/path-scope.js";
-import { GitWorktreeMutationExecutor } from "../../src/evolution/mutation/mutation-executor.js";
+} from "@nemesis-oss/nexum-devagent/evolution/mutation/agent-mutation";
+import { pathWithinAllowedPrefix } from "@nemesis-oss/nexum-devagent/evolution/mutation/path-scope";
+import { GitWorktreeMutationExecutor } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-executor";
 import {
   NEXUM_FAST_PROFILE,
   NEXUM_FULL_PROFILE,
   NEXUM_SMOKE_PROFILE,
   verificationProfileByName,
-} from "../../src/evolution/mutation/verification-profile.js";
+} from "@nemesis-oss/nexum-devagent/evolution/mutation/verification-profile";
 import {
   buildMutationStrategy,
   ingestParentExperience,
@@ -23,13 +23,13 @@ import {
   resolveGithubDeliveryConfig,
   resolveRepoCommit,
   runBenchmarkInDir,
-} from "../../src/evolution/cli.js";
-import { ClosedLoopEngine } from "../../src/evolution/engine-v2.js";
-import { ExperienceStore } from "../../src/evolution/experience/experience-store.js";
-import { Episode } from "../../src/learning/types.js";
-import { CliConfig } from "../../src/cli/config.js";
-import { ImprovementTarget } from "../../src/evolution/targets/target-engine.js";
-import { MutationScope } from "../../src/evolution/mutation/mutation-scope.js";
+} from "@nemesis-oss/nexum-devagent/evolution/cli";
+import { ClosedLoopEngine } from "@nemesis-oss/nexum-devagent/evolution/engine-v2";
+import { ExperienceStore } from "@nemesis-oss/nexum-devagent/evolution/experience/experience-store";
+import { Episode } from "@nemesis-oss/nexum-devagent/learning/types";
+import { CliConfig } from "@nemesis-oss/nexum-devagent/cli/config";
+import { ImprovementTarget } from "@nemesis-oss/nexum-devagent/evolution/targets/target-engine";
+import { MutationScope } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-scope";
 
 const execFileAsync = promisify(execFile);
 

@@ -1,12 +1,18 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ExperimentController, StartExperimentInput } from "../../src/evolution/experiments/experiment-controller.js";
-import { ExperimentStore } from "../../src/evolution/experiments/experiment-store.js";
-import { validateExperimentRecord } from "../../src/evolution/experiments/experiment-schema.js";
-import { formatExperimentProvenanceYaml, renderYaml } from "../../src/evolution/experiments/provenance.js";
-import { GitDeliveryEngine } from "../../src/evolution/delivery.js";
-import { ComparisonResult, HarnessHypothesis } from "../../src/evolution/types.js";
+import {
+  ExperimentController,
+  StartExperimentInput,
+} from "@nemesis-oss/nexum-devagent/evolution/experiments/experiment-controller";
+import { ExperimentStore } from "@nemesis-oss/nexum-devagent/evolution/experiments/experiment-store";
+import { validateExperimentRecord } from "@nemesis-oss/nexum-devagent/evolution/experiments/experiment-schema";
+import {
+  formatExperimentProvenanceYaml,
+  renderYaml,
+} from "@nemesis-oss/nexum-devagent/evolution/experiments/provenance";
+import { GitDeliveryEngine } from "@nemesis-oss/nexum-devagent/evolution/delivery";
+import { ComparisonResult, HarnessHypothesis } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 function startInput(over: Partial<StartExperimentInput> = {}): StartExperimentInput {
   return {

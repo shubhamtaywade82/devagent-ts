@@ -1,4 +1,4 @@
-import { Provider, ProviderError } from "../../src/provider/provider.js";
+import { Provider, ProviderError } from "@nemesis-oss/nexum-models/provider/provider";
 
 // The SDK's internal HttpClient calls globalThis.fetch, so mocking
 // globalThis.fetch gives us full control without needing to mock the

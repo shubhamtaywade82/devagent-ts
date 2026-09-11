@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { discoverSkills, loadSkillContent, loadSkillMeta } from "../../src/skills/loader.js";
+import { discoverSkills, loadSkillContent, loadSkillMeta } from "@nemesis-oss/nexum-devagent/skills/loader";
 
 function writeSkill(root: string, id: string, frontmatter: string, body = "# Body\n\ncontent"): string {
   const dir = join(root, ".devagent", "skills", id);

@@ -8,7 +8,7 @@ import {
   isActive,
   normalizeLegacyState,
   stateFromLegacyStatus,
-} from "../../src/evolution/state-machine.js";
+} from "@nemesis-oss/nexum-devagent/evolution/state-machine";
 
 describe("EvolutionStateMachine", () => {
   it("traverses the full happy path from OBSERVED to ACTIVE", () => {

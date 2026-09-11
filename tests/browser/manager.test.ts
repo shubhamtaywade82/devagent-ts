@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { BrowserManager, resolveChromiumExecutablePath } from "../../src/browser/manager.js";
+import { BrowserManager, resolveChromiumExecutablePath } from "@nemesis-oss/nexum-tools/browser/manager";
 
 import { chromium } from "playwright";
 

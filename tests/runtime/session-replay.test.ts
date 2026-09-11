@@ -1,5 +1,5 @@
-import { ExecutionNodeGraph } from "../../src/runtime/event-node.js";
-import { SessionReplayManager } from "../../src/runtime/session-replay.js";
+import { ExecutionNodeGraph } from "@nemesis-oss/nexum-devagent/runtime/event-node";
+import { SessionReplayManager } from "@nemesis-oss/nexum-devagent/runtime/session-replay";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

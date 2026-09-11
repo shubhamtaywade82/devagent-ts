@@ -1,6 +1,6 @@
-import { Tool } from "../../src/tools/tool.js";
-import { DynamicToolSelector } from "../../src/tools/discovery.js";
-import { Provider } from "../../src/provider/provider.js";
+import { Tool } from "@nemesis-oss/nexum-tools/tools/tool";
+import { DynamicToolSelector } from "@nemesis-oss/nexum-tools/tools/discovery";
+import { Provider } from "@nemesis-oss/nexum-models/provider/provider";
 
 class MockTool extends Tool {
   constructor(

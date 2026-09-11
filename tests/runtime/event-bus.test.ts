@@ -1,4 +1,4 @@
-import { EventBus, RuntimeEvent } from "../../src/runtime/events.js";
+import { EventBus, RuntimeEvent } from "@nemesis-oss/nexum-core/runtime/events";
 
 describe("EventBus", () => {
   it("delivers events to all subscribers", () => {

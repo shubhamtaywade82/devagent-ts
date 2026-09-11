@@ -1,7 +1,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DockerTool } from "../../src/tools/docker-tools.js";
+import { DockerTool } from "@nemesis-oss/nexum-tools/tools/docker-tools";
 
 describe("DockerTool", () => {
   it("runs an allowlisted subcommand and returns a real exit code", async () => {

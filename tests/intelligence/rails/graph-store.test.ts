@@ -2,10 +2,10 @@ import { cp, mkdtemp, utimes } from "node:fs/promises";
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { KnowledgeGraph } from "../../../src/intelligence/rails/graph/graph.js";
-import { GraphStore } from "../../../src/intelligence/rails/graph/graph-store.js";
-import { SemanticIndex } from "../../../src/intelligence/rails/indexer.js";
-import { ModelEntity, RelationshipIntent } from "../../../src/intelligence/rails/types.js";
+import { KnowledgeGraph } from "@nemesis-oss/nexum-tools/intelligence/rails/graph/graph";
+import { GraphStore } from "@nemesis-oss/nexum-tools/intelligence/rails/graph/graph-store";
+import { SemanticIndex } from "@nemesis-oss/nexum-tools/intelligence/rails/indexer";
+import { ModelEntity, RelationshipIntent } from "@nemesis-oss/nexum-tools/intelligence/rails/types";
 
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";

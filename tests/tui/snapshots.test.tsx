@@ -1,7 +1,7 @@
 import React from "react";
-import { App } from "../../src/tui/App.js";
-import { EventBus } from "../../src/runtime/events.js";
-import { initialRuntimeState, Store } from "../../src/runtime/store.js";
+import { App } from "@nemesis-oss/nexum-devagent/tui/App";
+import { EventBus } from "@nemesis-oss/nexum-core/runtime/events";
+import { initialRuntimeState, Store } from "@nemesis-oss/nexum-devagent/runtime/store";
 import { renderWide } from "./wide-render.js";
 
 const NOW = new Date(2026, 0, 1, 10, 42, 11).getTime();

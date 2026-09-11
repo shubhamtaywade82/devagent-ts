@@ -1,4 +1,7 @@
-import { ActivationMonitor, OperationalTelemetry } from "../../src/evolution/monitoring/activation-monitor.js";
+import {
+  ActivationMonitor,
+  OperationalTelemetry,
+} from "@nemesis-oss/nexum-devagent/evolution/monitoring/activation-monitor";
 
 function sample(over: Partial<OperationalTelemetry> = {}): OperationalTelemetry {
   return {

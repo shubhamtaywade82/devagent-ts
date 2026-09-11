@@ -1,8 +1,8 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { App, ShellAgent } from "../../src/tui/App.js";
-import { EventBus } from "../../src/runtime/events.js";
-import { initialRuntimeState, Store } from "../../src/runtime/store.js";
+import { App, ShellAgent } from "@nemesis-oss/nexum-devagent/tui/App";
+import { EventBus } from "@nemesis-oss/nexum-core/runtime/events";
+import { initialRuntimeState, Store } from "@nemesis-oss/nexum-devagent/runtime/store";
 
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";

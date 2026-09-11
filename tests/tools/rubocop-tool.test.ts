@@ -4,7 +4,7 @@ import { jest } from "@jest/globals";
 jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
 const { spawn } = await import("node:child_process");
-const { RunRubocopTool } = await import("../../src/tools/rubocop-tool.js");
+const { RunRubocopTool } = await import("@nemesis-oss/nexum-tools/tools/rubocop-tool");
 
 const mockSpawn = spawn as jest.Mock;
 

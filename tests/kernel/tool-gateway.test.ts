@@ -1,14 +1,14 @@
-import { ToolCatalog } from "../../src/kernel/tools/tool-catalog.js";
+import { ToolCatalog } from "@nemesis-oss/nexum-core/kernel/tools/tool-catalog";
 import {
   DefaultToolGateway,
   canonicalToolName,
   decodeRawArguments,
   normalizeToolArgs,
   validateAgainstSchema,
-} from "../../src/kernel/tools/tool-gateway.js";
-import { ToolDefinition } from "../../src/kernel/tools/tool-definition.js";
-import { RulePolicyEngine } from "../../src/kernel/policy/policy-engine.js";
-import { Tool } from "../../src/tools/tool.js";
+} from "@nemesis-oss/nexum-core/kernel/tools/tool-gateway";
+import { ToolDefinition } from "@nemesis-oss/nexum-core/kernel/tools/tool-definition";
+import { RulePolicyEngine } from "@nemesis-oss/nexum-core/kernel/policy/policy-engine";
+import { Tool } from "@nemesis-oss/nexum-tools/tools/tool";
 
 function def(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
   return {

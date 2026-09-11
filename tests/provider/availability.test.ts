@@ -1,4 +1,4 @@
-import { ModelAvailabilityChecker } from "../../src/provider/availability.js";
+import { ModelAvailabilityChecker } from "@nemesis-oss/nexum-models/provider/availability";
 
 describe("ModelAvailabilityChecker", () => {
   let originalFetch: typeof fetch;

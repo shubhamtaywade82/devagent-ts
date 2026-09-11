@@ -1,5 +1,5 @@
-import { ControllerScanner } from "../../../../src/intelligence/rails/scanners/controller-scanner.js";
-import { ControllerEntity } from "../../../../src/intelligence/rails/types.js";
+import { ControllerScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/controller-scanner";
+import { ControllerEntity } from "@nemesis-oss/nexum-tools/intelligence/rails/types";
 
 const CONTROLLER = [
   "class UsersController < ApplicationController",

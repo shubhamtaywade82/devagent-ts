@@ -1,5 +1,5 @@
-import { Provider } from "../../src/provider/provider.js";
-import { ModelCatalog, inferCapabilities } from "../../src/provider/catalog.js";
+import { Provider } from "@nemesis-oss/nexum-models/provider/provider";
+import { ModelCatalog, inferCapabilities } from "@nemesis-oss/nexum-models/provider/catalog";
 
 describe("inferCapabilities", () => {
   it("tags vision models", () => {

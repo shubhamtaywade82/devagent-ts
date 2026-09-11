@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ReadFileTool, WriteFileTool, SensitivePathError } from "../../src/tools/filesystem.js";
+import { ReadFileTool, WriteFileTool, SensitivePathError } from "@nemesis-oss/nexum-tools/tools/filesystem";
 
 describe("ReadFileTool sensitive path blocking", () => {
   it("blocks reading .env files", async () => {

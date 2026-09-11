@@ -1,4 +1,4 @@
-import { LspManager } from "../../src/lsp/manager.js";
+import { LspManager } from "@nemesis-oss/nexum-tools/lsp/manager";
 
 function managerWithFakeSession(sendRequestResult: unknown): LspManager {
   const manager = new LspManager({ workspaceRoot: "/workspace" });

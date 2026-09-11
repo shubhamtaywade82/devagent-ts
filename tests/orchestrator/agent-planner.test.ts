@@ -1,5 +1,5 @@
-import { AgentStepRunner } from "../../src/orchestrator/agent-planner.js";
-import { PlanStep } from "../../src/orchestrator/types.js";
+import { AgentStepRunner } from "@nemesis-oss/nexum-devagent/orchestrator/agent-planner";
+import { PlanStep } from "@nemesis-oss/nexum-devagent/orchestrator/types";
 
 function makeStep(id: string, description: string): PlanStep {
   return { id, description, status: "pending", dependencies: [], retryCount: 0 };

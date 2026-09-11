@@ -1,5 +1,5 @@
-import { PlanStep } from "../../src/orchestrator/types.js";
-import { createMissionState, deriveMissionPhases } from "../../src/runtime/mission-derive.js";
+import { PlanStep } from "@nemesis-oss/nexum-devagent/orchestrator/types";
+import { createMissionState, deriveMissionPhases } from "@nemesis-oss/nexum-core/runtime/mission-derive";
 
 function step(overrides: Partial<PlanStep>): PlanStep {
   return { id: "s1", description: "step", status: "pending", dependencies: [], retryCount: 0, ...overrides };

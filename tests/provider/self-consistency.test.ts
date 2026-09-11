@@ -1,5 +1,5 @@
-import { SelfConsistency } from "../../src/provider/self-consistency.js";
-import type { Provider, ChatResponse } from "../../src/provider/provider.js";
+import { SelfConsistency } from "@nemesis-oss/nexum-models/provider/self-consistency";
+import type { Provider, ChatResponse } from "@nemesis-oss/nexum-models/provider/provider";
 
 function makeProvider(replies: string[]): Provider {
   let call = 0;

@@ -1,9 +1,9 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Orchestrator, OrchestratorError } from "../../src/orchestrator/orchestrator.js";
-import { PlanStep, StepRunner, Planner, StepOutcome } from "../../src/orchestrator/types.js";
-import { CheckpointStore, sanitizeResumedSteps } from "../../src/runtime/checkpoint.js";
+import { Orchestrator, OrchestratorError } from "@nemesis-oss/nexum-devagent/orchestrator/orchestrator";
+import { PlanStep, StepRunner, Planner, StepOutcome } from "@nemesis-oss/nexum-devagent/orchestrator/types";
+import { CheckpointStore, sanitizeResumedSteps } from "@nemesis-oss/nexum-core/runtime/checkpoint";
 
 const noopLogger = { info: jest.fn(), warn: jest.fn(), error: jest.fn() };
 

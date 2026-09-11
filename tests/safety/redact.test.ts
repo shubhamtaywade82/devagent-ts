@@ -1,4 +1,4 @@
-import { redactText, redactObject, detectSecretPatterns } from "../../src/safety/redact.js";
+import { redactText, redactObject, detectSecretPatterns } from "@nemesis-oss/nexum-core/safety/redact";
 
 describe("Safety - Redact", () => {
   it("redacts AWS key patterns", () => {

@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, jest } from "@jest/globals
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadConfig, saveWorkspaceConfig } from "../../src/cli/config.js";
-import { suppressDeprecationWarnings } from "../../src/platform/environment.js";
+import { loadConfig, saveWorkspaceConfig } from "@nemesis-oss/nexum-devagent/cli/config";
+import { suppressDeprecationWarnings } from "@nemesis-oss/nexum-core/platform/environment";
 
 const savedEnv = { ...process.env };
 

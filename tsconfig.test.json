@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.dev.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "jest"
+    ]
+  },
+  "include": [
+    "packages",
+    "src",
+    "tests"
+  ]
+}

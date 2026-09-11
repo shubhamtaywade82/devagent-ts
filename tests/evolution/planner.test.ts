@@ -1,6 +1,6 @@
-import { formulateHypothesis } from "../../src/evolution/hypothesis.js";
-import { EvolutionPlanner } from "../../src/evolution/planner.js";
-import { HarnessDiagnosis } from "../../src/evolution/types.js";
+import { formulateHypothesis } from "@nemesis-oss/nexum-devagent/evolution/hypothesis";
+import { EvolutionPlanner } from "@nemesis-oss/nexum-devagent/evolution/planner";
+import { HarnessDiagnosis } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 describe("EvolutionPlanner & Hypothesis", () => {
   const diagnosis: HarnessDiagnosis = {

@@ -1,5 +1,5 @@
-import { BinancePaperTradeTool } from "../../src/tools/paper-trading-tools.js";
-import { PaperTradingManager } from "../../src/exchange/paper-trading.js";
+import { BinancePaperTradeTool } from "@nemesis-oss/nexum-tools/tools/paper-trading-tools";
+import { PaperTradingManager } from "@nemesis-oss/nexum-tools/exchange/paper-trading";
 
 function fakeManager(overrides: Partial<PaperTradingManager> = {}): PaperTradingManager {
   return {

@@ -12,13 +12,17 @@
  *      checkpoint kept for resume).
  */
 
-import { Orchestrator } from "../../src/orchestrator/orchestrator.js";
-import { RuntimeStepRunner, mapOutcome, type StepContextFactory } from "../../src/orchestrator/runtime-step-runner.js";
-import { PlanStep, Planner, StepOutcome, StepRunner } from "../../src/orchestrator/types.js";
-import type { ExecutionContext, ExecutionRequest, ExecutionResult } from "../../src/kernel/types.js";
-import { GateRegistry } from "../../src/kernel/concurrency/gate-registry.js";
-import type { EventSink } from "../../src/kernel/types.js";
-import { CheckpointStore } from "../../src/runtime/checkpoint.js";
+import { Orchestrator } from "@nemesis-oss/nexum-devagent/orchestrator/orchestrator";
+import {
+  RuntimeStepRunner,
+  mapOutcome,
+  type StepContextFactory,
+} from "@nemesis-oss/nexum-devagent/orchestrator/runtime-step-runner";
+import { PlanStep, Planner, StepOutcome, StepRunner } from "@nemesis-oss/nexum-devagent/orchestrator/types";
+import type { ExecutionContext, ExecutionRequest, ExecutionResult } from "@nemesis-oss/nexum-core/kernel/types";
+import { GateRegistry } from "@nemesis-oss/nexum-core/kernel/concurrency/gate-registry";
+import type { EventSink } from "@nemesis-oss/nexum-core/kernel/types";
+import { CheckpointStore } from "@nemesis-oss/nexum-core/runtime/checkpoint";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

@@ -4,7 +4,7 @@ import {
   detailForDensity,
   MAX_COMPLETION_ROWS,
   promptAreaRows,
-} from "../../src/layout/density.js";
+} from "@nemesis-oss/nexum-devagent/layout/density";
 
 describe("density tiers", () => {
   it("maps widths to the frozen tiers", () => {

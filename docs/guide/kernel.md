@@ -4,11 +4,11 @@ Nexum is evolving from "agent runtime + one large agent product" into a
 layered platform: a **generic agent execution kernel** at the bottom, with
 domain products (DevAgent, CryptoAgent, future agents) mounted on top as
 compositions of tool packs. This document describes the kernel — the code
-under `src/kernel/` — and the target layering.
+under `packages/core/src/kernel/` — and the target layering.
 
 ## Why a kernel
 
-Before the kernel, the `Agent` class in `src/cli/agent.ts` assembled
+Before the kernel, the `Agent` class in `packages/devagent/src/cli/agent.ts` assembled
 everything: providers, routing, memory, planning, tools, browser, exchange
 streams, LSP, docs, learning, and UI plumbing. That god-object worked, but
 it made the runtime inseparable from the coding-agent product, and every
@@ -206,7 +206,7 @@ tool registration, crypto domain pack, and the Agent wiring above.
 **Strategy extraction (step 1) is done**: `Agent.runUserMessage` no longer
 contains the think→act→observe loop. The kernel's `ReActStrategy` runs the
 loop and the Agent supplies product policies through `StrategyHooks`
-(`src/kernel/strategies/strategy-hooks.ts`): `selectTools` (dynamic tool
+(`packages/core/src/kernel/strategies/strategy-hooks.ts`): `selectTools` (dynamic tool
 selection + always-on escalation tools), `callModel` (quick→cloud
 escalation, streamed output with buffered verification), `onModelUsed`
 (usage metering), `prepareToolCall` (tolerant argument parsing + guidance),
@@ -220,7 +220,7 @@ and never runs its own loop detector — the product owns both.
 
 ### Evolution Plane (done)
 
-The self-development loop (`src/evolution/`, `ClosedLoopEngine`) now spawns
+The self-development loop (`packages/devagent/src/evolution/`, `ClosedLoopEngine`) now spawns
 its agent work through the kernel instead of running a private tool loop
 over the raw Provider. Two implementations of the `EngineeringAgentRuntime`
 seam exist:
@@ -229,7 +229,7 @@ seam exist:
   the propose-only tool protocol; supervised by nothing but its own
   `maxTurns` counter. Kept as the standalone/unsupervised option.
 - **`KernelEvolutionAgentRuntime`** (promoted,
-  `src/evolution/mutation/kernel-agent-runtime.ts`) — the SAME protocol
+  `packages/devagent/src/evolution/mutation/kernel-agent-runtime.ts`) — the SAME protocol
   (schemas shared from one vocabulary) as a per-mutation kernel tool pack
   mounted behind a `ToolGateway`, spawned as one `ExecutionRequest` through
   `AgentRuntime.execute`. Every mutation run now gets the kernel's full
@@ -249,14 +249,50 @@ The trust boundary is unchanged — prompt contract → queue-time rejection →
 fail-closed re-audit → strategy attribution → executor actual-diff audit —
 the kernel adds supervision underneath it, not shortcuts around it.
 
-Remaining lever (in order of leverage):
+### Package split (done)
 
-1. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
-   `-models`, `-tools`, `-mcp`, `-devagent`).
+The single `src/` tree is now an npm-workspaces monorepo of five packages
+under `packages/`, ordered by the dependency direction — nothing imports
+upward, enforced by a layering audit over every `@nemesis-oss/nexum-*`
+specifier:
+
+| Package | Contents | Depends on |
+| --- | --- | --- |
+| `@nemesis-oss/nexum-core` | The kernel plane: contracts, tool gateway + catalog, policy engine + postures, `ModelGateway` **port**, strategies, gate registry, event families, budgets, runtime primitives (events, task-machine, checkpoint, concurrency gate), platform and safety vocabulary — plus the shared type vocabulary every plane speaks (`ChatMessage`/`ChatResponse`/`ChatOptions`, `Capability`/`ModelInfo`, the error taxonomy, the legacy `Tool` base, `LoopDetector`, `PlanStep`/`StepOutcome`). | **nothing** (zero runtime dependencies) |
+| `@nemesis-oss/nexum-models` | The model plane: `Provider`/`Router`/`ModelCatalog`/availability stack and `DefaultModelGateway` — the adapter that routes the kernel's port over Router/Catalog. | core |
+| `@nemesis-oss/nexum-tools` | The tool plane: tool implementations, filesystem/shell/git/browser/LSP/docs/trading surfaces, and the 14 mountable domain packs, plus the capability libraries they own (`backtest`, `exchange`, `browser`, `lsp`, `docs`, `intelligence`, `asl`). | core, models |
+| `@nemesis-oss/nexum-mcp` | The MCP plane: MCP client and the tool adapter bridging MCP servers into the gateway. | core, tools |
+| `@nemesis-oss/nexum-devagent` | The product plane: CLI agent, TUI, control-plane orchestrator, evolution engine, learning/memory/skills, runtime store/session, layout/interaction. | core, models, tools, mcp |
+
+The root `@nemesis-oss/nexum` stays the umbrella: same bins, same `src/index.ts`
+public surface (now re-exported from the packages). Library consumers take
+`@nemesis-oss/nexum-core` alone and mount their own packs; the trading
+domains, CLI and TUI never leak into their dependency tree.
+
+Mechanics worth knowing:
+
+- **Ports stayed down, defaults went up.** The kernel keeps only contracts;
+  anything that *consumed* a lower plane moved to that plane
+  (`DefaultModelGateway` → models, `Tool` base + error taxonomy + chat/model
+  type vocabulary → core with re-export shims at the old paths, so existing
+  import sites keep working).
+- **Presentation-side runtime split.** `runtime/store`, `session`,
+  `session-replay`, `project-info`, `event-node` moved to the product plane;
+  the kernel-consumed primitives (events, task-machine, checkpoint,
+  concurrency gate, config, mission-derive) stayed in core.
+- **Workspace DX is single-repo.** `tsc` builds each package in dependency
+  order via the root `build` script; ts-jest resolves package specifiers
+  straight to TypeScript sources through tsconfig paths + `moduleNameMapper`,
+  so `npm test` needs no prior build. Each package exposes `dist/` through
+  its exports map for real consumers.
+- The shim discipline is deliberate: old paths like `tools/tool.ts`,
+  `provider/errors.ts`, `orchestrator/loop-detector.ts`,
+  `orchestrator/types.ts` re-export their moved declarations. Intra-repo
+  import sites were left pointing at the shims where the direction is legal.
 
 ### Control Plane promotion (done)
 
-The Orchestrator (`src/orchestrator/`) now consumes kernel ports instead of
+The Orchestrator (`packages/devagent/src/orchestrator/`) now consumes kernel ports instead of
 private primitives, so plan execution participates in the same runtime model
 as every other work item:
 
@@ -279,7 +315,7 @@ as every other work item:
   scope signal into both plan entry points, so run-level cancellation now
   covers the plan loop.
 - **Kernel-native delegator** — `RuntimeStepRunner`
-  (`src/orchestrator/runtime-step-runner.ts`) implements `StepRunner` by
+  (`packages/devagent/src/orchestrator/runtime-step-runner.ts`) implements `StepRunner` by
   projecting a `PlanStep` onto the kernel's `ExecutionRequest` port
   (`task.goal`, orchestration bookkeeping in `task.metadata`) and spawning
   the run through `AgentRuntime.execute`, mapping `ExecutionResult.status`
@@ -294,7 +330,7 @@ as every other work item:
 The Agent's tool gateway no longer runs in migration mode — it now enforces
 the full pipeline with `validation: "strict"` and a `RulePolicyEngine`
 posture. Products choose a posture instead of hand-rolling rule chains
-(`src/kernel/policy/postures.ts`):
+(`packages/core/src/kernel/policy/postures.ts`):
 
 - **parity** (the CLI DevAgent) — arg-aware rules keep the historical UX:
   only destructive shell commands, `git push` / `gh pr create`, and
@@ -318,4 +354,4 @@ policy decision: read-only modes deny mutating tools via
 (deny rules still apply). Approval UX is unchanged — `describeConfirmation`
 renders policy outcomes into the same approval requests the pre-kernel
 classification produced, and the shared shell-pattern table now lives in
-`src/kernel/policy/rules.ts` so policy and UX cannot drift.
+`packages/core/src/kernel/policy/rules.ts` so policy and UX cannot drift.

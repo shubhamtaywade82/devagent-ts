@@ -1,5 +1,5 @@
-import { CandidateComparator, computeDeltas } from "../../src/evolution/comparator.js";
-import { EvaluationMetrics } from "../../src/evolution/types.js";
+import { CandidateComparator, computeDeltas } from "@nemesis-oss/nexum-devagent/evolution/comparator";
+import { EvaluationMetrics } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 const baselineMetrics: EvaluationMetrics = {
   capability: { taskSuccessRate: 0.7, verificationPassRate: 0.7 },

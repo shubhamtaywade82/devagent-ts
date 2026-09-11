@@ -1,10 +1,10 @@
-import { ConcernScanner } from "../../../../src/intelligence/rails/scanners/concern-scanner.js";
-import { JobScanner } from "../../../../src/intelligence/rails/scanners/job-scanner.js";
-import { MailerScanner } from "../../../../src/intelligence/rails/scanners/mailer-scanner.js";
-import { MigrationScanner } from "../../../../src/intelligence/rails/scanners/migration-scanner.js";
-import { PolicyScanner } from "../../../../src/intelligence/rails/scanners/policy-scanner.js";
-import { RspecScanner } from "../../../../src/intelligence/rails/scanners/rspec-scanner.js";
-import { ServiceScanner } from "../../../../src/intelligence/rails/scanners/service-scanner.js";
+import { ConcernScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/concern-scanner";
+import { JobScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/job-scanner";
+import { MailerScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/mailer-scanner";
+import { MigrationScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/migration-scanner";
+import { PolicyScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/policy-scanner";
+import { RspecScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/rspec-scanner";
+import { ServiceScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/service-scanner";
 import {
   ConcernEntity,
   JobEntity,
@@ -13,7 +13,7 @@ import {
   PolicyEntity,
   ServiceEntity,
   SpecEntity,
-} from "../../../../src/intelligence/rails/types.js";
+} from "@nemesis-oss/nexum-tools/intelligence/rails/types";
 
 describe("ServiceScanner", () => {
   const SOURCE = [

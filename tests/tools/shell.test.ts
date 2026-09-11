@@ -7,7 +7,7 @@ import { jest } from "@jest/globals";
 jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
 const { spawn } = await import("node:child_process");
-const { ShellTool } = await import("../../src/tools/shell.js");
+const { ShellTool } = await import("@nemesis-oss/nexum-tools/tools/shell");
 
 const mockSpawn = spawn as jest.Mock;
 

@@ -7,9 +7,9 @@ import {
   splitIntoSections,
   ingestDocSource,
   DocsIngestError,
-} from "../../src/docs/ingest.js";
-import { DocsStore } from "../../src/docs/store.js";
-import { DocManifestEntry } from "../../src/docs/types.js";
+} from "@nemesis-oss/nexum-tools/docs/ingest";
+import { DocsStore } from "@nemesis-oss/nexum-tools/docs/store";
+import { DocManifestEntry } from "@nemesis-oss/nexum-tools/docs/types";
 
 function jsonResponse(body: unknown, ok = true, status = 200): Response {
   return {

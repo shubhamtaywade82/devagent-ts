@@ -1,4 +1,4 @@
-import { filterPickerItems, visibleWindow } from "../../src/interaction/picker.js";
+import { filterPickerItems, visibleWindow } from "@nemesis-oss/nexum-devagent/interaction/picker";
 
 const items = [
   { id: "1", label: "Filesystem", detail: "MCP server" },

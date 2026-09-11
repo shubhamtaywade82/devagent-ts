@@ -1,0 +1,76 @@
+/**
+ * UI state: which view is observed, which overlay is open, zoom.
+ * This is presentation state only — it never touches runtime state, so
+ * closing an overlay or switching views can never stop an actor.
+ */
+
+import { PRIMARY_VIEWS, VIEW_ORDER, ViewId } from "@nemesis-oss/nexum-core/runtime/types";
+import { UiCommand } from "./keybindings.js";
+
+export type OverlayId =
+  "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode" | "sessions" | "tools" | "dag";
+
+export interface UiState {
+  activeView: ViewId;
+  overlay: OverlayId | null;
+  zoom: boolean;
+  /** Persistent left sidebar (sessions/tools/skills at a glance). Starts
+   * hidden — opt-in via Ctrl+N, and only rendered above a minimum width so
+   * it never fights the existing narrow-terminal strip-shedding behavior. */
+  sidebarVisible: boolean;
+}
+
+export function initialUiState(): UiState {
+  return { activeView: "dashboard", overlay: null, zoom: false, sidebarVisible: true };
+}
+
+function cycleView(current: ViewId, delta: number): ViewId {
+  // Tab cycles the five primary tabs; from a secondary view it falls back to
+  // the full order so you're never trapped in /mcp or /settings.
+  const primaryIdx = (PRIMARY_VIEWS as readonly ViewId[]).indexOf(current);
+  if (primaryIdx >= 0) {
+    return PRIMARY_VIEWS[(primaryIdx + delta + PRIMARY_VIEWS.length) % PRIMARY_VIEWS.length];
+  }
+  const idx = VIEW_ORDER.indexOf(current);
+  const next = (idx + delta + VIEW_ORDER.length) % VIEW_ORDER.length;
+  return VIEW_ORDER[next];
+}
+
+export function uiReduce(state: UiState, command: UiCommand): UiState {
+  switch (command.type) {
+    case "focus-view":
+      return { ...state, activeView: command.view };
+    case "next-view":
+      return { ...state, activeView: cycleView(state.activeView, 1) };
+    case "prev-view":
+      return { ...state, activeView: cycleView(state.activeView, -1) };
+    case "open-overlay":
+      return { ...state, overlay: command.overlay };
+    case "close-overlay":
+      return { ...state, overlay: null };
+    case "toggle-zoom":
+      return { ...state, zoom: !state.zoom };
+    case "toggle-sidebar":
+      return { ...state, sidebarVisible: !state.sidebarVisible };
+    case "view-diff":
+      return { ...state, overlay: state.overlay === "diff" ? null : "diff" };
+    case "clear-conversation":
+      return state; // handled by App.tsx
+    case "open-mode":
+      return { ...state, overlay: "mode" };
+    case "next-mode":
+      return state; // handled by App.tsx
+    case "set-layout-preset":
+      if (command.preset === "focus") {
+        return { ...state, activeView: "conversation", sidebarVisible: false, overlay: null };
+      } else if (command.preset === "inspect") {
+        return { ...state, activeView: "execution", sidebarVisible: true, overlay: null };
+      } else {
+        return { ...state, activeView: "dashboard", sidebarVisible: true, overlay: null };
+      }
+    case "cancel":
+      return state;
+    default:
+      return state;
+  }
+}

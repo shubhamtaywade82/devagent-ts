@@ -1,5 +1,5 @@
-import { Verifier } from "../../src/provider/verifier.js";
-import type { Provider, ChatResponse } from "../../src/provider/provider.js";
+import { Verifier } from "@nemesis-oss/nexum-models/provider/verifier";
+import type { Provider, ChatResponse } from "@nemesis-oss/nexum-models/provider/provider";
 
 function makeProvider(reply: string): Provider {
   return {

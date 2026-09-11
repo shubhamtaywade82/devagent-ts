@@ -4,7 +4,7 @@ import { jest } from "@jest/globals";
 jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
 const { spawn } = await import("node:child_process");
-const { RoutesScanner } = await import("../../../../src/intelligence/rails/scanners/routes-scanner.js");
+const { RoutesScanner } = await import("@nemesis-oss/nexum-tools/intelligence/rails/scanners/routes-scanner");
 
 const mockSpawn = spawn as jest.Mock;
 

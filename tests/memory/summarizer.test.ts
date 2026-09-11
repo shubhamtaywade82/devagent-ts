@@ -1,9 +1,9 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MemoryStore } from "../../src/memory/store.js";
-import { generateSummary } from "../../src/memory/summarizer.js";
-import { Provider } from "../../src/provider/provider.js";
+import { MemoryStore } from "@nemesis-oss/nexum-devagent/memory/store";
+import { generateSummary } from "@nemesis-oss/nexum-devagent/memory/summarizer";
+import { Provider } from "@nemesis-oss/nexum-models/provider/provider";
 
 describe("generateSummary", () => {
   it("prompts the provider with recent messages and stores the resulting bullet summary", async () => {

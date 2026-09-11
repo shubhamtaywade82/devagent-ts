@@ -1,4 +1,4 @@
-import { elidePath, tail, truncate, truncateStart, wrapText } from "../../src/layout/truncate.js";
+import { elidePath, tail, truncate, truncateStart, wrapText } from "@nemesis-oss/nexum-devagent/layout/truncate";
 
 describe("truncate", () => {
   it("passes short text through", () => {

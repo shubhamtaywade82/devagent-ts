@@ -2,8 +2,8 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { SessionStore } from "../../src/runtime/session.js";
-import { ChatMessage } from "../../src/provider/provider.js";
+import { SessionStore } from "@nemesis-oss/nexum-devagent/runtime/session";
+import { ChatMessage } from "@nemesis-oss/nexum-models/provider/provider";
 
 describe("SessionStore", () => {
   let dir: string;

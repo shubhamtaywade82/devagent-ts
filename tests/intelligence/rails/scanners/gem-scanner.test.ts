@@ -1,5 +1,5 @@
-import { GemScanner } from "../../../../src/intelligence/rails/scanners/gem-scanner.js";
-import { GemEntity } from "../../../../src/intelligence/rails/types.js";
+import { GemScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/gem-scanner";
+import { GemEntity } from "@nemesis-oss/nexum-tools/intelligence/rails/types";
 
 const LOCKFILE = [
   "GEM",

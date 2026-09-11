@@ -1,8 +1,8 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Registry } from "../../src/tools/registry.js";
-import { ReadFileTool } from "../../src/tools/filesystem.js";
+import { Registry } from "@nemesis-oss/nexum-tools/tools/registry";
+import { ReadFileTool } from "@nemesis-oss/nexum-tools/tools/filesystem";
 
 describe("Registry", () => {
   it("returns a tool's result on successful invoke", async () => {

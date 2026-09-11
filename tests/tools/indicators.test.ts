@@ -1,4 +1,4 @@
-import { sma, ema, rsi, macd, bollingerBands } from "../../src/tools/indicators.js";
+import { sma, ema, rsi, macd, bollingerBands } from "@nemesis-oss/nexum-tools/tools/indicators";
 
 describe("indicators", () => {
   it("sma averages the last N values", () => {

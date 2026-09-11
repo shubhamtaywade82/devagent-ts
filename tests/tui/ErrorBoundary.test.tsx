@@ -1,7 +1,7 @@
 import React from "react";
 import { Text } from "ink";
 import { render } from "ink-testing-library";
-import { ErrorBoundary } from "../../src/tui/ErrorBoundary.js";
+import { ErrorBoundary } from "@nemesis-oss/nexum-devagent/tui/ErrorBoundary";
 
 function Bomb(): React.JSX.Element {
   throw new Error("kaboom");

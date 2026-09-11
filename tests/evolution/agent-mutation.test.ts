@@ -8,14 +8,14 @@ import {
   AgentMutationError,
   AgentMutationStrategy,
   ScriptedAgentRuntime,
-} from "../../src/evolution/mutation/agent-mutation.js";
-import { GitWorktreeMutationExecutor } from "../../src/evolution/mutation/mutation-executor.js";
-import { ClosedLoopEngine } from "../../src/evolution/engine-v2.js";
-import { HarnessRegistry } from "../../src/evolution/registry.js";
-import { TaskExecutionResult } from "../../src/evolution/evaluator.js";
-import { ImprovementTarget } from "../../src/evolution/targets/target-engine.js";
-import { MutationScope } from "../../src/evolution/mutation/mutation-scope.js";
-import { HarnessDiagnosis } from "../../src/evolution/types.js";
+} from "@nemesis-oss/nexum-devagent/evolution/mutation/agent-mutation";
+import { GitWorktreeMutationExecutor } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-executor";
+import { ClosedLoopEngine } from "@nemesis-oss/nexum-devagent/evolution/engine-v2";
+import { HarnessRegistry } from "@nemesis-oss/nexum-devagent/evolution/registry";
+import { TaskExecutionResult } from "@nemesis-oss/nexum-devagent/evolution/evaluator";
+import { ImprovementTarget } from "@nemesis-oss/nexum-devagent/evolution/targets/target-engine";
+import { MutationScope } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-scope";
+import { HarnessDiagnosis } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 const exec = promisify(execFile);
 
