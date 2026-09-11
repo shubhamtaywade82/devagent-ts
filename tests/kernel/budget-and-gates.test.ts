@@ -1,4 +1,11 @@
-import { BudgetTracker, CostBudgetError, ModelCallBudgetError, TokenBudgetError, ToolCallBudgetError, WallClockBudgetError } from "../../src/kernel/budget.js";
+import {
+  BudgetTracker,
+  CostBudgetError,
+  ModelCallBudgetError,
+  TokenBudgetError,
+  ToolCallBudgetError,
+  WallClockBudgetError,
+} from "../../src/kernel/budget.js";
 import { ExecutionBudget } from "../../src/kernel/types.js";
 import { GateRegistry } from "../../src/kernel/concurrency/gate-registry.js";
 import { ConcurrencyGate } from "../../src/runtime/concurrency-gate.js";

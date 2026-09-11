@@ -85,12 +85,7 @@ export {
   type AgentModePolicy,
   type RulePolicyEngineOptions,
 } from "./policy/policy-engine.js";
-export {
-  DestructiveShellRule,
-  GitPublishRule,
-  DeleteFileRule,
-  DESTRUCTIVE_SHELL_PATTERNS,
-} from "./policy/rules.js";
+export { DestructiveShellRule, GitPublishRule, DeleteFileRule, DESTRUCTIVE_SHELL_PATTERNS } from "./policy/rules.js";
 export {
   parityPosture,
   standardPosture,

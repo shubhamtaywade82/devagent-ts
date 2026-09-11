@@ -9,12 +9,7 @@
 
 import { randomUUID } from "node:crypto";
 import { BudgetExhaustedError } from "../provider/errors.js";
-import type {
-  BudgetUsage,
-  ExecutionBudget,
-  RunId,
-  SessionId,
-} from "./types.js";
+import type { BudgetUsage, ExecutionBudget, RunId, SessionId } from "./types.js";
 
 /** Error thrown when a run exceeds a declared budget dimension. */
 export class WallClockBudgetError extends BudgetExhaustedError {

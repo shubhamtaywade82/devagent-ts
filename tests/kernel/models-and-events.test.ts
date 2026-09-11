@@ -1,6 +1,12 @@
 import { ModelCapabilityRegistry } from "../../src/kernel/models/model-capability-registry.js";
 import { profileFromLegacy, defaultConstraints } from "../../src/kernel/models/model-profile.js";
-import { familyOf, filteringSink, isDomainEvent, isExecutionEvent, isPresentationEvent } from "../../src/kernel/events/families.js";
+import {
+  familyOf,
+  filteringSink,
+  isDomainEvent,
+  isExecutionEvent,
+  isPresentationEvent,
+} from "../../src/kernel/events/families.js";
 import type { ModelInfo } from "../../src/provider/catalog.js";
 import type { RuntimeEvent } from "../../src/runtime/events.js";
 
@@ -82,7 +88,10 @@ describe("event families", () => {
     const sink = filteringSink({ publish: (e) => seen.push(e.type) }, ["execution"]);
     sink.publish({ type: "tool.started", id: "1", name: "ls", args: {} } as RuntimeEvent);
     sink.publish({ type: "theme.changed", theme: "default" } as RuntimeEvent);
-    sink.publish({ type: "task.created", task: { id: "t", title: "T", status: "queued", dependencies: [] } } as RuntimeEvent);
+    sink.publish({
+      type: "task.created",
+      task: { id: "t", title: "T", status: "queued", dependencies: [] },
+    } as RuntimeEvent);
     expect(seen).toEqual(["tool.started", "task.created"]);
   });
 });

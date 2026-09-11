@@ -91,12 +91,9 @@ describe("DefaultToolGateway", () => {
   const makeCatalog = () => {
     const catalog = new ToolCatalog();
     catalog.register(def({ inputSchema: TEXT_SCHEMA }), async (args) => ({ echoed: args.text }));
-    catalog.register(
-      def({ id: "boomer", policy: { confirmation: "never" }, risk: "read" }),
-      async () => {
-        throw new Error("boom");
-      },
-    );
+    catalog.register(def({ id: "boomer", policy: { confirmation: "never" }, risk: "read" }), async () => {
+      throw new Error("boom");
+    });
     catalog.register(
       def({ id: "slow", execution: { timeoutMs: 30, concurrency: 1, idempotent: true, reversible: true } }),
       async () => {

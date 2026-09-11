@@ -12,10 +12,7 @@
  */
 
 import { Tool } from "../tools/tool.js";
-import {
-  ReadFileTool,
-  WriteFileTool,
-} from "../tools/filesystem.js";
+import { ReadFileTool, WriteFileTool } from "../tools/filesystem.js";
 import { ShellTool } from "../tools/shell.js";
 import {
   ListDirectoryTool,
@@ -147,10 +144,11 @@ export function gitPack(root: string): ToolPack {
     "git",
     "Git and GitHub operations.",
     "vcs",
-    [
-      new GitTool(root),
-      new GitHubTool(root),
-    ].map((tool) => ({ tool, category: "Git", metadata: { risk: "high" as ToolRisk } })),
+    [new GitTool(root), new GitHubTool(root)].map((tool) => ({
+      tool,
+      category: "Git",
+      metadata: { risk: "high" as ToolRisk },
+    })),
     "Git",
   );
 }
@@ -160,12 +158,11 @@ export function projectPack(root: string): ToolPack {
     "project",
     "Project lifecycle: tests, lint, format, build.",
     "build",
-    [
-      new RunTestsTool(root),
-      new RunLintTool(root),
-      new RunFormatTool(root),
-      new RunBuildTool(root),
-    ].map((tool) => ({ tool, category: "Project", metadata: { risk: "medium" as ToolRisk } })),
+    [new RunTestsTool(root), new RunLintTool(root), new RunFormatTool(root), new RunBuildTool(root)].map((tool) => ({
+      tool,
+      category: "Project",
+      metadata: { risk: "medium" as ToolRisk },
+    })),
     "Project",
   );
 }
@@ -257,10 +254,7 @@ export function railsPack(rails: SemanticIndex): ToolPack {
 }
 
 /** Kernel-facing agent affordances: escalation, delegation, clarification. */
-export function agentCorePack(opts: {
-  localWorker?: LocalWorker;
-  requester?: ClarificationRequester;
-}): ToolPack {
+export function agentCorePack(opts: { localWorker?: LocalWorker; requester?: ClarificationRequester }): ToolPack {
   const entries: ToolPackEntry[] = [{ tool: new EscalateTaskTool(), category: "Agent" }];
   if (opts.localWorker) {
     entries.push({ tool: new DelegateToLocalTool(opts.localWorker), category: "Agent" });
@@ -320,7 +314,11 @@ export function cryptoPack(stream: BinanceStreamManager): ToolPack {
   const entries: ToolPackEntry[] = [
     ...marketTools.map((tool) => ({ tool, category: "Market", metadata: readMeta })),
     ...analysisTools.map((tool) => ({ tool, category: "Market", metadata: readMeta })),
-    ...streamTools.map((tool) => ({ tool, category: "Market", metadata: { risk: "low" as ToolRisk, sideEffects: { network: true } } })),
+    ...streamTools.map((tool) => ({
+      tool,
+      category: "Market",
+      metadata: { risk: "low" as ToolRisk, sideEffects: { network: true } },
+    })),
     {
       tool: new BinancePaperTradeTool(paper),
       category: "Market",

@@ -20,14 +20,7 @@
 
 import { ConcurrencyGate, ConcurrencyGateOptions } from "../../runtime/concurrency-gate.js";
 
-export type GateScope =
-  | "global"
-  | "model"
-  | "provider"
-  | "agent"
-  | "tool"
-  | "workspace"
-  | "domain";
+export type GateScope = "global" | "model" | "provider" | "agent" | "tool" | "workspace" | "domain";
 
 export const GATE_SCOPES: readonly GateScope[] = [
   "global",

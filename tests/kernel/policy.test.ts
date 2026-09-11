@@ -56,7 +56,9 @@ describe("RulePolicyEngine", () => {
 
   it("blocks mutating tools in read-only modes", () => {
     const engine = new RulePolicyEngine();
-    const mutating = def({ sideEffects: { filesystem: true, process: false, network: false, externalMutation: false, financial: false } });
+    const mutating = def({
+      sideEffects: { filesystem: true, process: false, network: false, externalMutation: false, financial: false },
+    });
     expect(engine.check(req(mutating, { mode: "ask" })).allowed).toBe(false);
     expect(engine.check(req(mutating, { mode: "code" })).allowed).toBe(true);
   });
@@ -79,8 +81,12 @@ describe("RulePolicyEngine", () => {
 
   it("respects the confirmation floor option", () => {
     const engine = new RulePolicyEngine({ requireConfirmationFor: "critical" });
-    expect(engine.check(req(def({ risk: "high", policy: { confirmation: "optional" } }))).requireConfirmation).toBe(false);
-    expect(engine.check(req(def({ risk: "critical", policy: { confirmation: "optional" } }))).requireConfirmation).toBe(true);
+    expect(engine.check(req(def({ risk: "high", policy: { confirmation: "optional" } }))).requireConfirmation).toBe(
+      false,
+    );
+    expect(engine.check(req(def({ risk: "critical", policy: { confirmation: "optional" } }))).requireConfirmation).toBe(
+      true,
+    );
   });
 });
 

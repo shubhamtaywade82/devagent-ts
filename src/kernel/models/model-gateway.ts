@@ -73,9 +73,7 @@ export class DefaultModelGateway implements ModelGateway {
     opts?: ChatOptions,
   ): Promise<ChatResponse> {
     const gate = tier === "cloud" ? this.cloudGate : this.localGate;
-    const response = await gate.run(() =>
-      this.router.route(capabilityForFallback(), messages, { ...opts, model }),
-    );
+    const response = await gate.run(() => this.router.route(capabilityForFallback(), messages, { ...opts, model }));
     this.record(response);
     return response;
   }

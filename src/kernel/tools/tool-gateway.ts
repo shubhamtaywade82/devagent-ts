@@ -330,11 +330,7 @@ export class DefaultToolGateway implements ToolGateway {
 
     // 7. Execute under timeout + abort.
     try {
-      const data = await gate.run(
-        () => this.withTimeout(entry, args),
-        "normal",
-        ctx.signal,
-      );
+      const data = await gate.run(() => this.withTimeout(entry, args), "normal", ctx.signal);
       return { ok: true, data };
     } catch (e) {
       if (e instanceof ToolTimeoutError) return failure("Timeout", e.message);
@@ -352,9 +348,7 @@ export class DefaultToolGateway implements ToolGateway {
     const entry = this.catalog.get(canonical) ?? this.catalog.get(name);
     if (entry) return entry;
     const lower = canonical.toLowerCase();
-    const found = this.catalog
-      .ids()
-      .find((id) => id.toLowerCase() === lower);
+    const found = this.catalog.ids().find((id) => id.toLowerCase() === lower);
     return found ? this.catalog.get(found) : undefined;
   }
 

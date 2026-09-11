@@ -8,12 +8,7 @@
  */
 
 import { Capability } from "../../provider/catalog.js";
-import {
-  ModelProfile,
-  ModelCost,
-  UNKNOWN_SCORE,
-  profileFromLegacy,
-} from "./model-profile.js";
+import { ModelProfile, ModelCost, UNKNOWN_SCORE, profileFromLegacy } from "./model-profile.js";
 import type { ModelInfo } from "../../provider/catalog.js";
 
 export interface ProfileQuery {
@@ -69,8 +64,7 @@ export class ModelCapabilityRegistry {
       if (query.toolCalling && !p.capabilities.toolCalling) return false;
       if (
         query.maxLatencyClass &&
-        LATENCY_ORDER[p.constraints.latencyClass as keyof typeof LATENCY_ORDER] >
-          LATENCY_ORDER[query.maxLatencyClass]
+        LATENCY_ORDER[p.constraints.latencyClass as keyof typeof LATENCY_ORDER] > LATENCY_ORDER[query.maxLatencyClass]
       ) {
         return false;
       }

@@ -38,16 +38,7 @@ export interface LegacyToolMetadata {
 }
 
 /** Categories that imply mutating side effects when a legacy tool is registered without explicit metadata. */
-const MUTATING_CATEGORIES = new Set([
-  "Filesystem",
-  "Shell",
-  "Git",
-  "Docker",
-  "Database",
-  "Project",
-  "Ruby",
-  "Rails",
-]);
+const MUTATING_CATEGORIES = new Set(["Filesystem", "Shell", "Git", "Docker", "Database", "Project", "Ruby", "Rails"]);
 
 function legacyRiskFor(category: string, toolName: string): ToolRisk {
   if (toolName === "run_shell") return "high";
@@ -152,7 +143,9 @@ export class ToolCatalog {
 
   /** Function-call schemas for model prompts (same shape as Registry.schemas). */
   schemas(ids?: Iterable<string>): OllamaToolSchema[] {
-    const selected = ids ? [...ids].map((id) => this.entries.get(id)).filter((e): e is ToolCatalogEntry => !!e) : this.all();
+    const selected = ids
+      ? [...ids].map((id) => this.entries.get(id)).filter((e): e is ToolCatalogEntry => !!e)
+      : this.all();
     return selected.map(({ definition }) => ({
       type: "function" as const,
       function: {
