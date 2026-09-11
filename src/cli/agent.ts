@@ -46,7 +46,10 @@ import { ApprovalBroker, classifyApprovalNeeded } from "../kernel/policy/approva
 import { DefaultModelGateway } from "../kernel/models/model-gateway.js";
 import { ModelCapabilityRegistry } from "../kernel/models/model-capability-registry.js";
 import { DefaultAgentRuntime, devAgentDescriptor } from "../kernel/strategies/agent-runtime.js";
-import type { ToolResult } from "../kernel/tools/tool-definition.js";
+import { createExecutionContext } from "../kernel/execution-context.js";
+import type { ExecutionRequest } from "../kernel/types.js";
+import type { StrategyHooks } from "../kernel/strategies/strategy-hooks.js";
+import { AgentConversationContext } from "./agent-conversation-context.js";
 
 // Confirmation gate for irreversible actions lives in the kernel now
 // (src/kernel/policy/approval-broker.ts): the classification table and the
@@ -475,13 +478,20 @@ export class Agent {
     // see the "recoveredFromError"/verifying logic below.
     let previousTurnHadToolError = false;
 
-    try {
-      for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
+    // ── Kernel-native execution: the think→act→observe loop itself lives in
+    // the kernel's ReActStrategy now (roadmap step 1, docs/guide/kernel.md).
+    // What remains here is product policy, plugged in through StrategyHooks:
+    // escalation (quick→cloud), buffered verification, dynamic tool
+    // selection, human approvals, and learning telemetry. Behavior parity
+    // with the previously hard-coded loop is the design constraint — the
+    // legacy reasoning is preserved verbatim inside the hooks.
+    const hooks: StrategyHooks = {
+      onTurnStart: (turnInfo) => {
         this.conversation.pruneContext();
-        this.emit("onStatus", `turn ${toolTurn + 1}`);
+        this.emit("onStatus", `turn ${turnInfo.turn + 1}`);
+      },
 
-        const capability: Capability | null = escalated ? escalationHint : "quick";
-
+      selectTools: async () => {
         const activeTools = await this.toolSelector.selectTools(
           userMessage,
           this.conversation.getMessages(),
@@ -500,6 +510,11 @@ export class Agent {
           const delegateTool = this.tools.registry.getTools().find((t) => t.name === "delegate_to_local");
           if (delegateTool) activeTools.push(delegateTool);
         }
+        return activeTools.map((t) => t.schema);
+      },
+
+      callModel: async (turnInfo, opts) => {
+        const capability: Capability | null = escalated ? escalationHint : "quick";
 
         // Buffer the attempt's streamed text instead of emitting it live, so a bad
         // quick-model answer can be discarded and re-run on the primary model
@@ -519,14 +534,14 @@ export class Agent {
         // isn't trustworthy, so there's no cheap fix for that failure mode here;
         // it's an accepted residual risk (see escalate-on-hard-task benchmark
         // case in src/benchmark/cases-agentic.ts, which stays red on purpose).
-        const verifyingLookup = requiresToolEvidence && toolTurn === 0 && !escalated;
+        const verifyingLookup = requiresToolEvidence && turnInfo.turn === 0 && !escalated;
         const verifyingRecovery = !escalated && previousTurnHadToolError;
         previousTurnHadToolError = false;
         const verifying = verifyingLookup || verifyingRecovery;
         let buffered: string[] | null = verifying ? [] : null;
-        const makeChatOpts = () => ({
+        const makeChatOpts = (): ChatOptions => ({
           stream: true,
-          tools: activeTools.length > 0 ? activeTools.map((t) => t.schema) : undefined,
+          tools: opts.tools as ChatOptions["tools"],
           onChunk: (chunk: ChatResponse) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
@@ -545,7 +560,6 @@ export class Agent {
           },
         });
         let chatOpts = makeChatOpts();
-        const turnStart = Date.now();
         let chatResponse = capability
           ? await this.routeWithFallback(capability, this.conversation.getMessages(), chatOpts)
           : await this.provider.chat(this.conversation.getMessages(), chatOpts);
@@ -567,10 +581,6 @@ export class Agent {
           buffered = null;
           chatOpts = makeChatOpts();
           chatResponse = await this.provider.chat(this.conversation.getMessages(), chatOpts);
-          assistantMessage = chatResponse.message as {
-            content?: string;
-            tool_calls?: Array<{ function: { name: string; arguments: any } }>;
-          };
         } else if (buffered) {
           for (const delta of buffered) {
             lastAssistantText += delta;
@@ -578,139 +588,161 @@ export class Agent {
           }
         }
 
+        return chatResponse;
+      },
+
+      onModelUsed: ({ response, elapsedMs }) => {
         // Router.route can silently widen its candidate pool past whatever
         // capability was requested (e.g. "quick" resolving to a cloud model
         // when no local model reports tool support) — routedTier/routedModel
         // reflect what actually answered; the direct this.provider.chat path
         // (capability null) has no Router involved, so fall back to the
         // provider's own current tier/model there.
-        const routedTier = (chatResponse.routedTier as string | undefined) ?? this.provider.currentTier;
-        const routedModel = (chatResponse.routedModel as string | undefined) ?? this.provider.currentModel;
+        const routedTier = (response.routedTier as string | undefined) ?? this.provider.currentTier;
+        const routedModel = (response.routedModel as string | undefined) ?? this.provider.currentModel;
         this.emit("onModelUsed", routedTier, routedModel);
+        this.emitUsage(response, elapsedMs);
+      },
 
-        this.emitUsage(chatResponse, Date.now() - turnStart);
-        this.conversation.pushAssistantMessage(assistantMessage.content ?? "", assistantMessage.tool_calls);
+      prepareToolCall: (call) => {
+        const name = call.name;
+        const rawArguments = call.rawArguments;
+        let args: Record<string, unknown> = {};
+        let parseError: string | null = null;
 
-        const toolCalls = assistantMessage.tool_calls ?? [];
-        const hasContent = (assistantMessage.content ?? "").trim().length > 0;
-
-        if (!toolCalls.length) {
-          if (hasContent) {
-            this.learning.appendMessage("assistant", lastAssistantText);
-            this.triggerSummarization();
-            return finish("answered", lastAssistantText);
-          }
-          if (toolTurn < this.maxToolTurns - 1) {
-            this.conversation.pushSystemMessage(
-              "[system] You were thinking but produced no action or response. Please continue toward the goal: call a tool or provide your final answer now.",
-            );
-            continue;
-          }
-          return finish("answered", lastAssistantText || "(no response)");
-        }
-
-        for (const toolCall of toolCalls) {
-          const name = toolCall.function.name;
-          const rawArguments = toolCall.function.arguments;
-          let args: Record<string, unknown> = {};
-          let parseError: string | null = null;
-
-          if (typeof rawArguments === "object" && rawArguments !== null) {
-            args = rawArguments as Record<string, unknown>;
-          } else if (typeof rawArguments === "string" && rawArguments) {
-            try {
-              args = JSON.parse(rawArguments);
-            } catch (err) {
-              parseError = err instanceof Error ? err.message : String(err);
-              const parts = rawArguments.split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
-              args = parts as unknown as Record<string, unknown>;
-            }
-          }
-
-          if (parseError) {
-            this.conversation.pushSystemMessage(
-              `[system] Argument parsing error for tool "${name}": ${parseError}. Ensure JSON arguments match the tool schema.`,
-            );
-          }
-
-          this.emit("onToolCall", name, args);
-
-          const destructive = classifyApprovalNeeded(name, args);
-          if (destructive && !(await this.requestApproval(destructive.title, destructive.summary))) {
-            const rejected = { error: "ApprovalRejected", message: "The user rejected this action." };
-            this.conversation.pushToolResult(JSON.stringify(rejected, null, 2));
-            this.emit("onToolResult", name, rejected);
-            previousTurnHadToolError = true;
-            continue;
-          }
-
+        if (typeof rawArguments === "object" && rawArguments !== null) {
+          args = rawArguments as Record<string, unknown>;
+        } else if (typeof rawArguments === "string" && rawArguments) {
           try {
-            // Kernel gateway path: normalization, per-tool concurrency lease,
-            // timeout supervision, and a structured ToolResult. result.data
-            // preserves the exact record shape Registry.invoke returned.
-            const gatewayResult: ToolResult = await this.tools.invokeTool(name, args, {
-              agentId: "devagent",
-              runId: this.currentSessionId,
-              signal: this.executionSignal ?? undefined,
-            });
-            const result = gatewayResult.data;
-
-            if (result.error === "PathEscapeError") {
-              this.conversation.pushToolResult(
-                JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
-              );
-              this.emit("onToolResult", name, result);
-              this.conversation.pushSystemMessage(
-                "[system] The previous tool call escaped the workspace root. Retry with a path under the current workspace root.",
-              );
-              previousTurnHadToolError = true;
-
-              if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
-                return finish(
-                  "loop_abort",
-                  lastAssistantText + "\n[aborted] tool loop detected after repeated escapes.",
-                );
-              }
-              continue;
-            }
-
-            this.emit("onToolResult", name, result);
-            this.intelligence.feedRailsIndex(name, args, result);
-            this.conversation.pushToolResult(typeof result === "string" ? result : JSON.stringify(result, null, 2));
-
-            if (name === "escalate_task" && result.escalate === true) {
-              escalated = true;
-              injectDelegationAddendum();
-              this.emit("onStatus", `escalating to ${escalationHint ?? "the primary model"}: ${result.reason}`);
-            }
-
-            if (typeof result.error === "string") {
-              previousTurnHadToolError = true;
-              if (this.loopDetector.record(name, args, result.error)) {
-                return finish(
-                  "loop_abort",
-                  lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name,
-                );
-              }
-            }
-            if (toolTurn === this.maxToolTurns - 1) {
-              return finish("turn_budget", lastAssistantText || "(no response)");
-            }
-          } catch (e) {
-            const err = e as Error;
-            this.emit("onError", err);
-            this.conversation.pushToolResult(
-              JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
-            );
-            this.conversation.pushSystemMessage(
-              `[system] Tool execution for "${name}" failed: ${err.message}. Analyze the error and adjust your parameters or approach.`,
-            );
-            previousTurnHadToolError = true;
+            args = JSON.parse(rawArguments);
+          } catch (err) {
+            parseError = err instanceof Error ? err.message : String(err);
+            const parts = rawArguments.split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
+            args = parts as unknown as Record<string, unknown>;
           }
         }
+
+        if (parseError) {
+          return {
+            args,
+            guidance: `[system] Argument parsing error for tool "${name}": ${parseError}. Ensure JSON arguments match the tool schema.`,
+          };
+        }
+        return { args };
+      },
+
+      beforeToolCall: async (call) => {
+        this.emit("onToolCall", call.name, call.args);
+
+        const destructive = classifyApprovalNeeded(call.name, call.args);
+        if (destructive && !(await this.requestApproval(destructive.title, destructive.summary))) {
+          const rejected = { error: "ApprovalRejected", message: "The user rejected this action." };
+          this.conversation.pushToolResult(JSON.stringify(rejected, null, 2));
+          this.emit("onToolResult", call.name, rejected);
+          previousTurnHadToolError = true;
+          return false;
+        }
+        return true;
+      },
+
+      onToolObserved: (obs) => {
+        const { name, args, result } = obs;
+        const data = result.data;
+        const record = typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
+
+        if (record.error === "PathEscapeError") {
+          this.conversation.pushToolResult(
+            JSON.stringify({ error: "PathEscapeError", message: record.message }, null, 2),
+          );
+          this.emit("onToolResult", name, record);
+          this.conversation.pushSystemMessage(
+            "[system] The previous tool call escaped the workspace root. Retry with a path under the current workspace root.",
+          );
+          previousTurnHadToolError = true;
+
+          if (this.loopDetector.record(name, args, "PathEscapeError")) {
+            return {
+              abortRun: true,
+              terminal: "loop_abort",
+              output: `${lastAssistantText}\n[aborted] tool loop detected after repeated escapes.`,
+            };
+          }
+          return;
+        }
+
+        this.emit("onToolResult", name, record);
+        this.intelligence.feedRailsIndex(name, args, record);
+        this.conversation.pushToolResult(typeof data === "string" ? data : JSON.stringify(data, null, 2));
+
+        if (name === "escalate_task" && record.escalate === true) {
+          escalated = true;
+          injectDelegationAddendum();
+          this.emit("onStatus", `escalating to ${escalationHint ?? "the primary model"}: ${record.reason}`);
+        }
+
+        if (typeof record.error === "string") {
+          previousTurnHadToolError = true;
+          if (this.loopDetector.record(name, args, record.error)) {
+            return {
+              abortRun: true,
+              terminal: "loop_abort",
+              output: `${lastAssistantText}\n[aborted] tool loop detected after repeated: ${name}`,
+            };
+          }
+        }
+      },
+
+      onToolFailed: ({ error }) => {
+        this.emit("onError", error);
+        previousTurnHadToolError = true;
+      },
+
+      finalAnswer: () => lastAssistantText,
+    };
+
+    // One kernel run per user message: the runtime applies the agent
+    // concurrency gate, tracks the run for cancellation, and resolves the
+    // strategy. The conversation is adapted onto the kernel's ContextManager
+    // port, so the strategy reads/writes the exact same transcript.
+    // NOTE: task.input stays unset on purpose — the preamble above already
+    // pushed the user message (pushUserMessage keeps pruneContext's
+    // current-turn bookkeeping), and a strategy-side re-push would duplicate
+    // it and skew history-window heuristics (e.g. the tool selector's
+    // last-3-message lookback).
+    const request: ExecutionRequest = {
+      agentId: "devagent",
+      task: { goal: userMessage },
+      strategy: "react",
+    };
+    const context = createExecutionContext(request, {
+      runId: this.currentSessionId,
+      sessionId: this.currentSessionId,
+      signal: this.executionSignal ?? undefined,
+      context: new AgentConversationContext(this.conversation),
+      modelGateway: this.modelGateway,
+      toolGateway: this.tools.gateway,
+    });
+
+    try {
+      const result = await this.runtime.execute(request, context, {
+        hooks,
+        maxToolTurns: this.maxToolTurns,
+      });
+
+      if (result.status !== "completed") {
+        success = false;
+        finish("error", result.output);
+        const original = result.metadata?.error;
+        throw original instanceof Error ? original : new Error(result.error ?? `execution ${result.status}`);
       }
 
-      return finish("turn_budget", lastAssistantText || "(tool budget exceeded)");
+      const terminal = (result.metadata?.terminal as string | undefined) ?? "answered";
+      const output = result.output;
+      if (terminal === "answered") {
+        this.learning.appendMessage("assistant", output);
+        this.triggerSummarization();
+      }
+      return finish(terminal as Parameters<typeof finish>[0], output);
     } catch (e) {
       success = false;
       finish("error", lastAssistantText);

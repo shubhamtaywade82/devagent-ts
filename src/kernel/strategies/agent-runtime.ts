@@ -23,6 +23,7 @@ import type {
   ExecutionRequest,
   ExecutionResult,
   ExecutionContext,
+  StrategyExecuteOptions,
   StrategyName,
 } from "../types.js";
 import { ExecutionStrategy } from "./execution-strategy.js";
@@ -129,10 +130,15 @@ export class DefaultAgentRuntime implements AgentRuntime {
   /**
    * Execute one task. The caller supplies the ExecutionContext (it owns the
    * gateways + context port). The runtime resolves the agent descriptor,
- * picks the strategy, runs under the agent-level concurrency gate, and
-   * tracks the run for cancellation via `cancel(runId)`.
+   * picks the strategy, runs under the agent-level concurrency gate, and
+   * tracks the run for cancellation via `cancel(runId)`. Product-side
+   * policies ride in through `options.hooks` (see strategy-hooks.ts).
    */
-  async execute(request: ExecutionRequest, context: ExecutionContext): Promise<ExecutionResult> {
+  async execute(
+    request: ExecutionRequest,
+    context: ExecutionContext,
+    options?: StrategyExecuteOptions,
+  ): Promise<ExecutionResult> {
     const agent = this.agents.require(request.agentId);
     const strategyName = request.strategy ?? agent.defaultStrategy;
     const strategy = this.strategies.require(strategyName);
@@ -149,8 +155,9 @@ export class DefaultAgentRuntime implements AgentRuntime {
       const result = await strategy.run({
         ctx: { ...context, agentId: request.agentId, signal: controller.signal },
         capability: agent.defaultCapability,
-        maxToolTurns: this.defaultMaxToolTurns,
+        maxToolTurns: options?.maxToolTurns ?? this.defaultMaxToolTurns,
         toolCapabilities: request.capabilities ?? agent.capabilities,
+        hooks: options?.hooks,
       });
       return result;
     } finally {

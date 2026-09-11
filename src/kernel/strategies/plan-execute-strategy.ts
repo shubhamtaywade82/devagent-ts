@@ -44,7 +44,8 @@ function parsePlan(content: string, maxSteps: number): PlanStep[] {
             steps.push({ title: item.slice(0, 80), goal: item });
           } else if (item && typeof item === "object") {
             const record = item as Record<string, unknown>;
-            const goal = typeof record.goal === "string" ? record.goal : typeof record.step === "string" ? record.step : undefined;
+            const goal =
+              typeof record.goal === "string" ? record.goal : typeof record.step === "string" ? record.step : undefined;
             if (goal) {
               const title = typeof record.title === "string" ? record.title : goal.slice(0, 80);
               steps.push({ title, goal });
@@ -115,9 +116,11 @@ export class PlanExecuteStrategy implements ExecutionStrategy {
       ctx.events.publish({
         type: "execution.goal",
         goal: ctx.task.goal,
-        steps: planSteps.map(
-          (s, i): ExecutionStep => ({ id: `step-${i + 1}`, description: s.title, status: "pending" }),
-        ),
+        steps: planSteps.map((s, i): ExecutionStep => ({
+          id: `step-${i + 1}`,
+          description: s.title,
+          status: "pending",
+        })),
       });
 
       // ── Phase 2: execute steps ──────────────────────────────────────────

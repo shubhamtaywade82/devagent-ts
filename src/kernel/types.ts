@@ -27,6 +27,7 @@ import type { BudgetTracker } from "./budget.js";
 import type { ToolGateway } from "./tools/tool-gateway.js";
 import type { PolicyEngine } from "./policy/policy-engine.js";
 import type { ModelGateway } from "./models/model-gateway.js";
+import type { StrategyHooks } from "./strategies/strategy-hooks.js";
 
 // ── Identity ────────────────────────────────────────────────────────────────
 
@@ -86,12 +87,7 @@ export type BudgetDimension = keyof BudgetUsage;
 
 // ── Result ──────────────────────────────────────────────────────────────────
 
-export type ExecutionStatus =
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "budget_exhausted"
-  | "timeout";
+export type ExecutionStatus = "completed" | "failed" | "cancelled" | "budget_exhausted" | "timeout";
 
 export interface ExecutionResult {
   status: ExecutionStatus;
@@ -101,6 +97,13 @@ export interface ExecutionResult {
   output: string;
   usage: BudgetUsage;
   error?: string;
+  /**
+   * Strategy/product extras. Conventional keys: `terminal` (product-facing
+   * terminal tag, e.g. "answered" | "loop_abort" | "turn_budget") and
+   * `error` (the original Error object on failed/cancelled runs, so callers
+   * can rethrow with type fidelity).
+   */
+  metadata?: Record<string, unknown>;
 }
 
 // ── Ports the kernel depends on (implemented outside the kernel) ────────────
@@ -152,12 +155,24 @@ export interface ExecutionContext {
 
 // ── AgentRuntime (the kernel facade) ────────────────────────────────────────
 
+/** Optional per-execute settings: product hooks + loop sizing. */
+export interface StrategyExecuteOptions {
+  /** Product-side policies for the loop (see strategies/strategy-hooks.ts). */
+  hooks?: StrategyHooks;
+  /** Max tool turns override for this run. */
+  maxToolTurns?: number;
+}
+
 /**
  * The single entry point of the kernel. Applications request executions;
  * the runtime resolves the agent, picks the strategy, and drives one run.
  */
 export interface AgentRuntime {
-  execute(request: ExecutionRequest, context: ExecutionContext): Promise<ExecutionResult>;
+  execute(
+    request: ExecutionRequest,
+    context: ExecutionContext,
+    options?: StrategyExecuteOptions,
+  ): Promise<ExecutionResult>;
 }
 
 // Ergonomic re-exports so kernel-internal modules can import peer contracts

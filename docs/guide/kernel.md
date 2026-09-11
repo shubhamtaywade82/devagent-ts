@@ -202,15 +202,28 @@ broker, model gateway + capability registry, gate registry, event
 families, ReAct/Plan-Execute strategies, `DefaultAgentRuntime`, pack-based
 tool registration, crypto domain pack, and the Agent wiring above.
 
+**Strategy extraction (step 1) is done**: `Agent.runUserMessage` no longer
+contains the think→act→observe loop. The kernel's `ReActStrategy` runs the
+loop and the Agent supplies product policies through `StrategyHooks`
+(`src/kernel/strategies/strategy-hooks.ts`): `selectTools` (dynamic tool
+selection + always-on escalation tools), `callModel` (quick→cloud
+escalation, streamed output with buffered verification), `onModelUsed`
+(usage metering), `prepareToolCall` (tolerant argument parsing + guidance),
+`beforeToolCall` (human approvals), `onToolObserved` (observation push,
+Rails indexing, `escalate_task` detection, product loop detector),
+`onToolFailed` (error telemetry), and `finalAnswer` (streamed transcript
+accumulator). The same strategy runs headless with zero hooks, so CLI, TUI,
+and embedded products now share one loop implementation. Ownership rule:
+when `onToolObserved` is installed, the strategy never pushes tool results
+and never runs its own loop detector — the product owns both.
+
 Next steps (in order of leverage):
 
-1. Extract execution strategies out of `Agent.runUserMessage` onto
-   `ExecutionStrategy` (skills/escalation stay product-side hooks).
-2. Promote the `ControlPlane` (orchestrator + planner + delegator) onto the
+1. Promote the `ControlPlane` (orchestrator + planner + delegator) onto the
    kernel ports.
-3. Audit tool JSON-Schemas, then flip the agent-loop gateway from
+2. Audit tool JSON-Schemas, then flip the agent-loop gateway from
    `validation: "off"` to strict.
-4. Move `evolution/` behind the kernel as a separate plane that spawns runs
+3. Move `evolution/` behind the kernel as a separate plane that spawns runs
    through `AgentRuntime.execute`.
-5. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
+4. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
    `-models`, `-tools`, `-mcp`, `-devagent`).

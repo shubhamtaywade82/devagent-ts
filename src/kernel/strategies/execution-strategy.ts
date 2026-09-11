@@ -1,7 +1,7 @@
 /**
  * ExecutionStrategy — the pluggable think→act→observe loop.
  *
- * The current ReAct loop is hard-coded inside the Agent (runUserMessage).
+ * The ReAct loop used to be hard-coded inside the Agent (runUserMessage).
  * This module promotes the *shape* of such loops into a strategy contract
  * owned by the kernel, while the kernel keeps owning the hard parts:
  * budgets, timeouts, events, cancellation, concurrency, retries, state.
@@ -10,17 +10,17 @@
  * context port, event sink, budget, abort signal) and drives the loop. It
  * must respect: ctx.signal cancellation, ctx.budget ceilings, and emit
  * events through ctx.events (never console.log).
+ *
+ * Product policies (escalation, streaming, approvals, tool selection) plug
+ * in through StrategyHooks (see strategy-hooks.ts) — the strategy runs with
+ * zero hooks for headless/kernel-native runs.
  */
 
-import type { ChatMessage } from "../../provider/provider.js";
+import type { ChatMessage, OllamaToolSchema } from "../../provider/provider.js";
 import { Capability } from "../../provider/catalog.js";
-import type {
-  ExecutionResult,
-  ExecutionContext,
-  ExecutionStatus,
-  StrategyName,
-} from "../types.js";
+import type { ExecutionResult, ExecutionContext, ExecutionStatus, StrategyName } from "../types.js";
 import { LoopDetector } from "../../orchestrator/loop-detector.js";
+import type { PreparedToolCall, StrategyHooks, StrategyModelCallOptions } from "./strategy-hooks.js";
 
 export interface ExecutionStrategy {
   readonly name: StrategyName;
@@ -36,6 +36,8 @@ export interface StrategyRunRequest {
   maxToolTurns?: number;
   /** Tool capability filter for schemas sent to the model. */
   toolCapabilities?: string[];
+  /** Product-side policies; omit for a fully kernel-native run. */
+  hooks?: StrategyHooks;
   onProgress?: (message: string) => void;
 }
 
@@ -65,23 +67,35 @@ function usageOf(response: Record<string, unknown>): {
   };
 }
 
+/** What the strategy's inner loop returns: the final text, plus an optional
+ * product-facing terminal tag (e.g. "answered" vs "loop_abort") and a hard
+ * error to rethrow by the caller (preserving the original object). */
+export interface LoopOutcome {
+  output: string;
+  terminal?: string;
+  thrown?: Error;
+}
+
 /** Common wrapper: map abort/budget errors onto ExecutionResult statuses. */
 export async function runGuarded(
   ctx: ExecutionContext,
   strategy: StrategyName,
-  loop: () => Promise<string>,
+  loop: () => Promise<string | LoopOutcome>,
 ): Promise<ExecutionResult> {
   const usage = () => ctx.budget.snapshot();
   try {
     ctx.budget.assertTimeLeft();
-    const output = await loop();
+    const outcome = await loop();
+    const resolved: LoopOutcome = typeof outcome === "string" ? { output: outcome } : outcome;
+    if (resolved.thrown) throw resolved.thrown;
     return {
       status: "completed",
       runId: ctx.runId,
       agentId: ctx.agentId,
       strategy,
-      output,
+      output: resolved.output,
       usage: usage(),
+      ...(resolved.terminal ? { metadata: { terminal: resolved.terminal } } : {}),
     };
   } catch (e) {
     const err = e instanceof Error ? e : new Error(String(e));
@@ -97,6 +111,7 @@ export async function runGuarded(
       output: ctx.context.lastAssistantText() ?? "",
       usage: usage(),
       error: err.message,
+      metadata: { error: err },
     };
   }
 }
@@ -111,8 +126,8 @@ export interface ReActStrategyOptions {
 /**
  * ReAct: model → tool call → policy → tool executor → observation → model.
  * Portable implementation of the loop the CLI Agent runs today, minus the
- * CLI-specific concerns (skills, escalation, summarization) which stay in
- * the product layer.
+ * product concerns (escalation, streaming, skills, approvals) which ride in
+ * through StrategyHooks.
  */
 export class ReActStrategy implements ExecutionStrategy {
   readonly name: StrategyName = "react";
@@ -123,11 +138,11 @@ export class ReActStrategy implements ExecutionStrategy {
   }
 
   async run(request: StrategyRunRequest): Promise<ExecutionResult> {
-    const { ctx } = request;
+    const { ctx, hooks } = request;
     const maxTurns = request.maxToolTurns ?? 32;
     const loopDetector = new LoopDetector();
 
-    return runGuarded(ctx, this.name, async () => {
+    return runGuarded(ctx, this.name, async (): Promise<LoopOutcome> => {
       if (ctx.task.input) ctx.context.push({ role: "user", content: ctx.task.input });
 
       let lastText: string | undefined;
@@ -136,45 +151,110 @@ export class ReActStrategy implements ExecutionStrategy {
         if (ctx.signal.aborted) throw new DOMException("run cancelled", "AbortError");
         ctx.budget.assertTimeLeft();
 
+        const turnInfo = {
+          turn,
+          capability: request.capability,
+          userMessage: ctx.task.input ?? "",
+          messages: ctx.context.messages(),
+        };
+
+        await hooks?.onTurnStart?.(turnInfo);
+
+        const defaultSchemas = ctx.toolGateway.schemasFor(request.toolCapabilities);
+        const selected = (await hooks?.selectTools?.(turnInfo, defaultSchemas)) ?? defaultSchemas;
+        const modelOpts: StrategyModelCallOptions = { tools: selected.length > 0 ? selected : undefined };
+
         const messages = ctx.context.messages() as ChatMessage[];
-        const response = await ctx.modelGateway.route(request.capability, messages, {
-          tools: ctx.toolGateway.schemasFor(request.toolCapabilities),
-        });
+        const turnStart = Date.now();
+        const response = hooks?.callModel
+          ? await hooks.callModel(turnInfo, modelOpts)
+          : await ctx.modelGateway.route(request.capability, messages, {
+              tools: modelOpts.tools as OllamaToolSchema[] | undefined,
+            });
 
         lastText = response.message?.content || lastText;
         const { promptTokens, completionTokens } = usageOf(response);
         ctx.budget.consumeModelCall({ promptTokens, completionTokens });
+        hooks?.onModelUsed?.({ response, elapsedMs: Date.now() - turnStart, turn });
 
-        if (response.message?.content) {
-          ctx.context.push({ role: "assistant", content: response.message.content });
-        }
-
+        // Push the assistant message exactly once, with tool_calls attached
+        // when present (a response can carry both content and tool_calls —
+        // pushing content first and tool_calls second would duplicate it).
         const toolCalls = extractToolCalls(response);
-
-        if (toolCalls.length === 0) {
-          if (lastText) return lastText;
-          ctx.context.pushSystem(
-            "[system] You were thinking but produced no action or response. Call a tool or provide your final answer now.",
-          );
-          continue;
-        }
-
         ctx.context.push({
           role: "assistant",
           content: response.message?.content ?? "",
-          tool_calls: response.message?.tool_calls as ChatMessage["tool_calls"],
+          ...(toolCalls.length > 0 ? { tool_calls: response.message?.tool_calls as ChatMessage["tool_calls"] } : {}),
         });
+
+        if (toolCalls.length === 0) {
+          const hasContent = (response.message?.content ?? "").trim().length > 0;
+          if (hasContent) {
+            return { output: hooks?.finalAnswer?.() ?? lastText ?? "", terminal: "answered" };
+          }
+          if (turn < maxTurns - 1) {
+            ctx.context.pushSystem(
+              "[system] You were thinking but produced no action or response. Call a tool or provide your final answer now.",
+            );
+            continue;
+          }
+          return { output: hooks?.finalAnswer?.() || lastText || "(no response)", terminal: "answered" };
+        }
 
         for (const call of toolCalls) {
           if (ctx.signal.aborted) throw new DOMException("run cancelled", "AbortError");
-          ctx.budget.consumeToolCall();
-          ctx.events.publish({ type: "tool.started", id: `${ctx.runId}:${call.name}`, name: call.name, args: {} });
 
-          const result = await ctx.toolGateway.invoke(call.name, call.arguments, {
-            agentId: ctx.agentId,
-            runId: ctx.runId,
-            signal: ctx.signal,
+          // Parse/normalize seam (product may replicate legacy tolerant parsing).
+          const prepared: PreparedToolCall = (await hooks?.prepareToolCall?.({
+            name: call.name,
+            rawArguments: call.arguments,
+            turn,
+          })) ?? { args: this.defaultParse(call.arguments) };
+          const args = prepared.args;
+          if (prepared.guidance) ctx.context.pushSystem(prepared.guidance);
+
+          ctx.events.publish({
+            type: "tool.started",
+            id: `${ctx.runId}:${call.name}`,
+            name: call.name,
+            args: {},
           });
+
+          // Approval/veto seam: a rejection is fully owned by the hook
+          // (it already recorded the observation), the loop just moves on.
+          const allowed = (await hooks?.beforeToolCall?.({ name: call.name, args, turn })) ?? true;
+          if (!allowed) continue;
+
+          ctx.budget.consumeToolCall();
+
+          let result;
+          try {
+            result = await ctx.toolGateway.invoke(call.name, args, {
+              agentId: ctx.agentId,
+              runId: ctx.runId,
+              signal: ctx.signal,
+            });
+          } catch (e) {
+            // Thrown tool failures become an observation, never a run crash:
+            // the model gets the error and a retry-guidance nudge (matching
+            // the legacy loop's catch path).
+            const err = e instanceof Error ? e : new Error(String(e));
+            result = {
+              ok: false,
+              data: { error: err.constructor?.name ?? "Error", message: err.message },
+            };
+            ctx.context.pushToolResult(JSON.stringify(result.data, null, 2));
+            ctx.context.pushSystem(
+              `[system] Tool execution for "${call.name}" failed: ${err.message}. Analyze the error and adjust your parameters or approach.`,
+            );
+            ctx.events.publish({
+              type: "tool.completed",
+              id: `${ctx.runId}:${call.name}`,
+              result: result.data,
+            });
+            await hooks?.onToolFailed?.({ name: call.name, error: err, turn });
+            continue;
+          }
 
           ctx.events.publish({
             type: "tool.completed",
@@ -182,15 +262,55 @@ export class ReActStrategy implements ExecutionStrategy {
             result: result.data,
           });
 
-          ctx.context.pushToolResult(JSON.stringify(result.data, null, 2));
-
-          if (!result.ok && loopDetector.record(call.name, {}, result.error?.code ?? "error")) {
-            throw new Error(`loop detected after repeated: ${call.name}`);
+          if (hooks?.onToolObserved) {
+            // Product owns the observation (result push, error flags, loop policy).
+            const action = await hooks.onToolObserved({
+              name: call.name,
+              args,
+              result,
+              turn,
+              parseError: null,
+            });
+            if (action?.abortRun) {
+              return {
+                output: action.output ?? hooks.finalAnswer?.() ?? lastText ?? "",
+                terminal: action.terminal ?? "loop_abort",
+              };
+            }
+          } else {
+            ctx.context.pushToolResult(
+              typeof result.data === "string" ? result.data : JSON.stringify(result.data, null, 2),
+            );
+            if (!result.ok && loopDetector.record(call.name, {}, result.error?.code ?? "error")) {
+              return { output: lastText ?? "", terminal: "loop_abort" };
+            }
           }
         }
       }
 
-      return lastText ?? "(tool budget exceeded)";
+      return {
+        output: hooks?.finalAnswer?.() || lastText || "(tool budget exceeded)",
+        terminal: "turn_budget",
+      };
     });
+  }
+
+  /**
+   * Kernel-default argument preparation (used when no prepareToolCall hook
+   * is installed): pass objects through, best-effort JSON-parse strings.
+   * The gateway re-decodes anyway, so a malformed string simply stays a
+   * string and fails validation downstream.
+   */
+  private defaultParse(raw: unknown): Record<string, unknown> {
+    if (typeof raw === "object" && raw !== null) return raw as Record<string, unknown>;
+    if (typeof raw === "string" && raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === "object" && parsed !== null) return parsed as Record<string, unknown>;
+      } catch {
+        // fall through — the gateway's decoder reports the failure
+      }
+    }
+    return {};
   }
 }

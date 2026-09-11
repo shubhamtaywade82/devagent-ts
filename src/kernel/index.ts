@@ -24,6 +24,7 @@ export type {
   StateStore,
   ExecutionContext,
   AgentRuntime,
+  StrategyExecuteOptions,
 } from "./types.js";
 
 // Budgets
@@ -37,19 +38,10 @@ export {
 } from "./budget.js";
 
 // Execution context
-export {
-  createExecutionContext,
-  TransientContextManager,
-  nullEventSink,
-  taskFrom,
-} from "./execution-context.js";
+export { createExecutionContext, TransientContextManager, nullEventSink, taskFrom } from "./execution-context.js";
 
 // Tool layer
-export {
-  ToolCatalog,
-  type ToolCatalogEntry,
-  type LegacyToolMetadata,
-} from "./tools/tool-catalog.js";
+export { ToolCatalog, type ToolCatalogEntry, type LegacyToolMetadata } from "./tools/tool-catalog.js";
 export {
   type ToolDefinition,
   type ToolResult,
@@ -76,13 +68,7 @@ export {
   makeToolInvocation,
   type InvokeContext,
 } from "./tools/tool-gateway.js";
-export {
-  defineToolPack,
-  packOf,
-  mountToolPack,
-  type ToolPack,
-  type ToolPackEntry,
-} from "./tools/tool-pack.js";
+export { defineToolPack, packOf, mountToolPack, type ToolPack, type ToolPackEntry } from "./tools/tool-pack.js";
 
 // Policy
 export {
@@ -107,10 +93,7 @@ export {
 } from "./policy/approval-broker.js";
 
 // Models
-export {
-  ModelCapabilityRegistry,
-  type ProfileQuery,
-} from "./models/model-capability-registry.js";
+export { ModelCapabilityRegistry, type ProfileQuery } from "./models/model-capability-registry.js";
 export {
   type ModelProfile,
   type ModelCapabilities,
@@ -120,11 +103,7 @@ export {
   profileFromLegacy,
   defaultConstraints,
 } from "./models/model-profile.js";
-export {
-  DefaultModelGateway,
-  type ModelGateway,
-  type DefaultModelGatewayOptions,
-} from "./models/model-gateway.js";
+export { DefaultModelGateway, type ModelGateway, type DefaultModelGatewayOptions } from "./models/model-gateway.js";
 
 // Concurrency
 export {
@@ -155,7 +134,17 @@ export {
   ReActStrategy,
   runGuarded,
   extractToolCalls,
+  type LoopOutcome,
 } from "./strategies/execution-strategy.js";
+export type {
+  StrategyHooks,
+  StrategyTurnInfo,
+  StrategyModelCallOptions,
+  PreparedToolCall,
+  ToolObservation,
+  ToolObservationAction,
+  ToolFailureInfo,
+} from "./strategies/strategy-hooks.js";
 export { PlanExecuteStrategy } from "./strategies/plan-execute-strategy.js";
 export {
   AgentRegistry,
