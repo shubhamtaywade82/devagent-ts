@@ -40,7 +40,7 @@ import {
   AgentMutationStrategy,
   EngineeringAgentRuntime,
 } from "./agent-mutation.js";
-import { pathWithinAllowedPrefix } from "./path-scope.js";
+import { mutationScopeViolation } from "./path-scope.js";
 
 // Re-export the provider class so callers can build clients without reaching
 // into the provider module themselves.
@@ -86,7 +86,12 @@ export interface NexumEngineeringAgentRuntimeOptions {
 
 // ── Tool protocol ───────────────────────────────────────────────────────────
 
-const TOOLS: OllamaToolSchema[] = [
+/**
+ * The propose-only tool schemas. Exported so the kernel-backed runtime
+ * (kernel-agent-runtime.ts) can mount the SAME protocol as kernel tools —
+ * one tool vocabulary, two supervision models.
+ */
+export const TOOLS: OllamaToolSchema[] = [
   {
     type: "function",
     function: {
@@ -380,17 +385,9 @@ export class NexumEngineeringAgentRuntime implements EngineeringAgentRuntime {
   }
 
   private scopeViolationOf(path: string, request: AgentMutationRequest): string | null {
-    const normalized = path.split("\\").join("/");
-    if (!normalized || normalized.startsWith("/") || normalized.includes("..")) {
-      return "path must be a relative repo path without traversal";
-    }
-    const allowed = request.allowedPaths;
-    // Segment-aware containment (v2.3.1): `src/evolution` must not admit the
-    // sibling `src/evolution2/...`.
-    if (!allowed.some((prefix) => pathWithinAllowedPrefix(normalized, prefix))) {
-      return `not under any allowed prefix (${allowed.join(", ")})`;
-    }
-    return null;
+    // Shared verdict (path-scope.ts): identical to the kernel runtime's
+    // queue-time and fail-closed checks by construction.
+    return mutationScopeViolation(path, request.allowedPaths);
   }
 
   private checkProposal(

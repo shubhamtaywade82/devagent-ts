@@ -218,11 +218,40 @@ and embedded products now share one loop implementation. Ownership rule:
 when `onToolObserved` is installed, the strategy never pushes tool results
 and never runs its own loop detector — the product owns both.
 
-Next steps (in order of leverage):
+### Evolution Plane (done)
 
-1. Move `evolution/` behind the kernel as a separate plane that spawns runs
-   through `AgentRuntime.execute`.
-2. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
+The self-development loop (`src/evolution/`, `ClosedLoopEngine`) now spawns
+its agent work through the kernel instead of running a private tool loop
+over the raw Provider. Two implementations of the `EngineeringAgentRuntime`
+seam exist:
+
+- **`NexumEngineeringAgentRuntime`** (legacy) — a hand-rolled chat loop with
+  the propose-only tool protocol; supervised by nothing but its own
+  `maxTurns` counter. Kept as the standalone/unsupervised option.
+- **`KernelEvolutionAgentRuntime`** (promoted,
+  `src/evolution/mutation/kernel-agent-runtime.ts`) — the SAME protocol
+  (schemas shared from one vocabulary) as a per-mutation kernel tool pack
+  mounted behind a `ToolGateway`, spawned as one `ExecutionRequest` through
+  `AgentRuntime.execute`. Every mutation run now gets the kernel's full
+  supervision: the agent concurrency gate, budgets (turn budget →
+  `maxToolTurns`; optional `maxModelCalls`/deadline ceilings), execution
+  events, abort-signal cancellation, and the gateway pipeline
+  (validate → policy → concurrency → timeout) on every tool call.
+
+Protocol parity is deliberate: `finish`/`decline` stay terminal (the
+`onToolObserved` hook ends the kernel run when either is observed), a
+prose-only turn can never terminate the run (the `callModel` hook strips
+text-only responses so the kernel's think-nudge fires, matching the legacy
+recovery nudge), the turn budget maps onto the legacy error, and queue-time
+scope checks share ONE verdict function (`mutationScopeViolation`,
+`path-scope.ts`) with the fail-closed re-audit, so the checks cannot drift.
+The trust boundary is unchanged — prompt contract → queue-time rejection →
+fail-closed re-audit → strategy attribution → executor actual-diff audit —
+the kernel adds supervision underneath it, not shortcuts around it.
+
+Remaining lever (in order of leverage):
+
+1. Split packages once the seams have settled (`@nemesis-oss/nexum-core`,
    `-models`, `-tools`, `-mcp`, `-devagent`).
 
 ### Control Plane promotion (done)
