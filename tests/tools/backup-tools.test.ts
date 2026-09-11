@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile, readFile, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SnapshotBackupTool } from "../../src/tools/backup-tools.js";
+import { SnapshotBackupTool } from "@nemesis-oss/nexum-tools/tools/backup-tools";
 
 describe("SnapshotBackupTool", () => {
   it("copies the target file into .nexum/backups with a timestamp suffix", async () => {

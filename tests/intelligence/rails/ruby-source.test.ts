@@ -7,7 +7,7 @@ import {
   singularize,
   stripComment,
   underscore,
-} from "../../../src/intelligence/rails/scanners/ruby-source.js";
+} from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/ruby-source";
 
 describe("ruby-source", () => {
   describe("stripComment", () => {

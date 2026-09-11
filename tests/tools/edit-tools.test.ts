@@ -1,7 +1,7 @@
 import { mkdtemp, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PatchTool, AppendTool } from "../../src/tools/edit-tools.js";
+import { PatchTool, AppendTool } from "@nemesis-oss/nexum-tools/tools/edit-tools";
 
 describe("PatchTool", () => {
   it("replaces the first occurrence of a find block", async () => {

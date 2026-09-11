@@ -1,6 +1,6 @@
-import { generatePlan, replanSteps, PlanGenerationError } from "../../src/tui/plan-generator.js";
-import { Provider } from "../../src/provider/provider.js";
-import { PlanStep, HistoryEntry } from "../../src/orchestrator/types.js";
+import { generatePlan, replanSteps, PlanGenerationError } from "@nemesis-oss/nexum-devagent/tui/plan-generator";
+import { Provider } from "@nemesis-oss/nexum-models/provider/provider";
+import { PlanStep, HistoryEntry } from "@nemesis-oss/nexum-devagent/orchestrator/types";
 
 function fakeProvider(content: string) {
   return {

@@ -1,0 +1,54 @@
+{
+  "name": "@nemesis-oss/nexum-core",
+  "version": "2.0.0",
+  "description": "Nexum agent execution kernel \u2014 contracts, tool gateway, policy engine, model gateway port, strategies, gates, events, budgets. Zero runtime dependencies.",
+  "license": "MIT",
+  "author": "Shubham Taywade <shubhamtaywade82@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemesis-oss/nexum.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./kernel/*": {
+      "types": "./dist/kernel/*.d.ts",
+      "import": "./dist/kernel/*.js"
+    },
+    "./runtime/*": {
+      "types": "./dist/runtime/*.d.ts",
+      "import": "./dist/runtime/*.js"
+    },
+    "./policy/*": {
+      "types": "./dist/policy/*.d.ts",
+      "import": "./dist/policy/*.js"
+    },
+    "./platform/*": {
+      "types": "./dist/platform/*.d.ts",
+      "import": "./dist/platform/*.js"
+    },
+    "./safety/*": {
+      "types": "./dist/safety/*.d.ts",
+      "import": "./dist/safety/*.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

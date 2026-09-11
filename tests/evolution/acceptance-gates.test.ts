@@ -1,8 +1,11 @@
-import { AcceptanceController } from "../../src/evolution/acceptance/acceptance-controller.js";
-import { GeneralizationGate, ExecutorEvaluationCell } from "../../src/evolution/generalization/generalization-gate.js";
-import { EvolutionMetricsTracker, promotionPrecisionVerdict } from "../../src/evolution/metrics.js";
-import { MutationScopePolicy } from "../../src/evolution/mutation/mutation-scope.js";
-import { ImprovementTarget } from "../../src/evolution/targets/target-engine.js";
+import { AcceptanceController } from "@nemesis-oss/nexum-devagent/evolution/acceptance/acceptance-controller";
+import {
+  GeneralizationGate,
+  ExecutorEvaluationCell,
+} from "@nemesis-oss/nexum-devagent/evolution/generalization/generalization-gate";
+import { EvolutionMetricsTracker, promotionPrecisionVerdict } from "@nemesis-oss/nexum-devagent/evolution/metrics";
+import { MutationScopePolicy } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-scope";
+import { ImprovementTarget } from "@nemesis-oss/nexum-devagent/evolution/targets/target-engine";
 
 function target(over: Partial<ImprovementTarget> = {}): ImprovementTarget {
   return {

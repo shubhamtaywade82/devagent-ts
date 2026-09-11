@@ -1,6 +1,6 @@
 import { WebSocketServer } from "ws";
 import { AddressInfo } from "node:net";
-import { BinanceStreamManager } from "../../src/exchange/binance-stream.js";
+import { BinanceStreamManager } from "@nemesis-oss/nexum-tools/exchange/binance-stream";
 
 // Offline counterpart to binance-stream.test.ts: drives the same stream logic
 // against a local WebSocket server, so the frame handling and connect timeout

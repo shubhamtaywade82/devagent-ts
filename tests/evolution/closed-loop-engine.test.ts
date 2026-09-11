@@ -1,11 +1,11 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ClosedLoopEngine, deriveValidity } from "../../src/evolution/engine-v2.js";
-import { ExperienceStore } from "../../src/evolution/experience/experience-store.js";
-import { HarnessRegistry } from "../../src/evolution/registry.js";
-import { TaskExecutionResult } from "../../src/evolution/evaluator.js";
-import { Episode } from "../../src/learning/types.js";
+import { ClosedLoopEngine, deriveValidity } from "@nemesis-oss/nexum-devagent/evolution/engine-v2";
+import { ExperienceStore } from "@nemesis-oss/nexum-devagent/evolution/experience/experience-store";
+import { HarnessRegistry } from "@nemesis-oss/nexum-devagent/evolution/registry";
+import { TaskExecutionResult } from "@nemesis-oss/nexum-devagent/evolution/evaluator";
+import { Episode } from "@nemesis-oss/nexum-devagent/learning/types";
 
 function failureEpisode(id: string, goal: string): Episode {
   return {

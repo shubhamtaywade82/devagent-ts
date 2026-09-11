@@ -10,7 +10,7 @@ import {
   validateWorkspaceSpec,
   validateRoleSpec,
   validatePolicySpec,
-} from "../../src/asl/parser.js";
+} from "@nemesis-oss/nexum-tools/asl/parser";
 
 describe("ASL Parser & Validators", () => {
   const tempDir = path.join(__dirname, "../fixtures/asl-temp");

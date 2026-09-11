@@ -1,5 +1,5 @@
-import { HarnessDiagnoser } from "../../src/evolution/diagnoser.js";
-import { Episode } from "../../src/learning/types.js";
+import { HarnessDiagnoser } from "@nemesis-oss/nexum-devagent/evolution/diagnoser";
+import { Episode } from "@nemesis-oss/nexum-devagent/learning/types";
 
 describe("HarnessDiagnoser", () => {
   const diagnoser = new HarnessDiagnoser();

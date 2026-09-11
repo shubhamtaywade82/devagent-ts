@@ -1,12 +1,15 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ExperienceStore } from "../../src/evolution/experience/experience-store.js";
-import { TrajectoryAnalyzer, inferTaskClass } from "../../src/evolution/experience/trajectory-analyzer.js";
-import { EvidenceAggregator } from "../../src/evolution/experience/evidence-aggregator.js";
-import { TransferAnalyzer } from "../../src/evolution/experience/transfer-analyzer.js";
-import { ExperienceRecord } from "../../src/evolution/experience/types.js";
-import { Episode } from "../../src/learning/types.js";
+import { ExperienceStore } from "@nemesis-oss/nexum-devagent/evolution/experience/experience-store";
+import {
+  TrajectoryAnalyzer,
+  inferTaskClass,
+} from "@nemesis-oss/nexum-devagent/evolution/experience/trajectory-analyzer";
+import { EvidenceAggregator } from "@nemesis-oss/nexum-devagent/evolution/experience/evidence-aggregator";
+import { TransferAnalyzer } from "@nemesis-oss/nexum-devagent/evolution/experience/transfer-analyzer";
+import { ExperienceRecord } from "@nemesis-oss/nexum-devagent/evolution/experience/types";
+import { Episode } from "@nemesis-oss/nexum-devagent/learning/types";
 
 function makeEpisode(id: string, goal: string, ok: boolean): Episode {
   return {

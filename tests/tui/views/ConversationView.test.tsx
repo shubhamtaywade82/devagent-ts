@@ -1,8 +1,8 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { ConversationView, summarizeGroup } from "../../../src/tui/views/ConversationView.js";
-import { initialRuntimeState, reduce } from "../../../src/runtime/store.js";
-import { ChatEntry, RuntimeState } from "../../../src/runtime/types.js";
+import { ConversationView, summarizeGroup } from "@nemesis-oss/nexum-devagent/tui/views/ConversationView";
+import { initialRuntimeState, reduce } from "@nemesis-oss/nexum-devagent/runtime/store";
+import { ChatEntry, RuntimeState } from "@nemesis-oss/nexum-core/runtime/types";
 
 function stateWith(events: Parameters<typeof reduce>[1][]): RuntimeState {
   let s = initialRuntimeState({ workspace: "devagent", branch: "main", model: "qwen3:30b" });

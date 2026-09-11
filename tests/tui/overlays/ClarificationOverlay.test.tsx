@@ -1,7 +1,7 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { ClarificationOverlay } from "../../../src/tui/overlays/ClarificationOverlay.js";
-import { ClarificationRequest } from "../../../src/runtime/types.js";
+import { ClarificationOverlay } from "@nemesis-oss/nexum-devagent/tui/overlays/ClarificationOverlay";
+import { ClarificationRequest } from "@nemesis-oss/nexum-core/runtime/types";
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 60));
 

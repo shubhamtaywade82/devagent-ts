@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { validateAsl, generateAslGraph } from "../../src/asl/commands.js";
+import { validateAsl, generateAslGraph } from "@nemesis-oss/nexum-tools/asl/commands";
 
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";

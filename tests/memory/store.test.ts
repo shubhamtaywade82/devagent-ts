@@ -1,7 +1,7 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MemoryStore } from "../../src/memory/store.js";
+import { MemoryStore } from "@nemesis-oss/nexum-devagent/memory/store";
 
 describe("MemoryStore", () => {
   it("persists and retrieves recent messages in chronological order", async () => {

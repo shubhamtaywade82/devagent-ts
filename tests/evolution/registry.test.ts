@@ -1,8 +1,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HarnessRegistry } from "../../src/evolution/registry.js";
-import { EvaluationMetrics, HarnessVersion } from "../../src/evolution/types.js";
+import { HarnessRegistry } from "@nemesis-oss/nexum-devagent/evolution/registry";
+import { EvaluationMetrics, HarnessVersion } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 const sampleMetrics: EvaluationMetrics = {
   capability: { taskSuccessRate: 0.75, verificationPassRate: 0.8 },

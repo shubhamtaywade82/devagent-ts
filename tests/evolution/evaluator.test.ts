@@ -1,4 +1,4 @@
-import { CandidateEvaluator, TaskExecutionResult } from "../../src/evolution/evaluator.js";
+import { CandidateEvaluator, TaskExecutionResult } from "@nemesis-oss/nexum-devagent/evolution/evaluator";
 
 describe("CandidateEvaluator", () => {
   const evaluator = new CandidateEvaluator();

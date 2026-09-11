@@ -1,4 +1,8 @@
-import { builtinCommands, parseSlashInput, SlashCommandRegistry } from "../../src/interaction/slash-commands.js";
+import {
+  builtinCommands,
+  parseSlashInput,
+  SlashCommandRegistry,
+} from "@nemesis-oss/nexum-devagent/interaction/slash-commands";
 
 describe("parseSlashInput", () => {
   it("parses name and args", () => {

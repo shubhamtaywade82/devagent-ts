@@ -7,10 +7,10 @@ import {
   GitWorktreeMutationExecutor,
   HeuristicMutationStrategy,
   MutationStrategy,
-} from "../../src/evolution/mutation/mutation-executor.js";
-import { ImprovementTarget } from "../../src/evolution/targets/target-engine.js";
-import { MutationScope } from "../../src/evolution/mutation/mutation-scope.js";
-import { HarnessDiagnosis } from "../../src/evolution/types.js";
+} from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-executor";
+import { ImprovementTarget } from "@nemesis-oss/nexum-devagent/evolution/targets/target-engine";
+import { MutationScope } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-scope";
+import { HarnessDiagnosis } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 const exec = promisify(execFile);
 

@@ -1,5 +1,5 @@
-import { ModelScanner } from "../../../../src/intelligence/rails/scanners/model-scanner.js";
-import { ModelEntity } from "../../../../src/intelligence/rails/types.js";
+import { ModelScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/model-scanner";
+import { ModelEntity } from "@nemesis-oss/nexum-tools/intelligence/rails/types";
 
 const USER_MODEL = [
   "class User < ApplicationRecord",

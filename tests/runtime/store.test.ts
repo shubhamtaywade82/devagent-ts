@@ -1,6 +1,6 @@
-import { EventBus } from "../../src/runtime/events.js";
-import { initialRuntimeState, reduce, sanitizeText, Store } from "../../src/runtime/store.js";
-import { RuntimeState } from "../../src/runtime/types.js";
+import { EventBus } from "@nemesis-oss/nexum-core/runtime/events";
+import { initialRuntimeState, reduce, sanitizeText, Store } from "@nemesis-oss/nexum-devagent/runtime/store";
+import { RuntimeState } from "@nemesis-oss/nexum-core/runtime/types";
 
 function fresh(): RuntimeState {
   return initialRuntimeState({ workspace: "devagent", branch: "main", model: "qwen3:30b" });

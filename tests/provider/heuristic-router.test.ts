@@ -1,4 +1,4 @@
-import { HeuristicRouter } from "../../src/provider/heuristic-router.js";
+import { HeuristicRouter } from "@nemesis-oss/nexum-models/provider/heuristic-router";
 
 describe("HeuristicRouter", () => {
   let router: HeuristicRouter;

@@ -3,8 +3,8 @@ import {
   BinanceWalkForwardTool,
   BinanceMonteCarloTool,
   BinanceParamSweepTool,
-} from "../../src/tools/backtest-tools.js";
-import { StrategyConfig } from "../../src/backtest/types.js";
+} from "@nemesis-oss/nexum-tools/tools/backtest-tools";
+import { StrategyConfig } from "@nemesis-oss/nexum-tools/backtest/types";
 
 const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
 const describeIfNetwork = skipNetwork ? describe.skip : describe;

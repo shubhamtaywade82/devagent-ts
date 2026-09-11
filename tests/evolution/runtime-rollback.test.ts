@@ -1,10 +1,10 @@
-import { HarnessRegistry } from "../../src/evolution/registry.js";
-import { ClosedLoopEngine } from "../../src/evolution/engine-v2.js";
-import { ActivationMonitor } from "../../src/evolution/monitoring/activation-monitor.js";
+import { HarnessRegistry } from "@nemesis-oss/nexum-devagent/evolution/registry";
+import { ClosedLoopEngine } from "@nemesis-oss/nexum-devagent/evolution/engine-v2";
+import { ActivationMonitor } from "@nemesis-oss/nexum-devagent/evolution/monitoring/activation-monitor";
 import {
   RuntimeActivationController,
   RuntimeRollbackError,
-} from "../../src/evolution/monitoring/runtime-activation.js";
+} from "@nemesis-oss/nexum-devagent/evolution/monitoring/runtime-activation";
 
 /** Fake runtime integration: tracks the currently executing harness. */
 class FakeRuntime implements RuntimeActivationController {

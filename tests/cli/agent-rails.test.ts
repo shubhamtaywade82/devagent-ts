@@ -2,7 +2,7 @@ import { cp, mkdtemp } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Agent } from "../../src/cli/agent.js";
+import { Agent } from "@nemesis-oss/nexum-devagent/cli/agent";
 
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";

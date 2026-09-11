@@ -2,9 +2,9 @@ import { afterEach, beforeEach, describe, expect, it } from "@jest/globals";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { WorkspaceManager, migrateGlobalState, readMigrationMarker } from "../../src/platform/workspace.js";
-import { CheckpointStore } from "../../src/runtime/checkpoint.js";
-import { SessionStore } from "../../src/runtime/session.js";
+import { WorkspaceManager, migrateGlobalState, readMigrationMarker } from "@nemesis-oss/nexum-core/platform/workspace";
+import { CheckpointStore } from "@nemesis-oss/nexum-core/runtime/checkpoint";
+import { SessionStore } from "@nemesis-oss/nexum-devagent/runtime/session";
 
 /** Build a realistic legacy `.devagent` workspace with every state entry. */
 function buildLegacyWorkspace(root: string): void {

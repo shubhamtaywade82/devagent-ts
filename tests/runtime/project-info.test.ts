@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { detectProjectInfo } from "../../src/runtime/project-info.js";
+import { detectProjectInfo } from "@nemesis-oss/nexum-devagent/runtime/project-info";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

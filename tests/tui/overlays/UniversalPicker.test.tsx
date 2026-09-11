@@ -1,6 +1,6 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { UniversalPicker } from "../../../src/tui/overlays/UniversalPicker.js";
+import { UniversalPicker } from "@nemesis-oss/nexum-devagent/tui/overlays/UniversalPicker";
 
 const ITEMS = [
   { id: "a", label: "a", detail: "Free" },

@@ -1,6 +1,6 @@
-import { BUILTIN_CASES } from "../../src/benchmark/cases.js";
-import { ChatResponse } from "../../src/provider/provider.js";
-import { SingleTurnBenchmarkCase } from "../../src/benchmark/types.js";
+import { BUILTIN_CASES } from "@nemesis-oss/nexum-devagent/benchmark/cases";
+import { ChatResponse } from "@nemesis-oss/nexum-models/provider/provider";
+import { SingleTurnBenchmarkCase } from "@nemesis-oss/nexum-devagent/benchmark/types";
 
 // BUILTIN_CASES is entirely single-turn today, but its declared type is the
 // BenchmarkCase union (shared with the agentic case builders) — narrow here

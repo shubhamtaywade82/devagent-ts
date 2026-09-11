@@ -1,0 +1,43 @@
+{
+  "name": "@nemesis-oss/nexum-mcp",
+  "version": "2.0.0",
+  "description": "Nexum MCP plane \u2014 Model Context Protocol client and the kernel tool adapter for MCP servers.",
+  "license": "MIT",
+  "author": "Shubham Taywade <shubhamtaywade82@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemesis-oss/nexum.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./mcp/*": {
+      "types": "./dist/mcp/*.d.ts",
+      "import": "./dist/mcp/*.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@nemesis-oss/nexum-core": "^2.0.0",
+    "@nemesis-oss/nexum-tools": "^2.0.0",
+    "@modelcontextprotocol/sdk": "^1.29.0"
+  }
+}

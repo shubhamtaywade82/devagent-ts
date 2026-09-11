@@ -10,17 +10,20 @@ import {
   ExperimentArtifactInput,
   summarizeExperimentRuns,
   writeExperimentArtifact,
-} from "../../src/evolution/experiments/experiment-artifact.js";
-import { ExperimentController } from "../../src/evolution/experiments/experiment-controller.js";
-import { ExperimentStore } from "../../src/evolution/experiments/experiment-store.js";
-import { AgentMutationStrategy, ScriptedAgentRuntime } from "../../src/evolution/mutation/agent-mutation.js";
-import { GitWorktreeMutationExecutor } from "../../src/evolution/mutation/mutation-executor.js";
-import { MutationScope } from "../../src/evolution/mutation/mutation-scope.js";
-import { ImprovementTarget } from "../../src/evolution/targets/target-engine.js";
-import { HarnessDiagnosis } from "../../src/evolution/types.js";
-import { TaskExecutionResult } from "../../src/evolution/evaluator.js";
-import { ClosedLoopEngine } from "../../src/evolution/engine-v2.js";
-import { ExperienceStore } from "../../src/evolution/experience/experience-store.js";
+} from "@nemesis-oss/nexum-devagent/evolution/experiments/experiment-artifact";
+import { ExperimentController } from "@nemesis-oss/nexum-devagent/evolution/experiments/experiment-controller";
+import { ExperimentStore } from "@nemesis-oss/nexum-devagent/evolution/experiments/experiment-store";
+import {
+  AgentMutationStrategy,
+  ScriptedAgentRuntime,
+} from "@nemesis-oss/nexum-devagent/evolution/mutation/agent-mutation";
+import { GitWorktreeMutationExecutor } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-executor";
+import { MutationScope } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-scope";
+import { ImprovementTarget } from "@nemesis-oss/nexum-devagent/evolution/targets/target-engine";
+import { HarnessDiagnosis } from "@nemesis-oss/nexum-devagent/evolution/types";
+import { TaskExecutionResult } from "@nemesis-oss/nexum-devagent/evolution/evaluator";
+import { ClosedLoopEngine } from "@nemesis-oss/nexum-devagent/evolution/engine-v2";
+import { ExperienceStore } from "@nemesis-oss/nexum-devagent/evolution/experience/experience-store";
 
 const execFileAsync = promisify(execFile);
 

@@ -1,4 +1,4 @@
-import { classifyFailure, TaxonomySignals } from "../../src/evolution/taxonomy.js";
+import { classifyFailure, TaxonomySignals } from "@nemesis-oss/nexum-devagent/evolution/taxonomy";
 
 describe("Failure Taxonomy", () => {
   it("classifies premature completion when tests fail but agent answered", () => {

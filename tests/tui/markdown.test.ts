@@ -5,7 +5,7 @@ import {
   renderTable,
   renderSimpleMarkdown,
   renderMarkdown,
-} from "../../src/tui/markdown.js";
+} from "@nemesis-oss/nexum-devagent/tui/markdown";
 
 describe("TUI Markdown Rendering Engine", () => {
   describe("parseInline", () => {

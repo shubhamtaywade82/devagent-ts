@@ -1,0 +1,52 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react",
+    "types": [
+      "node"
+    ],
+    "noEmit": true,
+    "paths": {
+      "@nemesis-oss/nexum-core": [
+        "packages/core/src/index.ts"
+      ],
+      "@nemesis-oss/nexum-core/*": [
+        "packages/core/src/*"
+      ],
+      "@nemesis-oss/nexum-models": [
+        "packages/models/src/index.ts"
+      ],
+      "@nemesis-oss/nexum-models/*": [
+        "packages/models/src/*"
+      ],
+      "@nemesis-oss/nexum-tools": [
+        "packages/tools/src/index.ts"
+      ],
+      "@nemesis-oss/nexum-tools/*": [
+        "packages/tools/src/*"
+      ],
+      "@nemesis-oss/nexum-mcp": [
+        "packages/mcp/src/index.ts"
+      ],
+      "@nemesis-oss/nexum-mcp/*": [
+        "packages/mcp/src/*"
+      ],
+      "@nemesis-oss/nexum-devagent": [
+        "packages/devagent/src/index.ts"
+      ],
+      "@nemesis-oss/nexum-devagent/*": [
+        "packages/devagent/src/*"
+      ],
+      "@nemesis-oss/nexum": [
+        "src/index.ts"
+      ],
+      "@nemesis-oss/nexum/*": [
+        "src/*"
+      ]
+    }
+  },
+  "include": [
+    "packages",
+    "src"
+  ]
+}

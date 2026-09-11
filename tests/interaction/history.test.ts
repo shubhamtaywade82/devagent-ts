@@ -1,4 +1,4 @@
-import { HistoryManager } from "../../src/interaction/history.js";
+import { HistoryManager } from "@nemesis-oss/nexum-devagent/interaction/history";
 
 describe("HistoryManager", () => {
   it("navigates up through history and back down to the draft", () => {

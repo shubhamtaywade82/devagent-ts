@@ -7,7 +7,7 @@ import {
   MakeDirectoryTool,
   CopyFileTool,
   MoveFileTool,
-} from "../../src/tools/directory-tools.js";
+} from "@nemesis-oss/nexum-tools/tools/directory-tools";
 
 describe("ListDirectoryTool", () => {
   it("lists files and directories with type", async () => {

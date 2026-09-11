@@ -3,9 +3,9 @@ import {
   getAllBenchmarkCases,
   runHarnessBenchmark,
   toTaskExecutionResult,
-} from "../../src/evolution/benchmarks.js";
-import { BenchmarkCase, BenchmarkResult } from "../../src/benchmark/types.js";
-import { Provider } from "../../src/provider/provider.js";
+} from "@nemesis-oss/nexum-devagent/evolution/benchmarks";
+import { BenchmarkCase, BenchmarkResult } from "@nemesis-oss/nexum-devagent/benchmark/types";
+import { Provider } from "@nemesis-oss/nexum-models/provider/provider";
 
 describe("Evolution Benchmarks Bridge", () => {
   it("gathers all benchmark cases across suites", async () => {

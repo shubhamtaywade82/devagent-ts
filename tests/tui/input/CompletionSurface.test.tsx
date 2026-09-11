@@ -1,8 +1,8 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { CompletionSurface } from "../../../src/tui/input/CompletionSurface.js";
-import { CompletionRow } from "../../../src/tui/input/CompletionRow.js";
-import { CompletionItem } from "../../../src/interaction/completion.js";
+import { CompletionSurface } from "@nemesis-oss/nexum-devagent/tui/input/CompletionSurface";
+import { CompletionRow } from "@nemesis-oss/nexum-devagent/tui/input/CompletionRow";
+import { CompletionItem } from "@nemesis-oss/nexum-devagent/interaction/completion";
 
 // eslint-disable-next-line no-control-regex
 const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");

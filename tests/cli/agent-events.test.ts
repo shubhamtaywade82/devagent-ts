@@ -8,10 +8,10 @@ import { jest } from "@jest/globals";
 jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
 const { spawn } = await import("node:child_process");
-const { Agent } = await import("../../src/cli/agent.js");
+const { Agent } = await import("@nemesis-oss/nexum-devagent/cli/agent");
 // eslint-disable-next-line @typescript-eslint/no-unused-vars -- used below via `typeof ShellTool`, can't be `import type` since it's a dynamic mocked-module import
-const { ShellTool } = await import("../../src/tools/shell.js");
-const { MemoryStore } = await import("../../src/memory/store.js");
+const { ShellTool } = await import("@nemesis-oss/nexum-tools/tools/shell");
+const { MemoryStore } = await import("@nemesis-oss/nexum-devagent/memory/store");
 
 const mockSpawn = spawn as jest.Mock;
 

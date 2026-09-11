@@ -1,5 +1,5 @@
-import { buildAgenticCases } from "../../src/benchmark/cases-agentic.js";
-import { AgenticTrajectory } from "../../src/benchmark/types.js";
+import { buildAgenticCases } from "@nemesis-oss/nexum-devagent/benchmark/cases-agentic";
+import { AgenticTrajectory } from "@nemesis-oss/nexum-devagent/benchmark/types";
 
 function findCase(id: string) {
   const cases = buildAgenticCases();

@@ -1,8 +1,8 @@
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Agent } from "../../src/cli/agent.js";
-import { ClarificationRequest } from "../../src/runtime/types.js";
+import { Agent } from "@nemesis-oss/nexum-devagent/cli/agent";
+import { ClarificationRequest } from "@nemesis-oss/nexum-core/runtime/types";
 
 function mockChatFetch(turns: Array<{ content?: string; tool_calls?: unknown[] }>) {
   let call = 0;

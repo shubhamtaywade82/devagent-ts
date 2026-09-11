@@ -1,13 +1,13 @@
-import { ToolCatalog } from "../../src/kernel/tools/tool-catalog.js";
-import { DefaultToolGateway } from "../../src/kernel/tools/tool-gateway.js";
-import { ToolDefinition } from "../../src/kernel/tools/tool-definition.js";
-import { ModelCapabilityRegistry } from "../../src/kernel/models/model-capability-registry.js";
-import { createExecutionContext, TransientContextManager } from "../../src/kernel/execution-context.js";
-import { DefaultAgentRuntime, devAgentDescriptor } from "../../src/kernel/strategies/agent-runtime.js";
-import { GateRegistry } from "../../src/kernel/concurrency/gate-registry.js";
-import type { ModelGateway } from "../../src/kernel/models/model-gateway.js";
-import type { ExecutionRequest } from "../../src/kernel/types.js";
-import { RulePolicyEngine } from "../../src/kernel/policy/policy-engine.js";
+import { ToolCatalog } from "@nemesis-oss/nexum-core/kernel/tools/tool-catalog";
+import { DefaultToolGateway } from "@nemesis-oss/nexum-core/kernel/tools/tool-gateway";
+import { ToolDefinition } from "@nemesis-oss/nexum-core/kernel/tools/tool-definition";
+import { ModelCapabilityRegistry } from "@nemesis-oss/nexum-core/kernel/models/model-capability-registry";
+import { createExecutionContext, TransientContextManager } from "@nemesis-oss/nexum-core/kernel/execution-context";
+import { DefaultAgentRuntime, devAgentDescriptor } from "@nemesis-oss/nexum-core/kernel/strategies/agent-runtime";
+import { GateRegistry } from "@nemesis-oss/nexum-core/kernel/concurrency/gate-registry";
+import type { ModelGateway } from "@nemesis-oss/nexum-core/kernel/models/model-gateway";
+import type { ExecutionRequest } from "@nemesis-oss/nexum-core/kernel/types";
+import { RulePolicyEngine } from "@nemesis-oss/nexum-core/kernel/policy/policy-engine";
 
 interface ScriptStep {
   content?: string;

@@ -5,10 +5,10 @@ import {
   GitHubDeliveryAdapter,
   GitCommandRunner,
   GitHubHttpClient,
-} from "../../src/evolution/delivery/github-adapter.js";
-import { ExperimentController } from "../../src/evolution/experiments/experiment-controller.js";
-import { DeliveryReport } from "../../src/evolution/delivery.js";
-import { StartExperimentInput } from "../../src/evolution/experiments/experiment-controller.js";
+} from "@nemesis-oss/nexum-devagent/evolution/delivery/github-adapter";
+import { ExperimentController } from "@nemesis-oss/nexum-devagent/evolution/experiments/experiment-controller";
+import { DeliveryReport } from "@nemesis-oss/nexum-devagent/evolution/delivery";
+import { StartExperimentInput } from "@nemesis-oss/nexum-devagent/evolution/experiments/experiment-controller";
 
 function startInput(over: Partial<StartExperimentInput> = {}): StartExperimentInput {
   return {

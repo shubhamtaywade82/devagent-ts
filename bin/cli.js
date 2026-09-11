@@ -35,7 +35,7 @@ Options:
 }
 
 if (command === 'doctor') {
-  const { runDoctor } = await import('../dist/cli/doctor.js');
+  const { runDoctor } = await import('../packages/devagent/dist/cli/doctor.js');
   const report = await runDoctor();
   console.log('=== Nexum Doctor ===');
   console.log(report.lines.join('\n'));
@@ -43,15 +43,15 @@ if (command === 'doctor') {
 }
 
 if (command === 'evolve') {
-  const { runEvolutionCli } = await import('../dist/evolution/cli.js');
+  const { runEvolutionCli } = await import('../packages/devagent/dist/evolution/cli.js');
   await runEvolutionCli(process.argv.slice(3));
   process.exit(0);
 }
 
 if (command === 'migrate') {
-  const { main } = await import('../dist/cli/migrate.js');
+  const { main } = await import('../packages/devagent/dist/cli/migrate.js');
   await main(process.argv.slice(3));
 } else {
-  await import('../dist/tui/index.js');
+  await import('../packages/devagent/dist/tui/index.js');
 }
 

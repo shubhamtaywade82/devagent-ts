@@ -1,5 +1,5 @@
-import { packTokens, renderTokenLine, TOKEN_SEPARATOR } from "../../src/layout/status-tokens.js";
-import { StatusToken } from "../../src/runtime/types.js";
+import { packTokens, renderTokenLine, TOKEN_SEPARATOR } from "@nemesis-oss/nexum-devagent/layout/status-tokens";
+import { StatusToken } from "@nemesis-oss/nexum-core/runtime/types";
 
 const tokens: StatusToken[] = [
   { text: "Now: Running tests", priority: 1 },

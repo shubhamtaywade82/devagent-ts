@@ -1,4 +1,4 @@
-import { initialUiState, uiReduce } from "../../src/interaction/ui-state.js";
+import { initialUiState, uiReduce } from "@nemesis-oss/nexum-devagent/interaction/ui-state";
 
 describe("uiReduce", () => {
   it("starts on the dashboard view with no overlay", () => {

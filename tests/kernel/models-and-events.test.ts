@@ -1,14 +1,14 @@
-import { ModelCapabilityRegistry } from "../../src/kernel/models/model-capability-registry.js";
-import { profileFromLegacy, defaultConstraints } from "../../src/kernel/models/model-profile.js";
+import { ModelCapabilityRegistry } from "@nemesis-oss/nexum-core/kernel/models/model-capability-registry";
+import { profileFromLegacy, defaultConstraints } from "@nemesis-oss/nexum-core/kernel/models/model-profile";
 import {
   familyOf,
   filteringSink,
   isDomainEvent,
   isExecutionEvent,
   isPresentationEvent,
-} from "../../src/kernel/events/families.js";
-import type { ModelInfo } from "../../src/provider/catalog.js";
-import type { RuntimeEvent } from "../../src/runtime/events.js";
+} from "@nemesis-oss/nexum-core/kernel/events/families";
+import type { ModelInfo } from "@nemesis-oss/nexum-models/provider/catalog";
+import type { RuntimeEvent } from "@nemesis-oss/nexum-core/runtime/events";
 
 describe("ModelCapabilityRegistry", () => {
   const legacy: ModelInfo[] = [

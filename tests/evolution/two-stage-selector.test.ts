@@ -1,5 +1,8 @@
-import { TwoStageSelector, DEFAULT_THRESHOLDS } from "../../src/evolution/comparison/two-stage-selector.js";
-import { EvaluationMetrics } from "../../src/evolution/types.js";
+import {
+  TwoStageSelector,
+  DEFAULT_THRESHOLDS,
+} from "@nemesis-oss/nexum-devagent/evolution/comparison/two-stage-selector";
+import { EvaluationMetrics } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 function metrics(over: {
   success?: number;

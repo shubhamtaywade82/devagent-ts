@@ -1,9 +1,9 @@
 import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { SemanticIndex } from "../../../src/intelligence/rails/indexer.js";
-import { createRailsTools } from "../../../src/intelligence/rails/tools/semantic-tools.js";
-import { Tool } from "../../../src/tools/tool.js";
+import { SemanticIndex } from "@nemesis-oss/nexum-tools/intelligence/rails/indexer";
+import { createRailsTools } from "@nemesis-oss/nexum-tools/intelligence/rails/tools/semantic-tools";
+import { Tool } from "@nemesis-oss/nexum-tools/tools/tool";
 
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";

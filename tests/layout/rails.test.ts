@@ -1,6 +1,6 @@
-import { layoutPhase, railsForPhase, LayoutPhase } from "../../src/layout/rails.js";
-import { initialRuntimeState, reduce } from "../../src/runtime/store.js";
-import { MissionPhaseId, RuntimeState } from "../../src/runtime/types.js";
+import { layoutPhase, railsForPhase, LayoutPhase } from "@nemesis-oss/nexum-devagent/layout/rails";
+import { initialRuntimeState, reduce } from "@nemesis-oss/nexum-devagent/runtime/store";
+import { MissionPhaseId, RuntimeState } from "@nemesis-oss/nexum-core/runtime/types";
 
 function fresh(): RuntimeState {
   return initialRuntimeState({ workspace: "devagent", branch: "main", model: "qwen3:30b" });

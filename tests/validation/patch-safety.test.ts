@@ -1,6 +1,6 @@
-import { applyPatchHunks } from "../../src/validation/apply-hunks.js";
-import { validatePatchSafety, validateWriteSafety } from "../../src/validation/patch-safety.js";
-import { validateSyntax } from "../../src/validation/syntax.js";
+import { applyPatchHunks } from "@nemesis-oss/nexum-devagent/validation/apply-hunks";
+import { validatePatchSafety, validateWriteSafety } from "@nemesis-oss/nexum-devagent/validation/patch-safety";
+import { validateSyntax } from "@nemesis-oss/nexum-devagent/validation/syntax";
 
 describe("Validation - Patch Safety & Apply Hunks", () => {
   it("applies patch hunks correctly when old_str is unique", () => {

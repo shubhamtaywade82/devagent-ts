@@ -1,5 +1,5 @@
-import { TargetEngine, capabilityAreaFor } from "../../src/evolution/targets/target-engine.js";
-import { HarnessDiagnosis } from "../../src/evolution/types.js";
+import { TargetEngine, capabilityAreaFor } from "@nemesis-oss/nexum-devagent/evolution/targets/target-engine";
+import { HarnessDiagnosis } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 function diagnosis(partial: Partial<HarnessDiagnosis>): HarnessDiagnosis {
   return {

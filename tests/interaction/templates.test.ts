@@ -1,6 +1,6 @@
-import { templateCompletions } from "../../src/interaction/templates.js";
-import { completions } from "../../src/interaction/completion.js";
-import { builtinCommands } from "../../src/interaction/slash-commands.js";
+import { templateCompletions } from "@nemesis-oss/nexum-devagent/interaction/templates";
+import { completions } from "@nemesis-oss/nexum-devagent/interaction/completion";
+import { builtinCommands } from "@nemesis-oss/nexum-devagent/interaction/slash-commands";
 
 describe("templateCompletions", () => {
   it("offers all templates for a bare @", () => {

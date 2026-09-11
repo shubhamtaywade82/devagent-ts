@@ -6,8 +6,8 @@ import {
   readEnvFlag,
   resetDeprecationWarnings,
   suppressDeprecationWarnings,
-} from "../../src/platform/environment.js";
-import { BRAND } from "../../src/platform/brand.js";
+} from "@nemesis-oss/nexum-core/platform/environment";
+import { BRAND } from "@nemesis-oss/nexum-core/platform/brand";
 
 const savedEnv = { ...process.env };
 
@@ -110,7 +110,7 @@ describe("platform/environment — NEXUM_* canonical, DEVAGENT_* deprecated fall
   });
 
   it("budgetFromEnv prefers NEXUM_TOKEN_BUDGET over DEVAGENT_TOKEN_BUDGET", async () => {
-    const { budgetFromEnv } = await import("../../src/observability/budget.js");
+    const { budgetFromEnv } = await import("@nemesis-oss/nexum-devagent/observability/budget");
     expect(budgetFromEnv({ NEXUM_TOKEN_BUDGET: "100", DEVAGENT_TOKEN_BUDGET: "5" } as NodeJS.ProcessEnv).limit).toBe(
       100,
     );

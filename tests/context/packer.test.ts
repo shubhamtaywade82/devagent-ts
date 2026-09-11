@@ -1,4 +1,4 @@
-import { packTaskContext } from "../../src/context/packer.js";
+import { packTaskContext } from "@nemesis-oss/nexum-devagent/context/packer";
 
 describe("Context - Packer", () => {
   it("packs task goal and relevant code within character budget", () => {

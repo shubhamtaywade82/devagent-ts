@@ -1,5 +1,5 @@
-import { formatEvolutionCommit, formatPrBody, GitDeliveryEngine } from "../../src/evolution/delivery.js";
-import { ComparisonResult, HarnessHypothesis, HarnessVersion } from "../../src/evolution/types.js";
+import { formatEvolutionCommit, formatPrBody, GitDeliveryEngine } from "@nemesis-oss/nexum-devagent/evolution/delivery";
+import { ComparisonResult, HarnessHypothesis, HarnessVersion } from "@nemesis-oss/nexum-devagent/evolution/types";
 
 describe("GitDeliveryEngine", () => {
   const version: HarnessVersion = {

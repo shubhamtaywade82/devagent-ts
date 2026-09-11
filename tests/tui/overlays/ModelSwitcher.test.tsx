@@ -1,6 +1,6 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { ModelSwitcher } from "../../../src/tui/overlays/ModelSwitcher.js";
+import { ModelSwitcher } from "@nemesis-oss/nexum-devagent/tui/overlays/ModelSwitcher";
 
 describe("ModelSwitcher", () => {
   it("tags a known subscription-gated model before selection", () => {

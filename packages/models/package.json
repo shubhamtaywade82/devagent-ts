@@ -1,0 +1,42 @@
+{
+  "name": "@nemesis-oss/nexum-models",
+  "version": "2.0.0",
+  "description": "Nexum model plane \u2014 Provider/Router/Catalog stack and the DefaultModelGateway adapter over the kernel's ModelGateway port.",
+  "license": "MIT",
+  "author": "Shubham Taywade <shubhamtaywade82@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nemesis-oss/nexum.git"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./provider/*": {
+      "types": "./dist/provider/*.d.ts",
+      "import": "./dist/provider/*.js"
+    }
+  },
+  "files": [
+    "dist/"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "dependencies": {
+    "@nemesis-oss/nexum-core": "^2.0.0",
+    "@nemesis-oss/ollama-sdk": "^1.3.0"
+  }
+}

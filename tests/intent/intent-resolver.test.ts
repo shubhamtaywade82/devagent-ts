@@ -1,4 +1,4 @@
-import { IntentResolver } from "../../src/intent/intent-resolver.js";
+import { IntentResolver } from "@nemesis-oss/nexum-devagent/intent/intent-resolver";
 
 describe("IntentResolver", () => {
   const resolver = new IntentResolver();

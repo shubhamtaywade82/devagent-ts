@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { detectWorkspaceDocSources, detectWorkspaceKinds } from "../../src/docs/workspace-detect.js";
+import { detectWorkspaceDocSources, detectWorkspaceKinds } from "@nemesis-oss/nexum-tools/docs/workspace-detect";
 
 async function tempWorkspace(): Promise<string> {
   return mkdtemp(join(tmpdir(), "docs-workspace-"));

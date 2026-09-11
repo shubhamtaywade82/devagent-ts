@@ -1,5 +1,5 @@
-import { walkForward, monteCarlo, paramSweep } from "../../src/backtest/analysis.js";
-import { Candle, StrategyConfig } from "../../src/backtest/types.js";
+import { walkForward, monteCarlo, paramSweep } from "@nemesis-oss/nexum-tools/backtest/analysis";
+import { Candle, StrategyConfig } from "@nemesis-oss/nexum-tools/backtest/types";
 
 function makeCandles(closes: number[]): Candle[] {
   return closes.map((c, i) => ({ openTime: i, open: c, high: c * 1.001, low: c * 0.999, close: c, volume: 100 }));

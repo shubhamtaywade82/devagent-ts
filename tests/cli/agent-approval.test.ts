@@ -1,8 +1,8 @@
 import { mkdtemp, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Agent } from "../../src/cli/agent.js";
-import { ApprovalRequest } from "../../src/runtime/types.js";
+import { Agent } from "@nemesis-oss/nexum-devagent/cli/agent";
+import { ApprovalRequest } from "@nemesis-oss/nexum-core/runtime/types";
 
 function fileExists(path: string): Promise<boolean> {
   return access(path).then(

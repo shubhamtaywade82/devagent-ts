@@ -5,10 +5,10 @@ import {
   TokenBudgetError,
   ToolCallBudgetError,
   WallClockBudgetError,
-} from "../../src/kernel/budget.js";
-import { ExecutionBudget } from "../../src/kernel/types.js";
-import { GateRegistry } from "../../src/kernel/concurrency/gate-registry.js";
-import { ConcurrencyGate } from "../../src/runtime/concurrency-gate.js";
+} from "@nemesis-oss/nexum-core/kernel/budget";
+import { ExecutionBudget } from "@nemesis-oss/nexum-core/kernel/types";
+import { GateRegistry } from "@nemesis-oss/nexum-core/kernel/concurrency/gate-registry";
+import { ConcurrencyGate } from "@nemesis-oss/nexum-core/runtime/concurrency-gate";
 
 describe("BudgetTracker", () => {
   const budget = (b: ExecutionBudget) => new BudgetTracker({ runId: "r", sessionId: "s", budget: b });

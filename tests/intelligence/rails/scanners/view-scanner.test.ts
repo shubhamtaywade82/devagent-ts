@@ -1,5 +1,5 @@
-import { ViewScanner } from "../../../../src/intelligence/rails/scanners/view-scanner.js";
-import { ViewEntity } from "../../../../src/intelligence/rails/types.js";
+import { ViewScanner } from "@nemesis-oss/nexum-tools/intelligence/rails/scanners/view-scanner";
+import { ViewEntity } from "@nemesis-oss/nexum-tools/intelligence/rails/types";
 
 describe("ViewScanner", () => {
   // ─── ERB templates ──────────────────────────────────────────────────

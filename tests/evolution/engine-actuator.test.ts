@@ -3,12 +3,12 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { ClosedLoopEngine } from "../../src/evolution/engine-v2.js";
-import { GitWorktreeMutationExecutor } from "../../src/evolution/mutation/mutation-executor.js";
-import { ActivationMonitor } from "../../src/evolution/monitoring/activation-monitor.js";
-import { HarnessRegistry } from "../../src/evolution/registry.js";
-import { TaskExecutionResult } from "../../src/evolution/evaluator.js";
-import { Episode } from "../../src/learning/types.js";
+import { ClosedLoopEngine } from "@nemesis-oss/nexum-devagent/evolution/engine-v2";
+import { GitWorktreeMutationExecutor } from "@nemesis-oss/nexum-devagent/evolution/mutation/mutation-executor";
+import { ActivationMonitor } from "@nemesis-oss/nexum-devagent/evolution/monitoring/activation-monitor";
+import { HarnessRegistry } from "@nemesis-oss/nexum-devagent/evolution/registry";
+import { TaskExecutionResult } from "@nemesis-oss/nexum-devagent/evolution/evaluator";
+import { Episode } from "@nemesis-oss/nexum-devagent/learning/types";
 
 const exec = promisify(execFile);
 

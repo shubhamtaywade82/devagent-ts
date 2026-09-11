@@ -1,4 +1,4 @@
-import { McpToolAdapter } from "../../src/mcp/mcp-tool-adapter.js";
+import { McpToolAdapter } from "@nemesis-oss/nexum-mcp/mcp/mcp-tool-adapter";
 
 function fakeMcpClient(callResult: unknown) {
   return {

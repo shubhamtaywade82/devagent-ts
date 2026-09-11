@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "@jest/globals";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { runMigrate } from "../../src/cli/migrate.js";
+import { runMigrate } from "@nemesis-oss/nexum-devagent/cli/migrate";
 
 const savedEnv = { ...process.env };
 

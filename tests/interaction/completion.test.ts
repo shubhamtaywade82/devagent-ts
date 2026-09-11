@@ -1,5 +1,10 @@
-import { acceptWord, completions, ghostSuffix, isNoOpCompletion } from "../../src/interaction/completion.js";
-import { builtinCommands } from "../../src/interaction/slash-commands.js";
+import {
+  acceptWord,
+  completions,
+  ghostSuffix,
+  isNoOpCompletion,
+} from "@nemesis-oss/nexum-devagent/interaction/completion";
+import { builtinCommands } from "@nemesis-oss/nexum-devagent/interaction/slash-commands";
 
 describe("ghostSuffix", () => {
   const history = ["create filesystem tool", "create tests", "fix docker"];

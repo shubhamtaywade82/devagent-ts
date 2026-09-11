@@ -1,6 +1,6 @@
 import React from "react";
 import { render } from "ink-testing-library";
-import { ExecutionDagOverlay } from "../../../src/tui/overlays/ExecutionDagOverlay.js";
+import { ExecutionDagOverlay } from "@nemesis-oss/nexum-devagent/tui/overlays/ExecutionDagOverlay";
 
 describe("ExecutionDagOverlay", () => {
   it("renders execution DAG node titles and statuses", () => {

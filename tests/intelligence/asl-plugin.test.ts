@@ -1,6 +1,6 @@
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { AslSemanticPlugin } from "../../src/intelligence/asl-plugin.js";
+import { AslSemanticPlugin } from "@nemesis-oss/nexum-tools/intelligence/asl-plugin";
 
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";

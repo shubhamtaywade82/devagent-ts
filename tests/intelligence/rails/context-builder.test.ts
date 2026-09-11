@@ -1,8 +1,8 @@
 import { cp, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { extractCandidates } from "../../../src/intelligence/rails/context-builder.js";
-import { SemanticIndex } from "../../../src/intelligence/rails/indexer.js";
+import { extractCandidates } from "@nemesis-oss/nexum-tools/intelligence/rails/context-builder";
+import { SemanticIndex } from "@nemesis-oss/nexum-tools/intelligence/rails/indexer";
 
 import { fileURLToPath } from "node:url";
 import { dirname } from "node:path";

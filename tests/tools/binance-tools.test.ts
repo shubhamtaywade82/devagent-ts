@@ -14,8 +14,8 @@ import {
   BinanceFundingHistoryTool,
   BinanceOpenInterestHistoryTool,
   BinanceFuturesBasisTool,
-} from "../../src/tools/binance-tools.js";
-import { BinanceStreamManager } from "../../src/exchange/binance-stream.js";
+} from "@nemesis-oss/nexum-tools/tools/binance-tools";
+import { BinanceStreamManager } from "@nemesis-oss/nexum-tools/exchange/binance-stream";
 
 const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
 const describeIfNetwork = skipNetwork ? describe.skip : describe;

@@ -1,4 +1,4 @@
-import { EditTracker } from "../../src/tui/edit-tracker.js";
+import { EditTracker } from "@nemesis-oss/nexum-devagent/tui/edit-tracker";
 
 describe("EditTracker", () => {
   it("returns an empty diff (all context) when content is unchanged", () => {

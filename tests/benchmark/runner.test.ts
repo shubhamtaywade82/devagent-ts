@@ -1,6 +1,6 @@
-import { Provider, ChatResponse } from "../../src/provider/provider.js";
-import { runBenchmark } from "../../src/benchmark/runner.js";
-import { AgenticBenchmarkCase, BenchmarkCase } from "../../src/benchmark/types.js";
+import { Provider, ChatResponse } from "@nemesis-oss/nexum-models/provider/provider";
+import { runBenchmark } from "@nemesis-oss/nexum-devagent/benchmark/runner";
+import { AgenticBenchmarkCase, BenchmarkCase } from "@nemesis-oss/nexum-devagent/benchmark/types";
 
 function response(content: string, extra: Partial<ChatResponse> = {}): ChatResponse {
   return { message: { role: "assistant", content }, done: true, ...extra };

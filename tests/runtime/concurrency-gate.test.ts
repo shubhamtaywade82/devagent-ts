@@ -1,4 +1,8 @@
-import { ConcurrencyGate, GateAbortedError, GateSaturatedError } from "../../src/runtime/concurrency-gate.js";
+import {
+  ConcurrencyGate,
+  GateAbortedError,
+  GateSaturatedError,
+} from "@nemesis-oss/nexum-core/runtime/concurrency-gate";
 
 describe("ConcurrencyGate", () => {
   it("grants immediate leases up to maxConcurrent", async () => {

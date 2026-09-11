@@ -1,8 +1,8 @@
 import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { DocsStore } from "../../src/docs/store.js";
-import { SearchDocsTool, GetDocTool, ListDocSourcesTool } from "../../src/tools/docs-tools.js";
+import { DocsStore } from "@nemesis-oss/nexum-tools/docs/store";
+import { SearchDocsTool, GetDocTool, ListDocSourcesTool } from "@nemesis-oss/nexum-tools/tools/docs-tools";
 
 async function seededStore(dir: string): Promise<DocsStore> {
   const store = new DocsStore(join(dir, "docs.db"));

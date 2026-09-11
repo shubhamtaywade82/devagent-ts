@@ -7,16 +7,16 @@
  * rejected → ApprovalRejected observation, headless → structured denial).
  */
 
-import { ToolCatalog } from "../../src/kernel/tools/tool-catalog.js";
-import { DefaultToolGateway } from "../../src/kernel/tools/tool-gateway.js";
-import { ToolDefinition } from "../../src/kernel/tools/tool-definition.js";
-import { DeleteFileRule, DestructiveShellRule, GitPublishRule } from "../../src/kernel/policy/rules.js";
-import { parityPosture, restrictedPosture, standardPosture } from "../../src/kernel/policy/postures.js";
-import { ReActStrategy } from "../../src/kernel/strategies/execution-strategy.js";
-import { createExecutionContext } from "../../src/kernel/execution-context.js";
-import { ModelCapabilityRegistry } from "../../src/kernel/models/model-capability-registry.js";
-import type { ModelGateway } from "../../src/kernel/models/model-gateway.js";
-import type { StrategyHooks, ToolObservation } from "../../src/kernel/strategies/strategy-hooks.js";
+import { ToolCatalog } from "@nemesis-oss/nexum-core/kernel/tools/tool-catalog";
+import { DefaultToolGateway } from "@nemesis-oss/nexum-core/kernel/tools/tool-gateway";
+import { ToolDefinition } from "@nemesis-oss/nexum-core/kernel/tools/tool-definition";
+import { DeleteFileRule, DestructiveShellRule, GitPublishRule } from "@nemesis-oss/nexum-core/kernel/policy/rules";
+import { parityPosture, restrictedPosture, standardPosture } from "@nemesis-oss/nexum-core/kernel/policy/postures";
+import { ReActStrategy } from "@nemesis-oss/nexum-core/kernel/strategies/execution-strategy";
+import { createExecutionContext } from "@nemesis-oss/nexum-core/kernel/execution-context";
+import { ModelCapabilityRegistry } from "@nemesis-oss/nexum-core/kernel/models/model-capability-registry";
+import type { ModelGateway } from "@nemesis-oss/nexum-core/kernel/models/model-gateway";
+import type { StrategyHooks, ToolObservation } from "@nemesis-oss/nexum-core/kernel/strategies/strategy-hooks";
 
 function def(overrides: Partial<ToolDefinition> = {}): ToolDefinition {
   return {

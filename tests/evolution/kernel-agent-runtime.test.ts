@@ -14,11 +14,14 @@ import {
   KernelEvolutionAgentRuntime,
   EVOLUTION_AGENT_ID,
   modelGatewayFromChatClient,
-} from "../../src/evolution/mutation/kernel-agent-runtime.js";
-import { AgentMutationError, AgentMutationRequest } from "../../src/evolution/mutation/agent-mutation.js";
-import { DefaultAgentRuntime } from "../../src/kernel/strategies/agent-runtime.js";
-import { ModelCapabilityRegistry } from "../../src/kernel/models/model-capability-registry.js";
-import type { ModelGateway } from "../../src/kernel/models/model-gateway.js";
+} from "@nemesis-oss/nexum-devagent/evolution/mutation/kernel-agent-runtime";
+import {
+  AgentMutationError,
+  AgentMutationRequest,
+} from "@nemesis-oss/nexum-devagent/evolution/mutation/agent-mutation";
+import { DefaultAgentRuntime } from "@nemesis-oss/nexum-core/kernel/strategies/agent-runtime";
+import { ModelCapabilityRegistry } from "@nemesis-oss/nexum-core/kernel/models/model-capability-registry";
+import type { ModelGateway } from "@nemesis-oss/nexum-core/kernel/models/model-gateway";
 
 interface ScriptStep {
   content?: string;

@@ -1,6 +1,6 @@
-import { Provider, RateLimitError, ProviderError, ChatResponse } from "../../src/provider/provider.js";
-import { ModelCatalog } from "../../src/provider/catalog.js";
-import { Router } from "../../src/provider/router.js";
+import { Provider, RateLimitError, ProviderError, ChatResponse } from "@nemesis-oss/nexum-models/provider/provider";
+import { ModelCatalog } from "@nemesis-oss/nexum-models/provider/catalog";
+import { Router } from "@nemesis-oss/nexum-models/provider/router";
 
 const okResponse = (content: string): ChatResponse => ({
   message: { role: "assistant", content },

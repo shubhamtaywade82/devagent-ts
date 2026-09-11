@@ -2,7 +2,7 @@ import { mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { loadConfig } from "../../src/cli/config.js";
+import { loadConfig } from "@nemesis-oss/nexum-devagent/cli/config";
 
 describe("loadConfig apiKeys pool", () => {
   const originalEnv = { ...process.env };

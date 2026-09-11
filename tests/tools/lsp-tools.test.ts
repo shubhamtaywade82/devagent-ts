@@ -1,8 +1,8 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GetDefinitionTool, DiagnosticsTool } from "../../src/tools/lsp-tools.js";
-import { LspManager } from "../../src/lsp/manager.js";
+import { GetDefinitionTool, DiagnosticsTool } from "@nemesis-oss/nexum-tools/tools/lsp-tools";
+import { LspManager } from "@nemesis-oss/nexum-tools/lsp/manager";
 
 const workspaceRoot = mkdtempSync(join(tmpdir(), "lsp-tools-test-"));
 writeFileSync(join(workspaceRoot, "foo.ts"), "export const x = 1;\n");
