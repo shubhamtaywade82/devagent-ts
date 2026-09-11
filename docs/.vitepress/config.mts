@@ -22,6 +22,7 @@ export default defineConfig({
       { text: "Home", link: "/" },
       { text: "Guide", link: "/guide/getting-started" },
       { text: "Architecture", link: "/guide/architecture" },
+      { text: "Kernel", link: "/guide/kernel" },
       { text: "Tools", link: "/guide/tools" },
       { text: "Benchmarks", link: "/guide/benchmarks" },
       { text: "GitHub", link: "https://github.com/nemesis-oss/nexum" },
@@ -39,6 +40,7 @@ export default defineConfig({
         text: "Core Architecture",
         items: [
           { text: "System Architecture", link: "/guide/architecture" },
+          { text: "Agent Execution Kernel", link: "/guide/kernel" },
           { text: "Capability Router & Escalation", link: "/guide/capability-routing" },
           { text: "DAG Planner & Parallel Execution", link: "/guide/planner" },
           { text: "Docker Sandboxing", link: "/guide/sandboxing" },

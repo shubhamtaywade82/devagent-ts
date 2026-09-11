@@ -41,46 +41,21 @@ import { Verifier } from "../provider/verifier.js";
 import { SelfConsistency } from "../provider/self-consistency.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
+// ── Kernel (agent execution kernel) ───────────────────────────────────
+import { ApprovalBroker, describeConfirmation } from "../kernel/policy/approval-broker.js";
+import { DefaultModelGateway } from "../kernel/models/model-gateway.js";
+import { ModelCapabilityRegistry } from "../kernel/models/model-capability-registry.js";
+import { DefaultAgentRuntime, devAgentDescriptor } from "../kernel/strategies/agent-runtime.js";
+import { createExecutionContext } from "../kernel/execution-context.js";
+import type { ExecutionRequest } from "../kernel/types.js";
+import type { StrategyHooks } from "../kernel/strategies/strategy-hooks.js";
+import { AgentConversationContext } from "./agent-conversation-context.js";
 
-// Confirmation gate for irreversible actions — a UX safety net, not a
-// security boundary (Docker sandboxing already bounds worst-case blast
-// radius for run_shell). Deliberately targets the common, obvious cases
-// rather than trying to be an exhaustive destructive-command detector.
-const DESTRUCTIVE_SHELL_PATTERNS: RegExp[] = [
-  /\brm\s+(-[a-z]*\s+)*-[a-z]*[rf][a-z]*[rf]?[a-z]*(\s|$)/i, // rm -rf / -fr / -r -f, any flag order
-  /\bgit\s+push\b.*(--force\b|-f\b)/i,
-  /\bdrop\s+(table|database|schema)\b/i,
-  /\btruncate\s+table\b/i,
-  /\bmkfs\./i,
-  />\s*\/dev\/sd[a-z]/i,
-  /:\(\)\s*\{\s*:\|:&\s*\}\s*;\s*:/, // fork bomb
-];
-
-function classifyDestructive(name: string, args: Record<string, unknown>): { title: string; summary: string } | null {
-  if (name === "delete_file") {
-    const path = typeof args.path === "string" ? args.path : "(unknown path)";
-    return { title: `Delete ${path}`, summary: `The agent wants to delete "${path}". This cannot be undone.` };
-  }
-  if (name === "run_shell") {
-    const command = typeof args.command === "string" ? args.command : "";
-    if (DESTRUCTIVE_SHELL_PATTERNS.some((p) => p.test(command))) {
-      return { title: "Run destructive shell command", summary: command };
-    }
-  }
-  if (name === "git") {
-    const gitArgs = Array.isArray(args.args) ? (args.args as string[]) : [];
-    if (gitArgs[0] === "push") {
-      return { title: "Push git branch", summary: `The agent wants to run "git ${gitArgs.join(" ")}".` };
-    }
-  }
-  if (name === "github") {
-    const ghArgs = Array.isArray(args.args) ? (args.args as string[]) : [];
-    if (ghArgs[0] === "pr" && ghArgs[1] === "create") {
-      return { title: "Create Pull Request", summary: `The agent wants to run "gh ${ghArgs.join(" ")}".` };
-    }
-  }
-  return null;
-}
+// Confirmation gate for irreversible actions lives in the kernel now
+// (src/kernel/policy/approval-broker.ts): the classification table and the
+// ApprovalBroker are shared across CLI, TUI, API, and future agent products.
+// (UX safety net, not a security boundary — Docker sandboxing already
+// bounds worst-case blast radius for run_shell.)
 
 export interface AgentEvents {
   onAssistantText?: (text: string) => void;
@@ -158,6 +133,18 @@ export class Agent {
   readonly intentResolver = new IntentResolver();
   private readonly pendingClarifications = new Map<string, (resp: ClarificationResponse) => void>();
   projectInfo?: ProjectInfo;
+
+  // ── Kernel (agent execution kernel) ─────────────────────────────────
+  /** Human-in-the-loop resolver — classification table moved to the kernel. */
+  readonly approvalBroker: ApprovalBroker;
+  /** Model gateway over the existing Router/Catalog (kernel port). */
+  readonly modelGateway: DefaultModelGateway;
+  /** Kernel runtime: agent registry + strategy registry + agent gate. */
+  readonly runtime: DefaultAgentRuntime;
+  /** Capability profiles synced from every catalog refresh. */
+  readonly modelProfiles = new ModelCapabilityRegistry();
+  /** Abort signal for the in-flight run (wired to runtime cancellation). */
+  private executionSignal: AbortSignal | null = null;
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
@@ -329,6 +316,21 @@ export class Agent {
         return this.routeWithFallback("quick", messages, { stream: false });
       },
     });
+
+    // ── Kernel wiring: gateways, broker, runtime ────────────────────────
+    this.approvalBroker = new ApprovalBroker(false);
+    // Route broker requests through the existing emit-based approval flow
+    // (deny-by-default when no UI is listening — see requestApproval).
+    this.approvalBroker.setResponder(async (spec) => this.requestApproval(spec.title, spec.summary));
+
+    this.modelGateway = new DefaultModelGateway({
+      router: this.router,
+      catalog: this.catalog,
+      registry: this.modelProfiles,
+    });
+
+    this.runtime = new DefaultAgentRuntime();
+    this.runtime.agents.register(devAgentDescriptor());
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
@@ -476,13 +478,20 @@ export class Agent {
     // see the "recoveredFromError"/verifying logic below.
     let previousTurnHadToolError = false;
 
-    try {
-      for (let toolTurn = 0; toolTurn < this.maxToolTurns; toolTurn++) {
+    // ── Kernel-native execution: the think→act→observe loop itself lives in
+    // the kernel's ReActStrategy now (roadmap step 1, docs/guide/kernel.md).
+    // What remains here is product policy, plugged in through StrategyHooks:
+    // escalation (quick→cloud), buffered verification, dynamic tool
+    // selection, human approvals, and learning telemetry. Behavior parity
+    // with the previously hard-coded loop is the design constraint — the
+    // legacy reasoning is preserved verbatim inside the hooks.
+    const hooks: StrategyHooks = {
+      onTurnStart: (turnInfo) => {
         this.conversation.pruneContext();
-        this.emit("onStatus", `turn ${toolTurn + 1}`);
+        this.emit("onStatus", `turn ${turnInfo.turn + 1}`);
+      },
 
-        const capability: Capability | null = escalated ? escalationHint : "quick";
-
+      selectTools: async () => {
         const activeTools = await this.toolSelector.selectTools(
           userMessage,
           this.conversation.getMessages(),
@@ -501,6 +510,11 @@ export class Agent {
           const delegateTool = this.tools.registry.getTools().find((t) => t.name === "delegate_to_local");
           if (delegateTool) activeTools.push(delegateTool);
         }
+        return activeTools.map((t) => t.schema);
+      },
+
+      callModel: async (turnInfo, opts) => {
+        const capability: Capability | null = escalated ? escalationHint : "quick";
 
         // Buffer the attempt's streamed text instead of emitting it live, so a bad
         // quick-model answer can be discarded and re-run on the primary model
@@ -520,14 +534,14 @@ export class Agent {
         // isn't trustworthy, so there's no cheap fix for that failure mode here;
         // it's an accepted residual risk (see escalate-on-hard-task benchmark
         // case in src/benchmark/cases-agentic.ts, which stays red on purpose).
-        const verifyingLookup = requiresToolEvidence && toolTurn === 0 && !escalated;
+        const verifyingLookup = requiresToolEvidence && turnInfo.turn === 0 && !escalated;
         const verifyingRecovery = !escalated && previousTurnHadToolError;
         previousTurnHadToolError = false;
         const verifying = verifyingLookup || verifyingRecovery;
         let buffered: string[] | null = verifying ? [] : null;
-        const makeChatOpts = () => ({
+        const makeChatOpts = (): ChatOptions => ({
           stream: true,
-          tools: activeTools.length > 0 ? activeTools.map((t) => t.schema) : undefined,
+          tools: opts.tools as ChatOptions["tools"],
           onChunk: (chunk: ChatResponse) => {
             const delta = chunk.message?.content;
             if (typeof delta === "string" && delta) {
@@ -546,7 +560,6 @@ export class Agent {
           },
         });
         let chatOpts = makeChatOpts();
-        const turnStart = Date.now();
         let chatResponse = capability
           ? await this.routeWithFallback(capability, this.conversation.getMessages(), chatOpts)
           : await this.provider.chat(this.conversation.getMessages(), chatOpts);
@@ -568,10 +581,6 @@ export class Agent {
           buffered = null;
           chatOpts = makeChatOpts();
           chatResponse = await this.provider.chat(this.conversation.getMessages(), chatOpts);
-          assistantMessage = chatResponse.message as {
-            content?: string;
-            tool_calls?: Array<{ function: { name: string; arguments: any } }>;
-          };
         } else if (buffered) {
           for (const delta of buffered) {
             lastAssistantText += delta;
@@ -579,131 +588,163 @@ export class Agent {
           }
         }
 
+        return chatResponse;
+      },
+
+      onModelUsed: ({ response, elapsedMs }) => {
         // Router.route can silently widen its candidate pool past whatever
         // capability was requested (e.g. "quick" resolving to a cloud model
         // when no local model reports tool support) — routedTier/routedModel
         // reflect what actually answered; the direct this.provider.chat path
         // (capability null) has no Router involved, so fall back to the
         // provider's own current tier/model there.
-        const routedTier = (chatResponse.routedTier as string | undefined) ?? this.provider.currentTier;
-        const routedModel = (chatResponse.routedModel as string | undefined) ?? this.provider.currentModel;
+        const routedTier = (response.routedTier as string | undefined) ?? this.provider.currentTier;
+        const routedModel = (response.routedModel as string | undefined) ?? this.provider.currentModel;
         this.emit("onModelUsed", routedTier, routedModel);
+        this.emitUsage(response, elapsedMs);
+      },
 
-        this.emitUsage(chatResponse, Date.now() - turnStart);
-        this.conversation.pushAssistantMessage(assistantMessage.content ?? "", assistantMessage.tool_calls);
+      prepareToolCall: (call) => {
+        const name = call.name;
+        const rawArguments = call.rawArguments;
+        let args: Record<string, unknown> = {};
+        let parseError: string | null = null;
 
-        const toolCalls = assistantMessage.tool_calls ?? [];
-        const hasContent = (assistantMessage.content ?? "").trim().length > 0;
-
-        if (!toolCalls.length) {
-          if (hasContent) {
-            this.learning.appendMessage("assistant", lastAssistantText);
-            this.triggerSummarization();
-            return finish("answered", lastAssistantText);
-          }
-          if (toolTurn < this.maxToolTurns - 1) {
-            this.conversation.pushSystemMessage(
-              "[system] You were thinking but produced no action or response. Please continue toward the goal: call a tool or provide your final answer now.",
-            );
-            continue;
-          }
-          return finish("answered", lastAssistantText || "(no response)");
-        }
-
-        for (const toolCall of toolCalls) {
-          const name = toolCall.function.name;
-          const rawArguments = toolCall.function.arguments;
-          let args: Record<string, unknown> = {};
-          let parseError: string | null = null;
-
-          if (typeof rawArguments === "object" && rawArguments !== null) {
-            args = rawArguments as Record<string, unknown>;
-          } else if (typeof rawArguments === "string" && rawArguments) {
-            try {
-              args = JSON.parse(rawArguments);
-            } catch (err) {
-              parseError = err instanceof Error ? err.message : String(err);
-              const parts = rawArguments.split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
-              args = parts as unknown as Record<string, unknown>;
-            }
-          }
-
-          if (parseError) {
-            this.conversation.pushSystemMessage(
-              `[system] Argument parsing error for tool "${name}": ${parseError}. Ensure JSON arguments match the tool schema.`,
-            );
-          }
-
-          this.emit("onToolCall", name, args);
-
-          const destructive = classifyDestructive(name, args);
-          if (destructive && !(await this.requestApproval(destructive.title, destructive.summary))) {
-            const rejected = { error: "ApprovalRejected", message: "The user rejected this action." };
-            this.conversation.pushToolResult(JSON.stringify(rejected, null, 2));
-            this.emit("onToolResult", name, rejected);
-            previousTurnHadToolError = true;
-            continue;
-          }
-
+        if (typeof rawArguments === "object" && rawArguments !== null) {
+          args = rawArguments as Record<string, unknown>;
+        } else if (typeof rawArguments === "string" && rawArguments) {
           try {
-            const result = await this.tools.registry.invoke(name, args);
-
-            if (result.error === "PathEscapeError") {
-              this.conversation.pushToolResult(
-                JSON.stringify({ error: "PathEscapeError", message: result.message }, null, 2),
-              );
-              this.emit("onToolResult", name, result);
-              this.conversation.pushSystemMessage(
-                "[system] The previous tool call escaped the workspace root. Retry with a path under the current workspace root.",
-              );
-              previousTurnHadToolError = true;
-
-              if (typeof result.error === "string" && this.loopDetector.record(name, args, result.error)) {
-                return finish(
-                  "loop_abort",
-                  lastAssistantText + "\n[aborted] tool loop detected after repeated escapes.",
-                );
-              }
-              continue;
-            }
-
-            this.emit("onToolResult", name, result);
-            this.intelligence.feedRailsIndex(name, args, result);
-            this.conversation.pushToolResult(typeof result === "string" ? result : JSON.stringify(result, null, 2));
-
-            if (name === "escalate_task" && result.escalate === true) {
-              escalated = true;
-              injectDelegationAddendum();
-              this.emit("onStatus", `escalating to ${escalationHint ?? "the primary model"}: ${result.reason}`);
-            }
-
-            if (typeof result.error === "string") {
-              previousTurnHadToolError = true;
-              if (this.loopDetector.record(name, args, result.error)) {
-                return finish(
-                  "loop_abort",
-                  lastAssistantText + "\n[aborted] tool loop detected after repeated: " + name,
-                );
-              }
-            }
-            if (toolTurn === this.maxToolTurns - 1) {
-              return finish("turn_budget", lastAssistantText || "(no response)");
-            }
-          } catch (e) {
-            const err = e as Error;
-            this.emit("onError", err);
-            this.conversation.pushToolResult(
-              JSON.stringify({ error: err.constructor.name, message: err.message }, null, 2),
-            );
-            this.conversation.pushSystemMessage(
-              `[system] Tool execution for "${name}" failed: ${err.message}. Analyze the error and adjust your parameters or approach.`,
-            );
-            previousTurnHadToolError = true;
+            args = JSON.parse(rawArguments);
+          } catch (err) {
+            parseError = err instanceof Error ? err.message : String(err);
+            const parts = rawArguments.split(",").map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
+            args = parts as unknown as Record<string, unknown>;
           }
         }
+
+        if (parseError) {
+          return {
+            args,
+            guidance: `[system] Argument parsing error for tool "${name}": ${parseError}. Ensure JSON arguments match the tool schema.`,
+          };
+        }
+        return { args };
+      },
+
+      beforeToolCall: async (call) => {
+        this.emit("onToolCall", call.name, call.args);
+        return true;
+      },
+
+      // Confirmation decisions originate in the gateway's policy engine
+      // (parity posture: destructive shell, git push / PR creation, file
+      // deletion, financial tools). This hook resolves them through the
+      // existing emit-based approval UX — same titles, same deny-on-no-
+      // listener default, same AUTO_APPROVE bypass — via describeConfirmation.
+      resolveConfirmation: async ({ name, args, reason }) => {
+        const spec = describeConfirmation(name, args, reason);
+        return this.requestApproval(spec.title, spec.summary);
+      },
+
+      onToolObserved: (obs) => {
+        const { name, args, result } = obs;
+        const data = result.data;
+        const record = typeof data === "object" && data !== null ? (data as Record<string, unknown>) : {};
+
+        if (record.error === "PathEscapeError") {
+          this.conversation.pushToolResult(
+            JSON.stringify({ error: "PathEscapeError", message: record.message }, null, 2),
+          );
+          this.emit("onToolResult", name, record);
+          this.conversation.pushSystemMessage(
+            "[system] The previous tool call escaped the workspace root. Retry with a path under the current workspace root.",
+          );
+          previousTurnHadToolError = true;
+
+          if (this.loopDetector.record(name, args, "PathEscapeError")) {
+            return {
+              abortRun: true,
+              terminal: "loop_abort",
+              output: `${lastAssistantText}\n[aborted] tool loop detected after repeated escapes.`,
+            };
+          }
+          return;
+        }
+
+        this.emit("onToolResult", name, record);
+        this.intelligence.feedRailsIndex(name, args, record);
+        this.conversation.pushToolResult(typeof data === "string" ? data : JSON.stringify(data, null, 2));
+
+        if (name === "escalate_task" && record.escalate === true) {
+          escalated = true;
+          injectDelegationAddendum();
+          this.emit("onStatus", `escalating to ${escalationHint ?? "the primary model"}: ${record.reason}`);
+        }
+
+        if (typeof record.error === "string") {
+          previousTurnHadToolError = true;
+          if (this.loopDetector.record(name, args, record.error)) {
+            return {
+              abortRun: true,
+              terminal: "loop_abort",
+              output: `${lastAssistantText}\n[aborted] tool loop detected after repeated: ${name}`,
+            };
+          }
+        }
+      },
+
+      onToolFailed: ({ error }) => {
+        this.emit("onError", error);
+        previousTurnHadToolError = true;
+      },
+
+      finalAnswer: () => lastAssistantText,
+    };
+
+    // One kernel run per user message: the runtime applies the agent
+    // concurrency gate, tracks the run for cancellation, and resolves the
+    // strategy. The conversation is adapted onto the kernel's ContextManager
+    // port, so the strategy reads/writes the exact same transcript.
+    // NOTE: task.input stays unset on purpose — the preamble above already
+    // pushed the user message (pushUserMessage keeps pruneContext's
+    // current-turn bookkeeping), and a strategy-side re-push would duplicate
+    // it and skew history-window heuristics (e.g. the tool selector's
+    // last-3-message lookback).
+    const request: ExecutionRequest = {
+      agentId: "devagent",
+      task: { goal: userMessage },
+      strategy: "react",
+      unattended: this.autoApprove,
+    };
+    const context = createExecutionContext(request, {
+      runId: this.currentSessionId,
+      sessionId: this.currentSessionId,
+      signal: this.executionSignal ?? undefined,
+      context: new AgentConversationContext(this.conversation),
+      modelGateway: this.modelGateway,
+      toolGateway: this.tools.gateway,
+    });
+
+    try {
+      const result = await this.runtime.execute(request, context, {
+        hooks,
+        maxToolTurns: this.maxToolTurns,
+      });
+
+      if (result.status !== "completed") {
+        success = false;
+        finish("error", result.output);
+        const original = result.metadata?.error;
+        throw original instanceof Error ? original : new Error(result.error ?? `execution ${result.status}`);
       }
 
-      return finish("turn_budget", lastAssistantText || "(tool budget exceeded)");
+      const terminal = (result.metadata?.terminal as string | undefined) ?? "answered";
+      const output = result.output;
+      if (terminal === "answered") {
+        this.learning.appendMessage("assistant", output);
+        this.triggerSummarization();
+      }
+      return finish(terminal as Parameters<typeof finish>[0], output);
     } catch (e) {
       success = false;
       finish("error", lastAssistantText);
@@ -726,10 +767,17 @@ export class Agent {
   }
 
   async runPlannedTask(steps: PlanStep[], planner: Planner): Promise<PlanStep[]> {
+    // Control plane promoted onto the kernel ports: the plan's concurrency
+    // gate is acquired from the runtime's GateRegistry (observable via gate
+    // snapshots), and the run-scope abort signal cancels the plan loop
+    // cooperatively — no new steps start, in-flight steps unwind, and the
+    // checkpoint is kept so the plan can be resumed.
     const orchestrator = new Orchestrator({
       steps,
       runner: new AgentStepRunner(this),
       planner,
+      gates: this.runtime.gates,
+      signal: this.executionSignal ?? undefined,
       runRollback: async (command: string) => {
         await this.runUserMessage(`Roll back by running exactly this: ${command}`);
       },
@@ -752,6 +800,8 @@ export class Agent {
       steps: sanitizeResumedSteps(saved.steps),
       runner: new AgentStepRunner(this),
       planner,
+      gates: this.runtime.gates,
+      signal: this.executionSignal ?? undefined,
       runRollback: async (command: string) => {
         await this.runUserMessage(`Roll back by running exactly this: ${command}`);
       },
@@ -922,6 +972,10 @@ export class Agent {
       .refresh()
       .then(() => {
         this.catalogRefreshedAt = Date.now();
+        // Keep the kernel's capability registry in lockstep with the legacy
+        // catalog: profiles gain numeric scores/constraints/cost dimensions
+        // the Router can route from as the kernel-native path matures.
+        this.modelProfiles.syncFromLegacy(this.catalog.all());
       })
       .finally(() => {
         this.catalogRefreshed = null;
@@ -1106,6 +1160,48 @@ export class Agent {
   getRegistry() {
     return this.tools.registry;
   }
+
+  /**
+   * Kernel view of this agent: the runtime (agent + strategy registries),
+   * the model gateway, the tool gateway, and the approval broker. Products
+   * embedding the Agent programmatically should prefer this over reaching
+   * into the individual subsystems.
+   */
+  getKernel() {
+    return {
+      runtime: this.runtime,
+      modelGateway: this.modelGateway,
+      toolGateway: this.tools.gateway,
+      toolCatalog: this.tools.kernelCatalog,
+      approvalBroker: this.approvalBroker,
+      mountedPacks: [...this.tools.mountedPacks.keys()],
+    };
+  }
+
+  /** Opens a run scope: a run id + an abort signal wired into every
+   * gateway-supervised tool call issued during this scope. */
+  startExecutionRun(): string {
+    this.endExecutionRun();
+    const controller = new AbortController();
+    this.currentRunController = controller;
+    this.executionSignal = controller.signal;
+    return `run_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /** Cancels the in-flight run scope: supervised tool calls observe the
+   * abort and unwinds as cancelled (never a hard kill). */
+  cancelExecutionRun(): boolean {
+    if (!this.currentRunController) return false;
+    this.currentRunController.abort();
+    return true;
+  }
+
+  endExecutionRun(): void {
+    this.currentRunController = null;
+    this.executionSignal = null;
+  }
+
+  private currentRunController: AbortController | null = null;
 
   async registerMcpServer(command: string, args: string[] = []): Promise<void> {
     await this.tools.registerMcpServer(command, args);

@@ -25,3 +25,23 @@ export function pathWithinAllowedPrefix(path: string, prefix: string): boolean {
   const boundary = prefix.endsWith("/") ? prefix : `${prefix}/`;
   return path.startsWith(boundary);
 }
+
+/**
+ * The scope-violation verdict shared by EVERY runtime that turns model output
+ * into proposed edits — legacy (NexumEngineeringAgentRuntime) and kernel
+ * (KernelEvolutionAgentRuntime) alike. Single source so the queue-time check
+ * and the fail-closed re-audit can never drift apart:
+ *
+ *   null  → path is a legal relative repo path under an allowed prefix
+ *   string → human-readable violation (also fed back to the model)
+ */
+export function mutationScopeViolation(path: string, allowedPaths: readonly string[]): string | null {
+  const normalized = path.split("\\").join("/");
+  if (!normalized || normalized.startsWith("/") || normalized.includes("..")) {
+    return "path must be a relative repo path without traversal";
+  }
+  if (!allowedPaths.some((prefix) => pathWithinAllowedPrefix(normalized, prefix))) {
+    return `not under any allowed prefix (${allowedPaths.join(", ")})`;
+  }
+  return null;
+}

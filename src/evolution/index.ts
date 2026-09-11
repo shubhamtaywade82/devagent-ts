@@ -43,6 +43,7 @@ export * from "./mutation/mutation-scope.js";
 export * from "./mutation/mutation-executor.js";
 export * from "./mutation/agent-mutation.js";
 export * from "./mutation/nexum-agent-runtime.js";
+export * from "./mutation/kernel-agent-runtime.js";
 export * from "./mutation/path-scope.js";
 export * from "./mutation/verification-profile.js";
 export * from "./delivery/github-adapter.js";

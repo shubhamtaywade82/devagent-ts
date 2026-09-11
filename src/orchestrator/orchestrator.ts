@@ -1,6 +1,40 @@
+/**
+ * Orchestrator — the Control Plane's plan executor.
+ *
+ * Sits ABOVE the kernel (docs/guide/kernel.md layering): it schedules a DAG
+ * of PlanSteps, delegates each step through the StepRunner port, and owns
+ * the ASL step state machine, retry/replan budgets, rollback, and
+ * checkpoint/resume. It never touches tools, models, or domains — step
+ * execution is fully delegated (AgentStepRunner for product turns,
+ * RuntimeStepRunner for kernel runs).
+ *
+ * Kernel ports it consumes (the "promotion" of the control plane):
+ *   - GateRegistry  — the plan's concurrency gate is acquired from the same
+ *     layered registry the kernel uses (scope "global", key
+ *     "control-plane"), so plan-level parallelism shows up in gate
+ *     snapshots and obeys one concurrency model.
+ *   - EventSink     — every step transition is published as a `mission.step`
+ *     RuntimeEvent (execution family) so headless consumers and the TUI can
+ *     subscribe through the kernel's event stream, alongside the legacy
+ *     onStepChange callback.
+ *   - AbortSignal   — cooperative cancellation: on abort no new steps are
+ *     scheduled, in-flight steps unwind through their own signals, every
+ *     non-terminal step is marked cancelled, and neither replan nor
+ *     rollback runs. The checkpoint is deliberately kept so the plan can be
+ *     resumed (Agent.resumePlannedTask).
+ *
+ * Signal contract with the StepRunner: the orchestrator checks the signal
+ * between batches and inside runStep, but in-flight step unwinding is the
+ * runner's responsibility — embeddings thread the same signal into their
+ * kernel runs (createExecutionContext's `signal` option) or product turns
+ * (Agent's run scope).
+ */
+
 import { PlanStep, StepRunner, Planner, HistoryEntry, StepStatus } from "./types.js";
 import { CheckpointStore } from "../runtime/checkpoint.js";
 import { ConcurrencyGate } from "../runtime/concurrency-gate.js";
+import type { GateRegistry } from "../kernel/concurrency/gate-registry.js";
+import type { EventSink } from "../kernel/types.js";
 
 export class OrchestratorError extends Error {}
 
@@ -34,6 +68,15 @@ export interface OrchestratorOptions {
   maxReplans?: number;
   concurrencyLimit?: number;
   gate?: ConcurrencyGate;
+  /** Kernel gate registry — the plan gate is derived as
+   * `global:control-plane` (with `concurrencyLimit` as its ceiling) when no
+   * explicit gate is supplied. Takes precedence order: `gate` > `gates` >
+   * standalone gate. */
+  gates?: GateRegistry;
+  /** Cooperative cancellation (see class doc for the exact semantics). */
+  signal?: AbortSignal;
+  /** Kernel event sink — publishes `mission.step` on every transition. */
+  events?: EventSink;
   logger?: Pick<Console, "info" | "warn" | "error">;
   onStepChange?: (step: PlanStep) => void;
   checkpoint?: CheckpointStore;
@@ -53,6 +96,8 @@ export class Orchestrator {
   private readonly maxRetries: number;
   private readonly maxReplans: number;
   private readonly gate: ConcurrencyGate;
+  private readonly signal?: AbortSignal;
+  private readonly events?: EventSink;
   private readonly logger: Pick<Console, "info" | "warn" | "error">;
   private readonly executedOrder: PlanStep[] = [];
   private readonly history: HistoryEntry[];
@@ -67,7 +112,12 @@ export class Orchestrator {
     this.runRollback = opts.runRollback;
     this.maxRetries = opts.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.maxReplans = opts.maxReplans ?? DEFAULT_MAX_REPLANS;
-    this.gate = opts.gate ?? new ConcurrencyGate({ maxConcurrent: opts.concurrencyLimit ?? 4, label: "orchestrator" });
+    this.gate =
+      opts.gate ??
+      opts.gates?.gate("global", "control-plane", { maxConcurrent: opts.concurrencyLimit ?? 4 }) ??
+      new ConcurrencyGate({ maxConcurrent: opts.concurrencyLimit ?? 4, label: "orchestrator" });
+    this.signal = opts.signal;
+    this.events = opts.events;
     this.logger = opts.logger ?? console;
     this.onStepChange = opts.onStepChange;
     this.checkpoint = opts.checkpoint;
@@ -87,6 +137,13 @@ export class Orchestrator {
     let order = this.topologicalOrder();
 
     for (;;) {
+      // Abort before scheduling anything new: no fresh step may start once
+      // the operator has cancelled the plan.
+      if (this.signal?.aborted) {
+        this.cancelRemaining();
+        break;
+      }
+
       // All steps whose dependencies are already satisfied run concurrently —
       // bounded by the ConcurrencyGate so independent steps don't overwhelm resources.
       const ready = order.filter((s) => s.status === "pending" && this.dependenciesSatisfied(s));
@@ -95,6 +152,15 @@ export class Orchestrator {
       const results = await Promise.all(
         ready.map((s) => this.gate.run(() => this.runStep(s), s.priority === "critical" ? "critical" : "normal")),
       );
+
+      // Abort after the in-flight batch unwound: whatever is left pending is
+      // cancelled, no replan, no rollback (runStep already declined to fail
+      // steps whose runs were cut short by the abort).
+      if (this.signal?.aborted) {
+        this.cancelRemaining();
+        break;
+      }
+
       const replanNeeded = results.some(Boolean);
       if (!replanNeeded) continue;
 
@@ -109,12 +175,27 @@ export class Orchestrator {
       order = this.topologicalOrder();
     }
 
-    if ([...this.steps.values()].some((s) => s.status === "failed")) {
+    // Rollback is a failure-handling path, not a cancellation path: on abort
+    // the operator owns cleanup, and the checkpoint preserves the plan for
+    // resume. (The rollback command runs as a user message, which would
+    // itself be aborted — it could not do useful work anyway.)
+    if (!this.signal?.aborted && [...this.steps.values()].some((s) => s.status === "failed")) {
       await this.rollbackAll();
     }
 
-    this.checkpoint?.clear();
+    if (!this.signal?.aborted) this.checkpoint?.clear();
     return [...this.steps.values()];
+  }
+
+  /** Marks every non-terminal step cancelled (invalid transitions no-op via
+   * transitionStatus) and logs the unwind. */
+  private cancelRemaining(): void {
+    const terminal: ReadonlySet<StepStatus> = new Set(["completed", "failed", "skipped", "cancelled", "rolledback"]);
+    for (const step of this.steps.values()) {
+      if (terminal.has(step.status)) continue;
+      this.transitionStatus(step, "cancelled");
+    }
+    this.logger.warn("[Orchestrator] abort requested — remaining steps cancelled (checkpoint kept for resume)");
   }
 
   private dependenciesSatisfied(step: PlanStep): boolean {
@@ -132,15 +213,36 @@ export class Orchestrator {
     }
     step.status = to;
     this.onStepChange?.(step);
+    // Kernel event stream: a shallow copy so listeners holding the event do
+    // not observe later in-place mutations of the PlanStep.
+    this.events?.publish({ type: "mission.step", step: { ...step } });
     this.saveCheckpoint();
   }
 
   private async runStep(step: PlanStep): Promise<boolean> {
+    // The abort may land while this step sat queued at the concurrency gate;
+    // it must not start (transition to cancelled happens in cancelRemaining,
+    // but the gate lease may already be held — bail before any transition).
+    if (this.signal?.aborted) return false;
+
     this.transitionStatus(step, "analyzing");
     this.transitionStatus(step, "planning");
     this.transitionStatus(step, "implementing");
 
     const outcome = await this.runner.run(step);
+
+    // A step whose run was cut short by the abort is cancelled, not failed:
+    // it must not cascade to dependents as skipped, must not trigger a
+    // replan, and must not join the rollback set. A step that actually
+    // finished successfully before the abort landed is completed — the work
+    // was done; only further scheduling stops. Its outcome still lands in
+    // the history below so a resumed plan's replanner sees it.
+    if (this.signal?.aborted && outcome.kind !== "success") {
+      this.history.push({ stepId: step.id, outcome, at: Date.now() });
+      this.transitionStatus(step, "cancelled");
+      return false;
+    }
+
     this.history.push({ stepId: step.id, outcome, at: Date.now() });
 
     if (outcome.kind === "success") {
