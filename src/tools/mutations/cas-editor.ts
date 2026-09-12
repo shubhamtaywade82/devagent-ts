@@ -120,11 +120,7 @@ export class CasEditor {
    * content; `expectedHash` pins the version the diff was generated
    * against.
    */
-  async applyUnifiedDiff(
-    relativePath: string,
-    expectedHash: string,
-    patch: string,
-  ): Promise<MutationResult> {
+  async applyUnifiedDiff(relativePath: string, expectedHash: string, patch: string): Promise<MutationResult> {
     const { absolute, content } = await this.readIfCurrent(relativePath, expectedHash);
     const nextContent = applyUnifiedDiffToContent(content, patch, relativePath);
     if (nextContent === content) {
@@ -144,11 +140,7 @@ export class CasEditor {
    * Replace whole-file content with CAS (the write primitive used by
    * write_file when it wants version safety).
    */
-  async writeContent(
-    relativePath: string,
-    expectedHash: string | null,
-    nextContent: string,
-  ): Promise<MutationResult> {
+  async writeContent(relativePath: string, expectedHash: string | null, nextContent: string): Promise<MutationResult> {
     const absolute = this.opts.guard.requireAllowed("write", relativePath);
     let current = "";
     if (expectedHash !== null) {
@@ -294,12 +286,7 @@ function parseUnifiedDiff(patch: string): ParsedHunk[] {
   return hunks;
 }
 
-function findHunkAnchor(
-  content: string[],
-  hunk: ParsedHunk,
-  from: number,
-  to: number,
-): number {
+function findHunkAnchor(content: string[], hunk: ParsedHunk, from: number, to: number): number {
   // match the first context line (or first removed line when no context)
   const probeLen = Math.max(1, hunk.context.length);
   for (let i = Math.max(0, from); i < Math.min(content.length, to + probeLen); i++) {

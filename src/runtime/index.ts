@@ -72,7 +72,14 @@ export * from "./persistence/index.js";
 
 // State plane (store, sessions, checkpoints, task machine)
 export { EventBus } from "./events/bus.js";
-export { Store, sanitizeText, initialRuntimeState, reduce, type InitialStateOptions, type StoreListener } from "./store.js";
+export {
+  Store,
+  sanitizeText,
+  initialRuntimeState,
+  reduce,
+  type InitialStateOptions,
+  type StoreListener,
+} from "./store.js";
 export { applyTaskTransition, canTransition, readyTasks } from "./task-machine.js";
 export { SessionStore, type SessionMeta } from "./session.js";
 export { CheckpointStore, sanitizeResumedSteps, type CheckpointData } from "./checkpoint.js";

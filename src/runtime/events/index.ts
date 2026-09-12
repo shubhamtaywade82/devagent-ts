@@ -10,14 +10,7 @@
  * correlation contracts come from core/events/envelope.ts.
  */
 
-export type {
-  ExecutionEvent,
-  DomainEvent,
-  StateEvent,
-  PresentationEvent,
-  RuntimeEvent,
-  EventListener,
-} from "./bus.js";
+export type { ExecutionEvent, DomainEvent, StateEvent, PresentationEvent, RuntimeEvent, EventListener } from "./bus.js";
 export { EventBus } from "./bus.js";
 export type { EventEnvelope, PersistedEventRecord } from "../../core/events/envelope.js";
 export {

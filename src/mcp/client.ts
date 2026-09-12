@@ -33,6 +33,11 @@ export async function connectMcpServer(command: string, args: string[] = []): Pr
   );
 }
 
-export { connectMcpServerV2, type McpTransportDescriptor, type McpServerConnection, type McpDiscoveredTool } from "./adapter/mcp-client-factory.js";
+export {
+  connectMcpServerV2,
+  type McpTransportDescriptor,
+  type McpServerConnection,
+  type McpDiscoveredTool,
+} from "./adapter/mcp-client-factory.js";
 export { McpToolAdapter, type McpClientLike, type McpToolDescriptor } from "./adapter/mcp-tool-adapter.js";
 export { mcpSecurityMetadata, type McpSecurityOverride } from "./adapter/security-metadata.js";

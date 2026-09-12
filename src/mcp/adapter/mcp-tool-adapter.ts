@@ -118,10 +118,7 @@ async function raceAbort<T>(
   if (timeoutMs && timeoutMs > 0) {
     racers.push(
       new Promise<T>((_, reject) => {
-        const t = setTimeout(
-          () => reject(new Error(`MCP tool "${""}" timed out after ${timeoutMs}ms`)),
-          timeoutMs,
-        );
+        const t = setTimeout(() => reject(new Error(`MCP tool "${""}" timed out after ${timeoutMs}ms`)), timeoutMs);
         if (typeof t.unref === "function") t.unref();
       }),
     );

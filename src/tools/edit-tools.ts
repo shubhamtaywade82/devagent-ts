@@ -68,8 +68,6 @@ export class AppendTool extends Tool {
 // ── CAS-based editing primitives (review items 10 + 11) ─────────────────────
 
 import { CasEditor, contentHash, ExpectedHashMismatchError } from "./mutations/cas-editor.js";
-import { WorkspaceGuard } from "../core/fs/workspace-guard.js";
-import type { ToolCallContext } from "../core/tools/tool-contract.js";
 
 /**
  * apply_patch — the PRIMARY editing primitive (review item 11): applies a
@@ -176,7 +174,10 @@ export class EditFileLinesTool extends Tool {
     const expectedHash = args.expected_hash as string;
     const dryRun = args.dry_run === true;
     if (!Number.isInteger(from) || !Number.isInteger(to) || from < 1 || to < from) {
-      return { error: "ValidationError", message: "from_line/to_line must be 1-based integers with to_line >= from_line" };
+      return {
+        error: "ValidationError",
+        message: "from_line/to_line must be 1-based integers with to_line >= from_line",
+      };
     }
     try {
       const result = await this.editor.editLines(path, expectedHash, (lines) => {

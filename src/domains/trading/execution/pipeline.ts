@@ -98,10 +98,7 @@ export class TradingExecutionPipeline {
    * ExecutionRecord — rejected proposals included — so the audit trail is
    * complete even when nothing executed.
    */
-  async submit(
-    proposal: TradingProposal,
-    portfolio: PortfolioSnapshot,
-  ): Promise<ExecutionRecord> {
+  async submit(proposal: TradingProposal, portfolio: PortfolioSnapshot): Promise<ExecutionRecord> {
     // stage 2: deterministic validation
     const validation = validateProposal(proposal);
     if (!validation.valid || !validation.normalized) {

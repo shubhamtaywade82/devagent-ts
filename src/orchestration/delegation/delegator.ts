@@ -136,7 +136,11 @@ export class Delegator {
   constructor(private readonly opts: DelegatorOptions) {}
 
   /** Decide (without executing) whether a delegation is permitted + who serves it. */
-  review(parent: ExecutionContext, request: DelegationRequest, policy: DelegationPolicy = {}): DelegationPolicyDecision {
+  review(
+    parent: ExecutionContext,
+    request: DelegationRequest,
+    policy: DelegationPolicy = {},
+  ): DelegationPolicyDecision {
     const maxTotal = policy.maxTotalChildren ?? 8;
     if (this.totalChildren >= maxTotal) {
       return { allowed: false, reason: `delegation budget exhausted (${this.totalChildren}/${maxTotal} children)` };

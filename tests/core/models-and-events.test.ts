@@ -85,7 +85,9 @@ describe("event families", () => {
     expect(familyOf({ type: "rails.index", status: "ready" } as RuntimeEvent)).toBe("domain");
     expect(familyOf({ type: "notification", text: "x", kind: "info" } as RuntimeEvent)).toBe("presentation");
     // execution acts stay execution even though they also appear in the transcript
-    expect(familyOf({ type: "conversation.tool_call", id: "1", name: "ls", args: {}, status: "running" } as RuntimeEvent)).toBe("execution");
+    expect(
+      familyOf({ type: "conversation.tool_call", id: "1", name: "ls", args: {}, status: "running" } as RuntimeEvent),
+    ).toBe("execution");
     // usage/context are state projections, not execution acts
     expect(familyOf({ type: "usage.changed", promptTokens: 1, completionTokens: 1 } as RuntimeEvent)).toBe("state");
     expect(familyOf({ type: "model.answered", tier: "local", model: "m" } as RuntimeEvent)).toBe("execution");

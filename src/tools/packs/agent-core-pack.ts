@@ -3,7 +3,6 @@
  * delegation, user clarification.
  */
 
-import { Tool } from "../tool.js";
 import { EscalateTaskTool } from "../escalate-tool.js";
 import { DelegateToLocalTool } from "../delegate-tool.js";
 import type { LocalWorker } from "../../models/local-worker.js";

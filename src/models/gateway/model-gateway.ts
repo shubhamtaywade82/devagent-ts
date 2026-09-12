@@ -123,7 +123,12 @@ export class DefaultModelGateway implements ModelGateway {
     // cloud-aware consumption when the run carries a BudgetManager
     // (review item 14: cloud calls + cloud spend are their own dimensions)
     if (this.budget instanceof BudgetManager) {
-      this.budget.consumeModelCall({ promptTokens, completionTokens, costUsd: cost, cloud: response.routedTier === "cloud" });
+      this.budget.consumeModelCall({
+        promptTokens,
+        completionTokens,
+        costUsd: cost,
+        cloud: response.routedTier === "cloud",
+      });
     } else {
       this.budget.consumeModelCall({ promptTokens, completionTokens, costUsd: cost });
     }

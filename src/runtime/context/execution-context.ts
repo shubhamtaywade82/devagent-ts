@@ -174,9 +174,7 @@ export function childExecutionContext(
   const parentManager = parent.budget instanceof BudgetManager ? parent.budget : undefined;
   const budget =
     opts.budgetManager ??
-    (parentManager
-      ? parentManager.deriveChild({ runId })
-      : new BudgetTracker({ runId, sessionId: parent.sessionId }));
+    (parentManager ? parentManager.deriveChild({ runId }) : new BudgetTracker({ runId, sessionId: parent.sessionId }));
 
   return {
     runId,

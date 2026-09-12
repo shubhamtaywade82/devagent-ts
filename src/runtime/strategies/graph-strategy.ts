@@ -151,9 +151,9 @@ export class GraphStrategy implements ExecutionStrategy {
       ctx.events.publish({
         type: "execution.goal",
         goal: ctx.task.goal,
-        steps: graph.all().map(
-          (n): ExecutionStep => ({ id: n.id, description: n.goal.slice(0, 80), status: "pending" }),
-        ),
+        steps: graph
+          .all()
+          .map((n): ExecutionStep => ({ id: n.id, description: n.goal.slice(0, 80), status: "pending" })),
       });
 
       // ── Phase 2: execute the graph (dependency-aware parallelism) ──────
@@ -172,9 +172,7 @@ export class GraphStrategy implements ExecutionStrategy {
 
       await scheduler.drain(async (node) => {
         // one parallel slot per in-flight node when the budget tracks them
-        const releaseSlot = budgetParallel
-          ? (ctx.budget as BudgetManager).acquireParallelSlot()
-          : undefined;
+        const releaseSlot = budgetParallel ? (ctx.budget as BudgetManager).acquireParallelSlot() : undefined;
         try {
           ctx.events.publish({
             type: "execution.step",
@@ -221,7 +219,8 @@ export class GraphStrategy implements ExecutionStrategy {
       if (ctx.signal.aborted) throw new DOMException("run cancelled", "AbortError");
 
       const summary = graph.summary();
-      const header = `graph complete: ${summary.completed}/${summary.total} tasks succeeded` +
+      const header =
+        `graph complete: ${summary.completed}/${summary.total} tasks succeeded` +
         (summary.skipped ? `, ${summary.skipped} skipped` : "") +
         (summary.blocked ? `, ${summary.blocked} blocked` : "");
       const body = outputs.join("\n");

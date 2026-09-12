@@ -10,7 +10,7 @@
  */
 
 import { spawn } from "node:child_process";
-import { appendFileSync, existsSync, mkdirSync, writeFileSync, renameSync } from "node:fs";
+import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 export interface ShellExecutionRecord {
@@ -65,7 +65,9 @@ export class ShellExecutionAccountant {
    * ShellTool updates bytes/exit/duration as data arrives, and
    * `complete()` persists it.
    */
-  begin(exec: Omit<ShellExecutionRecord, "samples" | "stdoutBytes" | "stderrBytes" | "startedAt"> & { startedAt?: number }): ShellExecutionRecord {
+  begin(
+    exec: Omit<ShellExecutionRecord, "samples" | "stdoutBytes" | "stderrBytes" | "startedAt"> & { startedAt?: number },
+  ): ShellExecutionRecord {
     const record: ShellExecutionRecord = {
       ...exec,
       startedAt: exec.startedAt ?? Date.now(),
@@ -175,9 +177,17 @@ export class ShellExecutionAccountant {
 }
 
 /** One `docker stats --no-stream <container>` sample (best-effort). */
-export function dockerStats(container: string): Promise<{ cpuPercent?: string; memUsage?: string; memBytes?: number; pids?: number } | null> {
+export function dockerStats(
+  container: string,
+): Promise<{ cpuPercent?: string; memUsage?: string; memBytes?: number; pids?: number } | null> {
   return new Promise((resolve) => {
-    const proc = spawn("docker", ["stats", "--no-stream", "--format", "{{.CPUPerc}}\t{{.MemUsage}}\t{{.PIDs}}", container]);
+    const proc = spawn("docker", [
+      "stats",
+      "--no-stream",
+      "--format",
+      "{{.CPUPerc}}\t{{.MemUsage}}\t{{.PIDs}}",
+      container,
+    ]);
     let out = "";
     let err = false;
     proc.stdout.on("data", (c: Buffer) => (out += c.toString()));

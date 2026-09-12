@@ -20,7 +20,7 @@
 
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, renameSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 
 export interface IdempotencyEntry {
   key: string;
@@ -60,7 +60,10 @@ export function stableStringify(value: unknown): string {
 
 /** Deterministic idempotency key for a tool call. */
 export function idempotencyKeyFor(tool: string, args: Record<string, unknown>): string {
-  return createHash("sha256").update(`${tool}::${stableStringify(args)}`).digest("hex").slice(0, 32);
+  return createHash("sha256")
+    .update(`${tool}::${stableStringify(args)}`)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 export class IdempotencyManager {
@@ -86,7 +89,7 @@ export class IdempotencyManager {
    * pending TTL are treated as failed attempts (crash recovery) and
    * re-allowed.
    */
-  check(tool: string, args: Record<string, unknown>, runId?: string): IdempotencyCheck {
+  check(tool: string, args: Record<string, unknown>, _runId?: string): IdempotencyCheck {
     const key = this.keyFor(tool, args);
     const entry = this.entries.get(key);
     if (!entry) return { status: "new" };

@@ -21,11 +21,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import {
-  BudgetTracker,
-  CostBudgetError,
-  ModelCallBudgetError,
-} from "./budget-tracker.js";
+import { BudgetTracker, CostBudgetError, ModelCallBudgetError } from "./budget-tracker.js";
 import type { BudgetUsage, ExecutionBudget, RunId } from "../../core/types.js";
 import { BudgetExhaustedError } from "../../models/errors.js";
 
@@ -249,8 +245,7 @@ export class BudgetManager extends BudgetTracker {
       derived.maxCloudCalls = Math.max(1, Math.floor((parent.maxCloudCalls - this.cloudCalls) * share));
     }
     if (parent.maxCloudSpendUsd !== undefined) {
-      derived.maxCloudSpendUsd =
-        Math.round((parent.maxCloudSpendUsd - this.cloudSpendUsd) * share * 1e6) / 1e6;
+      derived.maxCloudSpendUsd = Math.round((parent.maxCloudSpendUsd - this.cloudSpendUsd) * share * 1e6) / 1e6;
     }
     const remaining = this.remainingWallClockMs();
     if (remaining !== undefined) derived.deadlineMs = remaining;
@@ -274,7 +269,9 @@ export class BudgetManager extends BudgetTracker {
           this.parent.recordDescendantToolCall();
           break;
         case "modelCall":
-          this.parent.recordDescendantModelCall(detail ?? { promptTokens: 0, completionTokens: 0, costUsd: 0, cloud: false });
+          this.parent.recordDescendantModelCall(
+            detail ?? { promptTokens: 0, completionTokens: 0, costUsd: 0, cloud: false },
+          );
           break;
         case "iteration":
           this.parent.recordDescendantIteration();

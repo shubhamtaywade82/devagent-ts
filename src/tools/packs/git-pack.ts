@@ -7,7 +7,6 @@
  * remains as a compat export.
  */
 
-import { Tool } from "../tool.js";
 import { GitTool } from "../git-tools.js";
 import { GitHubTool } from "../github-tools.js";
 import { ToolPack, packOf } from "../gateway/tool-pack.js";
@@ -30,7 +29,13 @@ export function githubPack(root: string): ToolPack {
     "github",
     "GitHub operations: PRs, issues, reviews (external mutation).",
     "vcs",
-    [{ tool: new GitHubTool(root), category: "GitHub", metadata: { risk: "high" as ToolRisk, sideEffects: { network: true, externalMutation: true } } }],
+    [
+      {
+        tool: new GitHubTool(root),
+        category: "GitHub",
+        metadata: { risk: "high" as ToolRisk, sideEffects: { network: true, externalMutation: true } },
+      },
+    ],
     "GitHub",
   );
 }

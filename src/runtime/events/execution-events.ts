@@ -37,7 +37,14 @@ export type ExecutionEvent =
   | { type: "run.cancelled"; reason?: string }
   | { type: "run.budget_exhausted"; dimension: string }
   | { type: "run.timeout"; deadlineMs?: number }
-  | { type: "policy.decision"; tool: string; allowed: boolean; requireConfirmation: boolean; reason: string; rule?: string }
+  | {
+      type: "policy.decision";
+      tool: string;
+      allowed: boolean;
+      requireConfirmation: boolean;
+      reason: string;
+      rule?: string;
+    }
   | { type: "checkpoint.saved"; runId: string; stepCount?: number; label?: string }
   | { type: "delegation.started"; delegationId: string; childAgentId: string; goal: string; parentRunId: string }
   | {

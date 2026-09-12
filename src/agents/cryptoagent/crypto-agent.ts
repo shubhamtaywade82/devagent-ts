@@ -21,7 +21,7 @@ import { DefaultToolGateway, ToolGateway } from "../../tools/gateway/tool-gatewa
 import { ToolCatalog } from "../../tools/gateway/tool-catalog.js";
 import { mountToolPack, type ToolPack } from "../../tools/gateway/tool-pack.js";
 import type { ModelGateway } from "../../models/gateway/model-gateway.js";
-import type { AgentRuntime, ExecutionRequest, ExecutionResult, ExecutionContext } from "../../core/types.js";
+import type { ExecutionRequest, ExecutionResult, ExecutionContext } from "../../core/types.js";
 import {
   TradingExecutionPipeline,
   type TradingExecutionPipelineOptions,
@@ -46,7 +46,8 @@ export function cryptoAgentDescriptor(mode: TradingExecutionMode = "paper"): Age
   return {
     id: "crypto-agent",
     displayName: "Nexum CryptoAgent",
-    description: "Trading agent: market analysis, backtesting, paper/shadow/live execution via the deterministic pipeline.",
+    description:
+      "Trading agent: market analysis, backtesting, paper/shadow/live execution via the deterministic pipeline.",
     defaultCapability: "tools",
     defaultStrategy: "react",
     capabilities: ["market", "trading", "analysis"],

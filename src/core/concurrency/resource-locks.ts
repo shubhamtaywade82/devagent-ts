@@ -48,10 +48,7 @@ export class ResourceLockRegistry {
    * Resolves with a release function. `timeoutMs` rejects the acquisition
    * so a node's deadline can bail it out of a long queue.
    */
-  acquire(
-    resources: string[],
-    opts: { priority?: LockPriority; timeoutMs?: number } = {},
-  ): Promise<() => void> {
+  acquire(resources: string[], opts: { priority?: LockPriority; timeoutMs?: number } = {}): Promise<() => void> {
     if (resources.length === 0) return Promise.resolve(() => undefined);
     const priority = opts.priority ?? "normal";
     return new Promise<() => void>((resolve, reject) => {

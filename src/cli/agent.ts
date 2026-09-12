@@ -1,16 +1,14 @@
 import { CliConfig, loadConfig } from "./config.js";
 import { WorkspaceManager } from "../platform/workspace.js";
-import { ChatMessage, ChatOptions, ChatResponse, Provider } from "../models/adapters/provider.js";
+import { ChatMessage, ChatOptions, ChatResponse } from "../models/adapters/provider.js";
 import { Capability } from "../models/catalog.js";
 import { ModelStack } from "./services/model-stack.js";
 import { SessionManager } from "./services/session-manager.js";
 import { ApprovalManager } from "./services/approval-manager.js";
 import { ExecutionManager } from "./services/execution-manager.js";
-import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
+import { CheckpointStore } from "../runtime/checkpoint.js";
 import { SessionStore, SessionMeta } from "../runtime/session.js";
 import { LoopDetector } from "../orchestration/loop-detector.js";
-import { Orchestrator } from "../orchestration/orchestrator.js";
-import { AgentStepRunner } from "../orchestration/agent-planner.js";
 import { PlanStep, Planner } from "../orchestration/types.js";
 import { generatePlan, replanSteps } from "../ui/plan-generator.js";
 import { SkillMeta } from "../skills/types.js";
@@ -27,7 +25,6 @@ import {
 import { IntentResolver } from "../intent/intent-resolver.js";
 import { MemoryStore } from "../memory/store.js";
 import { DocsStore } from "../docs/store.js";
-import { generateSummary } from "../memory/summarizer.js";
 import { AgentConversation } from "./agent-conversation.js";
 import { AgentToolManager } from "./agent-tools.js";
 import { AgentIntelligence } from "./agent-intelligence.js";
@@ -159,8 +156,7 @@ export class Agent {
       autoApprove: cfg.autoApprove ?? false,
       onApprovalRequested: (request) => this.emit("onApprovalRequested", request),
       onClarificationRequested: (request) => this.emit("onClarificationRequested", request),
-      hasApprovalListener: () =>
-        !!this.events.onApprovalRequested || !!this.listeners.get("onApprovalRequested")?.size,
+      hasApprovalListener: () => !!this.events.onApprovalRequested || !!this.listeners.get("onApprovalRequested")?.size,
       hasClarificationListener: () =>
         !!this.events.onClarificationRequested || !!this.listeners.get("onClarificationRequested")?.size,
     });

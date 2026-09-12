@@ -114,7 +114,10 @@ export class TransactionalFsMutator {
     const verdict = this.guard.check("read", relativePath);
     if (verdict.allowed && verdict.resolvedPath) {
       const content = await readFile(verdict.resolvedPath, "utf8");
-      const backupPath = join(this.backupsDir, `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.bak`);
+      const backupPath = join(
+        this.backupsDir,
+        `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}.bak`,
+      );
       await mkdir(this.backupsDir, { recursive: true });
       await copyFile(verdict.resolvedPath, backupPath);
       return {

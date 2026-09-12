@@ -99,40 +99,59 @@ Mission
 
 ## Architecture
 
-Nexum separates agent execution from model infrastructure:
+Nexum is layered into three planes — the evolution plane improves the system, the control plane decides what to run, and the agent runtime does the work:
 
 ```text
-Nexum
-├── Developer CLI        Terminal UI, interactive cockpit, direct task dispatch
-├── Mission Runtime      Plan steps, parallel DAG execution, checkpoint/resume
-├── Model Gateway        Provider client (Ollama local + cloud), catalog, capability router
-├── Tool Runtime         35+ tools: filesystem, git, github, docker, shell, sqlite...
-├── Code Intelligence    LSP pool (14 languages) + Rails semantic index (12 scanners)
-├── Context Engine       Memory, summarizer, docs index, dynamic tool selector
-├── Learning & Memory    Episodes, grading, reflection, skill synthesis, SQLite memory
-└── Extensions & MCP     External MCP servers, Markdown skill packages
+┌────────────────────────────────────────────────────────────────┐
+│ Evolution Plane        ClosedLoopEngine: spawn → grade → evolve │
+├────────────────────────────────────────────────────────────────┤
+│ Control Plane          Planner · TaskGraph · Scheduler ·        │
+│                        Delegator · AgentRegistry (capabilities) │
+├────────────────────────────────────────────────────────────────┤
+│ Agent Runtime          AgentRuntime (composition root) holding: │
+│   ModelGateway (scored routing → ProviderAdapter)              │
+│   ToolGateway (validate → capability → policy → budget → tool) │
+│   PolicyEngine (rules + execution profiles)                    │
+│   ContextManager · SessionManager · ExecutionManager ·         │
+│   ApprovalManager · BudgetManager · ExecutionRecorder          │
+│   ExecutionStrategies (react · plan_execute · graph)           │
+└────────────────────────────────────────────────────────────────┘
+   Domain packages (trading, rails, ruby) ride on top of the runtime;
+   the runtime itself stays domain-neutral.
 ```
 
 The model gateway is provider-neutral: Ollama (local and cloud) is the currently shipped provider, not the product identity.
 
 ```text
 src/
-├── platform/       Brand, environment, paths, workspace (REBRANDING.md)
-├── provider/       Model gateway: provider client, model catalog, capability router
-├── benchmark/      Model scoring harness (JSON validity, tool-calling, latency, tok/s)
-├── orchestrator/   Plan steps, parallel dependency-aware execution, checkpoint/resume
-├── runtime/        Checkpoint store, config constants, event bus, state store, task machine
-├── tools/          35+ tools: filesystem, git, github, docker, sqlite, shell, rspec, rubocop...
-├── lsp/            Language server pool/manager — 14 languages configured
-├── intelligence/   LSP-backed code intelligence router + Rails semantic index (12 scanners)
-├── memory/         SQLite-backed conversation memory + summarizer
-├── docs/           DevDocs-backed documentation index (ingest, FTS5 store, workspace detection)
-├── learning/       Episode recording, grading, reflection, skill synthesis
-├── skills/         Skill loader/registry/resolver (Markdown skill packages)
-├── mcp/            MCP client + tool adapter (external MCP servers as tools)
-├── cli/            Agent orchestration glue (Agent class, conversation, config)
-└── tui/            Ink terminal UI (see docs/SPEC.md — frozen product spec)
+├── core/           Kernel contracts: identity, event families, policy,
+│                   tasks (graph/scheduler/machine), filesystem guard,
+│                   cancellation, concurrency, tool contract, types
+├── runtime/        AgentRuntime + agent services, strategies, context,
+│                   budget, persistence (event store, run recorder),
+│                   sessions, checkpoints
+├── models/         Scored router, model profiles/capabilities, catalog
+│                   data (config-driven, not hardcoded), provider
+│                   adapters, verification
+├── tools/          ToolGateway pipeline, tool catalog, packs
+│                   (filesystem, process, git, github, lsp, browser,
+│                   docs, trading), CAS edits, idempotency, shell
+│                   sandbox + lifecycle accounting
+├── mcp/            MCP v2 split-SDK client isolated behind
+│                   McpToolAdapter with security metadata
+├── orchestration/  Control plane: planner, delegation, capability registry
+├── evolution/      ClosedLoopEngine + self-improvement (Evolution Plane)
+├── domains/        Domain packages: trading (validation → risk →
+│                   execution pipeline), rails, ruby
+├── ui/             Ink terminal UI (see docs/SPEC.md — frozen product spec)
+├── agents/         Product agents (DevAgent, CryptoAgent) — thin
+│                   descriptors over the runtime
+├── cli/            Agent composition layer, conversation, config, TUI glue
+└── (context, memory, docs, learning, skills, lsp, intelligence,
+    benchmark, platform, browser, observability, ...)  supporting modules
 ```
+
+Public API surface (`@nexum/agent`): `AgentRuntime`, `Agent`, `Task`, `Tool`, `ToolGateway`, `ModelGateway`, `PolicyEngine`, `ExecutionContext`, `ExecutionStrategy` — implementation modules stay private.
 
 ## Key Features
 

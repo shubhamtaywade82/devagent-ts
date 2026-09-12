@@ -28,8 +28,7 @@ export class TradingRiskEngine {
 
   assess(proposal: TradingProposal, portfolio: PortfolioSnapshot): RiskAssessment {
     const checks: Array<{ id: string; passed: boolean; detail: string }> = [];
-    const reference =
-      portfolio.referencePrices[proposal.symbol] ?? proposal.limitPrice ?? 0;
+    const reference = portfolio.referencePrices[proposal.symbol] ?? proposal.limitPrice ?? 0;
     const notionalUsd = reference > 0 ? reference * proposal.quantity : undefined;
 
     // 1. symbol allowlist
@@ -38,9 +37,7 @@ export class TradingRiskEngine {
       checks.push({
         id: "symbol-allowlist",
         passed: allowed,
-        detail: allowed
-          ? `${proposal.symbol} is allowlisted`
-          : `${proposal.symbol} is NOT in the configured allowlist`,
+        detail: allowed ? `${proposal.symbol} is allowlisted` : `${proposal.symbol} is NOT in the configured allowlist`,
       });
     }
 

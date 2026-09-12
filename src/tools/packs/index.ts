@@ -20,7 +20,14 @@
  */
 
 export { filesystemPack, searchPack } from "./filesystem-pack.js";
-export { processPack, shellPack, dockerPack, projectPack, type ProcessPackOptions, type PackShellOutput } from "./process-pack.js";
+export {
+  processPack,
+  shellPack,
+  dockerPack,
+  projectPack,
+  type ProcessPackOptions,
+  type PackShellOutput,
+} from "./process-pack.js";
 export { gitPack, githubPack, gitGithubPack } from "./git-pack.js";
 export { lspPack } from "./lsp-pack.js";
 export { browserPack } from "./browser-pack.js";

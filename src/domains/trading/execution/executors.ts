@@ -32,16 +32,18 @@ export interface TradingExecutor {
 }
 
 /** Mode-aware permission decision (review item 31). */
-export function executionPolicyFor(mode: TradingExecutionMode): TradingDecision["approved"] extends never ? never : {
-  mode: TradingExecutionMode;
-  /** Can orders route at all in this mode? */
-  routingAllowed: boolean;
-  /** Which executors may run. */
-  allowedExecutors: Array<"none" | "simulator" | "recorder" | "venue">;
-  /** Human confirmation required before execution. */
-  requiresHumanConfirmation: boolean;
-  description: string;
-} {
+export function executionPolicyFor(mode: TradingExecutionMode): TradingDecision["approved"] extends never
+  ? never
+  : {
+      mode: TradingExecutionMode;
+      /** Can orders route at all in this mode? */
+      routingAllowed: boolean;
+      /** Which executors may run. */
+      allowedExecutors: Array<"none" | "simulator" | "recorder" | "venue">;
+      /** Human confirmation required before execution. */
+      requiresHumanConfirmation: boolean;
+      description: string;
+    } {
   switch (mode) {
     case "research":
       return {
@@ -178,7 +180,9 @@ export class LiveOrderExecutor implements TradingExecutor {
     private readonly opts: { requiresConfirmation: boolean; confirmed?: boolean },
   ) {
     if (!venue || !venue.venueId) {
-      throw new Error("LiveOrderExecutor requires a configured LiveVenueAdapter — the agent must never construct live trading by itself");
+      throw new Error(
+        "LiveOrderExecutor requires a configured LiveVenueAdapter — the agent must never construct live trading by itself",
+      );
     }
   }
 

@@ -38,7 +38,12 @@ export {
 } from "../runtime/budget/budget-tracker.js";
 
 // Execution context
-export { createExecutionContext, TransientContextManager, nullEventSink, taskFrom } from "../runtime/context/execution-context.js";
+export {
+  createExecutionContext,
+  TransientContextManager,
+  nullEventSink,
+  taskFrom,
+} from "../runtime/context/execution-context.js";
 
 // Tool layer
 export { ToolCatalog, type ToolCatalogEntry, type LegacyToolMetadata } from "../tools/gateway/tool-catalog.js";
@@ -68,7 +73,13 @@ export {
   makeToolInvocation,
   type InvokeContext,
 } from "../tools/gateway/tool-gateway.js";
-export { defineToolPack, packOf, mountToolPack, type ToolPack, type ToolPackEntry } from "../tools/gateway/tool-pack.js";
+export {
+  defineToolPack,
+  packOf,
+  mountToolPack,
+  type ToolPack,
+  type ToolPackEntry,
+} from "../tools/gateway/tool-pack.js";
 
 // Policy
 export {
@@ -113,7 +124,11 @@ export {
   profileFromLegacy,
   defaultConstraints,
 } from "../models/profiles/model-profile.js";
-export { DefaultModelGateway, type ModelGateway, type DefaultModelGatewayOptions } from "../models/gateway/model-gateway.js";
+export {
+  DefaultModelGateway,
+  type ModelGateway,
+  type DefaultModelGatewayOptions,
+} from "../models/gateway/model-gateway.js";
 
 // Concurrency
 export {

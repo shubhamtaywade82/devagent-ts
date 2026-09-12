@@ -12,12 +12,7 @@
  *   cancelled / budget   → blocked (needs operator attention, not a retry)
  */
 
-import type {
-  AgentRuntime,
-  ExecutionRequest,
-  ExecutionResult,
-  StrategyExecuteOptions,
-} from "../core/types.js";
+import type { AgentRuntime, ExecutionRequest, ExecutionResult, StrategyExecuteOptions } from "../core/types.js";
 import type { TaskNode } from "../core/tasks/task-graph.js";
 import { RunId, TaskSpec } from "../core/types.js";
 import type { EventSink } from "../core/types.js";
@@ -78,11 +73,7 @@ export class Executor {
     this.opts.events?.publish({ type: "node.start", id: node.id, kind: "task", title: node.goal });
 
     try {
-      const result = await this.opts.runtime.execute(
-        request,
-        contextFactory(node),
-        this.opts.strategyOptions,
-      );
+      const result = await this.opts.runtime.execute(request, contextFactory(node), this.opts.strategyOptions);
       const outcome = mapOutcome(result);
       if (outcome === "success") {
         this.opts.events?.publish({

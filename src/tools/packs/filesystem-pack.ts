@@ -6,7 +6,6 @@
  * + workspace code search.
  */
 
-import { Tool } from "../tool.js";
 import { ReadFileTool, WriteFileTool } from "../filesystem.js";
 import {
   ListDirectoryTool,

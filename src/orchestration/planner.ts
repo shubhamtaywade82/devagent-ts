@@ -47,7 +47,9 @@ export class StaticPlanner implements Planner {
   }
 
   async replan(task: TaskSpec, graph: TaskGraph): Promise<TaskGraph> {
-    const failed = graph.all().filter((n) => n.status === "failed" || n.status === "pending" || n.status === "ready" || n.status === "blocked");
+    const failed = graph
+      .all()
+      .filter((n) => n.status === "failed" || n.status === "pending" || n.status === "ready" || n.status === "blocked");
     if (failed.length === 0) return graph;
     const retry = new TaskGraph();
     retry.add({ id: "root", goal: `${task.goal} (retry: ${failed.map((n) => n.goal).join("; ")})` });
@@ -87,9 +89,7 @@ export class LlmPlanner implements Planner {
       },
       {
         role: "user",
-        content:
-          task.goal +
-          (task.constraints?.length ? `\n\nConstraints:\n- ${task.constraints.join("\n- ")}` : ""),
+        content: task.goal + (task.constraints?.length ? `\n\nConstraints:\n- ${task.constraints.join("\n- ")}` : ""),
       },
     ];
     const response = await this.chat.chat(prompt, {});
@@ -110,11 +110,10 @@ export class LlmPlanner implements Planner {
       },
       {
         role: "user",
-        content:
-          `Original goal: ${task.goal}\n\nCompleted: ${history
-            .filter((h) => h.outcome === "success")
-            .map((h) => `- ${h.goal}`)
-            .join("\n")}\n\nUnfinished:\n${remaining.map((r) => `- ${r.id}: ${r.goal}`).join("\n")}`,
+        content: `Original goal: ${task.goal}\n\nCompleted: ${history
+          .filter((h) => h.outcome === "success")
+          .map((h) => `- ${h.goal}`)
+          .join("\n")}\n\nUnfinished:\n${remaining.map((r) => `- ${r.id}: ${r.goal}`).join("\n")}`,
       },
     ];
     const response = await this.chat.chat(prompt, {});
@@ -128,7 +127,10 @@ export function parsePlanIntoGraph(raw: string, maxNodes = 12): TaskGraph {
   const trimmed = (raw ?? "").trim();
 
   // strip markdown fences
-  const unfenced = trimmed.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const unfenced = trimmed
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```\s*$/i, "")
+    .trim();
 
   let parsed: unknown;
   try {

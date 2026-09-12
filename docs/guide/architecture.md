@@ -40,3 +40,46 @@ Nexum is built around an event-driven, sandboxed, multi-tier agent architecture 
 
 4. **Fault Recovery & Checkpointing**:
    Multi-step plans are checkpointed to `.nexum/checkpoint.json` after every step transition. Crashed or aborted sessions resume seamlessly via `/resume`.
+
+---
+
+## The Three Planes
+
+The runtime is layered so that each plane only knows about the plane below it:
+
+```
+Evolution Plane   (src/evolution)      ClosedLoopEngine — spawn mutation runs,
+                                    grade them, evolve the system. Sits ABOVE
+                                    the runtime and drives it through the
+                                    public AgentRuntime API.
+Control Plane     (src/orchestration)  Planner · TaskGraph · Scheduler ·
+                                    Delegator · AgentRegistry. Decides WHAT
+                                    runs and in what order; owns capability-
+                                    driven delegation to child agents.
+Agent Runtime     (src/runtime)        AgentRuntime — the composition root.
+                                    Owns state, budgets, policies, retries,
+                                    cancellation, checkpoints. Strategies
+                                    (react / plan_execute / graph) own only
+                                    the reasoning loop.
+```
+
+### Agent runtime services
+
+The old god-class `Agent` was decomposed into focused services, composed by `AgentRuntime`:
+
+| Service | Responsibility |
+|----------|----------------|
+| `ModelGateway` | Scored model routing (`ModelRouter → ModelSelection → ProviderAdapter`) — transport-free selection, config-driven preferences |
+| `ToolGateway` | The tool pipeline: registry → schema validation → capability check → policy check → budget guard → idempotency → executor |
+| `PolicyEngine` | Centralized rule chain + execution profiles (readonly / development / testing / devops / networked / production) |
+| `ContextManager` | Request-scoped `ExecutionContext` — runId, messages, budget, policy, cancellation signal |
+| `SessionManager` | Session lifecycle and durable history |
+| `ExecutionManager` | Run orchestration, retries, checkpoints, recording |
+| `ApprovalManager` | Confirmation flows for high-risk / financial tools |
+
+### Execution contracts
+
+Every tool declares a contract (risk, capabilities, side effects, idempotency, reversibility, timeout, concurrency, confirmation, network requirements). State-changing file edits go through CAS verification (`read → hash → patch → verify → apply atomically`). External mutations carry idempotency keys; shell executions are tracked by a lifecycle accountant (container, CPU, memory, PIDs, network mode, duration, output bytes, exit status) and persisted to `.nexum/shell-executions.jsonl`.
+
+Domain logic (trading, Rails intelligence, Ruby tooling) lives in `src/domains` packages layered on top of the runtime — the runtime itself stays domain-neutral. The trading pipeline in particular enforces `LLM proposal → deterministic validation → risk engine → execution policy → paper/live executor`, so the LLM is never the authoritative risk or execution layer.
+

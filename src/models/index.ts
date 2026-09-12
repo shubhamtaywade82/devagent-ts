@@ -38,10 +38,7 @@ export { ModelAvailabilityChecker } from "./router/availability.js";
 export { KeyManager } from "./router/key-manager.js";
 
 // Profiles + scored registry (review item 17)
-export {
-  ModelCapabilityRegistry,
-  type ProfileQuery,
-} from "./profiles/model-capability-registry.js";
+export { ModelCapabilityRegistry, type ProfileQuery } from "./profiles/model-capability-registry.js";
 export {
   type ModelProfile,
   type ModelCapabilities,

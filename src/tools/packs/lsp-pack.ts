@@ -2,7 +2,6 @@
  * LspPack (review item 21) — code intelligence via the language server plane.
  */
 
-import { Tool } from "../tool.js";
 import {
   GetDefinitionTool,
   FindReferencesTool,

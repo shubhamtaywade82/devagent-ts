@@ -8,7 +8,7 @@
 
 import type { TradingProposal, ValidationVerdict } from "./types.js";
 
-const SYMBOL_RE = /^[A-Z0-9]{2,20}([\-/][A-Z0-9]{2,10})?$/;
+const SYMBOL_RE = /^[A-Z0-9]{2,20}([-/][A-Z0-9]{2,10})?$/;
 
 export function validateProposal(proposal: TradingProposal): ValidationVerdict {
   const errors: string[] = [];
@@ -17,7 +17,9 @@ export function validateProposal(proposal: TradingProposal): ValidationVerdict {
     return { valid: false, errors: ["proposal must be an object"] };
   }
 
-  const symbol = String(proposal.symbol ?? "").trim().toUpperCase();
+  const symbol = String(proposal.symbol ?? "")
+    .trim()
+    .toUpperCase();
   if (!symbol) errors.push("symbol is required");
   else if (!SYMBOL_RE.test(symbol)) errors.push(`symbol "${symbol}" is not a valid trading symbol`);
 
@@ -49,8 +51,7 @@ export function validateProposal(proposal: TradingProposal): ValidationVerdict {
     errors.push(`stopPrice must be a positive finite number when present (got ${proposal.stopPrice})`);
   }
 
-  const takeProfitPrice =
-    proposal.takeProfitPrice !== undefined ? Number(proposal.takeProfitPrice) : undefined;
+  const takeProfitPrice = proposal.takeProfitPrice !== undefined ? Number(proposal.takeProfitPrice) : undefined;
   if (takeProfitPrice !== undefined && (!Number.isFinite(takeProfitPrice) || takeProfitPrice <= 0)) {
     errors.push(`takeProfitPrice must be a positive finite number when present (got ${proposal.takeProfitPrice})`);
   }

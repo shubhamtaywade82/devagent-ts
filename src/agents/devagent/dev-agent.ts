@@ -22,8 +22,8 @@ import { IdempotencyManager } from "../../tools/idempotency.js";
 import { DefaultToolGateway, ToolGateway } from "../../tools/gateway/tool-gateway.js";
 import { ToolCatalog } from "../../tools/gateway/tool-catalog.js";
 import { mountToolPack, type ToolPack } from "../../tools/gateway/tool-pack.js";
-import { DefaultModelGateway, type ModelGateway } from "../../models/gateway/model-gateway.js";
-import type { AgentRuntime, ExecutionRequest, ExecutionResult, ExecutionContext } from "../../core/types.js";
+import type { ModelGateway } from "../../models/gateway/model-gateway.js";
+import type { ExecutionRequest, ExecutionResult, ExecutionContext } from "../../core/types.js";
 import type { AgentDescriptor } from "../../runtime/agent/agent-runtime.js";
 
 export interface DevAgentOptions {

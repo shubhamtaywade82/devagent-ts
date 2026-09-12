@@ -3,7 +3,6 @@
  * (domains/ruby/): RuboCop linting + RSpec test execution.
  */
 
-import { Tool } from "../tool.js";
 import { RunRubocopTool } from "../../domains/ruby/rubocop-tool.js";
 import { RunRSpecTool } from "../../domains/ruby/rspec-tool.js";
 import { ToolPack, packOf } from "../gateway/tool-pack.js";

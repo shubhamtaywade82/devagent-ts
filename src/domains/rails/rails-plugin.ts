@@ -1,6 +1,12 @@
 import { SemanticIndex } from "./indexer.js";
 import type { RsiEntity } from "./types.js";
-import type { SemanticPlugin, DiscoveredEntity, SemanticQuery, QueryResult, PluginKind } from "../../intelligence/types.js";
+import type {
+  SemanticPlugin,
+  DiscoveredEntity,
+  SemanticQuery,
+  QueryResult,
+  PluginKind,
+} from "../../intelligence/types.js";
 import type { SemanticOperation } from "../../lsp/manager.js";
 
 export class RailsSemanticPlugin implements SemanticPlugin {

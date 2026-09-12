@@ -12,6 +12,7 @@
  */
 
 import type { Capability } from "./catalog.js";
+import { readFileSync } from "node:fs";
 
 /** Historical curation — the shipped default data. */
 export const DEFAULT_CURATED_PREFERENCES: Partial<Record<Capability, string[]>> = {
@@ -43,9 +44,8 @@ export function loadModelPreferences(source: ModelPreferenceSource = {}): Partia
   // file layer
   if (source.file) {
     try {
-      // lazy import keeps the models plane free of fs at module scope
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { readFileSync } = require("node:fs") as typeof import("node:fs");
+      // static import — `require()` would be undefined at runtime in the
+      // real ESM build and silently fall into the catch below
       const parsed = JSON.parse(readFileSync(source.file, "utf8")) as Record<string, unknown>;
       for (const [cap, value] of Object.entries(parsed)) {
         if (Array.isArray(value) && value.every((v) => typeof v === "string")) {
@@ -63,7 +63,10 @@ export function loadModelPreferences(source: ModelPreferenceSource = {}): Partia
     const m = key.match(/^NEXUM_MODEL_PREFS_([A-Z_]+)$/);
     if (!m || !value) continue;
     const cap = m[1].toLowerCase();
-    const list = value.split(",").map((s) => s.trim()).filter(Boolean);
+    const list = value
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
     if (list.length > 0) {
       (merged as Record<string, string[]>)[cap] = list;
     }

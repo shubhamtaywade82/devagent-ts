@@ -6,7 +6,6 @@
  * dockerPack / projectPack factories remain as compat exports.
  */
 
-import { Tool } from "../tool.js";
 import { ShellTool } from "../shell.js";
 import { DockerTool } from "../docker-tools.js";
 import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../project-tools.js";
@@ -45,13 +44,16 @@ export function processPack(opts: ProcessPackOptions): ToolPack {
       category: "Docker",
       metadata: { risk: "high" as ToolRisk, sideEffects: { process: true, network: true } },
     },
-    ...[new RunTestsTool(opts.root), new RunLintTool(opts.root), new RunFormatTool(opts.root), new RunBuildTool(opts.root)].map(
-      (tool) => ({
-        tool,
-        category: "Project",
-        metadata: { risk: "medium" as ToolRisk },
-      }),
-    ),
+    ...[
+      new RunTestsTool(opts.root),
+      new RunLintTool(opts.root),
+      new RunFormatTool(opts.root),
+      new RunBuildTool(opts.root),
+    ].map((tool) => ({
+      tool,
+      category: "Project",
+      metadata: { risk: "medium" as ToolRisk },
+    })),
   ];
   return packOf(
     "process",

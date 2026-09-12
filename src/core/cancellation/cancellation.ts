@@ -28,11 +28,7 @@ export class CancelledError extends Error {
     public readonly operation: string,
     public readonly reason?: string,
   ) {
-    super(
-      reason
-        ? `operation "${operation}" cancelled: ${reason}`
-        : `operation "${operation}" cancelled`,
-    );
+    super(reason ? `operation "${operation}" cancelled: ${reason}` : `operation "${operation}" cancelled`);
     this.name = "CancelledError";
   }
 }
@@ -42,23 +38,14 @@ export function isAbortError(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
   const name = (error as { name?: string }).name;
   const message = (error as { message?: string }).message ?? "";
-  return (
-    name === "AbortError" ||
-    name === "CancelledError" ||
-    /abort|cancelled|canceled/i.test(message)
-  );
+  return name === "AbortError" || name === "CancelledError" || /abort|cancelled|canceled/i.test(message);
 }
 
 /** Cooperative check: throws CancelledError when the signal is aborted. */
 export function throwIfAborted(signal: AbortSignal | undefined, operation: string): void {
   if (signal?.aborted) {
     const reason = signal.reason;
-    const reasonText =
-      reason instanceof Error
-        ? reason.message
-        : typeof reason === "string"
-          ? reason
-          : undefined;
+    const reasonText = reason instanceof Error ? reason.message : typeof reason === "string" ? reason : undefined;
     throw new CancelledError(operation, reasonText);
   }
 }
@@ -74,11 +61,7 @@ export interface LinkedSignal {
   dispose(): void;
 }
 
-export function linkedSignal(opts: {
-  parent?: AbortSignal;
-  timeoutMs?: number;
-  label?: string;
-}): LinkedSignal {
+export function linkedSignal(opts: { parent?: AbortSignal; timeoutMs?: number; label?: string }): LinkedSignal {
   const controller = new AbortController();
   const label = opts.label ?? "linked-scope";
   const timers: NodeJS.Timeout[] = [];
@@ -143,9 +126,7 @@ export class CancellationScope {
   /** Abort this scope (and transitively every child linked to it). */
   abort(reason?: string): void {
     if (this.signal.aborted) return;
-    this.controller.abort(
-      reason ? new CancelledError(this.name, reason) : new CancelledError(this.name),
-    );
+    this.controller.abort(reason ? new CancelledError(this.name, reason) : new CancelledError(this.name));
   }
 
   /** Throws when aborted (cooperative check inside executors). */

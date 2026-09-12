@@ -179,8 +179,6 @@ export function estimateCost(profile: ModelProfile): number | undefined {
   // assume ~2k prompt + 400 completion tokens per agentic turn
   const promptTokens = 2000;
   const completionTokens = 400;
-  const cost =
-    (promptTokens / 1e6) * profile.cost.input +
-    (completionTokens / 1e6) * profile.cost.output;
+  const cost = (promptTokens / 1e6) * profile.cost.input + (completionTokens / 1e6) * profile.cost.output;
   return Math.round(cost * 1e6) / 1e6;
 }

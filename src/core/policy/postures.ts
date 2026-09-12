@@ -96,7 +96,8 @@ export function postureByName(name: PolicyPostureName, opts: RestrictedPostureOp
  * command blacklists replaced by declarative permissions.
  */
 export function profilePosture(profileNameOrProfile: string | ExecutionProfile): RulePolicyEngine {
-  const profile = typeof profileNameOrProfile === "string" ? executionProfileByName(profileNameOrProfile) : profileNameOrProfile;
+  const profile =
+    typeof profileNameOrProfile === "string" ? executionProfileByName(profileNameOrProfile) : profileNameOrProfile;
   return new RulePolicyEngine({
     profile,
     deniedToolIds: profile.deniedTools,

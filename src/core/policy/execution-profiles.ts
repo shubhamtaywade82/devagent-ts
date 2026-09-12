@@ -18,13 +18,7 @@
 
 import type { ToolRisk } from "../tools/tool-contract.js";
 
-export type ExecutionProfileName =
-  | "readonly"
-  | "development"
-  | "testing"
-  | "devops"
-  | "networked"
-  | "production";
+export type ExecutionProfileName = "readonly" | "development" | "testing" | "devops" | "networked" | "production";
 
 export type CommandPermission =
   | "none" // no process spawning at all
@@ -189,7 +183,12 @@ export function executionProfileByName(name: string | undefined): ExecutionProfi
 /** Overlay: derive a narrower profile (never wider) from a base. */
 export function restrictProfile(
   base: ExecutionProfile,
-  overrides: Partial<Pick<ExecutionProfile, "riskCeiling" | "confirmationFloor" | "allowExternalMutation" | "allowFinancial" | "deniedTools" | "permissions">>,
+  overrides: Partial<
+    Pick<
+      ExecutionProfile,
+      "riskCeiling" | "confirmationFloor" | "allowExternalMutation" | "allowFinancial" | "deniedTools" | "permissions"
+    >
+  >,
 ): ExecutionProfile {
   return {
     ...base,

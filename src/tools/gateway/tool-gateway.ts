@@ -32,12 +32,7 @@ import { ConcurrencyGate, GateSaturatedError } from "../../core/concurrency/gate
 import { throwIfAborted } from "../../core/cancellation/cancellation.js";
 import type { OllamaToolSchema } from "../../models/adapters/provider.js";
 import { ToolCatalog, ToolCatalogEntry } from "./tool-catalog.js";
-import {
-  ToolCallContext,
-  ToolDefinition,
-  ToolInvocation,
-  ToolResult,
-} from "../../core/tools/tool-contract.js";
+import { ToolCallContext, ToolDefinition, ToolInvocation, ToolResult } from "../../core/tools/tool-contract.js";
 import { canonicalToolName } from "../../core/tools/tool-aliases.js";
 import { validateAndCanonicalizeArgs } from "../validation/argument-validator.js";
 import { IdempotencyManager } from "../idempotency.js";
@@ -293,7 +288,7 @@ export class DefaultToolGateway implements ToolGateway {
     const name = typeof nameOrRequest === "string" ? nameOrRequest : nameOrRequest.name;
     const raw = typeof nameOrRequest === "string" ? rawArgs : nameOrRequest.args;
     const invocationId =
-      typeof nameOrRequest === "string" ? `tc_${randomUUID()}` : (nameOrRequest.id || `tc_${randomUUID()}`);
+      typeof nameOrRequest === "string" ? `tc_${randomUUID()}` : nameOrRequest.id || `tc_${randomUUID()}`;
 
     // ── stage 0: resolve (registry + canonical aliases) ────────────────────
     const entry = this.resolve(name);
@@ -406,11 +401,7 @@ export class DefaultToolGateway implements ToolGateway {
     };
 
     try {
-      const data = await gate.run(
-        () => this.withTimeout(entry, args, callCtx),
-        "normal",
-        ctx.signal,
-      );
+      const data = await gate.run(() => this.withTimeout(entry, args, callCtx), "normal", ctx.signal);
       const result: Record<string, unknown> = data;
       if (idemKey && this.idempotency) this.idempotency.complete(idemKey, result);
       return { ok: true, data: result };

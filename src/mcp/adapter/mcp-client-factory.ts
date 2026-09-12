@@ -124,10 +124,7 @@ export async function connectMcpServerV2(
   opts: ConnectMcpServerOptions = {},
 ): Promise<McpServerConnection> {
   const transport = buildTransport(descriptor);
-  const client = new Client(
-    opts.clientInfo ?? { name: "nexum", version: "2.0.0" },
-    { capabilities: {} },
-  );
+  const client = new Client(opts.clientInfo ?? { name: "nexum", version: "2.0.0" }, { capabilities: {} });
   await client.connect(transport);
 
   if (opts.signal?.aborted) {

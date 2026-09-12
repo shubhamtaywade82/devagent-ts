@@ -16,9 +16,7 @@
  * family classification lives in core/events/families.ts.
  */
 
-import {
-  ExecutionEvent,
-} from "./execution-events.js";
+import { ExecutionEvent } from "./execution-events.js";
 import { DomainEvent } from "./domain-events.js";
 import { StateEvent } from "./state-events.js";
 import { PresentationEvent } from "./presentation-events.js";

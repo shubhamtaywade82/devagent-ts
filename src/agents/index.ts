@@ -9,8 +9,4 @@
  */
 
 export { DevAgent, DEVAGENT_DESCRIPTOR, type DevAgentOptions } from "./devagent/dev-agent.js";
-export {
-  CryptoAgent,
-  cryptoAgentDescriptor,
-  type CryptoAgentOptions,
-} from "./cryptoagent/crypto-agent.js";
+export { CryptoAgent, cryptoAgentDescriptor, type CryptoAgentOptions } from "./cryptoagent/crypto-agent.js";

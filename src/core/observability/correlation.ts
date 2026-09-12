@@ -8,13 +8,7 @@
  * stamped envelopes (runtime/persistence).
  */
 
-import {
-  CorrelationIds,
-  newEventId,
-  newTraceId,
-  PartialCorrelation,
-  RunId,
-} from "../identity.js";
+import { CorrelationIds, newEventId, newTraceId, PartialCorrelation, RunId } from "../identity.js";
 import type { EventEnvelope, TypeTaggedEvent } from "../events/envelope.js";
 
 /**

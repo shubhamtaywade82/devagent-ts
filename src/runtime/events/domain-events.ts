@@ -9,14 +9,7 @@
  * during replay of a run.
  */
 
-import type {
-  GitState,
-  LspServerState,
-  McpServerState,
-  MemoryItem,
-  ProjectInfo,
-  SkillState,
-} from "../types.js";
+import type { GitState, LspServerState, McpServerState, MemoryItem, ProjectInfo, SkillState } from "../types.js";
 
 export type DomainEvent =
   | { type: "git.changed"; git: GitState }

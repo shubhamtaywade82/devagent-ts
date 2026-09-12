@@ -16,5 +16,9 @@ export {
   type ConnectMcpServerOptions,
 } from "./adapter/mcp-client-factory.js";
 export { McpToolAdapter, type McpClientLike, type McpToolDescriptor } from "./adapter/mcp-tool-adapter.js";
-export { mcpSecurityMetadata, type McpSecurityOverride, type McpSecurityOverride as McpServerSecurityOverride } from "./adapter/security-metadata.js";
+export {
+  mcpSecurityMetadata,
+  type McpSecurityOverride,
+  type McpSecurityOverride as McpServerSecurityOverride,
+} from "./adapter/security-metadata.js";
 export { connectMcpServer } from "./client.js";

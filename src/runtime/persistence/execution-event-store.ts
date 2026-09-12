@@ -29,12 +29,7 @@ import {
 } from "../../core/events/envelope.js";
 import type { ExecutionEvent } from "../events/execution-events.js";
 import type { CorrelationIds, RunId } from "../../core/identity.js";
-import {
-  ReplayProjector,
-  RUN_STATE_LAYOUT,
-  RunRecord,
-  RunReplay,
-} from "./state-model.js";
+import { ReplayProjector, RUN_STATE_LAYOUT, RunRecord, RunReplay } from "./state-model.js";
 import type { ExecutionStatus } from "../../core/types.js";
 
 export interface ExecutionEventStoreOptions {
@@ -108,10 +103,7 @@ export class ExecutionEventStore {
     for (const r of records) {
       projector.fold(r.payload as Record<string, unknown> & { type: string }, r.correlation, r.ts, r.seq);
     }
-    const replay = projector.finish(
-      base.endedAt,
-      inferStatus(records),
-    );
+    const replay = projector.finish(base.endedAt, inferStatus(records));
     replay.envelopes = records.map((r) => ({
       id: r.id,
       seq: r.seq,
