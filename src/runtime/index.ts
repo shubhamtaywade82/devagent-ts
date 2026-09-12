@@ -22,6 +22,7 @@ export {
 export type { ExecutionStrategy, StrategyRunRequest } from "./strategies/execution-strategy.js";
 export { ReActStrategy, runGuarded, extractToolCalls, type LoopOutcome } from "./strategies/execution-strategy.js";
 export { PlanExecuteStrategy } from "./strategies/plan-execute-strategy.js";
+export { GraphStrategy, type GraphStrategyOptions } from "./strategies/graph-strategy.js";
 export type {
   StrategyHooks,
   StrategyTurnInfo,
