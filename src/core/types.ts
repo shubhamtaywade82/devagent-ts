@@ -28,6 +28,7 @@ import type { ToolGateway } from "../tools/gateway/tool-gateway.js";
 import type { PolicyEngine } from "./policy/policy-engine.js";
 import type { ModelGateway } from "../models/gateway/model-gateway.js";
 import type { StrategyHooks } from "../runtime/strategies/strategy-hooks.js";
+import type { TaskId, TraceId } from "./identity.js";
 
 // ── Identity ────────────────────────────────────────────────────────────────
 
@@ -148,17 +149,31 @@ export interface StateStore {
 /**
  * Everything a strategy needs to execute one run. The runtime creates this
  * per execute() call — never share it across runs.
+ *
+ * Request-scoped identity (review item 15): every run carries runId +
+ * taskId + agentId + sessionId + traceId + optional parentRunId, so state
+ * (messages, budget, policy decisions, cancellation) can never leak across
+ * runs — child runs derive their own context via
+ * `childExecutionContext()` with inherited budget/policy/signal.
  */
 export interface ExecutionContext {
   readonly runId: RunId;
   readonly sessionId: SessionId;
   readonly agentId: AgentId;
+  /** The scheduled task this run executes (control-plane linkage). */
+  readonly taskId?: TaskId;
+  /** Trace this run belongs to (correlation root; review item 33). */
+  readonly traceId: TraceId;
+  /** Set on delegated child runs — links back to the delegating run. */
+  readonly parentRunId?: RunId;
   readonly task: TaskSpec;
   readonly signal: AbortSignal;
   /** Agent mode for this run (policy mode restrictions). */
   readonly mode?: string;
   /** Unattended run — gateway confirmation gate bypassed by contract. */
   readonly unattended?: boolean;
+  /** Free-form run metadata (request-scoped, never shared across runs). */
+  readonly metadata: Record<string, unknown>;
 
   readonly modelGateway: ModelGateway;
   readonly toolGateway: ToolGateway;

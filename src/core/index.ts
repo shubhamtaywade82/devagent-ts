@@ -124,18 +124,74 @@ export {
   type GateSnapshot,
 } from "./concurrency/gate-registry.js";
 
-// Events
+// Events — family contracts (core/events) + concrete family unions (runtime/events)
 export {
   familyOf,
   filteringSink,
+  persistableSink,
   isExecutionEvent,
   isDomainEvent,
+  isStateEvent,
   isPresentationEvent,
   type EventFamily,
-  type ExecutionEvent,
-  type DomainEvent,
-  type PresentationEvent,
+  type KernelEventSink,
 } from "./events/families.js";
+export type { ExecutionEvent, DomainEvent, StateEvent, PresentationEvent } from "../runtime/events/index.js";
+export {
+  type EventEnvelope,
+  type PersistedEventRecord,
+  type TypeTaggedEvent,
+  toPersistedRecord,
+  fromPersistedRecord,
+  isPersistedEventRecord,
+} from "./events/envelope.js";
+
+// Identity + correlation (review item 33)
+export {
+  newTraceId,
+  newTenantId,
+  newSessionId,
+  newRunId,
+  newTaskId,
+  newStepId,
+  newAgentId,
+  newToolCallId,
+  newModelCallId,
+  newCheckpointId,
+  newEventId,
+  newDelegationId,
+  newIdempotencyKey,
+  isValidId,
+  mergeCorrelation,
+  formatCorrelation,
+  type TraceId,
+  type TenantId,
+  type SessionId as SessionIdType,
+  type RunId as RunIdType,
+  type TaskId,
+  type StepId,
+  type AgentId as AgentIdType,
+  type ToolCallId,
+  type ModelCallId,
+  type CheckpointId,
+  type EventId,
+  type DelegationId,
+  type IdempotencyKey,
+  type CorrelationIds,
+  type PartialCorrelation,
+} from "./identity.js";
+export { CorrelationTracker, correlationFrom } from "./observability/correlation.js";
+
+// Cancellation propagation (review item 16)
+export {
+  CancellationScope,
+  CancellationRegistry,
+  CancelledError,
+  isAbortError,
+  throwIfAborted,
+  linkedSignal,
+  type LinkedSignal,
+} from "./cancellation/cancellation.js";
 
 // Strategies + runtime
 export type { ExecutionStrategy } from "../runtime/strategies/execution-strategy.js";

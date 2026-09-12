@@ -5,6 +5,7 @@ import {
   filteringSink,
   isDomainEvent,
   isExecutionEvent,
+  isStateEvent,
   isPresentationEvent,
 } from "../../src/core/events/families.js";
 import type { ModelInfo } from "../../src/models/catalog.js";
@@ -72,15 +73,25 @@ describe("ModelCapabilityRegistry", () => {
 });
 
 describe("event families", () => {
-  it("classifies execution, domain, and presentation events", () => {
+  it("classifies execution, domain, state, and presentation events", () => {
     const execution: RuntimeEvent = { type: "tool.completed", id: "1", result: {} };
-    const domain: RuntimeEvent = { type: "conversation.message", role: "user", text: "hi" };
+    const domain: RuntimeEvent = { type: "git.changed", git: { branch: "main", files: [] } } as RuntimeEvent;
+    const state: RuntimeEvent = { type: "conversation.message", role: "user", text: "hi" };
     const presentation: RuntimeEvent = { type: "theme.changed", theme: "midnight" };
     expect(isExecutionEvent(execution)).toBe(true);
     expect(isDomainEvent(domain)).toBe(true);
+    expect(isStateEvent(state)).toBe(true);
     expect(isPresentationEvent(presentation)).toBe(true);
     expect(familyOf({ type: "rails.index", status: "ready" } as RuntimeEvent)).toBe("domain");
     expect(familyOf({ type: "notification", text: "x", kind: "info" } as RuntimeEvent)).toBe("presentation");
+    // execution acts stay execution even though they also appear in the transcript
+    expect(familyOf({ type: "conversation.tool_call", id: "1", name: "ls", args: {}, status: "running" } as RuntimeEvent)).toBe("execution");
+    // usage/context are state projections, not execution acts
+    expect(familyOf({ type: "usage.changed", promptTokens: 1, completionTokens: 1 } as RuntimeEvent)).toBe("state");
+    expect(familyOf({ type: "model.answered", tier: "local", model: "m" } as RuntimeEvent)).toBe("execution");
+    expect(familyOf({ type: "model.changed", name: "m" } as RuntimeEvent)).toBe("domain");
+    expect(familyOf({ type: "model.streaming", streaming: true } as RuntimeEvent)).toBe("state");
+    expect(familyOf({ type: "sandbox.detected", available: true } as RuntimeEvent)).toBe("domain");
   });
 
   it("filteringSink forwards only the requested families", () => {

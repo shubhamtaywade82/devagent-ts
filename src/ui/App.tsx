@@ -7,6 +7,7 @@ import { EventBus } from "../runtime/events/bus.js";
 import { Store } from "../runtime/store.js";
 import { RuntimeState, VIEW_ORDER, ViewId } from "../runtime/types.js";
 import { activeViewRows, densityForWidth, detailForDensity, MAX_COMPLETION_ROWS } from "./layout/density.js";
+import { setActiveTheme } from "./layout/theme-map.js";
 import { resolveKey, UiCommand } from "../interaction/keybindings.js";
 import { MOUSE_SGR_PATTERN } from "../interaction/mouse.js";
 import { initialUiState, uiReduce } from "../interaction/ui-state.js";
@@ -226,6 +227,11 @@ export function App({
 }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const state = useRuntimeState(store);
+  // Presentation side effect (review item 12): applying the active theme to
+  // the palette module is a UI concern — the state reducer only records it.
+  useEffect(() => {
+    setActiveTheme(state.theme);
+  }, [state.theme]);
   const { width, height, listener: sizeListener } = useTerminalSize(columns, rows);
   const [ui, uiDispatch] = useReducer(uiReduce, undefined, initialUiState);
   const [prompt, setPrompt] = useState("");

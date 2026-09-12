@@ -16,7 +16,6 @@ import { createMissionState, deriveMissionPhases, missionCrumb } from "./mission
 // Moving the constants out of this file keeps the reducer pure and makes it easy
 // for CI or callers to adjust limits without recompiling.
 import { MAX_LOGS, MAX_CONVERSATION, MAX_TOOL_CALLS, MAX_NOTIFICATIONS } from "./config.js";
-import { setActiveTheme } from "../ui/layout/theme-map.js";
 
 // Strips ANSI/C0/C1 control sequences from text before it lands in state,
 // so tool or shell output emitting screen-clear/cursor-addressing/title-set
@@ -424,7 +423,9 @@ export function reduce(state: RuntimeState, event: RuntimeEvent): RuntimeState {
         },
       };
     case "theme.changed":
-      setActiveTheme(event.theme);
+      // Presentation concern: the reducer records the selected theme in
+      // state; the UI layer (App) applies it to the palette module. The
+      // state layer must not import UI code (review item 12).
       return { ...state, theme: event.theme };
     case "git.changed":
       return withActor({ ...state, git: event.git }, "git", {
