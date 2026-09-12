@@ -196,6 +196,8 @@ export interface StrategyExecuteOptions {
 /**
  * The single entry point of the kernel. Applications request executions;
  * the runtime resolves the agent, picks the strategy, and drives one run.
+ * The runtime owns state, policies, budgets, retries, cancellation and
+ * checkpoints (review item 3) — strategies only own the reasoning loop.
  */
 export interface AgentRuntime {
   execute(
@@ -203,6 +205,8 @@ export interface AgentRuntime {
     context: ExecutionContext,
     options?: StrategyExecuteOptions,
   ): Promise<ExecutionResult>;
+  /** Cancel an active run by id (propagates through the run's signal). */
+  cancel?(runId: string): boolean;
 }
 
 // Ergonomic re-exports so kernel-internal modules can import peer contracts
