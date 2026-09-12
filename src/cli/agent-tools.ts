@@ -16,7 +16,6 @@ import { parityPosture } from "../core/policy/postures.js";
 import {
   agentCorePack,
   browserPack,
-  cryptoPack,
   databasePack,
   dockerPack,
   docsPack,
@@ -28,6 +27,7 @@ import {
   rubyPack,
   searchPack,
   shellPack,
+  tradingPack,
 } from "../tools/packs/index.js";
 
 export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
@@ -40,7 +40,7 @@ export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
  * execution path during migration) and the kernel ToolCatalog (metadata +
  * ToolGateway enforcement for kernel-native runs). Tool definitions and
  * their risk/side-effect metadata live with the domain packs
- * (src/packs/index.ts); this class is becoming a thin composition root.
+ * (src/tools/packs/); this class is becoming a thin composition root.
  */
 export class AgentToolManager {
   readonly registry = new Registry();
@@ -102,7 +102,12 @@ export class AgentToolManager {
   }
 
   registerBinanceStreamTools(stream: BinanceStreamManager): void {
-    this.registerToolPack(cryptoPack(stream));
+    this.registerToolPack(tradingPack({ stream }));
+  }
+
+  /** Trading domain pack (canonical name — review item 21). */
+  registerTradingTools(stream: BinanceStreamManager): void {
+    this.registerToolPack(tradingPack({ stream }));
   }
 
   registerLspTools(lsp: LspManager): void {

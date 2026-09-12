@@ -7,7 +7,7 @@ import { jest } from "@jest/globals";
 jest.unstable_mockModule("node:child_process", () => ({ spawn: jest.fn() }));
 
 const { spawn } = await import("node:child_process");
-const { RunRSpecTool } = await import("../../src/tools/rspec-tool.js");
+const { RunRSpecTool } = await import("../../src/domains/ruby/rspec-tool.js");
 
 const mockSpawn = spawn as jest.Mock;
 

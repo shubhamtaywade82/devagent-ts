@@ -1,0 +1,108 @@
+/**
+ * ExecutionManager service (review item 1) — run lifecycle + planned-task
+ * execution the Agent god class used to own inline.
+ *
+ * Owns: run scopes (run id + abort signal wired into gateway-supervised
+ * tool calls), cancellation, the plan checkpoint store, and the planned
+ * mission flows (run/resume Orchestrator runs, /plan entry).
+ */
+
+import { Orchestrator } from "../../orchestration/orchestrator.js";
+import { AgentStepRunner } from "../../orchestration/agent-planner.js";
+import type { Planner } from "../../orchestration/types.js";
+import { PlanStep } from "../../orchestration/types.js";
+import { CheckpointStore, sanitizeResumedSteps } from "../../runtime/checkpoint.js";
+import type { DefaultAgentRuntime } from "../../runtime/agent/agent-runtime.js";
+import type { GateRegistry } from "../../core/concurrency/gate-registry.js";
+
+export interface ExecutionManagerOptions {
+  runtime: DefaultAgentRuntime;
+  checkpoint: CheckpointStore;
+  /** One step of work (delegated back to the composing Agent). */
+  runStep: (message: string) => Promise<string>;
+  onStepChange?: (step: PlanStep) => void;
+}
+
+/** A run scope: runId + signal, wired into tool calls issued within it. */
+export interface ExecutionRunScope {
+  runId: string;
+  signal: AbortSignal;
+}
+
+export class ExecutionManager {
+  private currentRunController: AbortController | null = null;
+  private executionSignal: AbortSignal | null = null;
+
+  constructor(private readonly opts: ExecutionManagerOptions) {}
+
+  get signal(): AbortSignal | undefined {
+    return this.executionSignal ?? undefined;
+  }
+
+  get gates(): GateRegistry {
+    return this.opts.runtime.gates;
+  }
+
+  /** Open a run scope: run id + abort signal wired into every supervised tool call. */
+  startExecutionRun(): string {
+    this.endExecutionRun();
+    const controller = new AbortController();
+    this.currentRunController = controller;
+    this.executionSignal = controller.signal;
+    return `run_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /** Cancel the in-flight run scope: supervised tool calls unwind as cancelled. */
+  cancelExecutionRun(): boolean {
+    if (!this.currentRunController) return false;
+    this.currentRunController.abort();
+    return true;
+  }
+
+  endExecutionRun(): void {
+    this.currentRunController = null;
+    this.executionSignal = null;
+  }
+
+  hasResumablePlan(): boolean {
+    return this.opts.checkpoint.load() !== null;
+  }
+
+  /** Run a planned task through the Orchestrator (topological + concurrent + retry + replan). */
+  async runPlannedTask(steps: PlanStep[], planner: Planner): Promise<PlanStep[]> {
+    const orchestrator = new Orchestrator({
+      steps,
+      runner: new AgentStepRunner({ runUserMessage: (message) => this.opts.runStep(message) }),
+      planner,
+      gates: this.opts.runtime.gates,
+      signal: this.executionSignal ?? undefined,
+      runRollback: async (command: string) => {
+        await this.opts.runStep(`Roll back by running exactly this: ${command}`);
+      },
+      checkpoint: this.opts.checkpoint,
+      onStepChange: (step) => this.opts.onStepChange?.(step),
+    });
+    return orchestrator.run();
+  }
+
+  /** Resume a plan interrupted by a crash or kill (non-terminal → pending). */
+  async resumePlannedTask(planner: Planner): Promise<PlanStep[] | null> {
+    const saved = this.opts.checkpoint.load();
+    if (!saved) return null;
+    const orchestrator = new Orchestrator({
+      steps: sanitizeResumedSteps(saved.steps),
+      runner: new AgentStepRunner({ runUserMessage: (message) => this.opts.runStep(message) }),
+      planner,
+      gates: this.opts.runtime.gates,
+      signal: this.executionSignal ?? undefined,
+      runRollback: async (command: string) => {
+        await this.opts.runStep(`Roll back by running exactly this: ${command}`);
+      },
+      checkpoint: this.opts.checkpoint,
+      onStepChange: (step) => this.opts.onStepChange?.(step),
+      history: saved.history,
+      replanCount: saved.replanCount,
+    });
+    return orchestrator.run();
+  }
+}

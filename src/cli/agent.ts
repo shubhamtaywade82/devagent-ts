@@ -1,8 +1,11 @@
-import { CliConfig, loadConfig, saveWorkspaceConfig } from "./config.js";
+import { CliConfig, loadConfig } from "./config.js";
 import { WorkspaceManager } from "../platform/workspace.js";
-import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../models/adapters/provider.js";
-import { Router } from "../models/router/router.js";
-import { Capability, inferCapabilities, ModelCatalog } from "../models/catalog.js";
+import { ChatMessage, ChatOptions, ChatResponse, Provider } from "../models/adapters/provider.js";
+import { Capability } from "../models/catalog.js";
+import { ModelStack } from "./services/model-stack.js";
+import { SessionManager } from "./services/session-manager.js";
+import { ApprovalManager } from "./services/approval-manager.js";
+import { ExecutionManager } from "./services/execution-manager.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
 import { SessionStore, SessionMeta } from "../runtime/session.js";
 import { LoopDetector } from "../orchestration/loop-detector.js";
@@ -32,13 +35,7 @@ import { AgentLearning } from "./agent-learning.js";
 import { DynamicToolSelector } from "../tools/discovery.js";
 import { BrowserManager } from "../browser/manager.js";
 import { BinanceStreamManager } from "../domains/trading/binance-stream.js";
-// ── Hybrid local-cloud architecture ────────────────────────────────────
-import { ModelAvailabilityChecker } from "../models/router/availability.js";
-import { KeyManager } from "../models/router/key-manager.js";
-import { HeuristicRouter } from "../models/router/heuristic-router.js";
-import { LocalWorker } from "../models/local-worker.js";
-import { Verifier } from "../models/verification/verifier.js";
-import { SelfConsistency } from "../models/verification/self-consistency.js";
+
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
 // ── Kernel (agent execution kernel) ───────────────────────────────────
@@ -107,143 +104,72 @@ export class Agent {
   readonly binanceStream: BinanceStreamManager;
   private readonly toolSelector: DynamicToolSelector;
 
-  private readonly provider: Provider;
-  private readonly catalog: ModelCatalog;
-  private readonly router: Router;
-  private catalogRefreshed: Promise<void> | null = null;
+  // ── services (review item 1): the god class's extracted concerns ──────
+  /** Model plane: providers, catalog, routing, hybrid components. */
+  readonly stack: ModelStack;
+  /** Conversation persistence + background summarization. */
+  readonly sessions: SessionManager;
+  /** Human-in-the-loop gates: approvals + clarifications. */
+  readonly approvals: ApprovalManager;
+  /** Run scopes, cancellation, planned missions. */
+  readonly execution: ExecutionManager;
+
   private readonly planCheckpoint: CheckpointStore;
-  private readonly sessionStore: SessionStore;
-  private currentSessionId = "";
   private readonly loopDetector = new LoopDetector();
   private readonly maxToolTurns = 128;
   readonly events: AgentEvents;
   private readonly listeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
-  // ── Hybrid local-cloud architecture ─────────────────────────────────
-  readonly heuristicRouter: HeuristicRouter | undefined;
-  readonly localWorker: LocalWorker | undefined;
-  readonly verifier: Verifier | undefined;
-  readonly selfConsistency: SelfConsistency | undefined;
-  readonly availabilityChecker: ModelAvailabilityChecker | undefined;
-  readonly keyManager: KeyManager | undefined;
   readonly workspaceRoot: string;
   private readonly mcpServerConfigs: Array<{ name: string; command: string; args?: string[] }>;
-  private readonly pendingApprovals = new Map<string, (approved: boolean) => void>();
-  private readonly autoApprove: boolean;
+  private readonly autoApproveFlag: boolean;
   readonly intentResolver = new IntentResolver();
-  private readonly pendingClarifications = new Map<string, (resp: ClarificationResponse) => void>();
   projectInfo?: ProjectInfo;
 
   // ── Kernel (agent execution kernel) ─────────────────────────────────
-  /** Human-in-the-loop resolver — classification table moved to the kernel. */
-  readonly approvalBroker: ApprovalBroker;
+  /** Human-in-the-loop resolver (owned by the ApprovalManager service). */
+  get approvalBroker(): ApprovalBroker {
+    return this.approvals.broker;
+  }
   /** Model gateway over the existing Router/Catalog (kernel port). */
   readonly modelGateway: DefaultModelGateway;
   /** Kernel runtime: agent registry + strategy registry + agent gate. */
   readonly runtime: DefaultAgentRuntime;
-  /** Capability profiles synced from every catalog refresh. */
-  readonly modelProfiles = new ModelCapabilityRegistry();
-  /** Abort signal for the in-flight run (wired to runtime cancellation). */
-  private executionSignal: AbortSignal | null = null;
+  /** Capability profiles synced from every catalog refresh (ModelStack). */
+  get modelProfiles(): ModelCapabilityRegistry {
+    return this.stack.modelProfiles;
+  }
 
   constructor(opts: AgentOptions = {}) {
     const cfg = { ...loadConfig(), ...(opts.config ?? {}) };
     this.workspaceRoot = cfg.workspaceRoot;
     this.mcpServerConfigs = cfg.mcpServers ?? [];
-    this.autoApprove = cfg.autoApprove ?? false;
-
-    this.provider = new Provider({
-      tier: cfg.tier,
-      model: cfg.model,
-      host: cfg.host,
-      apiKey: cfg.apiKey,
-      apiKeys: cfg.apiKeys,
-      ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
-    });
-
-    // Separate provider pool for capability-routed delegation (see runUserMessage /
-    // detectEscalationHint), kept independent of `this.provider` so the primary
-    // conversation's model/tier is never mutated. Cloud provider is omitted
-    // entirely when no API key is configured.
-    const localProvider = new Provider({
-      tier: "local",
-      model: cfg.model,
-      host: cfg.tier === "local" ? cfg.host : undefined,
-      apiKeys: cfg.apiKeys,
-      ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
-    });
-    const cloudProvider = cfg.apiKey
-      ? new Provider({
-          tier: "cloud",
-          model: cfg.model,
-          host: cfg.tier === "cloud" ? cfg.host : undefined,
-          apiKey: cfg.apiKey,
-          apiKeys: cfg.apiKeys,
-          ...(cfg.timeoutMs ? { timeoutMs: cfg.timeoutMs } : {}),
-        })
-      : undefined;
-
-    this.catalog = new ModelCatalog(localProvider, cloudProvider, cfg.quickModel);
-    this.router = new Router({
-      local: localProvider,
-      cloud: cloudProvider,
-      catalog: this.catalog,
-      logger: { warn: (msg: string) => this.emit("onStatus", msg) },
-    });
-
-    // ── Hybrid local-cloud architecture: instantiate all components ─────────
-    // Layer-1 gate: undefined when disabled, mirroring the other optional
-    // hybrid components below (localWorker/verifier/selfConsistency).
-    this.heuristicRouter = cfg.enableHeuristicGate ? new HeuristicRouter() : undefined;
-
-    // Availability checker: pre-validate cloud model access per API key at startup.
-    this.availabilityChecker =
-      cfg.enableAvailabilityCheck && cfg.apiKeys?.length
-        ? new ModelAvailabilityChecker(cfg.apiKeys, { ttlMs: cfg.availabilityCheckTtlMs })
-        : undefined;
-
-    // KeyManager: bind API keys to models to keep them warm in Ollama Cloud VRAM.
-    this.keyManager =
-      this.availabilityChecker && cfg.apiKeys?.length
-        ? new KeyManager(cfg.apiKeys, this.availabilityChecker)
-        : undefined;
-
-    // LocalWorker: executes boilerplate tasks on the local quick model.
-    // Uses a dedicated quick-model provider so the primary model/tier is never mutated.
-    const quickLocalProvider = cfg.quickModel
-      ? new Provider({
-          tier: "local",
-          model: cfg.quickModel,
-          host: cfg.tier === "local" ? cfg.host : undefined,
-        })
-      : localProvider;
-    this.localWorker = cfg.enableLocalWorker ? new LocalWorker(quickLocalProvider) : undefined;
-
-    // Verifier: critic pass after local generation (off by default).
-    this.verifier = cfg.enableVerifier && this.localWorker ? new Verifier(quickLocalProvider) : undefined;
-
-    // Self-consistency: agreement signal for borderline prompts (off by default).
-    this.selfConsistency = cfg.enableSelfConsistency
-      ? new SelfConsistency(quickLocalProvider, {
-          n: cfg.selfConsistencyN,
-          threshold: cfg.selfConsistencyThreshold,
-        })
-      : undefined;
-
-    // Trigger availability refresh non-blocking at startup.
-    if (this.availabilityChecker) {
-      this.availabilityChecker
-        .refreshAll()
-        .catch((e: Error) => this.emit("onStatus", `[Availability] refresh error: ${e.message}`));
-    }
+    this.autoApproveFlag = cfg.autoApprove ?? false;
 
     this.events = opts.events ?? {};
+
+    // ── services (review item 1) ─────────────────────────────────────────
+    // ModelStack owns the providers/catalog/router/hybrid composition that
+    // used to be 80 lines of constructor here.
+    this.stack = new ModelStack(cfg, (msg) => this.emit("onStatus", msg));
+
+    // ApprovalManager owns the human-in-the-loop gates (approvals +
+    // clarifications) that used to be pending-promise maps here.
+    this.approvals = new ApprovalManager({
+      autoApprove: cfg.autoApprove ?? false,
+      onApprovalRequested: (request) => this.emit("onApprovalRequested", request),
+      onClarificationRequested: (request) => this.emit("onClarificationRequested", request),
+      hasApprovalListener: () =>
+        !!this.events.onApprovalRequested || !!this.listeners.get("onApprovalRequested")?.size,
+      hasClarificationListener: () =>
+        !!this.events.onClarificationRequested || !!this.listeners.get("onClarificationRequested")?.size,
+    });
 
     this.conversation = new AgentConversation();
 
     this.tools = new AgentToolManager();
     this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) => this.emit("onShellOutput", stream, chunk));
-    this.tools.registerHybridTools(this.localWorker);
+    this.tools.registerHybridTools(this.stack.localWorker);
     this.tools.registerClarificationTool(this);
 
     this.intelligence = new AgentIntelligence({
@@ -278,8 +204,15 @@ export class Agent {
 
     this.memory = new MemoryStore(statePaths.memoryDb);
     this.planCheckpoint = new CheckpointStore(statePaths.checkpoint);
-    this.sessionStore = new SessionStore(statePaths.sessionsDir);
-    this.currentSessionId = this.sessionStore.startNew();
+
+    // SessionManager owns conversation persistence + summarization.
+    this.sessions = new SessionManager({
+      store: new SessionStore(statePaths.sessionsDir),
+      memory: this.memory,
+      stack: this.stack,
+      onMemorySummary: (summary) => this.emit("onMemorySummary", summary),
+      onError: (e) => this.emit("onError", e),
+    });
 
     this.docs = new DocsStore(statePaths.docsDb);
     this.tools.registerDocsTools(this.docs, cfg.workspaceRoot);
@@ -294,7 +227,7 @@ export class Agent {
 
     this.learning = new AgentLearning({
       workspaceRoot: cfg.workspaceRoot,
-      provider: this.provider,
+      provider: this.stack.provider,
       memory: this.memory,
       skillsHomeDir: opts.skillsHomeDir,
       projectLanguage,
@@ -303,34 +236,38 @@ export class Agent {
     this.toolSelector = new DynamicToolSelector({
       mode: cfg.toolSelectionMode,
       maxActiveTools: cfg.maxActiveTools,
-      provider: this.provider,
+      provider: this.stack.provider,
       // LLM-mode tool selection is a classification task, not a coding one — route it
       // through the "quick" capability (an always-resident local model, falling back
       // to cloud per Router.route/routeWithFallback) instead of the primary model.
       chat: async (messages) => {
-        await this.ensureCatalog();
-        const candidates = this.catalog.modelsFor("quick");
+        await this.stack.ensureCatalog();
+        const candidates = this.stack.catalog.modelsFor("quick");
         if (candidates.length) {
           this.emit("onStatus", `delegating task to ${candidates[0].tier}/${candidates[0].name} (tool selection)`);
         }
-        return this.routeWithFallback("quick", messages, { stream: false });
+        return this.stack.routeWithFallback("quick", messages, { stream: false });
       },
     });
 
     // ── Kernel wiring: gateways, broker, runtime ────────────────────────
-    this.approvalBroker = new ApprovalBroker(false);
-    // Route broker requests through the existing emit-based approval flow
-    // (deny-by-default when no UI is listening — see requestApproval).
-    this.approvalBroker.setResponder(async (spec) => this.requestApproval(spec.title, spec.summary));
-
     this.modelGateway = new DefaultModelGateway({
-      router: this.router,
-      catalog: this.catalog,
-      registry: this.modelProfiles,
+      router: this.stack.router,
+      catalog: this.stack.catalog,
+      registry: this.stack.modelProfiles,
     });
 
     this.runtime = new DefaultAgentRuntime();
     this.runtime.agents.register(devAgentDescriptor());
+
+    // ExecutionManager owns run scopes + planned missions (needs runtime
+    // for its gate registry + the step runner delegating back to this Agent).
+    this.execution = new ExecutionManager({
+      runtime: this.runtime,
+      checkpoint: this.planCheckpoint,
+      runStep: (message) => this.runUserMessage(message),
+      onStepChange: (step) => this.emit("onMissionStep", step),
+    });
   }
 
   on<E extends AgentEventName>(event: E, handler: AgentEventHandler<E>): this {
@@ -359,7 +296,7 @@ export class Agent {
       clarificationReq &&
       (this.events.onClarificationRequested || this.listeners.get("onClarificationRequested")?.size)
     ) {
-      const resp = await this.requestClarification(clarificationReq);
+      const resp = await this.approvals.requestClarification(clarificationReq);
       userMessage = this.intentResolver.refinePrompt(userMessage, resp, clarificationReq.options);
       this.emit("onStatus", `refined intent: "${userMessage}"`);
     }
@@ -413,7 +350,7 @@ export class Agent {
       // Persist the transcript after every turn (not just success) so a
       // killed/restarted process can resume with the model still remembering
       // this turn — mirrors the plan checkpoint's "save progress as you go".
-      this.sessionStore.save(this.currentSessionId, this.conversation.getMessages());
+      this.sessions.save(this.conversation.getMessages());
       return text;
     };
 
@@ -433,10 +370,10 @@ export class Agent {
     // when nothing configures it) — "cloud" here always means the user
     // explicitly configured a cloud primary, which should be the real default
     // for the turn rather than trying "quick" first and hoping it's enough.
-    let escalated = this.provider.currentTier === "cloud";
+    let escalated = this.stack.provider.currentTier === "cloud";
     let delegationAddendumInjected = false;
     const injectDelegationAddendum = () => {
-      if (this.localWorker && !delegationAddendumInjected) {
+      if (this.stack.localWorker && !delegationAddendumInjected) {
         this.conversation.pushSystemMessage(LOCAL_DELEGATION_SYSTEM_ADDENDUM);
         delegationAddendumInjected = true;
       }
@@ -446,18 +383,18 @@ export class Agent {
     // proof/multi-step/etc.) skips the quick-model attempt entirely instead of
     // waiting for the quick model to discover it's out of its depth and call
     // escalate_task.
-    if (this.heuristicRouter && !escalated) {
-      const heuristic = this.heuristicRouter.classify(userMessage);
+    if (this.stack.heuristicRouter && !escalated) {
+      const heuristic = this.stack.heuristicRouter.classify(userMessage);
       if (heuristic.decision === "cloud") {
         escalated = true;
         injectDelegationAddendum();
         this.emit("onStatus", `escalating to primary model: heuristic pre-filter matched "${heuristic.trigger}"`);
-      } else if (heuristic.decision === "unknown" && !requiresToolEvidence && this.selfConsistency) {
+      } else if (heuristic.decision === "unknown" && !requiresToolEvidence && this.stack.selfConsistency) {
         // Self-consistency, not verbalized self-confidence: measures agreement
         // across independent samples rather than asking the model to judge its
         // own output (that approach was tried and rejected — see the comment
         // above requiresToolEvidence's verifyingLookup/verifyingRecovery usage).
-        const sc = await this.selfConsistency.evaluate(userMessage);
+        const sc = await this.stack.selfConsistency.evaluate(userMessage);
         if (sc.shouldEscalate) {
           escalated = true;
           injectDelegationAddendum();
@@ -471,7 +408,7 @@ export class Agent {
     // routeWithFallback's own ensureCatalog, but DynamicToolSelector's
     // hybrid-mode tool-selection classification (line ~284) still reads
     // this.catalog.modelsFor("quick").
-    await this.ensureCatalog();
+    await this.stack.ensureCatalog();
 
     // Set at the end of a turn's tool dispatch when any tool call in that turn
     // errored; read at the top of the NEXT turn's buffering decision, then reset —
@@ -506,7 +443,7 @@ export class Agent {
         // Symmetric: delegate_to_local must always be offered once escalated —
         // it's the primary model's way to push boilerplate back down instead of
         // spending its own tokens on it.
-        if (escalated && this.localWorker && !activeTools.some((t) => t.name === "delegate_to_local")) {
+        if (escalated && this.stack.localWorker && !activeTools.some((t) => t.name === "delegate_to_local")) {
           const delegateTool = this.tools.registry.getTools().find((t) => t.name === "delegate_to_local");
           if (delegateTool) activeTools.push(delegateTool);
         }
@@ -561,8 +498,8 @@ export class Agent {
         });
         let chatOpts = makeChatOpts();
         let chatResponse = capability
-          ? await this.routeWithFallback(capability, this.conversation.getMessages(), chatOpts)
-          : await this.provider.chat(this.conversation.getMessages(), chatOpts);
+          ? await this.stack.routeWithFallback(capability, this.conversation.getMessages(), chatOpts)
+          : await this.stack.provider.chat(this.conversation.getMessages(), chatOpts);
 
         let assistantMessage = chatResponse.message as {
           content?: string;
@@ -580,7 +517,7 @@ export class Agent {
           injectDelegationAddendum();
           buffered = null;
           chatOpts = makeChatOpts();
-          chatResponse = await this.provider.chat(this.conversation.getMessages(), chatOpts);
+          chatResponse = await this.stack.provider.chat(this.conversation.getMessages(), chatOpts);
         } else if (buffered) {
           for (const delta of buffered) {
             lastAssistantText += delta;
@@ -598,8 +535,8 @@ export class Agent {
         // reflect what actually answered; the direct this.provider.chat path
         // (capability null) has no Router involved, so fall back to the
         // provider's own current tier/model there.
-        const routedTier = (response.routedTier as string | undefined) ?? this.provider.currentTier;
-        const routedModel = (response.routedModel as string | undefined) ?? this.provider.currentModel;
+        const routedTier = (response.routedTier as string | undefined) ?? this.stack.provider.currentTier;
+        const routedModel = (response.routedModel as string | undefined) ?? this.stack.provider.currentModel;
         this.emit("onModelUsed", routedTier, routedModel);
         this.emitUsage(response, elapsedMs);
       },
@@ -643,7 +580,7 @@ export class Agent {
       // listener default, same AUTO_APPROVE bypass — via describeConfirmation.
       resolveConfirmation: async ({ name, args, reason }) => {
         const spec = describeConfirmation(name, args, reason);
-        return this.requestApproval(spec.title, spec.summary);
+        return this.approvals.requestApproval(spec.title, spec.summary);
       },
 
       onToolObserved: (obs) => {
@@ -714,12 +651,12 @@ export class Agent {
       agentId: "devagent",
       task: { goal: userMessage },
       strategy: "react",
-      unattended: this.autoApprove,
+      unattended: this.autoApproveFlag,
     };
     const context = createExecutionContext(request, {
-      runId: this.currentSessionId,
-      sessionId: this.currentSessionId,
-      signal: this.executionSignal ?? undefined,
+      runId: this.sessions.sessionId,
+      sessionId: this.sessions.sessionId,
+      signal: this.execution.signal,
       context: new AgentConversationContext(this.conversation),
       modelGateway: this.modelGateway,
       toolGateway: this.tools.gateway,
@@ -742,7 +679,7 @@ export class Agent {
       const output = result.output;
       if (terminal === "answered") {
         this.learning.appendMessage("assistant", output);
-        this.triggerSummarization();
+        this.sessions.triggerSummarization();
       }
       return finish(terminal as Parameters<typeof finish>[0], output);
     } catch (e) {
@@ -767,24 +704,10 @@ export class Agent {
   }
 
   async runPlannedTask(steps: PlanStep[], planner: Planner): Promise<PlanStep[]> {
-    // Control plane promoted onto the kernel ports: the plan's concurrency
-    // gate is acquired from the runtime's GateRegistry (observable via gate
-    // snapshots), and the run-scope abort signal cancels the plan loop
-    // cooperatively — no new steps start, in-flight steps unwind, and the
-    // checkpoint is kept so the plan can be resumed.
-    const orchestrator = new Orchestrator({
-      steps,
-      runner: new AgentStepRunner(this),
-      planner,
-      gates: this.runtime.gates,
-      signal: this.executionSignal ?? undefined,
-      runRollback: async (command: string) => {
-        await this.runUserMessage(`Roll back by running exactly this: ${command}`);
-      },
-      checkpoint: this.planCheckpoint,
-      onStepChange: (step) => this.emit("onMissionStep", step),
-    });
-    return orchestrator.run();
+    // Delegated to the ExecutionManager service (review item 1): the plan's
+    // concurrency gate comes from the runtime's GateRegistry, the run-scope
+    // abort signal cancels cooperatively, and the checkpoint is kept for resume.
+    return this.execution.runPlannedTask(steps, planner);
   }
 
   /**
@@ -793,58 +716,21 @@ export class Agent {
    * reset to "pending" — the process died mid-step, so its outcome is unknown.
    */
   async resumePlannedTask(planner: Planner): Promise<PlanStep[] | null> {
-    const saved = this.planCheckpoint.load();
-    if (!saved) return null;
-
-    const orchestrator = new Orchestrator({
-      steps: sanitizeResumedSteps(saved.steps),
-      runner: new AgentStepRunner(this),
-      planner,
-      gates: this.runtime.gates,
-      signal: this.executionSignal ?? undefined,
-      runRollback: async (command: string) => {
-        await this.runUserMessage(`Roll back by running exactly this: ${command}`);
-      },
-      checkpoint: this.planCheckpoint,
-      onStepChange: (step) => this.emit("onMissionStep", step),
-      // The checkpoint has persisted these all along but nothing read them
-      // back: a resumed run replanned with an empty history (so the model
-      // never saw the failures that caused the checkpoint) and a replan budget
-      // reset to zero (so a crash-loop could never exhaust it).
-      history: saved.history,
-      replanCount: saved.replanCount,
-    });
-    return orchestrator.run();
+    return this.execution.resumePlannedTask(planner);
   }
 
   hasResumablePlan(): boolean {
-    return this.planCheckpoint.load() !== null;
+    return this.execution.hasResumablePlan();
   }
 
-  /** Pauses until the TUI resolves the request (approve/reject keypress).
-   * The ApprovalOverlay/approval.requested plumbing already existed on the
-   * TUI side but had no producer — this is that producer. */
+  /** Pauses until the TUI resolves an approval (delegates to ApprovalManager). */
   private async requestApproval(title: string, summary: string): Promise<boolean> {
-    if (this.autoApprove) return true;
-
-    // Deny by default when nobody can answer. Without a listener the promise
-    // below never resolves, so a library consumer (the published ./agent
-    // export) that wires no UI would deadlock on the first destructive call.
-    if (!this.events.onApprovalRequested && !this.listeners.get("onApprovalRequested")?.size) return false;
-
-    const id = `appr${Date.now()}${Math.random().toString(36).slice(2, 8)}`;
-    const request: ApprovalRequest = { id, title, summary, filesChanged: 0, additions: 0, deletions: 0 };
-    const approved = await new Promise<boolean>((resolve) => {
-      this.pendingApprovals.set(id, resolve);
-      this.emit("onApprovalRequested", request);
-    });
-    this.pendingApprovals.delete(id);
-    return approved;
+    return this.approvals.requestApproval(title, summary);
   }
 
   /** Called by the TUI when the user presses approve/reject on a pending request. */
   resolveApproval(id: string, approved: boolean): void {
-    this.pendingApprovals.get(id)?.(approved);
+    this.approvals.resolveApproval(id, approved);
   }
 
   setProjectInfo(info: ProjectInfo): void {
@@ -852,22 +738,11 @@ export class Agent {
   }
 
   async requestClarification(request: ClarificationRequest): Promise<ClarificationResponse> {
-    // Avoid deadlocks when running headless or without interactive UI listener.
-    if (!this.events.onClarificationRequested && !this.listeners.get("onClarificationRequested")?.size) {
-      return { id: request.id, selectedId: request.options[0]?.id ?? "default" };
-    }
-    return new Promise<ClarificationResponse>((resolve) => {
-      this.pendingClarifications.set(request.id, resolve);
-      this.emit("onClarificationRequested", request);
-    });
+    return this.approvals.requestClarification(request);
   }
 
   resolveClarification(response: ClarificationResponse): void {
-    const handler = this.pendingClarifications.get(response.id);
-    if (handler) {
-      this.pendingClarifications.delete(response.id);
-      handler(response);
-    }
+    this.approvals.resolveClarification(response);
   }
 
   /** Entry point for /plan: decomposes `goal` into steps via the model, then
@@ -877,7 +752,7 @@ export class Agent {
    * instead of starting a new one when `goal` is empty and a checkpoint
    * exists. */
   async runPlan(goal: string): Promise<PlanStep[]> {
-    const planner: Planner = { replan: (remaining, history) => replanSteps(remaining, history, this.provider) };
+    const planner: Planner = { replan: (remaining, history) => replanSteps(remaining, history, this.stack.provider) };
 
     if (!goal.trim() && this.hasResumablePlan()) {
       // Understand/Inspect have no distinct signal of their own (both happen
@@ -903,7 +778,7 @@ export class Agent {
     this.emit("onMissionPhase", "understand", "completed");
     this.emit("onMissionPhase", "inspect", "completed");
     this.emit("onMissionPhase", "plan", "running");
-    const steps = await generatePlan(goal, this.provider);
+    const steps = await generatePlan(goal, this.stack.provider);
     this.emit("onMissionPhase", "plan", "completed");
     this.emit("onPlanUpdate", goal, steps, "running");
     this.emit("onMissionPhase", "execute", "running");
@@ -916,14 +791,12 @@ export class Agent {
   }
 
   setModel(model: string): void {
-    this.provider.setModel(model);
+    this.stack.setModel(model);
     this.conversation.reset();
-    saveWorkspaceConfig(this.workspaceRoot, { model });
   }
 
   setModelWithoutReset(model: string): void {
-    this.provider.setModel(model);
-    saveWorkspaceConfig(this.workspaceRoot, { model });
+    this.stack.setModel(model);
   }
 
   // ponytail: keyword classification, not an LLM intent classifier — cheap and
@@ -948,171 +821,71 @@ export class Agent {
     return null;
   }
 
-  /** How long a catalog snapshot is trusted before the next lookup refreshes
-   * it. Previously the refresh happened exactly once per process, which meant
-   * (a) if Ollama was down at startup the catalog stayed empty forever and
-   * capability delegation was disabled for the whole session even after it
-   * came back, and (b) a model pulled mid-session never showed up — the model
-   * switcher fell back to name-based inferCapabilities() guesses for it. */
-  private static readonly CATALOG_TTL_MS = 60_000;
-  private catalogRefreshedAt = 0;
-  private ensureCatalog(): Promise<void> {
-    // An empty catalog is never worth caching — it means discovery failed, not
-    // that the user genuinely has no models.
-    const usable = this.catalog.all().length > 0;
-    const fresh = Date.now() - this.catalogRefreshedAt < Agent.CATALOG_TTL_MS;
-    if (usable && fresh) return Promise.resolve();
-
-    // `catalogRefreshed` is only an in-flight handle, so concurrent callers
-    // share one refresh; it is cleared on settle so the next stale lookup
-    // starts a fresh one instead of resolving against a stale result forever.
-    if (this.catalogRefreshed) return this.catalogRefreshed;
-
-    this.catalogRefreshed = this.catalog
-      .refresh()
-      .then(() => {
-        this.catalogRefreshedAt = Date.now();
-        // Keep the kernel's capability registry in lockstep with the legacy
-        // catalog: profiles gain numeric scores/constraints/cost dimensions
-        // the Router can route from as the kernel-native path matures.
-        this.modelProfiles.syncFromLegacy(this.catalog.all());
-      })
-      .finally(() => {
-        this.catalogRefreshed = null;
-      });
-    return this.catalogRefreshed;
-  }
-
-  /**
-   * Routes through Router.route for the given capability (which already
-   * widens "quick" to any cloud candidate when no local one is available —
-   * see Router.route), and falls back to the primary provider/model if
-   * routing still fails outright (e.g. neither local nor cloud has any
-   * candidate at all). This is the guarantee that a capability-delegated
-   * turn — e.g. the always-resident local "quick" model being unpulled,
-   * unreachable, or crashed — never breaks the turn, only skips delegation.
-   */
-  private async routeWithFallback(
-    capability: Capability,
-    messages: ChatMessage[],
-    opts?: ChatOptions,
-  ): Promise<ChatResponse> {
-    await this.ensureCatalog();
-    try {
-      return await this.router.route(capability, messages, opts);
-    } catch {
-      return this.provider.chat(messages, opts);
-    }
-  }
-
   addLearning(category: string, context: string, lesson: string): void {
     this.learning.addLearning(category, context, lesson);
   }
 
   async validateModel(): Promise<true | string> {
-    try {
-      await this.provider.chat([{ role: "user", content: "respond with just a single dot" }], { stream: false });
-      return true;
-    } catch (e) {
-      const msg = (e as Error).message ?? "";
-      if (msg.includes("403") && msg.includes("subscription")) {
-        return "requires a subscription — upgrade at https://ollama.com/upgrade";
-      }
-      return `unreachable: ${msg}`;
-    }
+    return this.stack.validateModel();
   }
 
   setTier(tier: "local" | "cloud"): void {
-    this.provider.setTier(tier);
-    saveWorkspaceConfig(this.workspaceRoot, { tier });
+    this.stack.setTier(tier);
   }
 
   setRuntimeHost(host: string): void {
-    this.provider.setRuntimeHost(host);
+    this.stack.setRuntimeHost(host);
   }
 
   get currentModel(): string {
-    return this.provider.currentModel;
+    return this.stack.currentModel;
   }
 
   get currentTier(): string {
-    return this.provider.currentTier;
+    return this.stack.currentTier;
   }
 
   async listModels(): Promise<string[]> {
-    const data = await this.provider.availableModels();
-    if (this.provider.currentTier === "cloud") {
-      const cloud = data as { data?: Array<{ id: string }> };
-      return (cloud.data ?? []).map((m) => m.id);
-    }
-    const local = data as { models?: Array<{ name: string }> };
-    return (local.models ?? []).map((m) => m.name);
+    return this.stack.listModels();
   }
 
-  /**
-   * Cache-only availability lookup for the model switcher: which of `models`
-   * are known (from the startup/background ModelAvailabilityChecker refresh)
-   * to require an Ollama Cloud subscription, so the picker can show that
-   * before the user selects one instead of after. Models never checked yet,
-   * or local-tier models (the checker only tracks cloud), are omitted rather
-   * than guessed at.
-   */
   modelAvailability(models: string[]): Record<string, boolean> {
-    if (!this.availabilityChecker) return {};
-    const out: Record<string, boolean> = {};
-    for (const m of models) {
-      const status = this.availabilityChecker.cachedStatusAnyKey(m);
-      if (status) out[m] = status.available;
-    }
-    return out;
+    return this.stack.modelAvailability(models);
   }
 
-  /**
-   * Per-model capability tags (coding/vision/reasoning/quick/tools/agentic)
-   * for the model switcher. Local models get real capabilities reported by
-   * Ollama's /api/tags; cloud models fall back to the same name-based
-   * heuristic used for routing (`inferCapabilities`) since Cloud's
-   * OpenAI-compatible /v1/models doesn't expose capability metadata.
-   */
   async modelCapabilities(models: string[]): Promise<Record<string, Capability[]>> {
-    await this.ensureCatalog();
-    const byName = new Map(this.catalog.all().map((m) => [m.name, m.capabilities]));
-    const out: Record<string, Capability[]> = {};
-    for (const m of models) out[m] = byName.get(m) ?? inferCapabilities(m);
-    return out;
+    return this.stack.modelCapabilities(models);
   }
 
   resetContext(): void {
     this.conversation.reset();
-    this.sessionStore.clear(this.currentSessionId);
-    this.currentSessionId = this.sessionStore.startNew();
+    this.sessions.reset();
   }
 
   hasResumableSession(): boolean {
-    return this.sessionStore.mostRecentId() !== null;
+    return this.sessions.hasResumableSession();
   }
 
   /** Lists past conversations, most recently updated first, for a session
    * history picker. */
   listSessions(): SessionMeta[] {
-    return this.sessionStore.listSessions();
+    return this.sessions.listSessions();
   }
 
   /** Restores the most recently persisted conversation transcript, e.g. after
    * a crash/restart. Returns the restored messages (for replaying into the
    * TUI's visible chat log) or null if there was nothing to resume. */
   resumeSession(): ChatMessage[] | null {
-    const id = this.sessionStore.mostRecentId();
-    return id ? this.resumeSessionById(id) : null;
+    const saved = this.sessions.resumeSession();
+    if (saved) this.conversation.loadMessages(saved);
+    return saved;
   }
 
   /** Restores a specific past conversation by session id, e.g. from the
    * session history picker. */
   resumeSessionById(id: string): ChatMessage[] | null {
-    const saved = this.sessionStore.load(id);
-    if (!saved) return null;
-    this.currentSessionId = id;
-    this.conversation.loadMessages(saved);
+    const saved = this.sessions.resumeSessionById(id);
+    if (saved) this.conversation.loadMessages(saved);
     return saved;
   }
 
@@ -1134,27 +907,6 @@ export class Agent {
       tokensPerSecond,
       latencyMs,
     });
-  }
-
-  private isSummarizing = false;
-
-  private triggerSummarization(): void {
-    if (this.isSummarizing) return;
-    this.isSummarizing = true;
-    // Routed through "quick" rather than this.provider (the conversation's
-    // own primary model): this fires fire-and-forget right after every turn,
-    // and previously shared the exact same provider/endpoint/connection as
-    // the very next turn's own request — the two would contend for the same
-    // queue, making whichever turn came quickly after a short exchange (a
-    // greeting, say) queue behind the still-in-flight background summary
-    // call and appear to hang. "quick" is also simply the right tier for a
-    // 3-5 bullet summary — no need for the primary model's full capability.
-    generateSummary(this.memory, { chat: (messages, opts) => this.routeWithFallback("quick", messages, opts) })
-      .then((summary) => this.emit("onMemorySummary", summary))
-      .catch((e) => this.emit("onError", e instanceof Error ? e : new Error(String(e))))
-      .finally(() => {
-        this.isSummarizing = false;
-      });
   }
 
   getRegistry() {
@@ -1181,27 +933,18 @@ export class Agent {
   /** Opens a run scope: a run id + an abort signal wired into every
    * gateway-supervised tool call issued during this scope. */
   startExecutionRun(): string {
-    this.endExecutionRun();
-    const controller = new AbortController();
-    this.currentRunController = controller;
-    this.executionSignal = controller.signal;
-    return `run_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+    return this.execution.startExecutionRun();
   }
 
   /** Cancels the in-flight run scope: supervised tool calls observe the
    * abort and unwinds as cancelled (never a hard kill). */
   cancelExecutionRun(): boolean {
-    if (!this.currentRunController) return false;
-    this.currentRunController.abort();
-    return true;
+    return this.execution.cancelExecutionRun();
   }
 
   endExecutionRun(): void {
-    this.currentRunController = null;
-    this.executionSignal = null;
+    this.execution.endExecutionRun();
   }
-
-  private currentRunController: AbortController | null = null;
 
   async registerMcpServer(command: string, args: string[] = []): Promise<void> {
     await this.tools.registerMcpServer(command, args);
