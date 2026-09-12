@@ -1,18 +1,18 @@
 import { Registry } from "../tools/registry.js";
 import { Tool } from "../tools/tool.js";
 import { connectMcpServer } from "../mcp/client.js";
-import type { LocalWorker } from "../provider/local-worker.js";
+import type { LocalWorker } from "../models/local-worker.js";
 import type { ClarificationRequester } from "../tools/ask-user-tool.js";
 import type { LspManager } from "../lsp/manager.js";
 import type { BrowserManager } from "../browser/manager.js";
-import type { BinanceStreamManager } from "../exchange/binance-stream.js";
-import type { SemanticIndex } from "../intelligence/rails/index.js";
+import type { BinanceStreamManager } from "../domains/trading/binance-stream.js";
+import type { SemanticIndex } from "../domains/rails/index.js";
 import type { DocsStore } from "../docs/store.js";
-import type { ToolResult } from "../kernel/tools/tool-definition.js";
-import { DefaultToolGateway } from "../kernel/tools/tool-gateway.js";
-import { ToolCatalog } from "../kernel/tools/tool-catalog.js";
-import { mountToolPack, ToolPack } from "../kernel/tools/tool-pack.js";
-import { parityPosture } from "../kernel/policy/postures.js";
+import type { ToolResult } from "../core/tools/tool-contract.js";
+import { DefaultToolGateway } from "../tools/gateway/tool-gateway.js";
+import { ToolCatalog } from "../tools/gateway/tool-catalog.js";
+import { mountToolPack, ToolPack } from "../tools/gateway/tool-pack.js";
+import { parityPosture } from "../core/policy/postures.js";
 import {
   agentCorePack,
   browserPack,
@@ -28,7 +28,7 @@ import {
   rubyPack,
   searchPack,
   shellPack,
-} from "../packs/index.js";
+} from "../tools/packs/index.js";
 
 export type ToolOnOutput = (stream: "stdout" | "stderr", chunk: string) => void;
 

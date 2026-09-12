@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { parseArgs } from "node:util";
-import { Provider } from "../provider/provider.js";
-import { ModelCatalog, isEmbeddingModel } from "../provider/catalog.js";
+import { Provider } from "../models/adapters/provider.js";
+import { ModelCatalog, isEmbeddingModel } from "../models/catalog.js";
 import { loadConfig } from "../cli/config.js";
 import { runBenchmark, BenchmarkTarget } from "./runner.js";
 import { BUILTIN_CASES } from "./cases.js";

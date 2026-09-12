@@ -5,7 +5,7 @@
  * views only change what is observed, never what is running.
  */
 
-import { PlanStep } from "../orchestrator/types.js";
+import { PlanStep } from "../orchestration/types.js";
 
 /** The always-alive actors. Every subsystem is one of these. */
 export type ActorId =

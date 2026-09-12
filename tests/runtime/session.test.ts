@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { SessionStore } from "../../src/runtime/session.js";
-import { ChatMessage } from "../../src/provider/provider.js";
+import { ChatMessage } from "../../src/models/adapters/provider.js";
 
 describe("SessionStore", () => {
   let dir: string;

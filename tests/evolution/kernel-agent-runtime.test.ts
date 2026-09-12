@@ -16,9 +16,9 @@ import {
   modelGatewayFromChatClient,
 } from "../../src/evolution/mutation/kernel-agent-runtime.js";
 import { AgentMutationError, AgentMutationRequest } from "../../src/evolution/mutation/agent-mutation.js";
-import { DefaultAgentRuntime } from "../../src/kernel/strategies/agent-runtime.js";
-import { ModelCapabilityRegistry } from "../../src/kernel/models/model-capability-registry.js";
-import type { ModelGateway } from "../../src/kernel/models/model-gateway.js";
+import { DefaultAgentRuntime } from "../../src/runtime/agent/agent-runtime.js";
+import { ModelCapabilityRegistry } from "../../src/models/profiles/model-capability-registry.js";
+import type { ModelGateway } from "../../src/models/gateway/model-gateway.js";
 
 interface ScriptStep {
   content?: string;

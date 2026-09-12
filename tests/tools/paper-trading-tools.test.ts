@@ -1,5 +1,5 @@
 import { BinancePaperTradeTool } from "../../src/tools/paper-trading-tools.js";
-import { PaperTradingManager } from "../../src/exchange/paper-trading.js";
+import { PaperTradingManager } from "../../src/domains/trading/paper-trading.js";
 
 function fakeManager(overrides: Partial<PaperTradingManager> = {}): PaperTradingManager {
   return {

@@ -10,8 +10,8 @@
  * quirk synthetic nudges rely on).
  */
 
-import type { ChatMessage } from "../provider/provider.js";
-import type { ContextManager } from "../kernel/types.js";
+import type { ChatMessage } from "../models/adapters/provider.js";
+import type { ContextManager } from "../core/types.js";
 import type { AgentConversation } from "./agent-conversation.js";
 
 export class AgentConversationContext implements ContextManager {

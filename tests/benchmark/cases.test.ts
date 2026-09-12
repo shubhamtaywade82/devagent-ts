@@ -1,5 +1,5 @@
 import { BUILTIN_CASES } from "../../src/benchmark/cases.js";
-import { ChatResponse } from "../../src/provider/provider.js";
+import { ChatResponse } from "../../src/models/adapters/provider.js";
 import { SingleTurnBenchmarkCase } from "../../src/benchmark/types.js";
 
 // BUILTIN_CASES is entirely single-turn today, but its declared type is the

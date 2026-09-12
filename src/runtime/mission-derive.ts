@@ -7,7 +7,7 @@
  * transitions), so no new orchestrator logic is needed for them.
  */
 
-import { PlanStep } from "../orchestrator/types.js";
+import { PlanStep } from "../orchestration/types.js";
 import { MISSION_PHASE_LABELS, MISSION_PHASE_ORDER, MissionPhase, MissionState } from "./types.js";
 
 const STEP_IN_FLIGHT: readonly PlanStep["status"][] = [

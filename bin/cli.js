@@ -52,6 +52,6 @@ if (command === 'migrate') {
   const { main } = await import('../dist/cli/migrate.js');
   await main(process.argv.slice(3));
 } else {
-  await import('../dist/tui/index.js');
+  await import('../dist/ui/index.js');
 }
 

@@ -1,4 +1,4 @@
-import { PlanStep } from "../../src/orchestrator/types.js";
+import { PlanStep } from "../../src/orchestration/types.js";
 import { createMissionState, deriveMissionPhases } from "../../src/runtime/mission-derive.js";
 
 function step(overrides: Partial<PlanStep>): PlanStep {

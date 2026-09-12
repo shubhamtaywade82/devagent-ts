@@ -1,7 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { MemoryStore } from "../memory/store.js";
-import { Provider } from "../provider/provider.js";
+import { Provider } from "../models/adapters/provider.js";
 import { EpisodeRecorder } from "./episode-recorder.js";
 import { gradeEpisode } from "./grader.js";
 import { LessonStore } from "./lesson-store.js";

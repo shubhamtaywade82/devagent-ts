@@ -10,7 +10,7 @@ import { buildAgenticCases } from "../benchmark/cases-agentic.js";
 import { buildExecutionCases } from "../benchmark/cases-execution.js";
 import { BenchmarkTarget, runBenchmark } from "../benchmark/runner.js";
 import { BenchmarkCase, BenchmarkResult } from "../benchmark/types.js";
-import { Provider } from "../provider/provider.js";
+import { Provider } from "../models/adapters/provider.js";
 import { TaskExecutionResult } from "./evaluator.js";
 
 /** Gathers all benchmark cases across builtin, agentic, and execution suites. */

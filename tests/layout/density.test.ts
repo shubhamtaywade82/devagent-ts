@@ -4,7 +4,7 @@ import {
   detailForDensity,
   MAX_COMPLETION_ROWS,
   promptAreaRows,
-} from "../../src/layout/density.js";
+} from "../../src/ui/layout/density.js";
 
 describe("density tiers", () => {
   it("maps widths to the frozen tiers", () => {

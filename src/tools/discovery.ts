@@ -1,5 +1,5 @@
 import { Tool } from "./tool.js";
-import { Provider, ChatMessage, ChatResponse } from "../provider/provider.js";
+import { Provider, ChatMessage, ChatResponse } from "../models/adapters/provider.js";
 
 export type SelectionMode = "heuristic" | "llm" | "hybrid";
 

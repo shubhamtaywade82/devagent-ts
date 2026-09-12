@@ -1,4 +1,4 @@
-import { Provider, ChatMessage } from "../provider/provider.js";
+import { Provider, ChatMessage } from "../models/adapters/provider.js";
 import { Episode, ReflectionResult } from "./types.js";
 
 /**

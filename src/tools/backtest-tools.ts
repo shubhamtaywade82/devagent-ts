@@ -1,7 +1,7 @@
 import { Tool } from "./tool.js";
-import { parseKlineRows, StrategyConfig } from "../backtest/types.js";
-import { runBacktest } from "../backtest/engine.js";
-import { walkForward, monteCarlo, paramSweep, ParamRange } from "../backtest/analysis.js";
+import { parseKlineRows, StrategyConfig } from "../domains/trading/backtest/types.js";
+import { runBacktest } from "../domains/trading/backtest/engine.js";
+import { walkForward, monteCarlo, paramSweep, ParamRange } from "../domains/trading/backtest/analysis.js";
 import { normalizeMarket } from "./binance-tools.js";
 
 const CONDITION_SCHEMA = {

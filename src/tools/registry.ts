@@ -1,5 +1,5 @@
 import { Tool, ToolError } from "./tool.js";
-import { OllamaToolSchema } from "../provider/provider.js";
+import { OllamaToolSchema } from "../models/adapters/provider.js";
 
 const TOOL_ALIASES: Record<string, string> = {
   open_file: "read_file",

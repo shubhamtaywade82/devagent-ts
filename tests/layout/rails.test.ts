@@ -1,4 +1,4 @@
-import { layoutPhase, railsForPhase, LayoutPhase } from "../../src/layout/rails.js";
+import { layoutPhase, railsForPhase, LayoutPhase } from "../../src/ui/layout/rails.js";
 import { initialRuntimeState, reduce } from "../../src/runtime/store.js";
 import { MissionPhaseId, RuntimeState } from "../../src/runtime/types.js";
 

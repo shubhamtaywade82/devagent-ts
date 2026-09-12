@@ -15,7 +15,7 @@ import {
   BinanceOpenInterestHistoryTool,
   BinanceFuturesBasisTool,
 } from "../../src/tools/binance-tools.js";
-import { BinanceStreamManager } from "../../src/exchange/binance-stream.js";
+import { BinanceStreamManager } from "../../src/domains/trading/binance-stream.js";
 
 const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
 const describeIfNetwork = skipNetwork ? describe.skip : describe;

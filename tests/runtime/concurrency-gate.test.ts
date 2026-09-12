@@ -1,4 +1,4 @@
-import { ConcurrencyGate, GateAbortedError, GateSaturatedError } from "../../src/runtime/concurrency-gate.js";
+import { ConcurrencyGate, GateAbortedError, GateSaturatedError } from "../../src/core/concurrency/gate.js";
 
 describe("ConcurrencyGate", () => {
   it("grants immediate leases up to maxConcurrent", async () => {

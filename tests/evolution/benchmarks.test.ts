@@ -5,7 +5,7 @@ import {
   toTaskExecutionResult,
 } from "../../src/evolution/benchmarks.js";
 import { BenchmarkCase, BenchmarkResult } from "../../src/benchmark/types.js";
-import { Provider } from "../../src/provider/provider.js";
+import { Provider } from "../../src/models/adapters/provider.js";
 
 describe("Evolution Benchmarks Bridge", () => {
   it("gathers all benchmark cases across suites", async () => {

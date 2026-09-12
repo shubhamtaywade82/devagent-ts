@@ -1,4 +1,4 @@
-import { ChatMessage, ChatResponse, OllamaToolSchema, Tier } from "../provider/provider.js";
+import { ChatMessage, ChatResponse, OllamaToolSchema, Tier } from "../models/adapters/provider.js";
 
 export type BenchmarkCategory =
   | "output-format"

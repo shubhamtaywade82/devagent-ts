@@ -1,4 +1,4 @@
-import { Provider, ChatMessage, ChatResponse, Tier } from "../provider/provider.js";
+import { Provider, ChatMessage, ChatResponse, Tier } from "../models/adapters/provider.js";
 import {
   AgenticBenchmarkCase,
   AgenticTrajectory,

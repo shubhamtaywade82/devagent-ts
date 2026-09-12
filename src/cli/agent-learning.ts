@@ -2,7 +2,7 @@ import { MemoryStore } from "../memory/store.js";
 import { LearningEngine } from "../learning/index.js";
 import { SkillsRegistry } from "../skills/registry.js";
 import { SkillContent } from "../skills/types.js";
-import { Provider } from "../provider/provider.js";
+import { Provider } from "../models/adapters/provider.js";
 
 export interface AgentLearningOptions {
   workspaceRoot: string;

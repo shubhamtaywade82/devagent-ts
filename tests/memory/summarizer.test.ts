@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MemoryStore } from "../../src/memory/store.js";
 import { generateSummary } from "../../src/memory/summarizer.js";
-import { Provider } from "../../src/provider/provider.js";
+import { Provider } from "../../src/models/adapters/provider.js";
 
 describe("generateSummary", () => {
   it("prompts the provider with recent messages and stores the resulting bullet summary", async () => {

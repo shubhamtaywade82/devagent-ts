@@ -4,7 +4,7 @@ import {
   BinanceMonteCarloTool,
   BinanceParamSweepTool,
 } from "../../src/tools/backtest-tools.js";
-import { StrategyConfig } from "../../src/backtest/types.js";
+import { StrategyConfig } from "../../src/domains/trading/backtest/types.js";
 
 const skipNetwork = process.env.SKIP_NETWORK_TESTS === "true";
 const describeIfNetwork = skipNetwork ? describe.skip : describe;

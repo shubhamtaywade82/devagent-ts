@@ -1,6 +1,6 @@
 import { Tool } from "./tool.js";
 import { ema, rsi, macd, bollingerBands, sma } from "./indicators.js";
-import { BinanceStreamManager, AlertCondition } from "../exchange/binance-stream.js";
+import { BinanceStreamManager, AlertCondition } from "../domains/trading/binance-stream.js";
 
 export function normalizeMarket(rawMarket?: string): string {
   if (!rawMarket) return "spot";

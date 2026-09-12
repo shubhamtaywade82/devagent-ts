@@ -12,12 +12,12 @@ export {
   type ChatResponse,
   type ChatOptions,
   type ProviderOptions,
-} from "./provider/provider.js";
-export { ModelCatalog, inferCapabilities, type Capability, type ModelInfo } from "./provider/catalog.js";
-export { Router, type RouterOptions } from "./provider/router.js";
+} from "./models/adapters/provider.js";
+export { ModelCatalog, inferCapabilities, type Capability, type ModelInfo } from "./models/catalog.js";
+export { Router, type RouterOptions } from "./models/router/router.js";
 
 // ── Agent execution kernel ──────────────────────────────────────────────────
-export * from "./kernel/index.js";
+export * from "./core/index.js";
 
 // Domain packs (tool packs products mount into the kernel)
 export {
@@ -35,4 +35,4 @@ export {
   railsPack,
   agentCorePack,
   cryptoPack,
-} from "./packs/index.js";
+} from "./tools/packs/index.js";

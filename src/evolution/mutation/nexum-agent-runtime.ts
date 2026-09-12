@@ -31,7 +31,7 @@
  * verification pipeline cannot be bypassed by the agent.
  */
 
-import { ChatMessage, ChatResponse, OllamaToolSchema, Provider } from "../../provider/provider.js";
+import { ChatMessage, ChatResponse, OllamaToolSchema, Provider } from "../../models/adapters/provider.js";
 import {
   AgentEditProposal,
   AgentMutationError,

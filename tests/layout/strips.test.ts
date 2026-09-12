@@ -1,4 +1,4 @@
-import { activityStripTokens, contextStripTokens, headerTokens } from "../../src/layout/strips.js";
+import { activityStripTokens, contextStripTokens, headerTokens } from "../../src/ui/layout/strips.js";
 import { initialRuntimeState, reduce } from "../../src/runtime/store.js";
 import { RuntimeState } from "../../src/runtime/types.js";
 

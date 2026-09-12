@@ -56,18 +56,18 @@ import {
 import { EngineeringChatClient, TOOLS } from "./nexum-agent-runtime.js";
 import { mutationScopeViolation } from "./path-scope.js";
 
-import { ToolCatalog } from "../../kernel/tools/tool-catalog.js";
-import { DefaultToolGateway } from "../../kernel/tools/tool-gateway.js";
-import { ToolDefinition, ToolHandler } from "../../kernel/tools/tool-definition.js";
-import { ModelCapabilityRegistry } from "../../kernel/models/model-capability-registry.js";
-import type { ModelGateway } from "../../kernel/models/model-gateway.js";
-import { createExecutionContext, TransientContextManager } from "../../kernel/execution-context.js";
-import { DefaultAgentRuntime } from "../../kernel/strategies/agent-runtime.js";
-import { extractToolCalls } from "../../kernel/strategies/execution-strategy.js";
-import type { AgentId, AgentRuntime, EventSink, ExecutionBudget, ExecutionRequest } from "../../kernel/types.js";
-import type { StrategyHooks } from "../../kernel/strategies/strategy-hooks.js";
-import type { Capability } from "../../provider/catalog.js";
-import type { ChatMessage, OllamaToolSchema } from "../../provider/provider.js";
+import { ToolCatalog } from "../../tools/gateway/tool-catalog.js";
+import { DefaultToolGateway } from "../../tools/gateway/tool-gateway.js";
+import { ToolDefinition, ToolHandler } from "../../core/tools/tool-contract.js";
+import { ModelCapabilityRegistry } from "../../models/profiles/model-capability-registry.js";
+import type { ModelGateway } from "../../models/gateway/model-gateway.js";
+import { createExecutionContext, TransientContextManager } from "../../runtime/context/execution-context.js";
+import { DefaultAgentRuntime } from "../../runtime/agent/agent-runtime.js";
+import { extractToolCalls } from "../../runtime/strategies/execution-strategy.js";
+import type { AgentId, AgentRuntime, EventSink, ExecutionBudget, ExecutionRequest } from "../../core/types.js";
+import type { StrategyHooks } from "../../runtime/strategies/strategy-hooks.js";
+import type { Capability } from "../../models/catalog.js";
+import type { ChatMessage, OllamaToolSchema } from "../../models/adapters/provider.js";
 
 // ── Model gateway adapter ───────────────────────────────────────────────────
 

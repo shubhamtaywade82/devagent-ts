@@ -1,5 +1,5 @@
 import { Tool } from "./tool.js";
-import { LocalWorker, LocalTask, LocalTaskType, LocalOutputType } from "../provider/local-worker.js";
+import { LocalWorker, LocalTask, LocalTaskType, LocalOutputType } from "../models/local-worker.js";
 
 /**
  * Exposed to the primary/cloud model once a turn has escalated, letting it

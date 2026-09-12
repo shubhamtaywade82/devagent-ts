@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { CheckpointStore, sanitizeResumedSteps } from "../../src/runtime/checkpoint.js";
-import { PlanStep } from "../../src/orchestrator/types.js";
+import { PlanStep } from "../../src/orchestration/types.js";
 
 function makeStep(id: string, status: PlanStep["status"]): PlanStep {
   return { id, description: id, status, dependencies: [], retryCount: 0 };

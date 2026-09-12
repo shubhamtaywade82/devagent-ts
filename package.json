@@ -1,7 +1,7 @@
 {
   "name": "@nemesis-oss/nexum",
   "version": "2.0.0",
-  "description": "Nexum — open-source agent runtime and harness for autonomous software engineering: capability-routed local & cloud models, Docker sandbox, LSP code intelligence, and a terminal UI.",
+  "description": "Nexum \u2014 open-source agent runtime and harness for autonomous software engineering: capability-routed local & cloud models, Docker sandbox, LSP code intelligence, and a terminal UI.",
   "keywords": [
     "nexum",
     "agent-runtime",
@@ -44,8 +44,8 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "NEXUM_TEST_NO_GLOBAL=true node --experimental-vm-modules node_modules/.bin/jest",
-    "start": "node dist/tui/index.js",
-    "dev": "tsx src/tui/index.ts",
+    "start": "node dist/ui/index.js",
+    "dev": "tsx src/ui/index.ts",
     "dev:legacy": "tsx src/cli/tui.ts",
     "benchmark": "tsx src/benchmark/cli.ts",
     "docs:ingest": "tsx src/docs/cli.ts",
@@ -110,17 +110,45 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./runtime": {
+      "types": "./dist/runtime/index.d.ts",
+      "import": "./dist/runtime/index.js"
+    },
+    "./models": {
+      "types": "./dist/models/index.d.ts",
+      "import": "./dist/models/index.js"
+    },
+    "./tools": {
+      "types": "./dist/tools/index.d.ts",
+      "import": "./dist/tools/index.js"
+    },
+    "./mcp": {
+      "types": "./dist/mcp/index.d.ts",
+      "import": "./dist/mcp/index.js"
+    },
+    "./orchestration": {
+      "types": "./dist/orchestration/index.d.ts",
+      "import": "./dist/orchestration/index.js"
+    },
+    "./evolution": {
+      "types": "./dist/evolution/index.d.ts",
+      "import": "./dist/evolution/index.js"
+    },
     "./provider": {
-      "types": "./dist/provider/provider.d.ts",
-      "import": "./dist/provider/provider.js"
+      "types": "./dist/models/adapters/provider.d.ts",
+      "import": "./dist/models/adapters/provider.js"
     },
     "./catalog": {
-      "types": "./dist/provider/catalog.d.ts",
-      "import": "./dist/provider/catalog.js"
+      "types": "./dist/models/catalog.d.ts",
+      "import": "./dist/models/catalog.js"
     },
     "./router": {
-      "types": "./dist/provider/router.d.ts",
-      "import": "./dist/provider/router.js"
+      "types": "./dist/models/router/router.d.ts",
+      "import": "./dist/models/router/router.js"
     },
     "./agent": {
       "types": "./dist/cli/agent.d.ts",

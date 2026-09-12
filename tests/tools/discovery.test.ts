@@ -1,6 +1,6 @@
 import { Tool } from "../../src/tools/tool.js";
 import { DynamicToolSelector } from "../../src/tools/discovery.js";
-import { Provider } from "../../src/provider/provider.js";
+import { Provider } from "../../src/models/adapters/provider.js";
 
 class MockTool extends Tool {
   constructor(

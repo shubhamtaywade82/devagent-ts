@@ -1,4 +1,4 @@
-import { Provider, ChatResponse } from "../../src/provider/provider.js";
+import { Provider, ChatResponse } from "../../src/models/adapters/provider.js";
 import { runBenchmark } from "../../src/benchmark/runner.js";
 import { AgenticBenchmarkCase, BenchmarkCase } from "../../src/benchmark/types.js";
 

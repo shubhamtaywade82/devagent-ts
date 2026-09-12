@@ -1,5 +1,5 @@
 import { Tool } from "./tool.js";
-import { PaperTradingManager } from "../exchange/paper-trading.js";
+import { PaperTradingManager } from "../domains/trading/paper-trading.js";
 
 export class BinancePaperTradeTool extends Tool {
   constructor(private paper: PaperTradingManager) {

@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
-import { ChatMessage } from "../provider/provider.js";
+import { ChatMessage } from "../models/adapters/provider.js";
 
 export interface SessionMeta {
   id: string;

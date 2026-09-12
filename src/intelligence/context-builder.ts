@@ -1,6 +1,6 @@
 import { IntelligenceRouter } from "./router.js";
 import { FileContext } from "./provider.js";
-import type { RailsContextBuilder } from "./rails/context-builder.js";
+import type { RailsContextBuilder } from "../domains/rails/context-builder.js";
 
 export class SemanticContextBuilder {
   constructor(

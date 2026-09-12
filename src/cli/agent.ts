@@ -1,15 +1,15 @@
 import { CliConfig, loadConfig, saveWorkspaceConfig } from "./config.js";
 import { WorkspaceManager } from "../platform/workspace.js";
-import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../provider/provider.js";
-import { Router } from "../provider/router.js";
-import { Capability, inferCapabilities, ModelCatalog } from "../provider/catalog.js";
+import { Provider, ChatMessage, ChatOptions, ChatResponse } from "../models/adapters/provider.js";
+import { Router } from "../models/router/router.js";
+import { Capability, inferCapabilities, ModelCatalog } from "../models/catalog.js";
 import { CheckpointStore, sanitizeResumedSteps } from "../runtime/checkpoint.js";
 import { SessionStore, SessionMeta } from "../runtime/session.js";
-import { LoopDetector } from "../orchestrator/loop-detector.js";
-import { Orchestrator } from "../orchestrator/orchestrator.js";
-import { AgentStepRunner } from "../orchestrator/agent-planner.js";
-import { PlanStep, Planner } from "../orchestrator/types.js";
-import { generatePlan, replanSteps } from "../tui/plan-generator.js";
+import { LoopDetector } from "../orchestration/loop-detector.js";
+import { Orchestrator } from "../orchestration/orchestrator.js";
+import { AgentStepRunner } from "../orchestration/agent-planner.js";
+import { PlanStep, Planner } from "../orchestration/types.js";
+import { generatePlan, replanSteps } from "../ui/plan-generator.js";
 import { SkillMeta } from "../skills/types.js";
 import { LspServerState } from "../lsp/protocol.js";
 import {
@@ -31,24 +31,24 @@ import { AgentIntelligence } from "./agent-intelligence.js";
 import { AgentLearning } from "./agent-learning.js";
 import { DynamicToolSelector } from "../tools/discovery.js";
 import { BrowserManager } from "../browser/manager.js";
-import { BinanceStreamManager } from "../exchange/binance-stream.js";
+import { BinanceStreamManager } from "../domains/trading/binance-stream.js";
 // ── Hybrid local-cloud architecture ────────────────────────────────────
-import { ModelAvailabilityChecker } from "../provider/availability.js";
-import { KeyManager } from "../provider/key-manager.js";
-import { HeuristicRouter } from "../provider/heuristic-router.js";
-import { LocalWorker } from "../provider/local-worker.js";
-import { Verifier } from "../provider/verifier.js";
-import { SelfConsistency } from "../provider/self-consistency.js";
+import { ModelAvailabilityChecker } from "../models/router/availability.js";
+import { KeyManager } from "../models/router/key-manager.js";
+import { HeuristicRouter } from "../models/router/heuristic-router.js";
+import { LocalWorker } from "../models/local-worker.js";
+import { Verifier } from "../models/verification/verifier.js";
+import { SelfConsistency } from "../models/verification/self-consistency.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";
 import { detectEscalationHint, isLookupPrompt } from "./agent-escalation.js";
 // ── Kernel (agent execution kernel) ───────────────────────────────────
-import { ApprovalBroker, describeConfirmation } from "../kernel/policy/approval-broker.js";
-import { DefaultModelGateway } from "../kernel/models/model-gateway.js";
-import { ModelCapabilityRegistry } from "../kernel/models/model-capability-registry.js";
-import { DefaultAgentRuntime, devAgentDescriptor } from "../kernel/strategies/agent-runtime.js";
-import { createExecutionContext } from "../kernel/execution-context.js";
-import type { ExecutionRequest } from "../kernel/types.js";
-import type { StrategyHooks } from "../kernel/strategies/strategy-hooks.js";
+import { ApprovalBroker, describeConfirmation } from "../core/policy/approval-broker.js";
+import { DefaultModelGateway } from "../models/gateway/model-gateway.js";
+import { ModelCapabilityRegistry } from "../models/profiles/model-capability-registry.js";
+import { DefaultAgentRuntime, devAgentDescriptor } from "../runtime/agent/agent-runtime.js";
+import { createExecutionContext } from "../runtime/context/execution-context.js";
+import type { ExecutionRequest } from "../core/types.js";
+import type { StrategyHooks } from "../runtime/strategies/strategy-hooks.js";
 import { AgentConversationContext } from "./agent-conversation-context.js";
 
 // Confirmation gate for irreversible actions lives in the kernel now

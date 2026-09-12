@@ -1,4 +1,4 @@
-import { ChatMessage } from "../provider/provider.js";
+import { ChatMessage } from "../models/adapters/provider.js";
 import { CliConfig } from "./config.js";
 import { SkillContent } from "../skills/types.js";
 import { LOCAL_DELEGATION_SYSTEM_ADDENDUM } from "../tools/delegate-tool.js";

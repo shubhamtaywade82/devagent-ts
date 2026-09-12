@@ -15,7 +15,7 @@ import { BenchmarkResult } from "../benchmark/types.js";
 import { loadConfig, CliConfig } from "../cli/config.js";
 import { Episode } from "../learning/types.js";
 import { findWorkspaceRoot, workspaceStateDir } from "../platform/paths.js";
-import { Provider } from "../provider/provider.js";
+import { Provider } from "../models/adapters/provider.js";
 import { runHarnessBenchmark, toTaskExecutionResult } from "./benchmarks.js";
 import { CandidateEvaluationOutcome, EvolutionEngine } from "./engine.js";
 import { ClosedLoopEngine } from "./engine-v2.js";

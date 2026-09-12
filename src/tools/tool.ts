@@ -1,4 +1,4 @@
-import { OllamaToolSchema } from "../provider/provider.js";
+import { OllamaToolSchema } from "../models/adapters/provider.js";
 
 export class ToolError extends Error {}
 

@@ -1,4 +1,4 @@
-import { packTokens, renderTokenLine, TOKEN_SEPARATOR } from "../../src/layout/status-tokens.js";
+import { packTokens, renderTokenLine, TOKEN_SEPARATOR } from "../../src/ui/layout/status-tokens.js";
 import { StatusToken } from "../../src/runtime/types.js";
 
 const tokens: StatusToken[] = [

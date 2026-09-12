@@ -1,4 +1,4 @@
-import { EventBus } from "../../src/runtime/events.js";
+import { EventBus } from "../../src/runtime/events/bus.js";
 import { initialRuntimeState, reduce, sanitizeText, Store } from "../../src/runtime/store.js";
 import { RuntimeState } from "../../src/runtime/types.js";
 

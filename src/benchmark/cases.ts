@@ -1,4 +1,4 @@
-import { ChatResponse } from "../provider/provider.js";
+import { ChatResponse } from "../models/adapters/provider.js";
 import { BenchmarkCase } from "./types.js";
 
 function parseContent(content: unknown): unknown {

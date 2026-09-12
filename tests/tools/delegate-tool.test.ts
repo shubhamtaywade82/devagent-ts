@@ -1,5 +1,5 @@
 import { DelegateToLocalTool } from "../../src/tools/delegate-tool.js";
-import type { LocalWorker, LocalResult } from "../../src/provider/local-worker.js";
+import type { LocalWorker, LocalResult } from "../../src/models/local-worker.js";
 
 function makeWorker(result: LocalResult): LocalWorker {
   return { execute: jest.fn(async () => result) } as unknown as LocalWorker;

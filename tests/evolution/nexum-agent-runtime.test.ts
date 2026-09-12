@@ -14,7 +14,7 @@ import {
   NexumEngineeringAgentRuntime,
   chatClientFromProvider,
 } from "../../src/evolution/mutation/nexum-agent-runtime.js";
-import { ChatMessage, ChatResponse, Provider } from "../../src/provider/provider.js";
+import { ChatMessage, ChatResponse, Provider } from "../../src/models/adapters/provider.js";
 import { ClosedLoopEngine } from "../../src/evolution/engine-v2.js";
 import { HarnessRegistry } from "../../src/evolution/registry.js";
 import { TaskExecutionResult } from "../../src/evolution/evaluator.js";
