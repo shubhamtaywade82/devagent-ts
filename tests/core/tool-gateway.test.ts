@@ -181,7 +181,9 @@ describe("DefaultToolGateway", () => {
     const gateway = new DefaultToolGateway({ catalog: makeCatalog() });
     const result = await gateway.invoke("echo", { text: "hi" }, { signal: controller.signal });
     expect(result.ok).toBe(false);
-    expect(result.error?.code).toBe("GateAbortedError");
+    // fail fast: the budget/resource stage observes the pre-aborted signal
+    // BEFORE queueing on the concurrency gate (review item 4 pipeline).
+    expect(["Cancelled", "GateAbortedError"]).toContain(result.error?.code);
   });
 
   it("registers legacy tools with inferred risk metadata", async () => {

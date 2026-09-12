@@ -30,9 +30,10 @@ export interface ToolCatalogEntry {
 /** Metadata overrides used when registering a legacy Tool instance. */
 export interface LegacyToolMetadata {
   risk?: ToolRisk;
-  sideEffects?: Partial<typeof NO_SIDE_EFFECTS>;
+  sideEffects?: Partial<ToolDefinition["sideEffects"]>;
   execution?: Partial<ToolDefinition["execution"]>;
   policy?: Partial<ToolDefinition["policy"]>;
+  network?: Partial<ToolDefinition["network"]>;
   capabilities?: string[];
   pack?: string;
 }
@@ -49,7 +50,7 @@ function legacyRiskFor(category: string, toolName: string): ToolRisk {
   return "read";
 }
 
-function legacySideEffectsFor(category: string): typeof NO_SIDE_EFFECTS {
+function legacySideEffectsFor(category: string): ToolDefinition["sideEffects"] {
   const sideEffects = { ...NO_SIDE_EFFECTS };
   if (MUTATING_CATEGORIES.has(category)) sideEffects.filesystem = true;
   if (category === "Shell" || category === "Project" || category === "Ruby") sideEffects.process = true;
@@ -63,6 +64,15 @@ function legacySideEffectsFor(category: string): typeof NO_SIDE_EFFECTS {
     sideEffects.externalMutation = true;
   }
   return sideEffects;
+}
+
+/** Network requirements implied by legacy categories (review item 5). */
+function legacyNetworkFor(category: string): NonNullable<ToolDefinition["network"]> {
+  if (category === "Market") return { required: true, egress: ["binance.com"], proxyable: true };
+  if (category === "MCP") return { required: true, egress: [], proxyable: false };
+  if (category === "Browser") return { required: true, egress: [], proxyable: false };
+  if (category === "Git" || category === "GitHub") return { required: true, egress: ["github.com"], proxyable: true };
+  return { required: false, proxyable: false };
 }
 
 export class ToolCatalog {
@@ -96,9 +106,17 @@ export class ToolCatalog {
       sideEffects: { ...inferred.sideEffects, ...(meta.sideEffects ?? {}) },
       execution: { ...inferred.execution, ...(meta.execution ?? {}) },
       policy: { ...inferred.policy, ...(meta.policy ?? {}) },
+      network: (() => {
+        const inferred = legacyNetworkFor(category);
+        return {
+          required: meta.network?.required ?? inferred.required,
+          egress: meta.network?.egress ?? inferred.egress,
+          proxyable: meta.network?.proxyable ?? inferred.proxyable,
+        };
+      })(),
     };
 
-    return this.register(definition, async (args) => tool.call(args));
+    return this.register(definition, async (args, callCtx) => tool.call(args, callCtx));
   }
 
   unregister(id: string): boolean {

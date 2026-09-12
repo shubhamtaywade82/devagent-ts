@@ -1,19 +1,13 @@
 import { Tool, ToolError } from "./tool.js";
 import { OllamaToolSchema } from "../models/adapters/provider.js";
+import { canonicalToolName } from "../core/tools/tool-aliases.js";
+import type { ToolCallContext } from "../core/tools/tool-contract.js";
 
-const TOOL_ALIASES: Record<string, string> = {
-  open_file: "read_file",
-  cat_file: "read_file",
-  view_file: "read_file",
-  print_tree: "list_dir",
-  tree: "list_dir",
-  ls: "list_dir",
-  search_codebase: "search_code",
-  find_code: "search_code",
-  execute_command: "run_shell",
-  bash: "run_shell",
-  sh: "run_shell",
-};
+/*
+ * Canonical names + compatibility aliases now live in ONE place:
+ * core/tools/tool-aliases.ts (review item 36). This legacy registry
+ * consumes the same table so both execution paths resolve identically.
+ */
 
 function normalizeArgs(tool: Tool, rawArgs: unknown): Record<string, unknown> {
   if (typeof rawArgs !== "object" || rawArgs === null) return {};
@@ -65,10 +59,13 @@ export class Registry {
     return [...this.tools.values()].map((t) => t.schema);
   }
 
-  async invoke(name: string, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async invoke(
+    name: string,
+    args: Record<string, unknown>,
+    callCtx?: ToolCallContext,
+  ): Promise<Record<string, unknown>> {
     try {
-      let cleanName = name.trim().replace(/^(functions\.|tools__|mcp__|tool_)/i, "");
-      const targetName = TOOL_ALIASES[cleanName] ?? TOOL_ALIASES[name] ?? cleanName;
+      const targetName = canonicalToolName(name);
       let tool = this.tools.get(targetName) ?? this.tools.get(name);
 
       if (!tool) {
@@ -87,7 +84,7 @@ export class Registry {
       }
 
       const effectiveArgs = normalizeArgs(tool, args);
-      return await tool.call(effectiveArgs);
+      return await tool.call(effectiveArgs, callCtx);
     } catch (e) {
       const err = e instanceof Error ? e : new Error(String(e));
       return { error: err.constructor.name, message: err.message };

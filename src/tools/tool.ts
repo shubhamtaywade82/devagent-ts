@@ -1,4 +1,5 @@
 import { OllamaToolSchema } from "../models/adapters/provider.js";
+import type { ToolCallContext } from "../core/tools/tool-contract.js";
 
 export class ToolError extends Error {}
 
@@ -25,5 +26,11 @@ export abstract class Tool {
     };
   }
 
-  abstract call(args: Record<string, unknown>): Promise<Record<string, unknown>>;
+  /**
+   * Execute the tool. The optional call context (review item 16) carries
+   * the run's AbortSignal + correlation: long-running tools (shell,
+   * browser, MCP, watchers) SHOULD check `callCtx?.signal` so cancellation
+   * reaches tool code. Tools that predate the context ignore it.
+   */
+  abstract call(args: Record<string, unknown>, callCtx?: ToolCallContext): Promise<Record<string, unknown>>;
 }

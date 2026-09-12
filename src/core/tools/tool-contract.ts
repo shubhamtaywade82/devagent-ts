@@ -1,13 +1,25 @@
 /**
- * ToolDefinition — the metadata contract every tool exposes to the kernel.
+ * ToolDefinition — the metadata contract every tool exposes to the runtime
+ * (review item 5, strengthened).
  *
- * The legacy `Tool` abstract class (src/tools/tool.ts) answers "what does
+ * The legacy `Tool` abstract class (tools/tool.ts) answers "what does
  * this tool do?" with name/description/parameters. That is enough for a
- * schema registry, but not for a security boundary: the kernel needs to know
- * how risky a tool is, what it can touch, how it should run, and whether a
- * human must confirm before it fires. ToolDefinition carries that contract.
+ * schema registry, but not for a security boundary: the runtime needs to
+ * know how risky a tool is, what it can touch, whether it is idempotent
+ * and reversible, how it should run, what network egress it needs, and
+ * whether a human must confirm before it fires. ToolDefinition carries
+ * that contract; the ToolGateway is the enforcement point.
  *
- * The ToolGateway is the enforcement point; this module is the vocabulary.
+ * Explicit metadata (review item 5):
+ *   risk               severity ladder used by PolicyEngine
+ *   capabilities       what the tool can do / needs (discovery + capability check)
+ *   sideEffects        what parts of the world it observes or mutates
+ *   idempotency        repeating the call has no additional effect
+ *   reversibility      effects can be undone
+ *   timeout            hard per-call timeout
+ *   concurrency        max in-flight calls of this tool
+ *   confirmation       human-in-the-loop requirement
+ *   network            explicit network egress requirements
  */
 
 /** Severity ladder used by the PolicyEngine's confirmation rules. */
@@ -33,6 +45,25 @@ export interface ToolSideEffects {
   financial: boolean;
 }
 
+/**
+ * Explicit network requirements (review item 5) — richer than the
+ * sideEffects.network boolean: profiles (item 8) and the sandbox decide
+ * egress per declared domain, and offline profiles can deny network
+ * tools without blacklisting them.
+ */
+export interface ToolNetworkRequirements {
+  /** Does this tool need network access at all? */
+  required: boolean;
+  /**
+   * Egress allowlist (hostnames or domains). Empty = "any host it was
+   * configured with" (exchange endpoints, MCP servers). Profiles match
+   * against this to approve or deny execution.
+   */
+  egress?: string[];
+  /** Can the call run through a proxy/sandbox with restricted egress? */
+  proxyable: boolean;
+}
+
 /** How the gateway should schedule and supervise execution. */
 export interface ToolExecutionSpec {
   /** Hard per-call timeout; the gateway rejects results that exceed it. */
@@ -43,6 +74,13 @@ export interface ToolExecutionSpec {
   idempotent: boolean;
   /** The effects can be undone (patch → backup, git → reflog, ...). */
   reversible: boolean;
+  /**
+   * Idempotency-key semantics for side-effecting tools (review item 28):
+   * when true, the gateway requires (or mints) an idempotency key and the
+   * IdempotencyManager deduplicates retries of the same logical mutation
+   * (git commit/push, GitHub mutations, trading, external API mutations).
+   */
+  idempotencyKey?: "none" | "required" | "auto";
 }
 
 /** Human-in-the-loop policy attached to the tool itself. */
@@ -51,12 +89,12 @@ export interface ToolPolicySpec {
 }
 
 export interface ToolDefinition {
-  /** Canonical id — usually the tool name exposed to models. */
+  /** Canonical id — the tool name exposed to models (authoritative, review item 36). */
   id: string;
   description: string;
   /** JSON-Schema (Ollama/OpenAI function-parameters shape). */
   inputSchema: Record<string, unknown>;
-  /** Capability tags for discovery filtering (coding, market, docs, ...). */
+  /** Capability tags for discovery filtering + capability checks (coding, market, docs, ...). */
   capabilities: string[];
   /** Legacy category string kept for the TUI tool palette grouping. */
   pack: string;
@@ -66,6 +104,8 @@ export interface ToolDefinition {
   sideEffects: ToolSideEffects;
   execution: ToolExecutionSpec;
   policy: ToolPolicySpec;
+  /** Network egress contract (review item 5). Default: no network. */
+  network?: ToolNetworkRequirements;
 }
 
 /** Gateway-visible execution result. Domain payloads stay opaque. */
@@ -83,8 +123,33 @@ export interface ToolInvocation {
   args: Record<string, unknown>;
 }
 
-/** The callable behind a ToolDefinition. */
-export type ToolHandler = (args: Record<string, unknown>) => Promise<Record<string, unknown>>;
+/**
+ * Everything a tool handler may need about the call being executed
+ * (review item 16 — cancellation reaches tool code).
+ */
+export interface ToolCallContext {
+  /** Abort signal for this call (chained from the run's signal). */
+  signal?: AbortSignal;
+  /** The invocation (id + name + canonical args). */
+  invocation: ToolInvocation;
+  /** Correlation ids (traceId/runId/taskId/toolCallId — review item 33). */
+  runId?: string;
+  agentId?: string;
+  /** Idempotency key when the tool declared idempotency-key semantics. */
+  idempotencyKey?: string;
+  /** Redacted call metadata for logging. */
+  startedAt: number;
+}
+
+/**
+ * The callable behind a ToolDefinition. The optional second parameter is
+ * the call context: cancellation signal + correlation. Legacy tools that
+ * take only args keep working — the gateway always passes it.
+ */
+export type ToolHandler = (
+  args: Record<string, unknown>,
+  callCtx?: ToolCallContext,
+) => Promise<Record<string, unknown>>;
 
 /** No side effects anywhere — the default for pure read tools. */
 export const NO_SIDE_EFFECTS: ToolSideEffects = {
@@ -95,11 +160,14 @@ export const NO_SIDE_EFFECTS: ToolSideEffects = {
   financial: false,
 };
 
+export const NO_NETWORK: ToolNetworkRequirements = { required: false, proxyable: false };
+
 export const DEFAULT_EXECUTION_SPEC: ToolExecutionSpec = {
   timeoutMs: 120_000,
   concurrency: 4,
   idempotent: false,
   reversible: false,
+  idempotencyKey: "none",
 };
 
 export const DEFAULT_POLICY_SPEC: ToolPolicySpec = { confirmation: "optional" };
@@ -110,11 +178,28 @@ export function defineToolMetadata(overrides: {
   sideEffects?: Partial<ToolSideEffects>;
   execution?: Partial<ToolExecutionSpec>;
   policy?: Partial<ToolPolicySpec>;
-}): Pick<ToolDefinition, "risk" | "sideEffects" | "execution" | "policy"> {
+  network?: Partial<ToolNetworkRequirements>;
+}): Pick<ToolDefinition, "risk" | "sideEffects" | "execution" | "policy" | "network"> {
   return {
     risk: overrides.risk ?? "medium",
     sideEffects: { ...NO_SIDE_EFFECTS, ...(overrides.sideEffects ?? {}) },
     execution: { ...DEFAULT_EXECUTION_SPEC, ...(overrides.execution ?? {}) },
     policy: { ...DEFAULT_POLICY_SPEC, ...(overrides.policy ?? {}) },
+    network: { ...NO_NETWORK, ...(overrides.network ?? {}) },
   };
+}
+
+/**
+ * Does this tool mutate state? (Used by read-only profiles and mode
+ * restrictions — the widest definition of "mutating".)
+ */
+export function toolIsMutating(def: Pick<ToolDefinition, "sideEffects" | "risk">): boolean {
+  const { sideEffects } = def;
+  return (
+    sideEffects.filesystem ||
+    sideEffects.process ||
+    sideEffects.externalMutation ||
+    sideEffects.financial ||
+    def.risk === "critical"
+  );
 }

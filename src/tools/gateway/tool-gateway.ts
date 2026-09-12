@@ -1,31 +1,59 @@
 /**
- * ToolGateway — the security and execution boundary for every tool call.
+ * ToolGateway v2 — the security and execution boundary for every tool call
+ * (review item 4).
  *
- * The ToolCatalog answers "what exists?"; the gateway answers "may this
- * agent execute this tool now?" and then runs it under supervision:
+ * The pipeline is now an explicit chain of stages, each independently
+ * observable and testable:
  *
- *   resolve (aliases) → decode → normalize → validate
- *     → policy → concurrency lease → execute (timeout) → ToolResult
+ *   ToolRegistry (resolve + canonical aliases)
+ *      ↓ schema validation   (decode → normalize → validate → canonical args)
+ *      ↓ capability check    (ctx capabilities ∩ tool capabilities)
+ *      ↓ policy check        (PolicyEngine decision; confirmation gate)
+ *      ↓ budget/resource     (limits guard + concurrency lease + timeout)
+ *      ↓ idempotency         (side-effecting mutation dedupe, review item 28)
+ *      ↓ Tool Executor       (runs the handler with signal + call context)
+ *      ↓ Tool
  *
- * Argument repair (array→object, numeric-key→object, alias mapping) is
- * ported from the legacy Registry so weak models keep working — but it now
- * happens BEFORE validation, and mutating tools can opt out of repair via
- * `definition.execution` metadata in the future. Policy violations throw
- * ToolDeniedError; unknown tools throw UnknownToolError; both are surfaced
- * as structured ToolResult failures instead of raw exceptions to keep the
- * model loop resilient.
+ * Argument flow (review item 6): decode → normalize → validate → canonical
+ * args → policy → execution. Mutating tools validate strictly (unknown
+ * properties rejected); read-only tools prune leniently so weak models
+ * keep working.
+ *
+ * Cancellation (review item 16): the run's AbortSignal flows through the
+ * concurrency gate into the handler's ToolCallContext.
+ *
+ * Policy violations, unknown tools, validation failures, timeouts and
+ * saturation all surface as STRUCTURED ToolResult failures — the model
+ * loop stays resilient and can adapt.
  */
 
 import { randomUUID } from "node:crypto";
 import { ConcurrencyGate, GateSaturatedError } from "../../core/concurrency/gate.js";
+import { throwIfAborted } from "../../core/cancellation/cancellation.js";
 import type { OllamaToolSchema } from "../../models/adapters/provider.js";
 import { ToolCatalog, ToolCatalogEntry } from "./tool-catalog.js";
-import { ToolDefinition, ToolInvocation, ToolResult } from "../../core/tools/tool-contract.js";
-import type { PolicyEngine } from "../../core/policy/policy-engine.js";
+import {
+  ToolCallContext,
+  ToolDefinition,
+  ToolInvocation,
+  ToolResult,
+} from "../../core/tools/tool-contract.js";
+import { canonicalToolName } from "../../core/tools/tool-aliases.js";
+import { validateAndCanonicalizeArgs } from "../validation/argument-validator.js";
+import { IdempotencyManager } from "../idempotency.js";
+import type {
+  AgentPolicyContext,
+  EnvironmentPolicyContext,
+  PolicyDecision,
+  PolicyEngine,
+  WorkspacePolicyContext,
+} from "../../core/policy/policy-engine.js";
+import type { BudgetTracker } from "../../runtime/budget/budget-tracker.js";
+import type { TaskSpec } from "../../core/types.js";
 
 /**
- * The kernel's tool port (review §24): discovery for schemas, invocation
- * under the full validate→policy→execute pipeline.
+ * The tool port (review §24): discovery for schemas, invocation under the
+ * full registry→validate→capability→policy→budget→execute pipeline.
  */
 export interface ToolGateway {
   discover(capabilities?: string[]): ToolDefinition[];
@@ -74,26 +102,9 @@ export class ToolTimeoutError extends Error {
   }
 }
 
-// ── Argument repair (ported from legacy Registry) ───────────────────────────
+// ── Argument repair (decode + normalize) ────────────────────────────────────
 
-const TOOL_ALIASES: Record<string, string> = {
-  open_file: "read_file",
-  cat_file: "read_file",
-  view_file: "read_file",
-  print_tree: "list_dir",
-  tree: "list_dir",
-  ls: "list_dir",
-  search_codebase: "search_code",
-  find_code: "search_code",
-  execute_command: "run_shell",
-  bash: "run_shell",
-  sh: "run_shell",
-};
-
-export function canonicalToolName(rawName: string): string {
-  const clean = rawName.trim().replace(/^(functions\.|tools__|mcp__|tool_)/i, "");
-  return TOOL_ALIASES[clean] ?? TOOL_ALIASES[rawName] ?? clean;
-}
+export { canonicalToolName, TOOL_ALIASES } from "../../core/tools/tool-aliases.js";
 
 export function normalizeToolArgs(definition: ToolDefinition | undefined, rawArgs: unknown): Record<string, unknown> {
   if (typeof rawArgs !== "object" || rawArgs === null) return {};
@@ -146,42 +157,27 @@ export function decodeRawArguments(rawArguments: unknown): { args: unknown; pars
   return { args: {}, parseError: null };
 }
 
-// ── Lightweight schema validation ───────────────────────────────────────────
-
 /**
- * Enforce required properties and top-level types from the tool's
- * JSON-Schema. Deliberately shallow (no zod dependency in the kernel):
- * deep validation stays the tool's own responsibility.
+ * Legacy shallow schema validation kept for parity callers. The gateway's
+ * real validation stage is validateAndCanonicalizeArgs (strict for
+ * state-changing tools).
  */
 export function validateAgainstSchema(
   args: Record<string, unknown>,
   schema: Record<string, unknown> | undefined,
 ): string[] {
-  const problems: string[] = [];
-  if (!schema) return problems;
-
-  const required = Array.isArray(schema.required) ? (schema.required as string[]) : [];
-  for (const key of required) {
-    if (!(key in args)) problems.push(`missing required argument "${key}"`);
-  }
-
-  const properties = (schema.properties ?? {}) as Record<string, { type?: string | string[] }>;
-  const typeMap: Record<string, string> = { string: "string", number: "number", integer: "number", boolean: "boolean" };
-  for (const [key, value] of Object.entries(args)) {
-    const propType = properties[key]?.type;
-    if (!propType) continue;
-    const expected = Array.isArray(propType) ? propType : [propType];
-    for (const t of expected) {
-      const want = typeMap[t];
-      if (!want) continue; // object/array schemas stay the tool's responsibility
-      const got = Array.isArray(value) ? "array" : typeof value;
-      if (got !== want && !(want === "number" && got === "number")) {
-        problems.push(`argument "${key}" expected ${t}, got ${got}`);
-        break;
-      }
-    }
-  }
-  return problems;
+  const result = validateAndCanonicalizeArgs(
+    schema
+      ? ({
+          inputSchema: schema,
+          sideEffects: { filesystem: false, process: false, network: false, externalMutation: false, financial: false },
+          risk: "read",
+        } as ToolDefinition)
+      : undefined,
+    args,
+    { mode: "lenient" },
+  );
+  return result.problems;
 }
 
 // ── Gateway ─────────────────────────────────────────────────────────────────
@@ -192,22 +188,38 @@ export interface ToolGatewayOptions {
   /** Namespace used in concurrency gate labels. */
   label?: string;
   /**
-   * "strict" (default) enforces required-args + top-level types from the
-   * tool's JSON-Schema; "off" restores exact legacy Registry behavior
-   * (normalization only). Transitional: the CLI Agent's loop keeps "off"
-   * until every tool schema is audited; kernel-native runs use strict.
+   * "strict" (default) enforces required-args + types from the tool's
+   * JSON-Schema; "off" restores exact legacy Registry behavior
+   * (normalization only). Transitional compatibility flag.
    */
   validation?: "strict" | "off";
+  /** Idempotency dedupe for side-effecting tools (review item 28). */
+  idempotency?: IdempotencyManager;
 }
 
 export interface InvokeContext {
   agentId?: string;
   runId?: string;
+  taskId?: string;
   mode?: string;
   unattended?: boolean;
   signal?: AbortSignal;
-  /** Skip policy (kernel-internal calls, e.g. strategies re-reading files). */
+  /** Capability tags to filter tools by (capability check stage). */
+  capabilities?: string[];
+  /** Run budget — the budget stage guards limits before executing. */
+  budget?: BudgetTracker;
+  /** Skip policy (runtime-internal calls, e.g. strategies re-reading files). */
   skipPolicy?: boolean;
+  /** Skip the capability filter (runtime-internal calls). */
+  skipCapabilityCheck?: boolean;
+  /** Task being executed (policy context, review item 7). */
+  task?: TaskSpec;
+  /** Agent identity (policy context, review item 7). */
+  agent?: AgentPolicyContext;
+  /** Workspace root + sandbox state (policy context, review items 7/9). */
+  workspace?: WorkspacePolicyContext;
+  /** Active execution profile (policy context, review item 8). */
+  environment?: EnvironmentPolicyContext;
   /**
    * Confirmation already granted for THIS call (the embedding app resolved a
    * prior ConfirmationRequired outcome). Confirmation rules are skipped, but
@@ -215,6 +227,8 @@ export interface InvokeContext {
    * unlock something policy forbids outright.
    */
   confirmed?: boolean;
+  /** Observability: called with every policy decision (review items 7, 13, 33). */
+  onPolicyDecision?: (decision: PolicyDecision & { tool: string }) => void;
 }
 
 const failure = (code: string, message: string): ToolResult => ({
@@ -228,6 +242,7 @@ export class DefaultToolGateway implements ToolGateway {
   private readonly policyEngine?: PolicyEngine;
   private readonly label: string;
   private readonly validation: "strict" | "off";
+  private readonly idempotency?: IdempotencyManager;
   private readonly gates = new Map<string, ConcurrencyGate>();
 
   constructor(opts: ToolGatewayOptions) {
@@ -235,6 +250,7 @@ export class DefaultToolGateway implements ToolGateway {
     this.policyEngine = opts.policyEngine;
     this.label = opts.label ?? "tool-gateway";
     this.validation = opts.validation ?? "strict";
+    this.idempotency = opts.idempotency;
   }
 
   /** Tools visible for a capability filter (empty filter = all). */
@@ -276,14 +292,16 @@ export class DefaultToolGateway implements ToolGateway {
   ): Promise<ToolResult> {
     const name = typeof nameOrRequest === "string" ? nameOrRequest : nameOrRequest.name;
     const raw = typeof nameOrRequest === "string" ? rawArgs : nameOrRequest.args;
+    const invocationId =
+      typeof nameOrRequest === "string" ? `tc_${randomUUID()}` : (nameOrRequest.id || `tc_${randomUUID()}`);
 
-    // 1. Resolve — canonical name + catalog entry.
+    // ── stage 0: resolve (registry + canonical aliases) ────────────────────
     const entry = this.resolve(name);
     if (!entry) {
       return failure("UnknownTool", new UnknownToolError(name, this.catalog.ids()).message);
     }
 
-    // 2. Decode + 3. normalize (weak-model argument repair).
+    // ── stage 1: decode + normalize (weak-model argument repair) ───────────
     let args: Record<string, unknown>;
     if (typeof raw === "string") {
       const decoded = decodeRawArguments(raw);
@@ -292,15 +310,28 @@ export class DefaultToolGateway implements ToolGateway {
       args = normalizeToolArgs(entry.definition, raw);
     }
 
-    // 4. Validate against the declared schema ("off" = legacy parity mode).
+    // ── stage 2: validation → canonical args (review item 6) ───────────────
     if (this.validation === "strict") {
-      const problems = validateAgainstSchema(args, entry.definition.inputSchema);
-      if (problems.length > 0) {
-        return failure("ValidationError", problems.join("; "));
+      const validated = validateAndCanonicalizeArgs(entry.definition, args);
+      if (!validated.ok) {
+        return failure("ValidationError", validated.problems.join("; "));
+      }
+      args = validated.args;
+    }
+
+    // ── stage 3: capability check (review item 4) ──────────────────────────
+    if (!ctx.skipCapabilityCheck && ctx.capabilities && ctx.capabilities.length > 0) {
+      const toolCaps = entry.definition.capabilities;
+      const allowed = toolCaps.length === 0 || toolCaps.some((c) => ctx.capabilities!.includes(c));
+      if (!allowed) {
+        return failure(
+          "CapabilityDenied",
+          `tool "${entry.definition.id}" requires capabilities [${toolCaps.join(", ")}] not granted to this run [${ctx.capabilities.join(", ")}]`,
+        );
       }
     }
 
-    // 5. Policy.
+    // ── stage 4: policy check (review items 4, 7) ──────────────────────────
     if (this.policyEngine && !ctx.skipPolicy) {
       const decision = this.policyEngine.check({
         tool: entry.definition,
@@ -309,7 +340,13 @@ export class DefaultToolGateway implements ToolGateway {
         runId: ctx.runId ?? "unknown",
         mode: ctx.mode,
         unattended: ctx.unattended,
+        task: ctx.task,
+        agent: ctx.agent,
+        workspace: ctx.workspace,
+        environment: ctx.environment,
+        budget: ctx.budget?.snapshot(),
       });
+      ctx.onPolicyDecision?.({ ...decision, tool: entry.definition.id });
       if (!decision.allowed) {
         return failure("PolicyDenied", decision.reason);
       }
@@ -325,14 +362,60 @@ export class DefaultToolGateway implements ToolGateway {
       }
     }
 
-    // 6. Concurrency lease (per-tool).
-    const gate = this.gateFor(entry);
-
-    // 7. Execute under timeout + abort.
+    // ── stage 5: budget/resource guard (review item 4) ─────────────────────
     try {
-      const data = await gate.run(() => this.withTimeout(entry, args), "normal", ctx.signal);
-      return { ok: true, data };
+      throwIfAborted(ctx.signal, `tool:${entry.definition.id}`);
+      ctx.budget?.assertTimeLeft();
     } catch (e) {
+      const err = e instanceof Error ? e : new Error(String(e));
+      return failure("Cancelled", err.message);
+    }
+
+    // ── stage 5b: idempotency check (review item 28) ───────────────────────
+    const keyMode = entry.definition.execution.idempotencyKey ?? "none";
+    let idemKey: string | undefined;
+    if (this.idempotency && (keyMode === "required" || keyMode === "auto")) {
+      const check = this.idempotency.check(entry.definition.id, args, ctx.runId);
+      if (check.status === "completed" && check.result) {
+        const okFlag = typeof check.result.ok === "boolean" ? check.result.ok : true;
+        const data = (check.result.data as Record<string, unknown> | undefined) ?? check.result;
+        return { ok: okFlag, data };
+      }
+      if (check.status === "recorded") {
+        return failure(
+          "IdempotencyConflict",
+          `an execution with the same idempotency key for "${entry.definition.id}" is already in flight`,
+        );
+      }
+      if (keyMode === "required" && check.status === "new") {
+        idemKey = this.idempotency.record(entry.definition.id, args, ctx.runId);
+      } else if (keyMode === "auto") {
+        idemKey = this.idempotency.keyFor(entry.definition.id, args);
+      }
+    }
+
+    // ── stage 6: execute under concurrency lease + timeout + signal ────────
+    const gate = this.gateFor(entry);
+    const callCtx: ToolCallContext = {
+      signal: ctx.signal,
+      invocation: { id: invocationId, name: entry.definition.id, args },
+      runId: ctx.runId,
+      agentId: ctx.agentId,
+      idempotencyKey: idemKey,
+      startedAt: Date.now(),
+    };
+
+    try {
+      const data = await gate.run(
+        () => this.withTimeout(entry, args, callCtx),
+        "normal",
+        ctx.signal,
+      );
+      const result: Record<string, unknown> = data;
+      if (idemKey && this.idempotency) this.idempotency.complete(idemKey, result);
+      return { ok: true, data: result };
+    } catch (e) {
+      if (idemKey && this.idempotency) this.idempotency.complete(idemKey, undefined, true);
       if (e instanceof ToolTimeoutError) return failure("Timeout", e.message);
       if (e instanceof ToolValidationError) return failure("ValidationError", e.message);
       if (e instanceof GateSaturatedError) return failure("ConcurrencyDenied", e.message);
@@ -341,7 +424,7 @@ export class DefaultToolGateway implements ToolGateway {
     }
   }
 
-  // ── internals ─────────────────────────────────────────────────────────────
+  // ── internals ─────────────────────────────────────────────────────────
 
   private resolve(name: string): ToolCatalogEntry | undefined {
     const canonical = canonicalToolName(name);
@@ -365,9 +448,14 @@ export class DefaultToolGateway implements ToolGateway {
     return gate;
   }
 
-  private withTimeout(entry: ToolCatalogEntry, args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  private withTimeout(
+    entry: ToolCatalogEntry,
+    args: Record<string, unknown>,
+    callCtx: ToolCallContext,
+  ): Promise<Record<string, unknown>> {
     const timeoutMs = entry.definition.execution.timeoutMs;
-    const task = entry.handler(args);
+    // cancellation reaches tool code (review item 16)
+    const task = entry.handler(args, callCtx);
 
     if (!timeoutMs || timeoutMs <= 0) return task;
 
@@ -381,8 +469,7 @@ export class DefaultToolGateway implements ToolGateway {
   }
 }
 
-// The gateway needs one more thing: an invocation-shaped helper that also
-// stamps ids for tracing. Kept last so the class above stays the primary API.
+// Invocation-shaped helper that stamps ids for tracing.
 export function makeToolInvocation(name: string, args: Record<string, unknown>): ToolInvocation {
-  return { id: `ti_${randomUUID()}`, name, args };
+  return { id: `tc_${randomUUID()}`, name, args };
 }

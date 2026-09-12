@@ -23,6 +23,7 @@
  */
 
 import { PolicyRule, RulePolicyEngine } from "./policy-engine.js";
+import { ExecutionProfile, executionProfileByName } from "./execution-profiles.js";
 import { DeleteFileRule, DestructiveShellRule, GitPublishRule } from "./rules.js";
 import { ToolRisk } from "../tools/tool-contract.js";
 
@@ -84,4 +85,21 @@ export function postureByName(name: PolicyPostureName, opts: RestrictedPostureOp
     case "restricted":
       return restrictedPosture(opts);
   }
+}
+
+// ── Profile-based posture (review item 8) ───────────────────────────────────
+
+/**
+ * Build a policy engine from an execution profile (review item 8): the
+ * profile's permissions, risk ceiling, confirmation floor, external
+ * mutation and financial flags become the engine's baseline rules —
+ * command blacklists replaced by declarative permissions.
+ */
+export function profilePosture(profileNameOrProfile: string | ExecutionProfile): RulePolicyEngine {
+  const profile = typeof profileNameOrProfile === "string" ? executionProfileByName(profileNameOrProfile) : profileNameOrProfile;
+  return new RulePolicyEngine({
+    profile,
+    deniedToolIds: profile.deniedTools,
+    requireConfirmationFor: profile.confirmationFloor,
+  });
 }

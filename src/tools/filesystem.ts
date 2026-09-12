@@ -1,10 +1,16 @@
 import { readFile, writeFile, rename, unlink, mkdir, stat } from "node:fs/promises";
 import { dirname } from "node:path";
+import { createHash } from "node:crypto";
 import { Tool } from "./tool.js";
 import { resolveWorkspacePath, PathEscapeError } from "./path-utils.js";
 import { isSensitivePath } from "../safety/path-policy.js";
 
 export { PathEscapeError };
+
+/** sha256 of the (truncated) content — the CAS token for apply_patch/edit_file_lines (review items 10/11). */
+function stampHash(content: string): string {
+  return createHash("sha256").update(content, "utf8").digest("hex");
+}
 
 /**
  * Error thrown when a tool attempts to read or write a sensitive file
@@ -73,7 +79,16 @@ export class ReadFileTool extends Tool {
     // U+FFFD rather than throwing.
     const content = new TextDecoder("utf-8").decode(slice);
 
-    return { path: relPath, content, truncated, bytesRead: slice.byteLength, totalBytes };
+    return {
+      path: relPath,
+      content,
+      truncated,
+      bytesRead: slice.byteLength,
+      totalBytes,
+      // CAS token (review item 10): pass as expected_hash to apply_patch /
+      // edit_file_lines so mutations verify the version the agent observed.
+      hash: stampHash(content),
+    };
   }
 }
 
