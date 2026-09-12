@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, basename } from "node:path";
 import { envIs, readEnv, readEnvFlag } from "../platform/environment.js";
+import { THEME_ORDER, ThemeName } from "../runtime/types.js";
 import {
   findWorkspaceRoot,
   globalStateDir,
@@ -74,6 +75,9 @@ export interface CliConfig {
    * commands) without prompting. Off by default; only for CI/benchmark runs
    * and throwaway containers. Enable with NEXUM_AUTO_APPROVE=true. */
   autoApprove?: boolean;
+  /** Color theme for the TUI: one of the built-in THEME_ORDER names.
+   * Set in .nexum/config.json ("theme") or NEXUM_THEME; defaults to "default". */
+  theme?: ThemeName;
   /** External MCP (Model Context Protocol) servers to connect at startup —
    * each spawns `command args...` over stdio and registers its tools.
    * Configure in .nexum/config.json; there is no in-session "/mcp add". */
@@ -83,6 +87,7 @@ export interface CliConfig {
 interface ConfigFile {
   model?: string;
   tier?: string;
+  theme?: string;
   host?: string;
   apiKey?: string;
   timeoutMs?: number;
@@ -297,10 +302,16 @@ export function loadConfig(): CliConfig {
 
   const tier: CliConfig["tier"] = (readEnv("TIER") || file.tier) === "cloud" ? "cloud" : "local";
 
+  // Theme: env var wins, then config file; unknown values fall back to
+  // "default" so a typo can never crash the TUI on startup.
+  const rawTheme = (readEnv("THEME") || file.theme || "").trim().toLowerCase();
+  const theme = (THEME_ORDER as readonly string[]).includes(rawTheme) ? (rawTheme as ThemeName) : undefined;
+
   return {
     model: readEnv("MODEL") || file.model || "qwen3.5:4b",
     workspaceRoot,
     tier,
+    theme,
     // OLLAMA_HOST is the local-Ollama convention, so it only applies to the
     // local tier. It used to be returned regardless, which meant a user with
     // OLLAMA_HOST set (normal for a local Ollama install) who switched to

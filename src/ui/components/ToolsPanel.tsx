@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { ToolCall } from "../../runtime/types.js";
 import { StatusChip } from "./StatusChip.js";
+import { themeColors } from "../layout/theme-map.js";
 
 export interface ToolsPanelProps {
   toolCalls: ToolCall[];
@@ -38,7 +39,7 @@ export function ToolsPanel({ toolCalls, width, rows }: ToolsPanelProps): React.J
     <Box flexDirection="column" width={width} height={rows}>
       {visible.length === 0 ? (
         <Box height={Math.max(1, rows - 1)} justifyContent="center" alignItems="center">
-          <Text color="gray" dimColor>
+          <Text color={themeColors().mutedForeground} dimColor>
             No tool calls yet
           </Text>
         </Box>
@@ -51,7 +52,7 @@ export function ToolsPanel({ toolCalls, width, rows }: ToolsPanelProps): React.J
               <StatusChip status={t.lastStatus} />
               <Text wrap="truncate"> {t.name}</Text>
               <Text>{" ".repeat(gap)}</Text>
-              <Text color="gray" dimColor>
+              <Text color={themeColors().mutedForeground} dimColor>
                 {countText}
               </Text>
             </Box>
@@ -59,7 +60,7 @@ export function ToolsPanel({ toolCalls, width, rows }: ToolsPanelProps): React.J
         })
       )}
       <Box height={1}>
-        <Text color="cyan" dimColor>
+        <Text color={themeColors().info} dimColor>
           View all tools... (/tools)
         </Text>
       </Box>

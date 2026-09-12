@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { ApprovalRequest } from "../../runtime/types.js";
 import { wrapText, tail } from "../layout/truncate.js";
+import { useTheme } from "../ui/hooks/use-theme.js";
 import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface ApprovalOverlayProps {
@@ -13,6 +14,7 @@ export interface ApprovalOverlayProps {
 
 /** Approval: review and confirm. Enter/a Approve, n Reject, d Diff. */
 export function ApprovalOverlay({ request, width, rows, showDiff }: ApprovalOverlayProps): React.JSX.Element {
+  const theme = useTheme();
   const innerWidth = Math.max(20, Math.min(width - 8, 96));
   const diffLines = showDiff && request.diff ? tail(request.diff.split("\n"), Math.max(3, rows - 8)) : [];
   return (
@@ -21,16 +23,22 @@ export function ApprovalOverlay({ request, width, rows, showDiff }: ApprovalOver
         {request.title}
       </Text>
       <Text wrap="truncate">
-        <Text color="blue">{`${request.filesChanged} files`}</Text>
-        <Text color="green">{`  +${request.additions}`}</Text>
-        <Text color="red">{`  -${request.deletions}`}</Text>
+        <Text color={theme.colors.primary}>{`${request.filesChanged} files`}</Text>
+        <Text color={theme.colors.success}>{`  +${request.additions}`}</Text>
+        <Text color={theme.colors.error}>{`  -${request.deletions}`}</Text>
       </Text>
       {showDiff
         ? diffLines.map((line, i) => (
             <Text
               key={i}
               wrap="truncate"
-              color={line.startsWith("+") ? "green" : line.startsWith("-") ? "red" : "gray"}
+              color={
+                line.startsWith("+")
+                  ? theme.colors.success
+                  : line.startsWith("-")
+                    ? theme.colors.error
+                    : theme.colors.mutedForeground
+              }
             >
               {line}
             </Text>
@@ -44,11 +52,11 @@ export function ApprovalOverlay({ request, width, rows, showDiff }: ApprovalOver
             ))}
       <Box marginTop={1}>
         <Text>
-          <Text color="green">[a] Approve</Text>
+          <Text color={theme.colors.success}>[a] Approve</Text>
           <Text>{"  "}</Text>
-          <Text color="red">[n] Reject</Text>
+          <Text color={theme.colors.error}>[n] Reject</Text>
           <Text>{"  "}</Text>
-          <Text color="yellow">[d] {showDiff ? "Summary" : "Diff"}</Text>
+          <Text color={theme.colors.warning}>[d] {showDiff ? "Summary" : "Diff"}</Text>
         </Text>
       </Box>
     </OverlayFrame>

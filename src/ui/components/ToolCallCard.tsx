@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import { CollapsibleSection } from "./CollapsibleSection.js";
 import { ChatEntry } from "../../runtime/types.js";
 import { truncate } from "../layout/truncate.js";
+import { themeColors } from "../layout/theme-map.js";
 
 interface ToolCallCardProps {
   entry: ChatEntry;
@@ -20,14 +21,14 @@ export function ToolCallCard({ entry, collapsed, onToggle, width }: ToolCallCard
       <Box flexDirection="column" marginLeft={2}>
         {error && (
           <Box height={1}>
-            <Text color="red" wrap="truncate">
+            <Text color={themeColors().error} wrap="truncate">
               Error: {truncate(error, width - 10)}
             </Text>
           </Box>
         )}
         {result && (
           <Box height={1}>
-            <Text color="gray" wrap="truncate">
+            <Text color={themeColors().mutedForeground} wrap="truncate">
               Result: {truncate(result, width - 10)}
             </Text>
           </Box>

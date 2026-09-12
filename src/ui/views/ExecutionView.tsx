@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import { tail, truncate } from "../layout/truncate.js";
 import { STEP_GLYPH } from "../layout/step-glyphs.js";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../layout/theme-map.js";
 
 /** Execution: goal, steps, active tool, queue, ETA, reasoning summary. */
 export function ExecutionView({ state, width, rows, detail }: ViewProps): React.JSX.Element {
@@ -16,13 +17,13 @@ export function ExecutionView({ state, width, rows, detail }: ViewProps): React.
     <Box flexDirection="column" height={rows}>
       {execution.goal ? (
         <Text wrap="truncate">
-          <Text color="blue" bold>
+          <Text color={themeColors().primary} bold>
             Goal{" "}
           </Text>
           {truncate(execution.goal, width - 5)}
         </Text>
       ) : (
-        <Text color="gray">No execution in progress.</Text>
+        <Text color={themeColors().mutedForeground}>No execution in progress.</Text>
       )}
       {steps.map((step) => {
         const s = STEP_GLYPH[step.status];
@@ -37,16 +38,20 @@ export function ExecutionView({ state, width, rows, detail }: ViewProps): React.
         <Text wrap="truncate">
           {execution.activeTool && (
             <>
-              <Text color="yellow">Tool:</Text>
+              <Text color={themeColors().warning}>Tool:</Text>
               <Text>{execution.activeTool}</Text>
             </>
           )}
-          {execution.queue.length > 0 && <Text color="gray">{`  Queue: ${execution.queue.join(" → ")}`}</Text>}
-          {execution.etaSeconds != null && <Text color="gray">{`  ETA ${execution.etaSeconds}s`}</Text>}
+          {execution.queue.length > 0 && (
+            <Text color={themeColors().mutedForeground}>{`  Queue: ${execution.queue.join(" → ")}`}</Text>
+          )}
+          {execution.etaSeconds != null && (
+            <Text color={themeColors().mutedForeground}>{`  ETA ${execution.etaSeconds}s`}</Text>
+          )}
         </Text>
       )}
       {reasoningRow > 0 && (
-        <Text wrap="truncate" color="gray" italic>
+        <Text wrap="truncate" color={themeColors().mutedForeground} italic>
           {truncate(execution.reasoning.replace(/\n/g, " "), width)}
         </Text>
       )}

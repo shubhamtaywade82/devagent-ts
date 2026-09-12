@@ -5,6 +5,7 @@ import { DetailLevel } from "../layout/density.js";
 import { truncate } from "../layout/truncate.js";
 import { renderSimpleMarkdown } from "../markdown.js";
 import { SpanText } from "../components/SpanText.js";
+import { themeColors } from "../layout/theme-map.js";
 
 export interface ViewProps {
   state: RuntimeState;
@@ -66,7 +67,7 @@ export function summarizeGroup(entries: ChatEntry[]): GroupSummary | null {
 function TurnSeparator({ width }: { width: number }): React.JSX.Element {
   return (
     <Box height={1}>
-      <Text color="gray" dimColor wrap="truncate">
+      <Text color={themeColors().mutedForeground} dimColor wrap="truncate">
         {"─".repeat(Math.max(1, width))}
       </Text>
     </Box>
@@ -112,11 +113,11 @@ function ToolCallBlock({
   return (
     <Box flexDirection="column">
       <Box height={1}>
-        <Text color="gray">{connector}</Text>
-        <Text bold color="cyan">
+        <Text color={themeColors().mutedForeground}>{connector}</Text>
+        <Text bold color={themeColors().info}>
           {entry.name}{" "}
         </Text>
-        <Text color="gray" wrap="truncate">
+        <Text color={themeColors().mutedForeground} wrap="truncate">
           {truncate(args, Math.max(10, width - 20 - entry.name.length))}
         </Text>
         <Text color={statusColor} dimColor={!isRunning}>
@@ -128,14 +129,14 @@ function ToolCallBlock({
         <Box marginLeft={5} flexDirection="column">
           {errorLines.map((line, i) => (
             <Box key={`err-${i}`} height={1}>
-              <Text color="red" wrap="truncate">
+              <Text color={themeColors().error} wrap="truncate">
                 {i === 0 ? `Error: ${line}` : `  ${line}`}
               </Text>
             </Box>
           ))}
           {resultLines.map((line, i) => (
             <Box key={`res-${i}`} height={1}>
-              <Text color="gray" wrap="truncate">
+              <Text color={themeColors().mutedForeground} wrap="truncate">
                 {i === 0 ? `Output: ${line}` : `  ${line}`}
               </Text>
             </Box>
@@ -173,20 +174,20 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
       const overflow = summary.files.length - shown.length;
       const rows: Array<{ text: string; color: string }> = shown.map((f) => ({
         text: `  ✓ ${f.path}  +${f.additions} −${f.deletions}`,
-        color: "green",
+        color: themeColors().success,
       }));
-      if (overflow > 0) rows.push({ text: `  … and ${overflow} more files`, color: "gray" });
+      if (overflow > 0) rows.push({ text: `  … and ${overflow} more files`, color: themeColors().mutedForeground });
       if (summary.files.length > 0) {
         rows.push({
           text: `  ${summary.files.length} file${summary.files.length === 1 ? "" : "s"} · +${summary.totalAdditions} −${summary.totalDeletions}`,
-          color: "gray",
+          color: themeColors().mutedForeground,
         });
       }
       if (summary.test) {
         rows.push(
           summary.test.failed > 0
-            ? { text: `  ✗ ${summary.test.failed} failed`, color: "red" }
-            : { text: `  ✓ ${summary.test.passed} passed`, color: "green" },
+            ? { text: `  ✗ ${summary.test.failed} failed`, color: themeColors().error }
+            : { text: `  ✓ ${summary.test.passed} passed`, color: themeColors().success },
         );
       }
       b.push({
@@ -217,7 +218,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
             height: 1,
             render: () => (
               <Box key={`crumb-${idx}-${entry.at}`} height={1}>
-                <Text bold color="cyan" wrap="truncate">
+                <Text bold color={themeColors().info} wrap="truncate">
                   ◆ {crumb}
                 </Text>
               </Box>
@@ -260,7 +261,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
             render: () => (
               <Box key={`think-${entry.at}-${idx}`} flexDirection="column">
                 <Box height={1}>
-                  <Text color="magenta" dimColor wrap="truncate">
+                  <Text color={themeColors().accent} dimColor wrap="truncate">
                     ▸ {preview}
                   </Text>
                 </Box>
@@ -283,7 +284,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                 <Box key={`user-${entry.at}`} flexDirection="column">
                   {speakerVisible ? (
                     <Box height={1}>
-                      <Text bold color="green">
+                      <Text bold color={themeColors().success}>
                         You
                       </Text>
                     </Box>
@@ -316,11 +317,11 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                 <Box key={`asst-${entry.at}`} flexDirection="column">
                   {speakerVisible ? (
                     <Box height={1}>
-                      <Text bold color="cyan">
+                      <Text bold color={themeColors().info}>
                         Nexum
                       </Text>
                       {entry.model ? (
-                        <Text color="gray" dimColor>
+                        <Text color={themeColors().mutedForeground} dimColor>
                           {" "}
                           · {entry.model}
                         </Text>
@@ -362,11 +363,11 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
       } else if (entry.kind === "plan") {
         const headerText = `📋 Plan (${entry.steps.length} steps) [${entry.status}]`;
         const stepGlyphs = {
-          completed: { char: "✓", color: "green" },
-          failed: { char: "✗", color: "red" },
-          running: { char: "▶", color: "yellow" },
-          pending: { char: "○", color: "gray" },
-          skipped: { char: "–", color: "gray" },
+          completed: { char: "✓", color: themeColors().success },
+          failed: { char: "✗", color: themeColors().error },
+          running: { char: "▶", color: themeColors().warning },
+          pending: { char: "○", color: themeColors().mutedForeground },
+          skipped: { char: "–", color: themeColors().mutedForeground },
         };
         b.push({
           key: `plan-${entry.at}-${idx}`,
@@ -374,7 +375,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           render: () => (
             <Box key={`plan-${entry.at}-${idx}`} flexDirection="column">
               <Box height={1}>
-                <Text bold color="blue">
+                <Text bold color={themeColors().primary}>
                   {headerText}
                 </Text>
               </Box>
@@ -382,7 +383,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                 const s = stepGlyphs[step.status] || stepGlyphs.pending;
                 return (
                   <Box key={step.id} height={1}>
-                    <Text color="gray"> {sidx + 1}) </Text>
+                    <Text color={themeColors().mutedForeground}> {sidx + 1}) </Text>
                     <Text color={s.color}>{s.char} </Text>
                     <Text color={step.status === "completed" ? "gray" : "white"}>{step.description}</Text>
                   </Box>
@@ -399,22 +400,25 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           render: () => (
             <Box key={`decision-${entry.at}-${idx}`} flexDirection="column">
               <Box height={1}>
-                <Text bold color="cyan">
+                <Text bold color={themeColors().info}>
                   🧠 Strategy Selection
                 </Text>
-                <Text color="gray"> (Options: {optionList})</Text>
+                <Text color={themeColors().mutedForeground}> (Options: {optionList})</Text>
               </Box>
               <Box height={1} marginLeft={2}>
                 <Text>
-                  <Text color="gray">Selected: </Text>
-                  <Text bold color="green">
+                  <Text color={themeColors().mutedForeground}>Selected: </Text>
+                  <Text bold color={themeColors().success}>
                     {entry.selected}
                   </Text>
-                  <Text color="gray"> (Confidence: {Math.round(entry.confidence * 100)}%)</Text>
+                  <Text color={themeColors().mutedForeground}>
+                    {" "}
+                    (Confidence: {Math.round(entry.confidence * 100)}%)
+                  </Text>
                 </Text>
               </Box>
               <Box height={1} marginLeft={2}>
-                <Text color="gray" wrap="truncate">
+                <Text color={themeColors().mutedForeground} wrap="truncate">
                   Reason: {truncate(entry.reason, width - 12)}
                 </Text>
               </Box>
@@ -430,12 +434,12 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           if (line.startsWith("+") && !line.startsWith("+++")) {
             additions++;
             if (changes.length < 4) {
-              changes.push({ text: line, color: "green" });
+              changes.push({ text: line, color: themeColors().success });
             }
           } else if (line.startsWith("-") && !line.startsWith("---")) {
             deletions++;
             if (changes.length < 4) {
-              changes.push({ text: line, color: "red" });
+              changes.push({ text: line, color: themeColors().error });
             }
           }
         }
@@ -450,12 +454,12 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
           render: () => (
             <Box key={`diff-${entry.at}-${idx}`} flexDirection="column">
               <Box height={1}>
-                <Text bold color="yellow">
+                <Text bold color={themeColors().warning}>
                   📄 {entry.filePath}
                 </Text>
-                <Text color="gray"> ({entry.status}) </Text>
-                <Text color="green">+{additions} </Text>
-                <Text color="red">-{deletions}</Text>
+                <Text color={themeColors().mutedForeground}> ({entry.status}) </Text>
+                <Text color={themeColors().success}>+{additions} </Text>
+                <Text color={themeColors().error}>-{deletions}</Text>
               </Box>
               {changes.map((ch, cidx) => (
                 <Box key={cidx} height={1} marginLeft={2}>
@@ -464,7 +468,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
               ))}
               {hasMore && (
                 <Box height={1} marginLeft={2}>
-                  <Text color="gray">...</Text>
+                  <Text color={themeColors().mutedForeground}>...</Text>
                 </Box>
               )}
             </Box>
@@ -498,7 +502,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                 </Text>
               </Box>
               <Box height={1}>
-                <Text color="gray"> Command: {entry.command}</Text>
+                <Text color={themeColors().mutedForeground}> Command: {entry.command}</Text>
               </Box>
               <Box height={1}>
                 <Text color={statusColor}>
@@ -516,11 +520,11 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
       } else if (entry.kind === "card") {
         const statusColor = entry.status === "completed" ? "green" : entry.status === "failed" ? "red" : "yellow";
         const glyphs = {
-          completed: { char: "✓", color: "green" },
-          failed: { char: "✗", color: "red" },
-          running: { char: "▶", color: "yellow" },
-          pending: { char: "○", color: "gray" },
-          skipped: { char: "–", color: "gray" },
+          completed: { char: "✓", color: themeColors().success },
+          failed: { char: "✗", color: themeColors().error },
+          running: { char: "▶", color: themeColors().warning },
+          pending: { char: "○", color: themeColors().mutedForeground },
+          skipped: { char: "–", color: themeColors().mutedForeground },
         };
         b.push({
           key: `card-${entry.at}-${idx}`,
@@ -538,7 +542,7 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
                   <Box key={idx} height={1} marginLeft={2}>
                     <Text color={s.color}>{s.char} </Text>
                     <Text>{item.label}</Text>
-                    {item.detail && <Text color="gray"> ({item.detail})</Text>}
+                    {item.detail && <Text color={themeColors().mutedForeground}> ({item.detail})</Text>}
                   </Box>
                 );
               })}
@@ -614,42 +618,42 @@ export function ConversationView({ state, width, rows, detail: _detail }: ViewPr
       <Box height={rows} width={width} flexDirection="column" justifyContent="center" alignItems="center">
         <Box flexDirection="column" alignItems="center" width={cardWidth}>
           <Box flexDirection="row" alignItems="center">
-            <Text bold color="cyan">
+            <Text bold color={themeColors().info}>
               ⚡ Nexum
             </Text>
-            <Text color="gray" dimColor>
+            <Text color={themeColors().mutedForeground} dimColor>
               {" · "}Agent Runtime & Harness
             </Text>
           </Box>
           <Box height={1} />
-          <Text color="white" bold>
+          <Text color={themeColors().foreground} bold>
             Type a message below to start a conversation.
           </Text>
           <Box height={1} />
           <Box flexDirection="column" alignItems="flex-start">
             <Box flexDirection="row">
-              <Text color="cyan" bold>
+              <Text color={themeColors().info} bold>
                 {"  /plan <goal>"}
               </Text>
-              <Text color="gray"> Start a multi-step autonomous plan</Text>
+              <Text color={themeColors().mutedForeground}> Start a multi-step autonomous plan</Text>
             </Box>
             <Box flexDirection="row">
-              <Text color="cyan" bold>
+              <Text color={themeColors().info} bold>
                 {"  /model       "}
               </Text>
-              <Text color="gray"> Switch local & cloud models (Ctrl+M)</Text>
+              <Text color={themeColors().mutedForeground}> Switch local & cloud models (Ctrl+M)</Text>
             </Box>
             <Box flexDirection="row">
-              <Text color="cyan" bold>
+              <Text color={themeColors().info} bold>
                 {"  /help        "}
               </Text>
-              <Text color="gray"> Show commands and keyboard shortcuts</Text>
+              <Text color={themeColors().mutedForeground}> Show commands and keyboard shortcuts</Text>
             </Box>
             <Box flexDirection="row">
-              <Text color="cyan" bold>
+              <Text color={themeColors().info} bold>
                 {"  1 - 5        "}
               </Text>
-              <Text color="gray"> Quick switch: Chat, Plan, Tasks, Changes, Logs</Text>
+              <Text color={themeColors().mutedForeground}> Quick switch: Chat, Plan, Tasks, Changes, Logs</Text>
             </Box>
           </Box>
         </Box>

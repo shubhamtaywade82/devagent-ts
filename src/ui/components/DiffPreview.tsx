@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { Box, Text } from "ink";
 import { CollapsibleSection } from "./CollapsibleSection.js";
 import { ChatEntry } from "../../runtime/types.js";
+import { themeColors } from "../layout/theme-map.js";
 
 interface DiffPreviewProps {
   entry: ChatEntry;
@@ -32,7 +33,7 @@ export function DiffPreview({ entry, collapsed, onToggle, width }: DiffPreviewPr
         })}
         {diffLines.length > 30 && (
           <Box height={1}>
-            <Text color="gray">... {diffLines.length - 30} more lines</Text>
+            <Text color={themeColors().mutedForeground}>... {diffLines.length - 30} more lines</Text>
           </Box>
         )}
       </Box>

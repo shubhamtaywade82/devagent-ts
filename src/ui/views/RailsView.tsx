@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../layout/theme-map.js";
 
 export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element {
   const rails = state.rails;
@@ -8,7 +9,7 @@ export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element 
   if (!rails || rails.status === "disabled") {
     return (
       <Box flexDirection="column" height={rows}>
-        <Text color="gray">
+        <Text color={themeColors().mutedForeground}>
           Rails project not detected. Start working in a Rails project to see Rails-specific information.
         </Text>
       </Box>
@@ -36,59 +37,59 @@ export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element 
   return (
     <Box flexDirection="column" height={rows}>
       <Box height={1} marginBottom={1}>
-        <Text bold color="red">
+        <Text bold color={themeColors().error}>
           Rails Project Metadata
         </Text>
       </Box>
       <Box height={1}>
         <Text>
-          <Text color="gray">Rails Version : </Text>
-          <Text bold color="cyan">
+          <Text color={themeColors().mutedForeground}>Rails Version : </Text>
+          <Text bold color={themeColors().info}>
             {rails.railsVersion ?? "unknown"}
           </Text>
         </Text>
       </Box>
       <Box height={1}>
         <Text>
-          <Text color="gray">Ruby Version : </Text>
-          <Text bold color="cyan">
+          <Text color={themeColors().mutedForeground}>Ruby Version : </Text>
+          <Text bold color={themeColors().info}>
             {rails.rubyVersion ?? "unknown"}
           </Text>
         </Text>
       </Box>
       <Box height={1} marginBottom={1}>
         <Text>
-          <Text color="gray">Test Framework: </Text>
-          <Text bold color="cyan">
+          <Text color={themeColors().mutedForeground}>Test Framework: </Text>
+          <Text bold color={themeColors().info}>
             {rails.testFramework ?? "unknown"}
           </Text>
         </Text>
       </Box>
 
       <Box height={1} marginBottom={1}>
-        <Text bold color="red">
+        <Text bold color={themeColors().error}>
           Semantic Graph Stats
         </Text>
       </Box>
       <Box height={1}>
         <Text>
-          <Text color="gray">Total Entities: </Text>
-          <Text bold color="white">
+          <Text color={themeColors().mutedForeground}>Total Entities: </Text>
+          <Text bold color={themeColors().foreground}>
             {rails.entityCount}
           </Text>
         </Text>
       </Box>
       <Box height={1} marginBottom={1}>
         <Text>
-          <Text color="gray">Relationships : </Text>
-          <Text bold color="white">
+          <Text color={themeColors().mutedForeground}>Relationships : </Text>
+          <Text bold color={themeColors().foreground}>
             {rails.edgeCount}
           </Text>
         </Text>
       </Box>
 
       <Box height={1} marginBottom={1}>
-        <Text bold color="red">
+        <Text bold color={themeColors().error}>
           Entity Breakdown
         </Text>
       </Box>
@@ -103,8 +104,8 @@ export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element 
               {row.map(({ label, count }) => (
                 <Box key={label} width={colWidth} height={1}>
                   <Text>
-                    <Text color="gray">{label.padEnd(12)}: </Text>
-                    <Text bold color="yellow">
+                    <Text color={themeColors().mutedForeground}>{label.padEnd(12)}: </Text>
+                    <Text bold color={themeColors().warning}>
                       {count}
                     </Text>
                   </Text>
@@ -118,13 +119,13 @@ export function RailsView({ state, width, rows }: ViewProps): React.JSX.Element 
       {rails.scannerErrors.length > 0 && (
         <>
           <Box height={1} marginTop={1}>
-            <Text bold color="red">
+            <Text bold color={themeColors().error}>
               Scanner Errors ({rails.scannerErrors.length})
             </Text>
           </Box>
           {rails.scannerErrors.slice(0, 5).map((err, i) => (
             <Box key={i} height={1} marginLeft={2}>
-              <Text color="red" wrap="truncate">
+              <Text color={themeColors().error} wrap="truncate">
                 {err.slice(0, width - 6)}
               </Text>
             </Box>

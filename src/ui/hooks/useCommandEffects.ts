@@ -7,10 +7,12 @@ import { CommandEffect } from "../../interaction/slash-commands.js";
 import { runDoctor } from "../../cli/doctor.js";
 import { WorkspaceManager } from "../../platform/workspace.js";
 import { workspaceStateDir } from "../../platform/paths.js";
+import { saveWorkspaceConfig } from "../../cli/config.js";
 import { EvolutionEngine } from "../../evolution/engine.js";
 import { HarnessRegistry } from "../../evolution/registry.js";
 import { formatDiagnosesText, formatHistory, loadRecentEpisodes } from "../../evolution/cli.js";
 import type { AgentMode } from "../../runtime/types.js";
+import { THEME_ORDER } from "../../runtime/types.js";
 import type { ShellAgent } from "../App.js";
 
 /**
@@ -153,13 +155,21 @@ export function useCommandEffects(
           );
           break;
         }
-        case "set-theme":
+        case "set-theme": {
           bus.publish({ type: "theme.changed", theme: effect.theme });
           bus.publish({ type: "notification", kind: "info", text: `Theme: ${effect.theme}` });
+          // Persist the choice so the next session starts themed. Best-effort:
+          // the live switch already applied, a read-only workspace must not
+          // turn it into an error notification.
+          try {
+            saveWorkspaceConfig(workspaceRoot ?? process.cwd(), { theme: effect.theme });
+          } catch {
+            // ignore — runtime theme switch stands, persistence is optional
+          }
           break;
+        }
         case "next-theme": {
-          const order = ["default", "midnight", "solarized"] as const;
-          const next = order[(order.indexOf(store.getState().theme) + 1) % order.length];
+          const next = THEME_ORDER[(THEME_ORDER.indexOf(store.getState().theme) + 1) % THEME_ORDER.length];
           bus.publish({ type: "theme.changed", theme: next });
           bus.publish({ type: "notification", kind: "info", text: `Theme: ${next}` });
           break;

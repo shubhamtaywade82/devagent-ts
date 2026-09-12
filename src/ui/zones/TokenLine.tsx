@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { StatusToken } from "../../runtime/types.js";
 import { packTokens, TOKEN_SEPARATOR } from "../layout/status-tokens.js";
+import { useTheme } from "../ui/hooks/use-theme.js";
 
 export interface TokenLineProps {
   tokens: StatusToken[];
@@ -10,6 +11,7 @@ export interface TokenLineProps {
 
 /** Renders a strip of status tokens packed to width, colors preserved. */
 export function TokenLine({ tokens, width }: TokenLineProps): React.JSX.Element {
+  const theme = useTheme();
   const packed = packTokens(tokens, width);
   return (
     <Box height={1} minHeight={1}>
@@ -17,7 +19,7 @@ export function TokenLine({ tokens, width }: TokenLineProps): React.JSX.Element 
         {packed.length > 0 ? (
           packed.map((token, i) => (
             <React.Fragment key={`${token.text}-${i}`}>
-              {i > 0 && <Text color="gray">{TOKEN_SEPARATOR}</Text>}
+              {i > 0 && <Text color={theme.colors.mutedForeground}>{TOKEN_SEPARATOR}</Text>}
               <Text color={token.color}>{token.text}</Text>
             </React.Fragment>
           ))

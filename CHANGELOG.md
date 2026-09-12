@@ -2,6 +2,35 @@
 
 ## Unreleased
 
+### Added — ink-ui (termcn) component layer & theme system (`src/tui/ui/`)
+
+Nexum's TUI presentation layer migrates from hand-rolled Ink primitives onto
+a vendored, Nexum-owned copy of the [termcn (ink-ui)](https://github.com/shadcn-labs/termcn)
+component registry (shadcn-style copy-paste install via
+`scripts/vendor-termcn.mjs`), while all business logic — the runtime store,
+keybindings, picker/prompt engines — stays put.
+
+- **Theme system**: 15 built-in semantic themes (default/midnight/solarized
+  + dracula, nord, github, gruvbox, tokyo-night, monokai, catppuccin,
+  one-dark, vercel, high-contrast, high-contrast-light, matrix), a
+  compiler-enforced `ThemeName → Theme` registry, and a `ThemeProvider`
+  wired to the runtime's `theme.changed` event for instant live switching.
+- **`/theme`**: no-arg now opens an interactive picker with per-theme color
+  swatches; direct names Tab-complete. Selections persist to
+  `.nexum/config.json`; `NEXUM_THEME` and config `theme` bootstrap the
+  initial palette.
+- **Component kit**: Badge, Spinner, StatusMessage, ProgressBar,
+  KeyboardShortcuts, Alert, InfoBox, Heading, KeyValue, Divider, Tag,
+  Dialog, Confirm, Select, MultiSelect, Toast, Markdown, Code, DiffView,
+  DirectoryTree, StreamingText, ChatMessage, ThinkingBlock, TokenUsage,
+  Gauge, Sparkline, JSON, Table, DataGrid, ScrollView + interaction hooks.
+- **Adoption**: Help overlay (KeyboardShortcuts), model/skills/sessions/tools
+  empty+loading states (StatusMessage/Spinner), Context Inspector
+  (Gauge + TokenUsage); every zone, overlay, view and panel now renders
+  through semantic theme tokens.
+- **Compat**: default-theme output is byte-identical with the previous
+  hardcoded ANSI palette (all snapshot tests unchanged).
+
 ### Added — Closed-Loop Self-Development v2 (`src/evolution/`)
 
 Implements the deeper closed-loop RSI layers on top of the HarnessDev-style

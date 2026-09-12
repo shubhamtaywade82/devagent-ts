@@ -28,7 +28,47 @@ export const ACTOR_IDS: readonly ActorId[] = [
 /** Semantic health of an actor, mapped 1:1 to theme colors. */
 export type ActorHealth = "healthy" | "active" | "waiting" | "error" | "thinking" | "muted";
 
-export type ThemeName = "default" | "midnight" | "solarized";
+/**
+ * Built-in color themes. The first three are Nexum-native palettes kept
+ * byte-compatible with the pre-theme-registry era; the rest are vendored
+ * from the termcn (ink-ui) registry under src/tui/ui/lib/terminal-themes/.
+ * The mapping ThemeName -> Theme tokens lives in src/tui/ui/theme-registry.ts.
+ */
+export type ThemeName =
+  | "default"
+  | "midnight"
+  | "solarized"
+  | "dracula"
+  | "nord"
+  | "github"
+  | "gruvbox"
+  | "tokyo-night"
+  | "monokai"
+  | "catppuccin"
+  | "one-dark"
+  | "vercel"
+  | "high-contrast"
+  | "high-contrast-light"
+  | "matrix";
+
+/** Cycle order for "/theme" without arguments (next-theme). */
+export const THEME_ORDER: readonly ThemeName[] = [
+  "default",
+  "midnight",
+  "solarized",
+  "dracula",
+  "nord",
+  "github",
+  "gruvbox",
+  "tokyo-night",
+  "monokai",
+  "catppuccin",
+  "one-dark",
+  "vercel",
+  "high-contrast",
+  "high-contrast-light",
+  "matrix",
+];
 
 export interface ActorState {
   id: ActorId;

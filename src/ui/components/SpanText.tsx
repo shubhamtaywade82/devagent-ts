@@ -1,6 +1,7 @@
 import React from "react";
 import { Text } from "ink";
 import { Span } from "../markdown.js";
+import { themeColors } from "../layout/theme-map.js";
 
 /** Renders one markdown-parsed line's spans (see markdown.ts). */
 export function SpanText({ spans }: { spans: Span[] }): React.JSX.Element {
@@ -8,7 +9,7 @@ export function SpanText({ spans }: { spans: Span[] }): React.JSX.Element {
     <Text wrap="truncate">
       {spans.map((s, j) => {
         if (s.ansi) return <Text key={j}>{s.text}</Text>;
-        if (s.code) return <Text key={j} color="yellow">{` ${s.text} `}</Text>;
+        if (s.code) return <Text key={j} color={themeColors().warning}>{` ${s.text} `}</Text>;
         return (
           <Text
             key={j}

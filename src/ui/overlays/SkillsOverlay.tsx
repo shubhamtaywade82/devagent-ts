@@ -1,7 +1,8 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box } from "ink";
 import { SkillMeta, SkillUsageStats } from "../../skills/types.js";
 import { UniversalPicker } from "./UniversalPicker.js";
+import { StatusMessage } from "../ui/status-message.js";
 import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface SkillsOverlayProps {
@@ -19,7 +20,7 @@ export function SkillsOverlay({ skills, usage, width, rows, active, onSelect }: 
     return (
       <OverlayFrame title="Skills" width={width} rows={rows}>
         <Box>
-          <Text color="magenta">No skills found in .nexum/skills or ~/.nexum/skills</Text>
+          <StatusMessage variant="warning">No skills found in .nexum/skills or ~/.nexum/skills</StatusMessage>
         </Box>
       </OverlayFrame>
     );

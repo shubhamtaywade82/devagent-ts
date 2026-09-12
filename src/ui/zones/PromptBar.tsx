@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
+import { useTheme } from "../ui/hooks/use-theme.js";
 
 export interface PromptBarProps {
   text: string;
@@ -30,6 +31,7 @@ export function promptBarRows(text: string): 1 | 2 {
 
 /** Prompt input with multiline support. Shift+Enter inserts a newline. */
 export function PromptBar({ text, ghost, width, busy, focused = true }: PromptBarProps): React.JSX.Element {
+  const theme = useTheme();
   const promptGlyph = busy ? "◌" : ">";
   const lines = text.split("\n");
   const isPasted = isPastedPlaceholder(lines);
@@ -44,7 +46,7 @@ export function PromptBar({ text, ghost, width, busy, focused = true }: PromptBa
     <Box flexDirection="column">
       {showMultiline && (
         <Box height={1}>
-          <Text color="gray" dimColor>
+          <Text color={theme.colors.mutedForeground} dimColor>
             {isPasted
               ? `⏎ ${hiddenCount} line${hiddenCount !== 1 ? "s" : ""}`
               : `⏎ ${lines.length - 1} more line${lines.length > 2 ? "s" : ""}`}
@@ -52,19 +54,19 @@ export function PromptBar({ text, ghost, width, busy, focused = true }: PromptBa
         </Box>
       )}
       <Box height={1}>
-        <Text color={busy ? "magenta" : "green"} bold>
+        <Text color={busy ? theme.colors.accent : theme.colors.success} bold>
           {promptGlyph}{" "}
         </Text>
         <Text key={visibleLine}>
           {visibleLine}
-          {focused ? <Text inverse> </Text> : <Text color="green">│</Text>}
+          {focused ? <Text inverse> </Text> : <Text color={theme.colors.success}>│</Text>}
           {text === "" && !visibleGhost ? (
-            <Text color="gray" dimColor>
+            <Text color={theme.colors.mutedForeground} dimColor>
               {" "}
               Type a message or / for commands...
             </Text>
           ) : (
-            <Text color="gray">{visibleGhost}</Text>
+            <Text color={theme.colors.mutedForeground}>{visibleGhost}</Text>
           )}
         </Text>
       </Box>

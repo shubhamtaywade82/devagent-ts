@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { ExecutionNode } from "../../runtime/event-node.js";
 import { parseSgrMouseEvent } from "../../interaction/mouse.js";
+import { useTheme } from "../ui/hooks/use-theme.js";
 import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface ExecutionDagOverlayProps {
@@ -21,6 +22,7 @@ export function ExecutionDagOverlay({
 }: ExecutionDagOverlayProps): React.JSX.Element {
   const [index, setIndex] = useState(0);
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
+  const theme = useTheme();
 
   const flatNodes =
     nodes.length > 0
@@ -112,7 +114,7 @@ export function ExecutionDagOverlay({
   return (
     <OverlayFrame title="Execution DAG Trace (Active Expanded, Collapsed History)" width={width} rows={rows}>
       <Box flexDirection="column" gap={0}>
-        <Text color="cyan" bold>
+        <Text color={theme.colors.info} bold>
           Execution Node History (Enter/→ Expand, ← Collapse):
         </Text>
         {flatNodes.map((node, i) => {
@@ -121,37 +123,48 @@ export function ExecutionDagOverlay({
           const isExpanded = expandedNodeId === node.id || isActiveNode;
           const expandGlyph = isExpanded ? "▼ " : "▶ ";
           const statusSymbol = node.status === "completed" ? "✓" : node.status === "failed" ? "✗" : "▶";
-          const statusColor = node.status === "completed" ? "green" : node.status === "failed" ? "red" : "yellow";
+          const statusColor =
+            node.status === "completed"
+              ? theme.colors.success
+              : node.status === "failed"
+                ? theme.colors.error
+                : theme.colors.warning;
 
           return (
             <Box key={node.id} flexDirection="column" marginY={0}>
-              <Box backgroundColor={isSelected ? "magenta" : undefined}>
-                <Text color="gray">{expandGlyph}</Text>
+              <Box backgroundColor={isSelected ? theme.colors.selection : undefined}>
+                <Text color={theme.colors.mutedForeground}>{expandGlyph}</Text>
                 <Text color={statusColor} bold>
                   {statusSymbol}{" "}
                 </Text>
-                <Text bold={isSelected} color={isSelected ? "white" : "white"}>
+                <Text bold={isSelected} color={isSelected ? theme.colors.selectionForeground : theme.colors.foreground}>
                   [{node.kind.toUpperCase()}] {node.title}
                 </Text>
-                {node.durationMs != null && <Text color="gray">{` (${node.durationMs}ms)`}</Text>}
+                {node.durationMs != null && (
+                  <Text color={theme.colors.mutedForeground}>{` (${node.durationMs}ms)`}</Text>
+                )}
               </Box>
 
               {isActiveNode && (
                 <Box marginLeft={3} flexDirection="column">
-                  <Text color="yellow">Executing... ██████████░░░░░░ 61%</Text>
+                  <Text color={theme.colors.warning}>Executing... ██████████░░░░░░ 61%</Text>
                 </Box>
               )}
 
               {isExpanded && node.details && !isActiveNode && (
-                <Box marginLeft={3} flexDirection="column" borderStyle="single" borderColor="cyan">
-                  {node.details.model && <Text color="yellow">Model: {String(node.details.model)}</Text>}
+                <Box marginLeft={3} flexDirection="column" borderStyle="single" borderColor={theme.colors.info}>
+                  {node.details.model && <Text color={theme.colors.warning}>Model: {String(node.details.model)}</Text>}
                   {node.details.toolName && (
-                    <Text color="green">
+                    <Text color={theme.colors.success}>
                       Tool: {String(node.details.toolName)} ({JSON.stringify(node.details.toolArgs ?? {})})
                     </Text>
                   )}
-                  {node.details.rationale && <Text color="gray">Rationale: {String(node.details.rationale)}</Text>}
-                  {node.details.prompt && <Text color="white">Prompt: {String(node.details.prompt)}</Text>}
+                  {node.details.rationale && (
+                    <Text color={theme.colors.mutedForeground}>Rationale: {String(node.details.rationale)}</Text>
+                  )}
+                  {node.details.prompt && (
+                    <Text color={theme.colors.foreground}>Prompt: {String(node.details.prompt)}</Text>
+                  )}
                 </Box>
               )}
             </Box>
@@ -159,7 +172,7 @@ export function ExecutionDagOverlay({
         })}
       </Box>
       <Box marginTop={1}>
-        <Text color="gray">↑/↓ Navigate Enter/→ Expand ← Collapse Esc Close</Text>
+        <Text color={theme.colors.mutedForeground}>↑/↓ Navigate Enter/→ Expand ← Collapse Esc Close</Text>
       </Box>
     </OverlayFrame>
   );

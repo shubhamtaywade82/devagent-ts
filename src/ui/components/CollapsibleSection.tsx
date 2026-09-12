@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { StatusChip } from "./StatusChip.js";
+import { themeColors } from "../layout/theme-map.js";
 
 interface CollapsibleSectionProps {
   title: string;
@@ -16,7 +17,7 @@ export function CollapsibleSection({ title, status, collapsed, children }: Colla
     <Box>
       <Text>
         <StatusChip status={status} /> <Text bold>{title}</Text>
-        <Text color="gray">{collapsed ? " ▸" : " ▾"}</Text>
+        <Text color={themeColors().mutedForeground}>{collapsed ? " ▸" : " ▾"}</Text>
       </Text>
     </Box>
   );

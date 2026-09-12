@@ -45,4 +45,37 @@ Nexum features an interactive React terminal interface built on Ink with alterna
 - `/model <name>`: Switch active LLM (persists automatically)
 - `/tier local|cloud`: Switch execution tier
 - `/resume`: Restore conversation and plan from previous session
-- `/theme default|midnight|solarized`: Change color theme
+- `/theme [name]`: Change color theme — no argument opens a live-preview picker; selection persists to `.nexum/config.json`
+
+---
+
+## Color Themes
+
+The TUI is fully theme-driven: every component resolves colors from semantic
+tokens (`primary`, `success`, `warning`, `error`, `info`, `accent`,
+`mutedForeground`, `selection`, …) provided by the vendored [termcn
+(ink-ui)](https://github.com/shadcn-labs/termcn) component layer in
+`src/tui/ui/`. Changing a theme never requires touching a component.
+
+**Built-in themes (15):** `default`, `midnight`, `solarized` (Nexum-native)
+plus `dracula`, `nord`, `github`, `gruvbox`, `tokyo-night`, `monokai`,
+`catppuccin`, `one-dark`, `vercel`, `high-contrast`, `high-contrast-light`,
+`matrix` (vendored palettes).
+
+Switching:
+
+- `/theme` — opens an interactive picker with live color swatches
+- `/theme <name>` — apply directly (Tab-completes theme names)
+- `NEXUM_THEME=<name> nexum` — start themed via environment
+- `"theme": "<name>"` in `.nexum/config.json` — persisted default
+  (`/theme` writes this automatically on every switch)
+
+The active theme applies instantly across every zone, overlay, and view —
+no restart. Terminal color-depth degradation (truecolor → 256 → 16) is
+handled by the rendering layer, so hex palettes degrade gracefully.
+
+Adding a theme: drop a palette file into `src/tui/ui/lib/terminal-themes/`
+(or vendor one with `node scripts/vendor-termcn.mjs theme-<name>`), then
+register it in `src/tui/ui/theme-registry.ts` and add its name to
+`THEME_ORDER` in `src/runtime/types.ts` — the compiler enforces that every
+name has a palette.

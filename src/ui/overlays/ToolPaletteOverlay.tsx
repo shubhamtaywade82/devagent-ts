@@ -1,6 +1,7 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box } from "ink";
 import { UniversalPicker } from "./UniversalPicker.js";
+import { StatusMessage } from "../ui/status-message.js";
 import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface ToolInfo {
@@ -29,7 +30,7 @@ export function ToolPaletteOverlay({
     return (
       <OverlayFrame title="Tools" width={width} rows={rows}>
         <Box>
-          <Text color="magenta">No tools registered.</Text>
+          <StatusMessage variant="warning">No tools registered.</StatusMessage>
         </Box>
       </OverlayFrame>
     );

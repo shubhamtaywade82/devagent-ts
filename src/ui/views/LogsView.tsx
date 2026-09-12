@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import { LogLevel } from "../../runtime/types.js";
 import { tail, truncate } from "../layout/truncate.js";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../layout/theme-map.js";
 
 const LEVEL_COLOR: Record<LogLevel, string> = {
   debug: "gray",
@@ -17,7 +18,7 @@ export function LogsView({ state, width, rows, detail }: ViewProps): React.JSX.E
   if (logs.length === 0) {
     return (
       <Box height={rows}>
-        <Text color="gray">No log events.</Text>
+        <Text color={themeColors().mutedForeground}>No log events.</Text>
       </Box>
     );
   }
@@ -31,9 +32,9 @@ export function LogsView({ state, width, rows, detail }: ViewProps): React.JSX.E
         ).padStart(2, "0")}`;
         return (
           <Text key={`${log.at}-${i}`} wrap="truncate">
-            {showTime && <Text color="gray">{`${stamp} `}</Text>}
+            {showTime && <Text color={themeColors().mutedForeground}>{`${stamp} `}</Text>}
             <Text color={LEVEL_COLOR[log.level]}>{log.level.toUpperCase().padEnd(5)}</Text>
-            <Text color="gray">{` ${log.source} `}</Text>
+            <Text color={themeColors().mutedForeground}>{` ${log.source} `}</Text>
             <Text>{truncate(log.message.replace(/\n/g, " ⏎ "), Math.max(10, width - 24))}</Text>
           </Text>
         );

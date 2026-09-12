@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { CollapsibleSection } from "./CollapsibleSection.js";
 import { ChatEntry } from "../../runtime/types.js";
+import { themeColors } from "../layout/theme-map.js";
 
 interface TestResultCardProps {
   entry: ChatEntry;
@@ -26,26 +27,26 @@ export function TestResultCard({ entry, collapsed, onToggle, width }: TestResult
     >
       <Box flexDirection="column" marginLeft={2}>
         <Box height={1}>
-          <Text color="gray" wrap="truncate">
+          <Text color={themeColors().mutedForeground} wrap="truncate">
             {command}
           </Text>
         </Box>
         <Box height={1}>
           <Text>
-            <Text color="green">✓ {passed} passed</Text>
-            {failed > 0 && <Text color="red"> ✗ {failed} failed</Text>}
-            <Text color="gray"> ({durationMs}ms)</Text>
+            <Text color={themeColors().success}>✓ {passed} passed</Text>
+            {failed > 0 && <Text color={themeColors().error}> ✗ {failed} failed</Text>}
+            <Text color={themeColors().mutedForeground}> ({durationMs}ms)</Text>
           </Text>
         </Box>
         {failures.map((f, i) => (
           <Box key={i} flexDirection="column">
             <Box height={1}>
-              <Text color="red">
+              <Text color={themeColors().error}>
                 {f.file}:{f.line}
               </Text>
             </Box>
             <Box height={1}>
-              <Text color="gray" wrap="truncate">
+              <Text color={themeColors().mutedForeground} wrap="truncate">
                 {"  "}
                 {f.message}
               </Text>

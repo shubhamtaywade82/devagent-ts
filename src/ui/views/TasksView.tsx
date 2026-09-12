@@ -3,14 +3,15 @@ import { Box, Text } from "ink";
 import { Task, TaskStatus } from "../../runtime/types.js";
 import { tail, truncate } from "../layout/truncate.js";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../layout/theme-map.js";
 
-const TASK_GLYPH: Record<TaskStatus, { glyph: string; color: string }> = {
-  queued: { glyph: "○", color: "gray" },
-  blocked: { glyph: "◌", color: "yellow" },
-  running: { glyph: "▶", color: "blue" },
-  completed: { glyph: "✓", color: "green" },
-  failed: { glyph: "✗", color: "red" },
-  cancelled: { glyph: "–", color: "gray" },
+const TASK_GLYPH: Record<TaskStatus, { glyph: string; color: keyof ReturnType<typeof themeColors> }> = {
+  queued: { glyph: "○", color: "mutedForeground" },
+  blocked: { glyph: "◌", color: "warning" },
+  running: { glyph: "▶", color: "primary" },
+  completed: { glyph: "✓", color: "success" },
+  failed: { glyph: "✗", color: "error" },
+  cancelled: { glyph: "–", color: "mutedForeground" },
 };
 
 function progressBar(progress: number, width: number): string {
@@ -24,7 +25,7 @@ export function TasksView({ state, width, rows, detail }: ViewProps): React.JSX.
   if (tasks.length === 0) {
     return (
       <Box height={rows}>
-        <Text color="gray">No tasks.</Text>
+        <Text color={themeColors().mutedForeground}>No tasks.</Text>
       </Box>
     );
   }
@@ -41,9 +42,9 @@ export function TasksView({ state, width, rows, detail }: ViewProps): React.JSX.
             : "";
         return (
           <Text key={task.id} wrap="truncate">
-            <Text color={s.color}>{` ${s.glyph} `}</Text>
+            <Text color={themeColors()[s.color]}>{` ${s.glyph} `}</Text>
             <Text>{truncate(`${task.title}${deps}${worker}`, Math.max(8, width - 16))}</Text>
-            <Text color="blue">{bar}</Text>
+            <Text color={themeColors().primary}>{bar}</Text>
           </Text>
         );
       })}
