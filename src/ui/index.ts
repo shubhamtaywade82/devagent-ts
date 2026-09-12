@@ -16,6 +16,9 @@ import { validateAsl, generateAslGraph } from "../asl/commands.js";
 import { envIs } from "../platform/environment.js";
 import { workspaceStateDir } from "../platform/paths.js";
 
+/** Matches App.tsx double–Ctrl+C window; SIGINT must not restore the terminal on first press. */
+const EXIT_CONFIRM_MS = 1500;
+
 function enableTerminalFeatures(): () => void {
   if (!process.stdin.isTTY) return () => {};
   process.stdout.write("\x1b[?1049h\x1b[2J\x1b[3J\x1b[H\x1b[?1000h\x1b[?1002h\x1b[?1006h\x1b[?2004h");
@@ -25,10 +28,30 @@ function enableTerminalFeatures(): () => void {
     restored = true;
     process.stdout.write("\x1b[?2004l\x1b[?1006l\x1b[?1002l\x1b[?1000l\x1b[?1049l\x1b[?25h");
   };
-  process.once("SIGINT", cleanup);
-  process.once("SIGTERM", cleanup);
+  // Restore the primary buffer only on process exit — not on the first SIGINT.
+  // A SIGINT handler that resets the terminal before Ink/App unmount leaves the
+  // TUI running in a broken screen while Ctrl+C appears to do nothing.
   process.once("exit", cleanup);
   return cleanup;
+}
+
+function registerForceQuitHandlers(unmount: () => void, restoreTerminal: () => void): void {
+  if (!process.stdin.isTTY) return;
+  let lastSigintAt = 0;
+  process.on("SIGINT", () => {
+    const now = Date.now();
+    if (now - lastSigintAt < EXIT_CONFIRM_MS) {
+      unmount();
+      restoreTerminal();
+      process.exit(130);
+    }
+    lastSigintAt = now;
+  });
+  process.on("SIGTERM", () => {
+    unmount();
+    restoreTerminal();
+    process.exit(143);
+  });
 }
 
 function currentBranch(workspaceRoot: string): string {
@@ -163,9 +186,12 @@ const cfg = loadConfig();
   };
 
   const disableFeatures = enableTerminalFeatures();
-  const { waitUntilExit } = render(
+  const instance = render(
     React.createElement(App, { bus, store, agent: shellAgent, workspaceRoot: cfg.workspaceRoot, initialTask }),
+    { exitOnCtrlC: false },
   );
-  await waitUntilExit();
+  registerForceQuitHandlers(() => instance.unmount(), disableFeatures);
+  await instance.waitUntilExit();
   disableFeatures();
+  process.exit(0);
 })();

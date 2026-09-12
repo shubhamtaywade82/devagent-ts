@@ -80,6 +80,7 @@ export interface ChatOptions {
    * mid-flight, and both requests went to whichever model was set last while
    * `routedModel` reported the wrong one. */
   model?: string;
+  options?: Record<string, unknown>;
 }
 
 export interface ProviderOptions {
@@ -246,6 +247,9 @@ export class Provider {
       model,
       messages: messages as unknown as SdkMessage[],
       tools: opts.tools as any,
+      ...(this.tier === "local" || opts.options
+        ? { options: { ...(this.tier === "local" ? { num_ctx: 16384 } : {}), ...(opts.options ?? {}) } }
+        : {}),
     };
 
     try {
