@@ -97,20 +97,30 @@ export class WorkspaceGuard {
     }
 
     // absolute paths are re-anchored relative to the root
-    const rel = relativePath.startsWith("/") || /^[A-Za-z]:[\\/]/.test(relativePath)
-      ? relative(this.rootReal, resolve(relativePath))
-      : relativePath;
+    const rel =
+      relativePath.startsWith("/") || /^[A-Za-z]:[\\/]/.test(relativePath)
+        ? relative(this.rootReal, resolve(relativePath))
+        : relativePath;
     const nominal = resolve(join(this.rootReal, rel));
 
+    // Lexical containment first: a path written with ../ that is already
+    // outside the root is a plain escape (no symlink analysis needed).
+    const relNominal = relative(this.rootReal, nominal);
+    if (relNominal === ".." || relNominal.startsWith(`..${sep}`) || relNominal.startsWith(sep)) {
+      return {
+        allowed: false,
+        code: "escape",
+        message: `${relativePath} resolves outside the workspace root`,
+      };
+    }
+
     // Symlink-aware resolution: walk to the nearest existing ancestor and
-    // resolve the remainder from there (review item 9 — symlink escape and
-    // non-existent targets handled correctly).
+    // resolve the remainder from there (review item 9 — a symlinked
+    // directory whose real location is outside the root is rejected even
+    // when the lexical path looks inside).
     const { nearest, remainder } = nearestExistingAncestor(nominal);
     const nearestReal = realOrPlain(nearest);
-
-    // link in the path chain pointing outside the workspace?
     if (nearest !== nominal) {
-      // a symlinked directory must itself stay inside the root
       const relNearest = relative(this.rootReal, nearestReal);
       if (relNearest === ".." || relNearest.startsWith(`..${sep}`) || relNearest.startsWith(sep)) {
         return {

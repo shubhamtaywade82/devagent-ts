@@ -111,7 +111,6 @@ export class RunRecorder implements EventSink {
     usage?: Record<string, unknown>;
   }): void {
     if (this.finished) return;
-    this.finished = true;
     switch (result.status) {
       case "completed":
         this.publish({
@@ -139,6 +138,8 @@ export class RunRecorder implements EventSink {
       status: result.status,
       endedAt: Date.now(),
     });
+    // the log is closed only after the terminal event + index update
+    this.finished = true;
   }
 
   /** Record a PolicyEngine decision (review items 7 + 13). */

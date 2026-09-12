@@ -103,6 +103,8 @@ export class Scheduler {
         : node.resourceLocks;
       const release = this.locks.tryAcquire(resources);
       if (!release) continue; // contended: try the next candidate
+      // pending → ready → running (the state machine's legal path)
+      this.graph.transition(node.id, "ready");
       this.graph.transition(node.id, "running");
       this.inFlight += 1;
       return { node, release: () => this.finishClaim(release) };
@@ -148,9 +150,7 @@ export class Scheduler {
         // an in-flight completion… but nothing is in flight → deadlock-ish
         // (cycles are validated away, so this means unsatisfiable locks);
         // fail the blocked nodes rather than spinning forever.
-        const stuck = this.graph
-          .all()
-          .filter((n) => ["pending", "ready"].includes(n.status));
+        const stuck = this.graph.all().filter((n) => ["pending", "ready"].includes(n.status));
         for (const node of stuck) this.graph.transition(node.id, "blocked");
         if (!this.hasRunnableWork()) break;
         await new Promise((r) => setTimeout(r, 5));

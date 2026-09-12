@@ -22,19 +22,12 @@ import { newTaskId } from "../identity.js";
 export type TaskPriority = "critical" | "normal";
 
 export type GraphNodeStatus =
-  | "pending"
-  | "ready"
-  | "running"
-  | "blocked"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "skipped";
+  "pending" | "ready" | "running" | "blocked" | "completed" | "failed" | "cancelled" | "skipped";
 
 /** Valid transitions (superset of runtime task-machine's 6 states). */
 const TRANSITIONS: Record<GraphNodeStatus, GraphNodeStatus[]> = {
-  pending: ["ready", "blocked", "cancelled", "skipped"],
-  ready: ["running", "blocked", "cancelled", "skipped"],
+  pending: ["ready", "failed", "blocked", "cancelled", "skipped"],
+  ready: ["running", "failed", "blocked", "cancelled", "skipped"],
   running: ["completed", "failed", "blocked", "cancelled"],
   blocked: ["ready", "pending", "cancelled", "skipped"],
   failed: ["ready", "pending", "cancelled", "skipped"], // retry path: failed → ready
@@ -262,7 +255,12 @@ export class TaskGraph {
   static fromJSON(nodes: TaskNode[]): TaskGraph {
     const graph = new TaskGraph();
     for (const n of nodes) {
-      graph.nodes.set(n.id, { ...n, dependencies: [...n.dependencies], resourceLocks: [...n.resourceLocks], metadata: { ...n.metadata } });
+      graph.nodes.set(n.id, {
+        ...n,
+        dependencies: [...n.dependencies],
+        resourceLocks: [...n.resourceLocks],
+        metadata: { ...n.metadata },
+      });
     }
     return graph;
   }
