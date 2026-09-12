@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { Tool } from "./tool.js";
+import { Tool } from "../../tools/tool.js";
 
 export class RunRubocopTool extends Tool {
   constructor(private readonly root: string) {

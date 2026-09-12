@@ -33,8 +33,8 @@ import { DockerTool } from "../docker-tools.js";
 import { GitHubTool } from "../github-tools.js";
 import { SqliteQueryTool } from "../database-tools.js";
 import { RunTestsTool, RunLintTool, RunFormatTool, RunBuildTool } from "../project-tools.js";
-import { RunRubocopTool } from "../rubocop-tool.js";
-import { RunRSpecTool } from "../rspec-tool.js";
+import { RunRubocopTool } from "../../domains/ruby/rubocop-tool.js";
+import { RunRSpecTool } from "../../domains/ruby/rspec-tool.js";
 import {
   GetDefinitionTool,
   FindReferencesTool,
