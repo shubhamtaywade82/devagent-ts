@@ -129,7 +129,16 @@ export class ModelCatalog {
         for (const entry of localTagEntries(data)) {
           const name = entry.name ?? entry.model;
           if (!name) continue;
-          const capabilities = capabilitiesFromLocalTag(entry, name, this.quickPreferredName);
+          let entryCaps = entry.capabilities;
+          if (entryCaps && !entryCaps.includes("tools") && this.local.showModel) {
+            const show = await this.local.showModel(name);
+            if (show?.capabilities) entryCaps = show.capabilities;
+          }
+          const capabilities = capabilitiesFromLocalTag(
+            { ...entry, capabilities: entryCaps },
+            name,
+            this.quickPreferredName,
+          );
           if (capabilities.length === 0) continue;
           results.push({ name, tier: "local", capabilities });
         }

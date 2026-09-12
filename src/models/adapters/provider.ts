@@ -280,4 +280,16 @@ export class Provider {
       throw mapSdkError(err, this.tier, this.model, this.apiKeys.length);
     }
   }
+
+  /** Queries local /api/show for accurate capabilities missed by /api/tags. */
+  async showModel(model: string): Promise<{ capabilities?: string[] } | null> {
+    if (this.tier !== "local") return null;
+    const client = this.buildClient();
+    try {
+      const info = await client.modelsClient.show({ model });
+      return { capabilities: info.capabilities as string[] | undefined };
+    } catch {
+      return null;
+    }
+  }
 }
