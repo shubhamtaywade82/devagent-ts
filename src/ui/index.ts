@@ -15,6 +15,7 @@ import { App } from "./App.js";
 import { validateAsl, generateAslGraph } from "../asl/commands.js";
 import { envIs } from "../platform/environment.js";
 import { workspaceStateDir } from "../platform/paths.js";
+import { BRAND } from "../platform/brand.js";
 
 /** Matches App.tsx double–Ctrl+C window; SIGINT must not restore the terminal on first press. */
 const EXIT_CONFIRM_MS = 1500;
@@ -68,14 +69,19 @@ function currentBranch(workspaceRoot: string): string {
 }
 
 // One-time, non-blocking check — whether run_shell's Docker sandbox (see
-// tools/shell.ts's own lazy ensureDockerAvailable) is actually reachable, so
-// the footer's Sandbox indicator reflects reality instead of assuming it's
-// always up. Async so a slow/missing `docker` binary can't delay first paint
-// the way a blocking execSync would.
-function checkDockerAvailable(): Promise<boolean> {
+// tools/shell.ts's own lazy ensureDockerAvailable) is actually reachable and
+// the sandbox image is present locally, so the footer's Sandbox indicator
+// reflects reality instead of assuming it's always up.
+function checkDockerAvailable(image?: string): Promise<boolean> {
   return new Promise((resolve) => {
     const probe = spawn("docker", ["info"], { stdio: "ignore" });
-    probe.on("close", (code) => resolve(code === 0));
+    probe.on("close", (code) => {
+      if (code !== 0) return resolve(false);
+      if (!image) return resolve(true);
+      const imgProbe = spawn("docker", ["image", "inspect", image], { stdio: "ignore" });
+      imgProbe.on("close", (imgCode) => resolve(imgCode === 0));
+      imgProbe.on("error", () => resolve(false));
+    });
     probe.on("error", () => resolve(false));
   });
 }
@@ -139,7 +145,13 @@ const cfg = loadConfig();
   store.attach(bus);
   const detectedProject = detectProjectInfo(cfg.workspaceRoot);
   bus.publish({ type: "project.detected", info: detectedProject });
-  checkDockerAvailable().then((available) => bus.publish({ type: "sandbox.detected", available }));
+  if (cfg.sandbox === false) {
+    bus.publish({ type: "sandbox.detected", available: false, enabled: false });
+  } else {
+    checkDockerAvailable(cfg.shellImage ?? BRAND.sandboxImage).then((available) =>
+      bus.publish({ type: "sandbox.detected", available, enabled: true }),
+    );
+  }
 
   const agent = new Agent({ config: cfg });
   agent.setProjectInfo(detectedProject);

@@ -164,7 +164,11 @@ export class Agent {
     this.conversation = new AgentConversation();
 
     this.tools = new AgentToolManager();
-    this.tools.registerBaseTools(cfg.workspaceRoot, (stream, chunk) => this.emit("onShellOutput", stream, chunk));
+    this.tools.registerBaseTools(
+      cfg.workspaceRoot,
+      (stream, chunk) => this.emit("onShellOutput", stream, chunk),
+      { sandbox: cfg.sandbox, image: cfg.shellImage, timeoutSec: cfg.shellTimeoutSec },
+    );
     this.tools.registerHybridTools(this.stack.localWorker);
     this.tools.registerClarificationTool(this);
 
