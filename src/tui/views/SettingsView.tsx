@@ -1,7 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
-import { AGENT_MODE_LABELS } from "../../runtime/types.js";
+import { AGENT_MODE_LABELS, THEME_ORDER } from "../../runtime/types.js";
 import { themeColors } from "../../layout/theme-map.js";
 
 export function SettingsView({ state, rows }: ViewProps): React.JSX.Element {
@@ -29,6 +29,13 @@ export function SettingsView({ state, rows }: ViewProps): React.JSX.Element {
           <Text bold>Mode: </Text>
           <Text color={themeColors().success}>{am.label}</Text>
           <Text color={themeColors().mutedForeground}> — {am.description}</Text>
+        </Text>
+      </Box>
+      <Box height={1}>
+        <Text>
+          <Text bold>Theme: </Text>
+          <Text color={themeColors().primary}>{state.theme}</Text>
+          <Text color={themeColors().mutedForeground}> — /theme to switch ({THEME_ORDER.length} built-ins)</Text>
         </Text>
       </Box>
       <Box height={1}>

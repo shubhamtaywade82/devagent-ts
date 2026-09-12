@@ -44,6 +44,7 @@ import { ClarificationOverlay } from "./overlays/ClarificationOverlay.js";
 import { ClarificationResponse } from "../runtime/types.js";
 import { ModelSwitcher } from "./overlays/ModelSwitcher.js";
 import { ModeSwitcher } from "./overlays/ModeSwitcher.js";
+import { ThemeSwitcher } from "./overlays/ThemeSwitcher.js";
 import { SearchEverywhere } from "./overlays/SearchEverywhere.js";
 import { SkillsOverlay } from "./overlays/SkillsOverlay.js";
 import { SessionHistory } from "./overlays/SessionHistory.js";
@@ -879,6 +880,17 @@ export function App({
                   uiDispatch({ type: "close-overlay" });
                   bus.publish({ type: "mode.agent", mode });
                   bus.publish({ type: "notification", kind: "info", text: `Mode: ${mode}` });
+                }}
+              />
+            ) : ui.overlay === "theme" ? (
+              <ThemeSwitcher
+                current={state.theme}
+                width={width}
+                rows={contentRows}
+                active={true}
+                onSelect={(theme) => {
+                  uiDispatch({ type: "close-overlay" });
+                  applyEffect({ kind: "set-theme", theme });
                 }}
               />
             ) : ui.overlay === "skills" ? (

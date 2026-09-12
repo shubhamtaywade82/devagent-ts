@@ -162,11 +162,11 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register({
     name: "theme",
     aliases: [],
-    description: `Switch color theme: /theme [${THEME_ORDER.slice(0, 4).join("|")}|…] (${THEME_ORDER.length} built-ins)`,
+    description: "Switch color theme: /theme [name] (no arg opens the picker)",
     category: "Theme",
     execute: (args) => {
       const t = args.trim().toLowerCase();
-      if (!t) return { kind: "next-theme" };
+      if (!t) return { kind: "open-overlay", overlay: "theme" };
       if (!(THEME_ORDER as readonly string[]).includes(t)) {
         return { kind: "error", text: `Unknown theme "${t}". Available: ${THEME_ORDER.join(", ")}` };
       }

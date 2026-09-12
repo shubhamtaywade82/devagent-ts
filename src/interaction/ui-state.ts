@@ -8,7 +8,18 @@ import { PRIMARY_VIEWS, VIEW_ORDER, ViewId } from "../runtime/types.js";
 import { UiCommand } from "./keybindings.js";
 
 export type OverlayId =
-  "palette" | "help" | "actors" | "diff" | "model" | "search" | "skills" | "mode" | "sessions" | "tools" | "dag";
+  | "palette"
+  | "help"
+  | "actors"
+  | "diff"
+  | "model"
+  | "search"
+  | "skills"
+  | "mode"
+  | "sessions"
+  | "tools"
+  | "dag"
+  | "theme";
 
 export interface UiState {
   activeView: ViewId;
