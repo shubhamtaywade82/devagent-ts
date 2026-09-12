@@ -3,6 +3,8 @@ import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Tool } from "./tool.js";
 import { BRAND } from "../platform/brand.js";
+import type { ToolCallContext } from "../core/tools/tool-contract.js";
+import { ShellExecutionAccountant } from "./shell-accounting.js";
 
 export interface ShellToolOptions {
   workspaceRoot: string;
@@ -12,6 +14,12 @@ export interface ShellToolOptions {
   cpus?: string;
   logger?: Pick<Console, "info" | "warn">;
   onOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
+  /**
+   * Lifecycle/resource accounting (review item 27): tracks container ID,
+   * CPU/memory/PIDs limits + live samples, network mode, duration, output
+   * bytes, exit status — and persists each execution's metadata.
+   */
+  accountant?: ShellExecutionAccountant;
 }
 
 export class ShellTool extends Tool {
@@ -31,6 +39,7 @@ export class ShellTool extends Tool {
   private readonly cpus: string;
   private readonly logger: Pick<Console, "info" | "warn">;
   private readonly onOutput?: (stream: "stdout" | "stderr", chunk: string) => void;
+  private readonly accountant?: ShellExecutionAccountant;
   /** In-flight probe, so concurrent calls share one result instead of the
    * second racing past a half-finished check. */
   private dockerProbe: Promise<boolean> | null = null;
@@ -49,6 +58,7 @@ export class ShellTool extends Tool {
     this.cpus = opts.cpus ?? "1";
     this.logger = opts.logger ?? console;
     this.onOutput = opts.onOutput;
+    this.accountant = opts.accountant;
   }
 
   get name(): string {
@@ -114,7 +124,7 @@ export class ShellTool extends Tool {
     return Math.min(Math.floor(n), ShellTool.MAX_TIMEOUT_SEC);
   }
 
-  async call(args: Record<string, unknown>): Promise<Record<string, unknown>> {
+  async call(args: Record<string, unknown>, callCtx?: ToolCallContext): Promise<Record<string, unknown>> {
     const command = args.command as string;
     const timeoutSec = this.resolveTimeoutSec(args.timeoutSec);
 
@@ -138,6 +148,23 @@ export class ShellTool extends Tool {
 
     const container = `nexum-${randomBytes(4).toString("hex")}`;
 
+    // lifecycle accounting (review item 27): limits + live samples + duration
+    // + output bytes + exit status, persisted on completion
+    const record = this.accountant?.begin({
+      containerId: container,
+      runId: callCtx?.runId,
+      agentId: callCtx?.agentId,
+      toolCallId: callCtx?.invocation?.id,
+      command: String(command).slice(0, 500),
+      cpuLimit: this.cpus,
+      memoryLimitMb: this.memory,
+      pidsLimit: 128,
+      networkMode: "none",
+      image: this.image,
+      timeoutSec,
+    });
+    const stopSampling = record ? this.accountant!.sampleContainer(record) : undefined;
+
     return new Promise((resolvePromise) => {
       const child = spawn("docker", this.dockerArgs(container, command, timeoutSec));
       let stdout = Buffer.alloc(0);
@@ -145,10 +172,30 @@ export class ShellTool extends Tool {
       let settled = false;
       let killedForOverflow = false;
 
+      // cancellation reaches the sandbox (review item 16): aborting the run's
+      // signal kills the container instead of leaving it running to timeout
+      const onAbort = () => {
+        if (settled) return;
+        child.kill("SIGKILL");
+        void this.escalateKill(container);
+      };
+      if (callCtx?.signal) {
+        if (callCtx.signal.aborted) onAbort();
+        else callCtx.signal.addEventListener("abort", onAbort, { once: true });
+      }
+
       const finish = (payload: Record<string, unknown>) => {
         if (settled) return;
         settled = true;
         clearTimeout(hardTimeout);
+        callCtx?.signal?.removeEventListener("abort", onAbort);
+        if (record && this.accountant) {
+          record.stdoutBytes = stdout.byteLength;
+          record.stderrBytes = stderr.byteLength;
+          this.accountant.complete(record, (payload.exitCode as number) ?? -1, payload.error as string | undefined);
+          payload.execution = this.accountant.summarize(record);
+        }
+        stopSampling?.();
         resolvePromise(payload);
       };
 
@@ -172,6 +219,7 @@ export class ShellTool extends Tool {
         this.onOutput?.("stderr", chunk.toString("utf-8"));
         checkOverflow();
       });
+      void record; // bytes are read from the closure buffers in finish()
 
       const hardTimeout = setTimeout(
         () => {

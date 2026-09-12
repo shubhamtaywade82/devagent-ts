@@ -1,20 +1,38 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { Tool } from "../tools/tool.js";
-import { McpToolAdapter } from "./mcp-tool-adapter.js";
+/**
+ * Compatibility shim (review item 19): the legacy `connectMcpServer`
+ * signature now routes through the v2 adapter boundary. New code should
+ * import from mcp/adapter/mcp-client-factory.js (transports, auth,
+ * security overrides).
+ */
+
+import { connectMcpServerV2 } from "./adapter/mcp-client-factory.js";
+import { McpToolAdapter } from "./adapter/mcp-tool-adapter.js";
+import type { Tool } from "../tools/tool.js";
 
 export async function connectMcpServer(command: string, args: string[] = []): Promise<Tool[]> {
-  const transport = new StdioClientTransport({ command, args });
-  const client = new Client({ name: "nexum", version: "0.1.0" }, { capabilities: {} });
-  await client.connect(transport);
-
-  const { tools } = await client.listTools();
-  return tools.map(
+  const connection = await connectMcpServerV2({ kind: "stdio", command, args });
+  return connection.tools.map(
     (t) =>
-      new McpToolAdapter(client, {
-        name: t.name,
-        description: t.description ?? "",
-        inputSchema: t.inputSchema as Record<string, unknown>,
-      }),
+      new McpToolAdapter(
+        {
+          callTool: async (request) => {
+            const result = await connection.client.callTool({
+              name: request.name,
+              arguments: request.arguments,
+            });
+            return result as unknown as Record<string, unknown>;
+          },
+        },
+        {
+          name: t.name,
+          description: t.description,
+          inputSchema: t.inputSchema,
+          annotations: t.annotations,
+        },
+      ),
   );
 }
+
+export { connectMcpServerV2, type McpTransportDescriptor, type McpServerConnection, type McpDiscoveredTool } from "./adapter/mcp-client-factory.js";
+export { McpToolAdapter, type McpClientLike, type McpToolDescriptor } from "./adapter/mcp-tool-adapter.js";
+export { mcpSecurityMetadata, type McpSecurityOverride } from "./adapter/security-metadata.js";

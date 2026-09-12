@@ -34,7 +34,13 @@ describe("McpToolAdapter", () => {
 
     const result = await adapter.call({ query: "bug" });
 
-    expect(client.callTool).toHaveBeenCalledWith({ name: "github_search_issues", arguments: { query: "bug" } });
+    // v2 adapter (review item 20): the call carries the tool's security
+    // metadata — the declared per-call timeout rides with the request.
+    expect(client.callTool).toHaveBeenCalledWith({
+      name: "github_search_issues",
+      arguments: { query: "bug" },
+      timeoutMs: 60000,
+    });
     expect(result.content).toEqual([{ type: "text", text: "3 issues found" }]);
   });
 });
