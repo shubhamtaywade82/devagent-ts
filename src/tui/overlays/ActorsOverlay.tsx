@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { ACTOR_IDS, RuntimeState } from "../../runtime/types.js";
 import { semanticColor } from "../../layout/theme-map.js";
+import { useTheme } from "../ui/hooks/use-theme.js";
 import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface ActorsOverlayProps {
@@ -11,6 +12,7 @@ export interface ActorsOverlayProps {
 }
 
 export function ActorsOverlay({ state, width, rows }: ActorsOverlayProps): React.JSX.Element {
+  const theme = useTheme();
   return (
     <OverlayFrame title="Actors — all alive" width={width} rows={rows}>
       {ACTOR_IDS.map((id) => {
@@ -23,7 +25,7 @@ export function ActorsOverlay({ state, width, rows }: ActorsOverlayProps): React
             <Box width={10}>
               <Text color={semanticColor(actor.health)}>{actor.health}</Text>
             </Box>
-            <Text color="gray">{actor.detail}</Text>
+            <Text color={theme.colors.mutedForeground}>{actor.detail}</Text>
           </Box>
         );
       })}

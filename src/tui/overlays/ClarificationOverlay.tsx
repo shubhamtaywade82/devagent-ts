@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { ClarificationOption, ClarificationRequest, ClarificationResponse } from "../../runtime/types.js";
+import { useTheme } from "../ui/hooks/use-theme.js";
 import { OverlayFrame } from "./OverlayFrame.js";
 
 export interface ClarificationOverlayProps {
@@ -21,6 +22,7 @@ export function ClarificationOverlay({
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [customMode, setCustomMode] = useState(false);
   const [customText, setCustomText] = useState("");
+  const theme = useTheme();
 
   const handleCustomInput = (input: string, key: import("ink").Key) => {
     if (key.return) {
@@ -63,26 +65,26 @@ export function ClarificationOverlay({
   return (
     <OverlayFrame title="Intent Clarification" width={width} rows={rows}>
       <Box flexDirection="column" marginY={1}>
-        <Text bold color="cyan">
+        <Text bold color={theme.colors.info}>
           {request.question}
         </Text>
-        <Text color="gray" dimColor>
+        <Text color={theme.colors.mutedForeground} dimColor>
           Prompt: &quot;{request.prompt}&quot;
         </Text>
       </Box>
 
       {customMode ? (
-        <Box flexDirection="column" borderStyle="round" borderColor="yellow" paddingX={1} marginY={1}>
-          <Text bold color="yellow">
+        <Box flexDirection="column" borderStyle="round" borderColor={theme.colors.warning} paddingX={1} marginY={1}>
+          <Text bold color={theme.colors.warning}>
             Enter your custom instructions:
           </Text>
           <Box marginTop={1}>
-            <Text color="green">&gt; </Text>
+            <Text color={theme.colors.success}>&gt; </Text>
             <Text>{customText}</Text>
             <Text inverse> </Text>
           </Box>
           <Box marginTop={1}>
-            <Text color="gray" dimColor>
+            <Text color={theme.colors.mutedForeground} dimColor>
               Press Enter to submit, Esc to return to options
             </Text>
           </Box>
@@ -93,21 +95,21 @@ export function ClarificationOverlay({
             const isSelected = idx === selectedIndex;
             return (
               <Box key={opt.id} flexDirection="row">
-                <Text color={isSelected ? "green" : "gray"}>
+                <Text color={isSelected ? theme.colors.success : theme.colors.mutedForeground}>
                   {isSelected ? "▶ " : "  "}
-                  <Text bold color={isSelected ? "white" : "yellow"}>
+                  <Text bold color={isSelected ? theme.colors.selectionForeground : theme.colors.warning}>
                     [{idx + 1}]{" "}
                   </Text>
-                  <Text bold={isSelected} color={isSelected ? "cyan" : undefined}>
+                  <Text bold={isSelected} color={isSelected ? theme.colors.info : undefined}>
                     {opt.label}
                   </Text>
-                  {opt.detail ? <Text color="gray"> — {opt.detail}</Text> : null}
+                  {opt.detail ? <Text color={theme.colors.mutedForeground}> — {opt.detail}</Text> : null}
                 </Text>
               </Box>
             );
           })}
           <Box marginTop={1}>
-            <Text color="gray" dimColor>
+            <Text color={theme.colors.mutedForeground} dimColor>
               Use ↑/↓ or 1-{request.options.length} to select, Enter to confirm, Esc to dismiss
             </Text>
           </Box>

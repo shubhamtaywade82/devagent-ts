@@ -3,7 +3,6 @@ import { Box, Text } from "ink";
 
 import { useTheme } from "./hooks/use-theme.js";
 import { useUnicode } from "./hooks/use-unicode.js";
-import { resolveBorderStyle } from "./lib/terminal-style.js";
 
 export interface Shortcut {
   key: string;
@@ -18,13 +17,13 @@ export interface KeyboardShortcutsProps {
 }
 
 const KeyLabel = ({ label, color }: { label: string; color: string }) => {
-  const unicode = useUnicode();
+  // Nexum patch: termcn renders keycaps as bordered mini-boxes, which
+  // corrupts layout under Ink 7's renderer (borders of nested fixed-height
+  // rows). A bracketed colored label is robust everywhere and reads the same.
   return (
-    <Box borderStyle={resolveBorderStyle("single", unicode)} borderColor={color} paddingX={1}>
-      <Text color={color} bold>
-        {label}
-      </Text>
-    </Box>
+    <Text>
+      <Text color={color} bold>{`[${label}]`}</Text>{" "}
+    </Text>
   );
 };
 
@@ -37,9 +36,11 @@ const ShortcutRow = ({
   keyColor: string;
   descColor: string;
 }) => (
-  <Box gap={1} alignItems="center" aria-label={`${shortcut.key}: ${shortcut.description}`}>
+  <Box alignItems="center" aria-label={`${shortcut.key}: ${shortcut.description}`}>
     <KeyLabel label={shortcut.key} color={keyColor} />
-    <Text color={descColor}>{shortcut.description}</Text>
+    <Text color={descColor} wrap="truncate">
+      {shortcut.description}
+    </Text>
   </Box>
 );
 
@@ -114,8 +115,7 @@ export const KeyboardShortcuts = ({ shortcuts, columns = 1, title }: KeyboardSho
   }
 
   return (
-    <Box flexDirection="column" gap={1} aria-role="toolbar">
-      <Text aria-label={title ?? "Keyboard shortcuts"}>{""}</Text>
+    <Box flexDirection="column" aria-role="toolbar">
       {title && (
         <Text color={theme.colors.primary} bold>
           {unicode ? "⌨ " : "Keys: "}

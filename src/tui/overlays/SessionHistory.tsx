@@ -1,6 +1,7 @@
 import React from "react";
-import { Box, Text } from "ink";
+import { Box } from "ink";
 import { UniversalPicker } from "./UniversalPicker.js";
+import { StatusMessage } from "../ui/status-message.js";
 import { OverlayFrame } from "./OverlayFrame.js";
 import { SessionMeta } from "../../runtime/session.js";
 
@@ -28,7 +29,7 @@ export function SessionHistory({ sessions, width, rows, active, onSelect }: Sess
     return (
       <OverlayFrame title="Session History" width={width} rows={rows}>
         <Box>
-          <Text color="magenta">No past conversations yet.</Text>
+          <StatusMessage variant="warning">No past conversations yet.</StatusMessage>
         </Box>
       </OverlayFrame>
     );
