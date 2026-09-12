@@ -766,7 +766,7 @@ export function App({
         <ThemeProvider theme={activeTheme}>
           <Header state={state} width={width} now={now} />
           <Box height={1}>
-            <Text color="gray" dimColor>
+            <Text color={activeTheme.colors.mutedForeground} dimColor>
               {"─".repeat(Math.max(0, width - 1))}
             </Text>
           </Box>
@@ -774,17 +774,17 @@ export function App({
           <Box flexDirection="column" height={viewRows}>
             {showViewTitle ? (
               <Box height={1}>
-                <Text color="gray">{"─"}</Text>
-                <Text color="blue" bold>
+                <Text color={activeTheme.colors.mutedForeground}>{"─"}</Text>
+                <Text color={activeTheme.colors.primary} bold>
                   {title}
                 </Text>
-                <Text color="gray" wrap="truncate">
+                <Text color={activeTheme.colors.mutedForeground} wrap="truncate">
                   {rule}
                 </Text>
               </Box>
             ) : (
               <Box height={1}>
-                <Text color="gray" dimColor>
+                <Text color={activeTheme.colors.mutedForeground} dimColor>
                   {"─".repeat(Math.max(0, width))}
                 </Text>
               </Box>
@@ -921,7 +921,7 @@ export function App({
                 </Box>
                 <Box flexDirection="column" width={1} height={contentRows}>
                   {Array.from({ length: contentRows }, (_, i) => (
-                    <Text key={i} color="gray" dimColor>
+                    <Text key={i} color={activeTheme.colors.mutedForeground} dimColor>
                       │
                     </Text>
                   ))}
@@ -939,7 +939,7 @@ export function App({
             )}
           </Box>
           <Box height={1}>
-            <Text color="gray" dimColor>
+            <Text color={activeTheme.colors.mutedForeground} dimColor>
               {"─".repeat(Math.max(0, width - 1))}
             </Text>
           </Box>
@@ -948,7 +948,7 @@ export function App({
           )}
           <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} focused={focused} />
           <Box height={1}>
-            <Text color="gray" dimColor>
+            <Text color={activeTheme.colors.mutedForeground} dimColor>
               {"─".repeat(Math.max(0, width - 1))}
             </Text>
           </Box>

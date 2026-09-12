@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { filterPickerItems, PickerItem, visibleWindow } from "../../interaction/picker.js";
 import { MOUSE_SGR_PATTERN } from "../../interaction/mouse.js";
+import { useTheme } from "../ui/hooks/use-theme.js";
 import { OverlayFrame } from "./OverlayFrame.js";
 
 // Fixed columns so every row's detail (e.g. "Free"/"🔒 Subscription") lines
@@ -44,6 +45,7 @@ export function UniversalPicker({
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
   const [checked, setChecked] = useState<Set<string>>(() => new Set(initialSelected));
+  const theme = useTheme();
 
   const filtered = filterPickerItems(items, query);
   const clampedIndex = Math.min(index, Math.max(0, filtered.length - 1));
@@ -93,12 +95,12 @@ export function UniversalPicker({
   return (
     <OverlayFrame title={title} width={width} rows={rows}>
       <Text>
-        <Text color="green">{"> "}</Text>
+        <Text color={theme.colors.success}>{"> "}</Text>
         {query}
         <Text inverse> </Text>
-        {!query && placeholder && <Text color="gray">{placeholder}</Text>}
+        {!query && placeholder && <Text color={theme.colors.mutedForeground}>{placeholder}</Text>}
       </Text>
-      {aboveCount > 0 && <Text color="gray">{`▲ ${aboveCount} more above`}</Text>}
+      {aboveCount > 0 && <Text color={theme.colors.mutedForeground}>{`▲ ${aboveCount} more above`}</Text>}
       {visible.map((item, i) => {
         const absolute = start + i;
         const highlighted = absolute === clampedIndex;
@@ -109,23 +111,28 @@ export function UniversalPicker({
           : initialSelected.includes(item.id)
             ? "(•) "
             : "";
-        const bg = highlighted ? "magenta" : undefined;
+        const bg = highlighted ? theme.colors.selection : undefined;
         return (
           <Box key={item.id} height={1} width="100%" backgroundColor={bg}>
             <Box width={GLYPH_COL}>
-              <Text color={highlighted ? "white" : undefined} backgroundColor={bg}>
+              <Text color={highlighted ? theme.colors.selectionForeground : undefined} backgroundColor={bg}>
                 {glyph}
               </Text>
             </Box>
             <Box width={LABEL_COL}>
-              <Text bold={highlighted} color={highlighted ? "white" : undefined} backgroundColor={bg} wrap="truncate">
+              <Text
+                bold={highlighted}
+                color={highlighted ? theme.colors.selectionForeground : undefined}
+                backgroundColor={bg}
+                wrap="truncate"
+              >
                 {item.label}
               </Text>
             </Box>
             {item.detail ? (
               <Box>
                 <Text
-                  color={highlighted ? "white" : "gray"}
+                  color={highlighted ? theme.colors.selectionForeground : theme.colors.mutedForeground}
                   dimColor={!highlighted}
                   backgroundColor={bg}
                   wrap="truncate"
@@ -137,9 +144,11 @@ export function UniversalPicker({
           </Box>
         );
       })}
-      {belowCount > 0 && <Text color="gray">{`▼ ${belowCount} more below`}</Text>}
-      {filtered.length === 0 && <Text color="gray">{emptyText}</Text>}
-      <Text color="gray">{multi ? "Space Toggle  Enter Confirm" : "↑/↓ Navigate  Enter Select"}</Text>
+      {belowCount > 0 && <Text color={theme.colors.mutedForeground}>{`▼ ${belowCount} more below`}</Text>}
+      {filtered.length === 0 && <Text color={theme.colors.mutedForeground}>{emptyText}</Text>}
+      <Text color={theme.colors.mutedForeground}>
+        {multi ? "Space Toggle  Enter Confirm" : "↑/↓ Navigate  Enter Select"}
+      </Text>
     </OverlayFrame>
   );
 }

@@ -1,13 +1,13 @@
 import * as React from "react";
 
-import { defaultTheme } from "../lib/terminal-themes/default.js";
+import { getTheme } from "../theme-registry.js";
 import type { Theme, ThemeContextValue } from "../types.js";
 
 export const ThemeContext = React.createContext<ThemeContextValue>({
   setTheme: () => {
     // The default context keeps useTheme provider-optional.
   },
-  theme: defaultTheme,
+  theme: getTheme("default"),
 });
 
 export const useTheme = (): Theme => React.useContext(ThemeContext).theme;

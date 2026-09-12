@@ -84,7 +84,8 @@ async function fetchJson(name) {
 
 /**
  * Rewrite `@/...` registry imports into Node16 relative imports with .js
- * extensions, relative to the importing file's output location.
+ * extensions, relative to the importing file's output location. Relative
+ * registry-internal imports (e.g. `./spinner`) gain their `.js` too.
  */
 function rewriteImports(content, outFile) {
   // JSX appears after an opening paren, assignment, comma, arrow, or return —
@@ -94,7 +95,14 @@ function rewriteImports(content, outFile) {
   const hasReactImport =
     /^import\s+\*\s+as\s+React\b/m.test(content) || /^import\s+React\b/m.test(content) || /^import\s+type\s+React\b/m.test(content) || /^import\s+\{[^}]*\bdefault\b[^}]*\}\s+from\s+["']react["']/m.test(content);
 
-  let rewritten = content.replace(/(["'])@\/([^"']+)\1/g, (full, quote, spec) => {
+  let rewritten = content.replace(/(["'])(\.{1,2}\/[^"']*)\1/g, (full, quote, spec) => {
+    // Relative import inside the registry tree: keep it relative to the same
+    // output directory, ensure the .js extension Node16 requires.
+    if (/\.(js|json|css)$/.test(spec)) return full;
+    return `${quote}${spec}.js${quote}`;
+  });
+
+  rewritten = rewritten.replace(/(["'])@\/([^"']+)\1/g, (full, quote, spec) => {
     let mapped;
     if (spec.startsWith("components/ui/")) mapped = spec.slice("components/ui/".length);
     else mapped = spec;
@@ -110,7 +118,48 @@ function rewriteImports(content, outFile) {
   if (usesJsx && !hasReactImport) {
     rewritten = `import React from "react";\n${rewritten}`;
   }
+  rewritten = applyNexumPatches(rewritten, mapTargetRelativeToUi(outFile));
   return rewritten;
+}
+
+/** Path of outFile relative to src/tui/ui/ (for targeted patches). */
+function mapTargetRelativeToUi(outFile) {
+  const norm = outFile.replaceAll("\\", "/");
+  const idx = norm.indexOf("src/tui/ui/");
+  return idx === -1 ? "" : norm.slice(idx + "src/tui/ui/".length);
+}
+
+/**
+ * Nexum-specific adaptations applied on every (re)vendor so manual fixes
+ * never get clobbered by a later run pulling the same registry entry:
+ *
+ *  1. use-theme falls back to the Nexum default palette (registry) rather
+ *     than termcn's hex default, so provider-less renders match the app.
+ *  2. use-unicode's browser `typeof window` probe doesn't typecheck under
+ *     Nexum's no-DOM lib; `typeof process === "undefined"` is equivalent.
+ */
+function applyNexumPatches(content, relTarget) {
+  if (relTarget === "hooks/use-theme.ts") {
+    content = content
+      .replace(
+        /import \{ defaultTheme \} from "[^"]*terminal-themes\/default\.js";/,
+        `import { getTheme } from "../theme-registry.js";`,
+      )
+      .replace("theme: defaultTheme,", `theme: getTheme("default"),`);
+  }
+  if (relTarget === "hooks/use-unicode.ts") {
+    content = content.replace(
+      'if (typeof window !== "undefined") {',
+      'if (typeof process === "undefined") {',
+    );
+  }
+  if (relTarget === "hooks/use-interaction.tsx") {
+    // TS function overloads trip eslint's base no-redeclare rule.
+    if (!content.startsWith("/* eslint-disable")) {
+      content = `/* eslint-disable no-redeclare -- TS function overloads */\n${content}`;
+    }
+  }
+  return content;
 }
 
 /** Report bare imports outside the allowlist so surprises surface immediately. */

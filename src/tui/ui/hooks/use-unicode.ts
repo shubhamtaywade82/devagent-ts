@@ -6,8 +6,6 @@ const getEnv = (name: string): string | undefined =>
   typeof process !== "undefined" && process.env ? process.env[name] : undefined;
 
 const detectUnicodeSupport = (): boolean => {
-  // Nexum runs under Node (no DOM lib); a browser/bundler runtime simply
-  // has no `process`, and those always render unicode glyphs.
   if (typeof process === "undefined") {
     return true;
   }

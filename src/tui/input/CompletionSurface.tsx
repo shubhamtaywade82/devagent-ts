@@ -4,6 +4,7 @@ import { CompletionItem } from "../../interaction/completion.js";
 import { visibleWindow } from "../../interaction/picker.js";
 import { MAX_COMPLETION_ROWS } from "../../layout/density.js";
 import { CompletionRow } from "./CompletionRow.js";
+import { useTheme } from "../ui/hooks/use-theme.js";
 
 export interface CompletionSurfaceProps {
   items: CompletionItem[];
@@ -29,6 +30,7 @@ export function CompletionSurface({
   maxVisible = MAX_COMPLETION_ROWS,
 }: CompletionSurfaceProps): React.JSX.Element | null {
   if (items.length === 0) return null;
+  const theme = useTheme();
 
   const clamped = Math.max(0, Math.min(selectedIndex, items.length - 1));
   const { start, items: visible } = visibleWindow(items, clamped, maxVisible);
@@ -43,13 +45,13 @@ export function CompletionSurface({
       })}
       {showCounter && (
         <Box justifyContent="flex-end" width={width}>
-          <Text color="gray" dimColor>
+          <Text color={theme.colors.mutedForeground} dimColor>
             {`${clamped + 1} / ${items.length}`}
           </Text>
         </Box>
       )}
       <Box height={1}>
-        <Text color="gray" dimColor>
+        <Text color={theme.colors.mutedForeground} dimColor>
           ↑↓ navigate → select tab complete esc close ctrl+c cancel
         </Text>
       </Box>
