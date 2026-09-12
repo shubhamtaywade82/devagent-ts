@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 const MOCK_TREE = [
   { name: "src/", depth: 0, type: "dir" },
@@ -20,7 +21,7 @@ export function FileExplorerView({ rows }: ViewProps): React.JSX.Element {
     <Box flexDirection="column" height={rows}>
       <Box height={1} marginBottom={1}>
         <Text bold>Project Files</Text>
-        <Text color="gray"> (Ctrl+F to search)</Text>
+        <Text color={themeColors().mutedForeground}> (Ctrl+F to search)</Text>
       </Box>
       {MOCK_TREE.slice(0, rows - 1).map((item, i) => (
         <Box key={i} height={1} marginLeft={item.depth * 2}>

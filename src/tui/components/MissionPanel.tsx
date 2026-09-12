@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import { MISSION_PHASE_LABELS, MissionState } from "../../runtime/types.js";
 import { STEP_GLYPH, glyphForStepStatus } from "../../layout/step-glyphs.js";
 import { tail, truncate } from "../../layout/truncate.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 export interface MissionPanelProps {
   mission: MissionState;
@@ -31,10 +32,10 @@ export function MissionPanel({ mission, width, rows, now = Date.now() }: Mission
     // this compact form (see its missionOuter math).
     return (
       <Box flexDirection="column" width={width} height={rows} justifyContent="center" alignItems="center">
-        <Text color="gray" dimColor>
+        <Text color={themeColors().mutedForeground} dimColor>
           No active mission
         </Text>
-        <Text color="gray" dimColor>
+        <Text color={themeColors().mutedForeground} dimColor>
           Start one with /plan {"<goal>"}
         </Text>
       </Box>
@@ -58,11 +59,11 @@ export function MissionPanel({ mission, width, rows, now = Date.now() }: Mission
   return (
     <Box flexDirection="column" width={width} height={rows}>
       <Box height={1}>
-        <Text wrap="truncate" color="cyan">
+        <Text wrap="truncate" color={themeColors().info}>
           {truncate(mission.goal, width - (totalElapsed ? totalElapsed.length + 1 : 0))}
         </Text>
         {totalElapsed && (
-          <Text color="gray" dimColor>
+          <Text color={themeColors().mutedForeground} dimColor>
             {" "}
             {totalElapsed}
           </Text>
@@ -80,7 +81,7 @@ export function MissionPanel({ mission, width, rows, now = Date.now() }: Mission
             {duration && (
               <>
                 <Text>{" ".repeat(gap)}</Text>
-                <Text color="gray" dimColor>
+                <Text color={themeColors().mutedForeground} dimColor>
                   {duration}
                 </Text>
               </>
@@ -93,7 +94,7 @@ export function MissionPanel({ mission, width, rows, now = Date.now() }: Mission
           const g = glyphForStepStatus(step.status);
           return (
             <Box key={step.id} height={1} paddingLeft={3}>
-              <Text color="gray" dimColor>
+              <Text color={themeColors().mutedForeground} dimColor>
                 {"── "}
               </Text>
               <Text color={g.color}>{`${g.glyph} `}</Text>

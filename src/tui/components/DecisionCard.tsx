@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { CollapsibleSection } from "./CollapsibleSection.js";
 import { ChatEntry } from "../../runtime/types.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 interface DecisionCardProps {
   entry: ChatEntry;
@@ -20,12 +21,12 @@ export function DecisionCard({ entry, collapsed, onToggle, width }: DecisionCard
         <Box height={1}>
           <Text>
             <Text bold>Selected: </Text>
-            <Text color="green">{selected}</Text>
+            <Text color={themeColors().success}>{selected}</Text>
           </Text>
         </Box>
         {options.length > 0 && (
           <Box height={1}>
-            <Text color="gray">Options: {options.join(", ")}</Text>
+            <Text color={themeColors().mutedForeground}>Options: {options.join(", ")}</Text>
           </Box>
         )}
         {reason && (

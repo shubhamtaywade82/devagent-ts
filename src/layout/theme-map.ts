@@ -25,6 +25,17 @@ interface SemanticPalette {
   muted: string;
   border: string;
   focusBorder: string;
+  // Token aliases onto the same values — lets call sites speak either the
+  // legacy health vocabulary or the ink-ui token vocabulary.
+  primary: string;
+  success: string;
+  warning: string;
+  info: string;
+  accent: string;
+  foreground: string;
+  mutedForeground: string;
+  selection: string;
+  selectionForeground: string;
 }
 
 /** Project the full Theme token set onto the legacy 8-slot semantic palette. */
@@ -38,6 +49,15 @@ function paletteFor(theme: Theme): SemanticPalette {
     muted: theme.colors.mutedForeground,
     border: theme.colors.border,
     focusBorder: theme.border.focusColor,
+    primary: theme.colors.primary,
+    success: theme.colors.success,
+    warning: theme.colors.warning,
+    info: theme.colors.info,
+    accent: theme.colors.accent,
+    foreground: theme.colors.foreground,
+    mutedForeground: theme.colors.mutedForeground,
+    selection: theme.colors.selection,
+    selectionForeground: theme.colors.selectionForeground,
   };
 }
 

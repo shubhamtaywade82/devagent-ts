@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { Box, Text } from "ink";
 import { ChatEntry } from "../../runtime/types.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 export interface PinnedDiffPanelProps {
   conversation: ChatEntry[];
@@ -43,11 +44,11 @@ export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDi
           <Text bold>
             {paths.size} file{paths.size === 1 ? "" : "s"} changed
           </Text>
-          <Text color="gray"> · </Text>
-          <Text color="green">+{additions}</Text>
+          <Text color={themeColors().mutedForeground}> · </Text>
+          <Text color={themeColors().success}>+{additions}</Text>
           <Text> </Text>
-          <Text color="red">−{deletions}</Text>
-          <Text color="gray"> · Ctrl+D open diff</Text>
+          <Text color={themeColors().error}>−{deletions}</Text>
+          <Text color={themeColors().mutedForeground}> · Ctrl+D open diff</Text>
         </Text>
       </Box>
     );
@@ -56,7 +57,7 @@ export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDi
   if (!entry) {
     return (
       <Box flexDirection="column" width={width} height={rows} justifyContent="center">
-        <Text color="gray" dimColor>
+        <Text color={themeColors().mutedForeground} dimColor>
           No changes yet
         </Text>
       </Box>
@@ -76,8 +77,8 @@ export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDi
           {entry.filePath}
         </Text>
         <Text>{" ".repeat(gap)}</Text>
-        <Text color="green">+{additions} </Text>
-        <Text color="red">-{deletions}</Text>
+        <Text color={themeColors().success}>+{additions} </Text>
+        <Text color={themeColors().error}>-{deletions}</Text>
       </Box>
       {diffLines.map((line, i) => {
         let color = "white";
@@ -93,7 +94,7 @@ export function PinnedDiffPanel({ conversation, width, rows, summary }: PinnedDi
         );
       })}
       <Box justifyContent="flex-end" width={width}>
-        <Text color="gray" dimColor>
+        <Text color={themeColors().mutedForeground} dimColor>
           1/1
         </Text>
       </Box>

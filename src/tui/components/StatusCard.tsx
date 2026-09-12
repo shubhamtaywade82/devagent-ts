@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import { CollapsibleSection } from "./CollapsibleSection.js";
 import { StatusChip } from "./StatusChip.js";
 import { ChatEntry } from "../../runtime/types.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 interface StatusCardProps {
   entry: ChatEntry;
@@ -36,7 +37,7 @@ export function StatusCard({ entry, collapsed, onToggle, width }: StatusCardProp
                 {item.label}
               </Text>
               {item.detail && (
-                <Text color="gray" wrap="truncate">
+                <Text color={themeColors().mutedForeground} wrap="truncate">
                   {"  "}
                   {item.detail}
                 </Text>

@@ -2,6 +2,9 @@ import React from "react";
 import { Box, Text } from "ink";
 import { ChatEntry, RuntimeState } from "../../runtime/types.js";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../../layout/theme-map.js";
+import { Gauge } from "../ui/gauge.js";
+import { TokenUsage } from "../ui/token-usage.js";
 
 interface ContextBreakdown {
   conversationChars: number;
@@ -58,7 +61,13 @@ export function ContextInspectorView({ state, width, rows }: ViewProps): React.J
   const hasLimit = model.contextLimit > 0;
   const contextPercent = hasLimit ? Math.round((model.contextUsed / model.contextLimit) * 100) : null;
   const contextColor =
-    contextPercent === null ? "gray" : contextPercent > 80 ? "red" : contextPercent > 60 ? "yellow" : "green";
+    contextPercent === null
+      ? themeColors().mutedForeground
+      : contextPercent > 80
+        ? themeColors().error
+        : contextPercent > 60
+          ? themeColors().warning
+          : themeColors().success;
   const breakdown = estimateContextBreakdown(state);
 
   return (
@@ -74,23 +83,41 @@ export function ContextInspectorView({ state, width, rows }: ViewProps): React.J
         <Text>
           <Text>Used: </Text>
           <Text color={contextColor}>{model.contextUsed.toLocaleString()}</Text>
-          <Text color="gray"> / {hasLimit ? model.contextLimit.toLocaleString() : "unknown"}</Text>
-        </Text>
-      </Box>
-      <Box height={1} marginLeft={2}>
-        <Text>
-          <Text>Usage: </Text>
-          <Text color={contextColor}>
-            {contextPercent === null ? "no known context window for this model" : `${contextPercent}%`}
+          <Text color={themeColors().mutedForeground}>
+            {" "}
+            / {hasLimit ? model.contextLimit.toLocaleString() : "unknown"}
           </Text>
         </Text>
       </Box>
       <Box height={1} marginLeft={2}>
+        {contextPercent === null ? (
+          <Text>
+            <Text>Usage: </Text>
+            <Text color={contextColor}>no known context window for this model</Text>
+          </Text>
+        ) : (
+          <Box>
+            <Text>Usage: </Text>
+            <Gauge value={model.contextUsed} max={model.contextLimit} size="sm" color={contextColor} />
+          </Box>
+        )}
+      </Box>
+      <Box height={1} marginLeft={2}>
         <Text>
           <Text>Speed: </Text>
-          <Text color="gray">{model.tokensPerSecond.toFixed(1)} tok/s</Text>
-          {model.latencyMs > 0 && <Text color="gray"> Latency: {model.latencyMs}ms</Text>}
+          <Text color={themeColors().mutedForeground}>{model.tokensPerSecond.toFixed(1)} tok/s</Text>
+          {model.latencyMs > 0 && <Text color={themeColors().mutedForeground}> Latency: {model.latencyMs}ms</Text>}
         </Text>
+      </Box>
+      <Box height={1} marginLeft={2}>
+        <Box>
+          <Text>Tokens: </Text>
+          <TokenUsage
+            prompt={state.usage.totalPromptTokens}
+            completion={state.usage.totalCompletionTokens}
+            model={model.name}
+          />
+        </Box>
       </Box>
 
       {breakdown.totalChars > 0 && (
@@ -99,14 +126,14 @@ export function ContextInspectorView({ state, width, rows }: ViewProps): React.J
             <Text bold>Breakdown (estimated split)</Text>
           </Box>
           <Box height={1} marginLeft={2}>
-            <Text color="gray">
+            <Text color={themeColors().mutedForeground}>
               Conversation {pct(breakdown.conversationChars, breakdown.totalChars)}% Tool calls{" "}
               {pct(breakdown.toolChars, breakdown.totalChars)}% Other {pct(breakdown.otherChars, breakdown.totalChars)}%
             </Text>
           </Box>
           {breakdown.totalChars > 2000 && breakdown.toolChars / breakdown.totalChars > 0.4 && (
             <Box height={1} marginLeft={2}>
-              <Text color="yellow">
+              <Text color={themeColors().warning}>
                 ⚠ Tool-call output is over 40% of this conversation — try /reset to compact it.
               </Text>
             </Box>
@@ -122,8 +149,8 @@ export function ContextInspectorView({ state, width, rows }: ViewProps): React.J
           {memory.slice(0, rows - 8).map((item, i) => (
             <Box key={i} height={1} marginLeft={2}>
               <Text>
-                <Text color="cyan">{item.kind}</Text>
-                <Text color="gray"> {item.key}: </Text>
+                <Text color={themeColors().info}>{item.kind}</Text>
+                <Text color={themeColors().mutedForeground}> {item.key}: </Text>
                 <Text wrap="truncate">{item.value.slice(0, width - 20)}</Text>
               </Text>
             </Box>
@@ -137,7 +164,7 @@ export function ContextInspectorView({ state, width, rows }: ViewProps): React.J
             <Text bold>Execution Plan ({execution.steps.length} steps)</Text>
           </Box>
           <Box marginLeft={2}>
-            <Text color="gray" wrap="truncate">
+            <Text color={themeColors().mutedForeground} wrap="truncate">
               {execution.goal.slice(0, width - 10)}
             </Text>
           </Box>

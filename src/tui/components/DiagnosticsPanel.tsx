@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { LspServerState, RuntimeState } from "../../runtime/types.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 export interface DiagnosticsPanelProps {
   lspServers: LspServerState[];
@@ -51,7 +52,7 @@ export function DiagnosticsPanel({
   return (
     <Box flexDirection="column" width={width} height={rows}>
       <Row label="Errors" value={String(errors)} color={errors > 0 ? "red" : "green"} width={width} />
-      <Row label="Warnings" value="—" color="gray" width={width} />
+      <Row label="Warnings" value="—" color={themeColors().mutedForeground} width={width} />
       {lastTestResult ? (
         <Row
           label="Tests"
@@ -64,7 +65,7 @@ export function DiagnosticsPanel({
           width={width}
         />
       ) : (
-        <Row label="Tests" value="—" color="gray" width={width} />
+        <Row label="Tests" value="—" color={themeColors().mutedForeground} width={width} />
       )}
     </Box>
   );

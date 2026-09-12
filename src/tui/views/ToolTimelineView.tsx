@@ -1,6 +1,7 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 export function ToolTimelineView({ state, rows }: ViewProps): React.JSX.Element {
   const { toolCalls } = state;
@@ -10,7 +11,7 @@ export function ToolTimelineView({ state, rows }: ViewProps): React.JSX.Element 
   if (visible.length === 0) {
     return (
       <Box flexDirection="column" height={rows}>
-        <Text color="gray">No tool calls yet.</Text>
+        <Text color={themeColors().mutedForeground}>No tool calls yet.</Text>
       </Box>
     );
   }
@@ -18,7 +19,7 @@ export function ToolTimelineView({ state, rows }: ViewProps): React.JSX.Element 
   return (
     <Box flexDirection="column" height={rows}>
       <Box height={1} marginBottom={1}>
-        <Text bold color="magenta">
+        <Text bold color={themeColors().accent}>
           Tool Execution Timeline
         </Text>
       </Box>
@@ -44,8 +45,8 @@ export function ToolTimelineView({ state, rows }: ViewProps): React.JSX.Element 
         return (
           <Box key={call.id} height={1}>
             <Text>
-              <Text color="gray">[{timeStr}] </Text>
-              <Text color="cyan">{connector} </Text>
+              <Text color={themeColors().mutedForeground}>[{timeStr}] </Text>
+              <Text color={themeColors().info}>{connector} </Text>
               <Text bold color={call.status === "failed" ? "red" : call.status === "running" ? "yellow" : "green"}>
                 {call.name}
               </Text>

@@ -3,6 +3,7 @@ import { Box, Text } from "ink";
 import { MemoryItem } from "../../runtime/types.js";
 import { tail, truncate, wrapText } from "../../layout/truncate.js";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 const KIND_LABEL: Record<MemoryItem["kind"], string> = {
   repo: "repo",
@@ -20,22 +21,22 @@ export function MemoryView({ state, width, rows }: ViewProps): React.JSX.Element
   if (summaryLines.length === 0 && items.length === 0) {
     return (
       <Box height={rows}>
-        <Text color="gray">No memory yet — knowledge accumulates as the agent works.</Text>
+        <Text color={themeColors().mutedForeground}>No memory yet — knowledge accumulates as the agent works.</Text>
       </Box>
     );
   }
   return (
     <Box flexDirection="column" height={rows}>
       {summaryLines.slice(0, summaryRows).map((line, i) => (
-        <Text key={`s${i}`} wrap="truncate" color="magenta">
+        <Text key={`s${i}`} wrap="truncate" color={themeColors().accent}>
           {line}
         </Text>
       ))}
       {items.map((item) => (
         <Text key={item.key} wrap="truncate">
-          <Text color="yellow">{`[${KIND_LABEL[item.kind]}] `}</Text>
-          <Text color="blue">{item.key}</Text>
-          <Text color="gray">{" — "}</Text>
+          <Text color={themeColors().warning}>{`[${KIND_LABEL[item.kind]}] `}</Text>
+          <Text color={themeColors().primary}>{item.key}</Text>
+          <Text color={themeColors().mutedForeground}>{" — "}</Text>
           <Text>{truncate(item.value.replace(/\n/g, " "), Math.max(10, width - item.key.length - 12))}</Text>
         </Text>
       ))}

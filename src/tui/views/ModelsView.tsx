@@ -1,11 +1,12 @@
 import React from "react";
 import { Box, Text } from "ink";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 function row(label: string, value: React.ReactNode): React.JSX.Element {
   return (
     <Text key={label} wrap="truncate">
-      <Text color="gray">{label.padEnd(14)}</Text>
+      <Text color={themeColors().mutedForeground}>{label.padEnd(14)}</Text>
       {value}
     </Text>
   );
@@ -18,8 +19,15 @@ export function ModelsView({ state, rows }: ViewProps): React.JSX.Element {
   return (
     <Box flexDirection="column" height={rows}>
       {row("Provider", <Text>{model.provider}</Text>)}
-      {row("Model", <Text color="blue">{model.name || "-"}</Text>)}
-      {row("Stream", model.streaming ? <Text color="magenta">streaming ▶</Text> : <Text color="green">idle</Text>)}
+      {row("Model", <Text color={themeColors().primary}>{model.name || "-"}</Text>)}
+      {row(
+        "Stream",
+        model.streaming ? (
+          <Text color={themeColors().accent}>streaming ▶</Text>
+        ) : (
+          <Text color={themeColors().success}>idle</Text>
+        ),
+      )}
       {row("Tokens/sec", <Text>{model.tokensPerSecond > 0 ? Math.round(model.tokensPerSecond) : "-"}</Text>)}
       {row("Latency", <Text>{model.latencyMs > 0 ? `${model.latencyMs}ms` : "-"}</Text>)}
       {row(

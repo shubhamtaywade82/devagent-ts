@@ -2,6 +2,7 @@ import React from "react";
 import { Box, Text } from "ink";
 import { tail, truncate } from "../../layout/truncate.js";
 import { ViewProps } from "./ConversationView.js";
+import { themeColors } from "../../layout/theme-map.js";
 
 /** MCP: connected servers, latency, errors, exposed tools. */
 export function McpView({ state, width, rows, detail }: ViewProps): React.JSX.Element {
@@ -9,7 +10,7 @@ export function McpView({ state, width, rows, detail }: ViewProps): React.JSX.El
   if (servers.length === 0) {
     return (
       <Box height={rows}>
-        <Text color="gray">No MCP servers configured.</Text>
+        <Text color={themeColors().mutedForeground}>No MCP servers configured.</Text>
       </Box>
     );
   }
@@ -19,10 +20,12 @@ export function McpView({ state, width, rows, detail }: ViewProps): React.JSX.El
         <Text key={server.name} wrap="truncate">
           <Text color={server.connected ? "green" : "red"}>{server.connected ? " ● " : " ○ "}</Text>
           <Text bold>{server.name}</Text>
-          <Text color="gray">{`  ${server.latencyMs}ms`}</Text>
-          {server.errors > 0 && <Text color="red">{`  ${server.errors} errors`}</Text>}
+          <Text color={themeColors().mutedForeground}>{`  ${server.latencyMs}ms`}</Text>
+          {server.errors > 0 && <Text color={themeColors().error}>{`  ${server.errors} errors`}</Text>}
           {detail !== "compact" && server.tools.length > 0 && (
-            <Text color="gray">{`  ${truncate(server.tools.join(", "), Math.max(10, width - server.name.length - 20))}`}</Text>
+            <Text
+              color={themeColors().mutedForeground}
+            >{`  ${truncate(server.tools.join(", "), Math.max(10, width - server.name.length - 20))}`}</Text>
           )}
         </Text>
       ))}
