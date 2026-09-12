@@ -19,8 +19,11 @@ export interface ModelCapabilities {
   reasoning: number;
   coding: number;
   vision: number;
-  toolCalling: boolean;
-  structuredOutput: boolean;
+  /** 0..1 score (-1 unknown) — evolved from a boolean so scored routing
+   *  (review item 17) can rank models by tool-calling fit. */
+  toolCalling: number;
+  /** 0..1 score (-1 unknown) — structured-output fit. */
+  structuredOutput: number;
   streaming: boolean;
 }
 
@@ -76,8 +79,8 @@ export function profileFromLegacy(info: ModelInfo, provider = "ollama"): ModelPr
       reasoning: scoreFor(info.capabilities, "reasoning"),
       coding: scoreFor(info.capabilities, "coding"),
       vision: scoreFor(info.capabilities, "vision"),
-      toolCalling: info.capabilities.includes("tools"),
-      structuredOutput: false,
+      toolCalling: scoreFor(info.capabilities, "tools"),
+      structuredOutput: scoreFor(info.capabilities, "tools") > 0 ? 0.5 : 0,
       streaming: true,
     },
     constraints: defaultConstraints({ latencyClass: info.capabilities.includes("quick") ? "fast" : "unknown" }),

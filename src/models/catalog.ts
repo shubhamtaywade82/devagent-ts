@@ -1,4 +1,5 @@
 import { Provider, Tier } from "./adapters/provider.js";
+import { loadModelPreferences } from "./catalog-data.js";
 import type { ModelAvailabilityChecker } from "./router/availability.js";
 
 export type Capability = "coding" | "vision" | "reasoning" | "quick" | "tools" | "agentic";
@@ -96,13 +97,14 @@ function namesFromCloudModels(data: unknown): string[] {
 
 // Ordered preference lists per capability — first-matching substring wins.
 // Applied as a secondary sort after local-first tier ordering.
-const CURATED_PREFERENCES: Partial<Record<Capability, string[]>> = {
-  reasoning: ["qwq", "llama3.3:70b", "hermes3:70b", "qwen3:8b", "qwen3"],
-  coding: ["qwen2.5-coder:32b", "qwen2.5-coder:7b", "llama3.3", "qwen3.5", "granite4"],
-  agentic: ["hermes3:70b", "llama3.3:70b", "qwq", "qwen3:8b", "llama3.1:70b"],
-  tools: ["granite4", "llama3.1:8b", "qwen2.5:7b", "hermes3:8b"],
-  quick: ["minicpm5", "llama3.2:3b", "qwen2.5:0.5b", "llama3.2:1b"],
-};
+/*
+ * Curated preferences are CONFIGURATION now (review item 35): shipped
+ * defaults in models/catalog-data.ts, overridable via env
+ * (NEXUM_MODEL_PREFS_<CAPABILITY>) or a JSON file. The catalog consumes
+ * the loaded table; scored routing (models/router/scored-router.ts) owns
+ * primary selection.
+ */
+const CURATED_PREFERENCES: Partial<Record<Capability, string[]>> = loadModelPreferences();
 
 export class ModelCatalog {
   private models: ModelInfo[] = [];

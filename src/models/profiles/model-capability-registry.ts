@@ -61,7 +61,8 @@ export class ModelCapabilityRegistry {
     const minScore = query.minScore ?? 0;
     let result = this.all().filter((p) => {
       if (query.tier && p.tier !== query.tier) return false;
-      if (query.toolCalling && !p.capabilities.toolCalling) return false;
+      if (query.toolCalling === true && p.capabilities.toolCalling <= 0) return false;
+      if (query.toolCalling === false && p.capabilities.toolCalling > 0) return false;
       if (
         query.maxLatencyClass &&
         LATENCY_ORDER[p.constraints.latencyClass as keyof typeof LATENCY_ORDER] > LATENCY_ORDER[query.maxLatencyClass]

@@ -24,7 +24,7 @@ describe("ModelCapabilityRegistry", () => {
     expect(registry.size()).toBe(4);
     const profile = registry.get("qwq")!;
     expect(profile.tier).toBe("local");
-    expect(profile.capabilities.toolCalling).toBe(true);
+    expect(profile.capabilities.toolCalling).toBeGreaterThan(0); // scored 0..1 (review item 17)
     expect(profile.capabilities.reasoning).toBe(1);
     expect(profile.capabilities.vision).toBe(0);
     expect(profile.legacyCapabilities).toContain("reasoning");
@@ -54,8 +54,8 @@ describe("ModelCapabilityRegistry", () => {
         reasoning: 1,
         coding: 1,
         vision: 0,
-        toolCalling: true,
-        structuredOutput: true,
+        toolCalling: 1,
+        structuredOutput: 1,
         streaming: true,
       },
       constraints: defaultConstraints(),

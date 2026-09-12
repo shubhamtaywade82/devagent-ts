@@ -89,6 +89,10 @@ export function modelGatewayFromChatClient(chat: EngineeringChatClient): ModelGa
       return chat.chat(messages, { tools: opts?.tools });
     },
     profiles: () => new ModelCapabilityRegistry(),
+    // scored selection is a transport-agnostic view; the evolution plane
+    // pins its model, so selection returns the pinned "no alternatives"
+    // result rather than consulting a registry.
+    select: () => [],
   };
 }
 
