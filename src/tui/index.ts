@@ -110,6 +110,7 @@ const cfg = loadConfig();
       model: cfg.model,
       provider: cfg.tier,
       pricing: cfg.pricing,
+      theme: cfg.theme,
     }),
   );
   store.attach(bus);

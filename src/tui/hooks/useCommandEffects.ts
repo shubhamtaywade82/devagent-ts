@@ -11,6 +11,7 @@ import { EvolutionEngine } from "../../evolution/engine.js";
 import { HarnessRegistry } from "../../evolution/registry.js";
 import { formatDiagnosesText, formatHistory, loadRecentEpisodes } from "../../evolution/cli.js";
 import type { AgentMode } from "../../runtime/types.js";
+import { THEME_ORDER } from "../../runtime/types.js";
 import type { ShellAgent } from "../App.js";
 
 /**
@@ -158,8 +159,7 @@ export function useCommandEffects(
           bus.publish({ type: "notification", kind: "info", text: `Theme: ${effect.theme}` });
           break;
         case "next-theme": {
-          const order = ["default", "midnight", "solarized"] as const;
-          const next = order[(order.indexOf(store.getState().theme) + 1) % order.length];
+          const next = THEME_ORDER[(THEME_ORDER.indexOf(store.getState().theme) + 1) % THEME_ORDER.length];
           bus.publish({ type: "theme.changed", theme: next });
           bus.publish({ type: "notification", kind: "info", text: `Theme: ${next}` });
           break;

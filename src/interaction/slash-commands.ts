@@ -3,7 +3,7 @@
  * discoverable by prefix for autocomplete and executed by the prompt.
  */
 
-import { ViewId } from "../runtime/types.js";
+import { THEME_ORDER, ThemeName, ViewId } from "../runtime/types.js";
 import { OverlayId } from "./ui-state.js";
 
 /** Effects a command can request; the shell interprets them. */
@@ -19,7 +19,7 @@ export type CommandEffect =
   | { kind: "resume-session" }
   | { kind: "resume-session-by-id"; id: string }
   | { kind: "show-tool-info"; name: string }
-  | { kind: "set-theme"; theme: "default" | "midnight" | "solarized" }
+  | { kind: "set-theme"; theme: ThemeName }
   | { kind: "next-theme" }
   | { kind: "toggle-sidebar" }
   | { kind: "run-plan"; goal: string }
@@ -162,18 +162,17 @@ export function builtinCommands(): SlashCommandRegistry {
   registry.register({
     name: "theme",
     aliases: [],
-    description: "Switch color theme: /theme [default|midnight|solarized]",
+    description: `Switch color theme: /theme [${THEME_ORDER.slice(0, 4).join("|")}|…] (${THEME_ORDER.length} built-ins)`,
     category: "Theme",
     execute: (args) => {
-      const valid = ["default", "midnight", "solarized"] as const;
       const t = args.trim().toLowerCase();
       if (!t) return { kind: "next-theme" };
-      if (!(valid as readonly string[]).includes(t)) {
-        return { kind: "error", text: "Usage: /theme [default|midnight|solarized]" };
+      if (!(THEME_ORDER as readonly string[]).includes(t)) {
+        return { kind: "error", text: `Unknown theme "${t}". Available: ${THEME_ORDER.join(", ")}` };
       }
-      return { kind: "set-theme", theme: t as (typeof valid)[number] };
+      return { kind: "set-theme", theme: t as ThemeName };
     },
-    argValues: ["default", "midnight", "solarized"],
+    argValues: [...THEME_ORDER],
   });
   registry.register({
     name: "sidebar",

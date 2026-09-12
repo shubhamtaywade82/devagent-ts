@@ -52,6 +52,8 @@ import { ToolPaletteOverlay, ToolInfo } from "./overlays/ToolPaletteOverlay.js";
 import { Sidebar, ToolCategoryCount } from "./zones/Sidebar.js";
 import { SkillsRegistry } from "../skills/registry.js";
 import { useCommandEffects } from "./hooks/useCommandEffects.js";
+import { ThemeProvider } from "./ui/providers/theme-provider.js";
+import { getTheme } from "./ui/theme-registry.js";
 
 export interface ShellAgent {
   runUserMessage(message: string): Promise<unknown>;
@@ -721,6 +723,10 @@ export function App({
   });
 
   const ActiveView = VIEWS[ui.activeView];
+  // The runtime theme (state.theme, updated by "theme.changed" events) drives
+  // the termcn ThemeProvider; every vendored component and migrated view
+  // resolves its colors from this context via useTheme().
+  const activeTheme = useMemo(() => getTheme(state.theme), [state.theme]);
   const approval = state.approval;
   const showApproval = approval != null && (ui.overlay === null || ui.overlay === "diff");
   const clarification = state.clarification;
@@ -757,195 +763,197 @@ export function App({
     <Box flexDirection="column" width={width} height={height}>
       {sizeListener}
       <ErrorBoundary>
-        <Header state={state} width={width} now={now} />
-        <Box height={1}>
-          <Text color="gray" dimColor>
-            {"─".repeat(Math.max(0, width - 1))}
-          </Text>
-        </Box>
-        <ActivityStrip state={state} width={width} now={now} activeView={ui.activeView} />
-        <Box flexDirection="column" height={viewRows}>
-          {showViewTitle ? (
-            <Box height={1}>
-              <Text color="gray">{"─"}</Text>
-              <Text color="blue" bold>
-                {title}
-              </Text>
-              <Text color="gray" wrap="truncate">
-                {rule}
-              </Text>
-            </Box>
-          ) : (
-            <Box height={1}>
-              <Text color="gray" dimColor>
-                {"─".repeat(Math.max(0, width))}
-              </Text>
-            </Box>
-          )}
-          {showApproval ? (
-            <ApprovalOverlay request={approval} width={width} rows={contentRows} showDiff={ui.overlay === "diff"} />
-          ) : showClarification ? (
-            <ClarificationOverlay
-              request={clarification}
-              width={width}
-              rows={contentRows}
-              onSubmit={(response) => {
-                agent?.resolveClarification?.(response);
-                bus.publish({ type: "clarification.resolved", response });
-              }}
-              onCancel={() => {
-                const fallbackId = clarification.options[0]?.id ?? "cancel";
-                agent?.resolveClarification?.({ id: clarification.id, selectedId: fallbackId });
-                bus.publish({
-                  type: "clarification.resolved",
-                  response: { id: clarification.id, selectedId: fallbackId },
-                });
-              }}
-            />
-          ) : ui.overlay === "diff" ? (
-            <Box flexDirection="row" width={width} height={contentRows}>
-              <Box width={Math.floor((width - 1) / 2)} height={contentRows}>
-                <ConversationView
-                  state={state}
-                  width={Math.floor((width - 1) / 2)}
-                  rows={contentRows}
-                  detail={detail}
-                />
+        <ThemeProvider theme={activeTheme}>
+          <Header state={state} width={width} now={now} />
+          <Box height={1}>
+            <Text color="gray" dimColor>
+              {"─".repeat(Math.max(0, width - 1))}
+            </Text>
+          </Box>
+          <ActivityStrip state={state} width={width} now={now} activeView={ui.activeView} />
+          <Box flexDirection="column" height={viewRows}>
+            {showViewTitle ? (
+              <Box height={1}>
+                <Text color="gray">{"─"}</Text>
+                <Text color="blue" bold>
+                  {title}
+                </Text>
+                <Text color="gray" wrap="truncate">
+                  {rule}
+                </Text>
               </Box>
-              <VDivider rows={contentRows} />
-              <Box width={width - Math.floor((width - 1) / 2) - 1} height={contentRows}>
-                <PinnedDiffPanel
-                  conversation={state.conversation}
-                  width={width - Math.floor((width - 1) / 2) - 1}
-                  rows={contentRows}
-                />
+            ) : (
+              <Box height={1}>
+                <Text color="gray" dimColor>
+                  {"─".repeat(Math.max(0, width))}
+                </Text>
               </Box>
-            </Box>
-          ) : ui.overlay === "palette" ? (
-            <CommandPalette
-              registry={commandRegistry}
-              width={width}
-              rows={contentRows}
-              active={true}
-              onAction={(effect) => {
-                uiDispatch({ type: "close-overlay" });
-                applyEffect(effect);
-              }}
-            />
-          ) : ui.overlay === "help" ? (
-            <HelpOverlay width={width} rows={contentRows} />
-          ) : ui.overlay === "actors" ? (
-            <ActorsOverlay state={state} width={width} rows={contentRows} />
-          ) : ui.overlay === "model" ? (
-            <ModelSwitcher
-              current={state.model.name}
-              models={models}
-              availability={modelAvailability}
-              capabilities={modelCapabilities}
-              width={width}
-              rows={contentRows}
-              active={true}
-              onSelect={(model) => {
-                uiDispatch({ type: "close-overlay" });
-                applyEffect({ kind: "set-model", model });
-              }}
-            />
-          ) : ui.overlay === "search" ? (
-            <SearchEverywhere
-              state={state}
-              registry={commandRegistry}
-              width={width}
-              rows={contentRows}
-              active={true}
-              onSelect={(view) => {
-                uiDispatch({ type: "close-overlay" });
-                uiDispatch({ type: "focus-view", view });
-              }}
-            />
-          ) : ui.overlay === "mode" ? (
-            <ModeSwitcher
-              current={state.agentMode}
-              width={width}
-              rows={contentRows}
-              active={true}
-              onSelect={(mode) => {
-                uiDispatch({ type: "close-overlay" });
-                bus.publish({ type: "mode.agent", mode });
-                bus.publish({ type: "notification", kind: "info", text: `Mode: ${mode}` });
-              }}
-            />
-          ) : ui.overlay === "skills" ? (
-            <SkillsOverlay
-              skills={agent?.getSkillsRegistry?.().list() ?? []}
-              width={width}
-              rows={contentRows}
-              active={true}
-              onSelect={(id) => {
-                uiDispatch({ type: "close-overlay" });
-                applyEffect({ kind: "activate-skill", id });
-              }}
-            />
-          ) : ui.overlay === "sessions" ? (
-            <SessionHistory
-              sessions={agent?.listSessions?.() ?? []}
-              width={width}
-              rows={contentRows}
-              active={true}
-              onSelect={(id) => {
-                uiDispatch({ type: "close-overlay" });
-                applyEffect({ kind: "resume-session-by-id", id });
-              }}
-            />
-          ) : ui.overlay === "tools" ? (
-            <ToolPaletteOverlay
-              tools={agent?.getTools?.() ?? []}
-              width={width}
-              rows={contentRows}
-              active={true}
-              onSelect={(name) => {
-                uiDispatch({ type: "close-overlay" });
-                applyEffect({ kind: "show-tool-info", name });
-              }}
-            />
-          ) : showSidebar ? (
-            <Box flexDirection="row" width={width} height={contentRows}>
-              <Box width={activeViewWidth} height={contentRows}>
-                <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} now={now} />
-              </Box>
-              <Box flexDirection="column" width={1} height={contentRows}>
-                {Array.from({ length: contentRows }, (_, i) => (
-                  <Text key={i} color="gray" dimColor>
-                    │
-                  </Text>
-                ))}
-              </Box>
-              <Sidebar
-                state={state}
-                sessions={agent?.listSessions?.() ?? []}
-                toolCategories={toolCategoryCounts}
-                width={SIDEBAR_WIDTH}
+            )}
+            {showApproval ? (
+              <ApprovalOverlay request={approval} width={width} rows={contentRows} showDiff={ui.overlay === "diff"} />
+            ) : showClarification ? (
+              <ClarificationOverlay
+                request={clarification}
+                width={width}
                 rows={contentRows}
+                onSubmit={(response) => {
+                  agent?.resolveClarification?.(response);
+                  bus.publish({ type: "clarification.resolved", response });
+                }}
+                onCancel={() => {
+                  const fallbackId = clarification.options[0]?.id ?? "cancel";
+                  agent?.resolveClarification?.({ id: clarification.id, selectedId: fallbackId });
+                  bus.publish({
+                    type: "clarification.resolved",
+                    response: { id: clarification.id, selectedId: fallbackId },
+                  });
+                }}
               />
-            </Box>
-          ) : (
-            <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} now={now} />
+            ) : ui.overlay === "diff" ? (
+              <Box flexDirection="row" width={width} height={contentRows}>
+                <Box width={Math.floor((width - 1) / 2)} height={contentRows}>
+                  <ConversationView
+                    state={state}
+                    width={Math.floor((width - 1) / 2)}
+                    rows={contentRows}
+                    detail={detail}
+                  />
+                </Box>
+                <VDivider rows={contentRows} />
+                <Box width={width - Math.floor((width - 1) / 2) - 1} height={contentRows}>
+                  <PinnedDiffPanel
+                    conversation={state.conversation}
+                    width={width - Math.floor((width - 1) / 2) - 1}
+                    rows={contentRows}
+                  />
+                </Box>
+              </Box>
+            ) : ui.overlay === "palette" ? (
+              <CommandPalette
+                registry={commandRegistry}
+                width={width}
+                rows={contentRows}
+                active={true}
+                onAction={(effect) => {
+                  uiDispatch({ type: "close-overlay" });
+                  applyEffect(effect);
+                }}
+              />
+            ) : ui.overlay === "help" ? (
+              <HelpOverlay width={width} rows={contentRows} />
+            ) : ui.overlay === "actors" ? (
+              <ActorsOverlay state={state} width={width} rows={contentRows} />
+            ) : ui.overlay === "model" ? (
+              <ModelSwitcher
+                current={state.model.name}
+                models={models}
+                availability={modelAvailability}
+                capabilities={modelCapabilities}
+                width={width}
+                rows={contentRows}
+                active={true}
+                onSelect={(model) => {
+                  uiDispatch({ type: "close-overlay" });
+                  applyEffect({ kind: "set-model", model });
+                }}
+              />
+            ) : ui.overlay === "search" ? (
+              <SearchEverywhere
+                state={state}
+                registry={commandRegistry}
+                width={width}
+                rows={contentRows}
+                active={true}
+                onSelect={(view) => {
+                  uiDispatch({ type: "close-overlay" });
+                  uiDispatch({ type: "focus-view", view });
+                }}
+              />
+            ) : ui.overlay === "mode" ? (
+              <ModeSwitcher
+                current={state.agentMode}
+                width={width}
+                rows={contentRows}
+                active={true}
+                onSelect={(mode) => {
+                  uiDispatch({ type: "close-overlay" });
+                  bus.publish({ type: "mode.agent", mode });
+                  bus.publish({ type: "notification", kind: "info", text: `Mode: ${mode}` });
+                }}
+              />
+            ) : ui.overlay === "skills" ? (
+              <SkillsOverlay
+                skills={agent?.getSkillsRegistry?.().list() ?? []}
+                width={width}
+                rows={contentRows}
+                active={true}
+                onSelect={(id) => {
+                  uiDispatch({ type: "close-overlay" });
+                  applyEffect({ kind: "activate-skill", id });
+                }}
+              />
+            ) : ui.overlay === "sessions" ? (
+              <SessionHistory
+                sessions={agent?.listSessions?.() ?? []}
+                width={width}
+                rows={contentRows}
+                active={true}
+                onSelect={(id) => {
+                  uiDispatch({ type: "close-overlay" });
+                  applyEffect({ kind: "resume-session-by-id", id });
+                }}
+              />
+            ) : ui.overlay === "tools" ? (
+              <ToolPaletteOverlay
+                tools={agent?.getTools?.() ?? []}
+                width={width}
+                rows={contentRows}
+                active={true}
+                onSelect={(name) => {
+                  uiDispatch({ type: "close-overlay" });
+                  applyEffect({ kind: "show-tool-info", name });
+                }}
+              />
+            ) : showSidebar ? (
+              <Box flexDirection="row" width={width} height={contentRows}>
+                <Box width={activeViewWidth} height={contentRows}>
+                  <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} now={now} />
+                </Box>
+                <Box flexDirection="column" width={1} height={contentRows}>
+                  {Array.from({ length: contentRows }, (_, i) => (
+                    <Text key={i} color="gray" dimColor>
+                      │
+                    </Text>
+                  ))}
+                </Box>
+                <Sidebar
+                  state={state}
+                  sessions={agent?.listSessions?.() ?? []}
+                  toolCategories={toolCategoryCounts}
+                  width={SIDEBAR_WIDTH}
+                  rows={contentRows}
+                />
+              </Box>
+            ) : (
+              <ActiveView state={state} width={activeViewWidth} rows={contentRows} detail={detail} now={now} />
+            )}
+          </Box>
+          <Box height={1}>
+            <Text color="gray" dimColor>
+              {"─".repeat(Math.max(0, width - 1))}
+            </Text>
+          </Box>
+          {activeCompletion && (
+            <CompletionSurface items={completionItems} selectedIndex={completionIndex} width={width} />
           )}
-        </Box>
-        <Box height={1}>
-          <Text color="gray" dimColor>
-            {"─".repeat(Math.max(0, width - 1))}
-          </Text>
-        </Box>
-        {activeCompletion && (
-          <CompletionSurface items={completionItems} selectedIndex={completionIndex} width={width} />
-        )}
-        <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} focused={focused} />
-        <Box height={1}>
-          <Text color="gray" dimColor>
-            {"─".repeat(Math.max(0, width - 1))}
-          </Text>
-        </Box>
-        <ContextStrip state={state} width={width} activeView={ui.activeView} now={now} />
+          <PromptBar text={prompt} ghost={ghost} width={width} busy={busy} focused={focused} />
+          <Box height={1}>
+            <Text color="gray" dimColor>
+              {"─".repeat(Math.max(0, width - 1))}
+            </Text>
+          </Box>
+          <ContextStrip state={state} width={width} activeView={ui.activeView} now={now} />
+        </ThemeProvider>
       </ErrorBoundary>
     </Box>
   );

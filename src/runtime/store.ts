@@ -7,7 +7,7 @@
 
 import { EventBus, RuntimeEvent } from "./events.js";
 import { applyTaskTransition } from "./task-machine.js";
-import { ACTOR_IDS, ActorId, ActorState, ChatEntry, RuntimeState, Task, ToolCall } from "./types.js";
+import { ACTOR_IDS, ActorId, ActorState, ChatEntry, RuntimeState, Task, ThemeName, ToolCall } from "./types.js";
 import { createMissionState, deriveMissionPhases, missionCrumb } from "./mission-derive.js";
 
 /** Bounded buffer sizes so long sessions can't grow state without limit. */
@@ -53,6 +53,8 @@ export interface InitialStateOptions {
   provider?: string;
   contextLimit?: number;
   pricing?: { inputPerMillion: number; outputPerMillion: number };
+  /** Initial color theme (from config/env); defaults to "default". */
+  theme?: ThemeName;
 }
 
 export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeState {
@@ -107,7 +109,7 @@ export function initialRuntimeState(opts: InitialStateOptions = {}): RuntimeStat
     clarification: null,
     notifications: [],
     lastError: null,
-    theme: "default",
+    theme: opts.theme ?? "default",
     pricing: opts.pricing,
   };
 }
